@@ -41,7 +41,7 @@ export default function CTACommunity() {
           </form>
 
           <p className="relative mt-5 text-xs text-cp-text-dim">
-            ALREADY A CONTRIBUTOR?{" "}
+            ALREADY A HOST?{" "}
             <Link
               href={authRoutes.login}
               className="font-semibold text-cp-primary hover:text-cp-logo-accent hover:underline"

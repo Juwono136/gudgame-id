@@ -14,7 +14,7 @@ export type Permission =
 
 const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   player: [],
-  contributor: ["admin.content.moderate"],
+  host: ["admin.content.moderate"],
   super_admin: [
     "admin.console.access",
     "admin.users.manage",
@@ -42,8 +42,8 @@ export function canAccessAdminConsole(roles: AppRole[]): boolean {
   return roles.some((r) => MASTER_CONSOLE_ROLES.includes(r));
 }
 
-export function canAccessContributorWorkspace(roles: AppRole[]): boolean {
-  return roles.includes("contributor");
+export function canAccessHostWorkspace(roles: AppRole[]): boolean {
+  return roles.includes("host");
 }
 
 export function canManageUsers(roles: AppRole[]): boolean {

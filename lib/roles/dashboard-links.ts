@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import { ClipboardCheck, LayoutDashboard, Shield } from "lucide-react";
 import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
-import { canAccessContributorDashboard } from "@/lib/roles/route-access";
+import { canAccessHostDashboard } from "@/lib/roles/route-access";
 import type { AppRole } from "@/lib/roles/constants";
-import { getRoleLabel } from "@/lib/roles/constants";
+import { getRoleLabel, ROLE_DISPLAY_ORDER } from "@/lib/roles/constants";
 import { getPermissionsForRoles } from "@/lib/roles/permissions";
 
 export type RoleDashboardLink = {
@@ -22,10 +22,10 @@ const DASHBOARD_BY_ROLE: Record<AppRole, RoleDashboardLink | null> = {
     icon: LayoutDashboard,
     description: "Your profile, clubs, and tournaments",
   },
-  contributor: {
-    role: "contributor",
-    label: "Contributor Dashboard",
-    href: dashboardRoutes.contributor,
+  host: {
+    role: "host",
+    label: "Host Dashboard",
+    href: dashboardRoutes.host,
     icon: ClipboardCheck,
     description: "Edit wiki content on the public site",
   },
@@ -43,10 +43,9 @@ export function getDashboardLinksForRoles(roles: AppRole[]): RoleDashboardLink[]
   const seen = new Set<string>();
   const links: RoleDashboardLink[] = [];
 
-  const order: AppRole[] = ["super_admin", "contributor", "player"];
-  for (const role of order) {
+  for (const role of ROLE_DISPLAY_ORDER) {
     if (!roles.includes(role)) continue;
-    if (role === "contributor" && !canAccessContributorDashboard(roles)) {
+    if (role === "host" && !canAccessHostDashboard(roles)) {
       continue;
     }
     const link = DASHBOARD_BY_ROLE[role];

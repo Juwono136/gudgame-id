@@ -2,11 +2,7 @@
  * Application roles — extend this list when adding new role types.
  * `viewer` is anonymous-only and never stored in user_role_assignments.
  */
-export const APP_ROLES = [
-  "player",
-  "contributor",
-  "super_admin",
-] as const;
+export const APP_ROLES = ["player", "host", "super_admin"] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
@@ -21,24 +17,30 @@ export const USER_MANAGEMENT_ROLES: AppRole[] = ["super_admin"];
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   player: "Player",
-  contributor: "Contributor",
+  host: "Host",
   super_admin: "Super Admin",
 };
 
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   player: "Community member with profile, clubs, and tournaments",
-  contributor: "Can edit wiki content; articles require moderation",
+  host: "Can edit wiki content; articles require moderation",
   super_admin: "Full platform control, user management, and moderation",
 };
 
-/** Legacy values synced from older single `user.role` column */
+/** Legacy values synced from older single `user.role` column or renamed roles */
 export const LEGACY_ROLE_MAP: Record<string, AppRole> = {
   player: "player",
-  contributor: "contributor",
-  editor: "contributor",
+  host: "host",
+  contributor: "host",
+  editor: "host",
   admin: "super_admin",
   super_admin: "super_admin",
-  moderator: "contributor",
+  moderator: "host",
+};
+
+/** Raw DB role values that map to a canonical AppRole (for queries before migration) */
+export const LEGACY_DB_ROLE_ALIASES: Partial<Record<AppRole, string[]>> = {
+  host: ["host", "contributor", "editor", "moderator"],
 };
 
 export const DEFAULT_REGISTRATION_ROLES: AppRole[] = ["player"];
@@ -60,10 +62,15 @@ export function getRoleLabel(role: AppRole): string {
   return ROLE_LABELS[role];
 }
 
+/** DB filter values for a canonical role (includes legacy slugs until migrated) */
+export function getDbRoleFilterValues(role: AppRole): string[] {
+  return LEGACY_DB_ROLE_ALIASES[role] ?? [role];
+}
+
 /** Highest-privilege role for legacy `user.role` column sync */
 const ROLE_PRIORITY: Record<AppRole, number> = {
   player: 0,
-  contributor: 1,
+  host: 1,
   super_admin: 2,
 };
 
@@ -73,3 +80,6 @@ export function pickPrimaryRole(roles: AppRole[]): AppRole {
     ROLE_PRIORITY[r] > ROLE_PRIORITY[best] ? r : best,
   );
 }
+
+/** Display order for role pickers and filters */
+export const ROLE_DISPLAY_ORDER: AppRole[] = ["super_admin", "host", "player"];

@@ -7,6 +7,7 @@ import {
   isAuthPage,
   isChangePasswordRequiredPath,
   isProtectedPage,
+  LEGACY_HOST_DASHBOARD_PATHS,
 } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import {
@@ -67,8 +68,24 @@ async function fetchSessionContext(
   }
 }
 
+function resolveLegacyHostDashboardRedirect(
+  request: NextRequest,
+  pathname: string,
+): NextResponse | null {
+  for (const legacyPath of LEGACY_HOST_DASHBOARD_PATHS) {
+    if (pathname === legacyPath || pathname.startsWith(`${legacyPath}/`)) {
+      const target = pathname.replace(legacyPath, dashboardRoutes.host);
+      return NextResponse.redirect(new URL(target, request.url));
+    }
+  }
+  return null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const legacyRedirect = resolveLegacyHostDashboardRedirect(request, pathname);
+  if (legacyRedirect) return legacyRedirect;
   const sessionCookie = getSessionCookie(request);
   const isAuthenticated = Boolean(sessionCookie);
 

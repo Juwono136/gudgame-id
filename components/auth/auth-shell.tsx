@@ -38,7 +38,7 @@ const heroCopy: Record<
     subtitle:
       "Contribute to the wiki, verify your player identity, and connect with padel-first communities across the region.",
     proTip:
-      "Verified contributors help keep gear reviews and tournament data accurate for everyone in the ecosystem.",
+      "Verified hosts help keep gear reviews and tournament data accurate for everyone in the ecosystem.",
   },
 };
 

@@ -8,6 +8,7 @@ import {
   normalizeLegacyRole,
   type AppRole,
 } from "@/lib/roles/constants";
+import { migrateContributorRoleToHost } from "@/lib/roles/migrate-host-role";
 import { setUserRoles } from "@/lib/roles/sync";
 import { ensureStorageBucket } from "@/lib/storage";
 import { logger } from "@/lib/logger";
@@ -67,6 +68,7 @@ async function main() {
   log.info("Starting database seed");
   await seedDatabase();
   await syncLegacyUserRoles();
+  await migrateContributorRoleToHost();
 
   try {
     await ensureStorageBucket();

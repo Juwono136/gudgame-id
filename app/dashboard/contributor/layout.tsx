@@ -1,10 +1,7 @@
-import { requireContributorDashboardAccess } from "@/lib/auth/role-guard";
-
-export default async function ContributorDashboardLayout({
+export default function LegacyContributorDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireContributorDashboardAccess();
   return children;
 }

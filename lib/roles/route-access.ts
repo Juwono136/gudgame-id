@@ -6,14 +6,14 @@ import {
 } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 
-export type DashboardZone = "player" | "contributor" | "admin" | "account_settings";
+export type DashboardZone = "player" | "host" | "admin" | "account_settings";
 
 export function canAccessPlayerDashboard(roles: AppRole[]): boolean {
   return roles.includes("player");
 }
 
-export function canAccessContributorDashboard(roles: AppRole[]): boolean {
-  return roles.includes("contributor");
+export function canAccessHostDashboard(roles: AppRole[]): boolean {
+  return roles.includes("host");
 }
 
 export function canAccessAdminConsole(roles: AppRole[]): boolean {
@@ -25,13 +25,25 @@ export function canAccessAccountSettings(roles: AppRole[]): boolean {
   return roles.length > 0;
 }
 
+function normalizeLegacyDashboardPath(pathname: string): string {
+  if (
+    pathname === "/dashboard/contributor" ||
+    pathname.startsWith("/dashboard/contributor/")
+  ) {
+    return pathname.replace("/dashboard/contributor", dashboardRoutes.host);
+  }
+  return pathname;
+}
+
 export function getDashboardZoneForPath(pathname: string): DashboardZone | null {
+  pathname = normalizeLegacyDashboardPath(pathname);
+
   if (pathname === dashboardRoutes.home) return "player";
   if (
-    pathname === dashboardRoutes.contributor ||
-    pathname.startsWith(`${dashboardRoutes.contributor}/`)
+    pathname === dashboardRoutes.host ||
+    pathname.startsWith(`${dashboardRoutes.host}/`)
   ) {
-    return "contributor";
+    return "host";
   }
   if (
     pathname === dashboardRoutes.settings ||
@@ -54,8 +66,8 @@ export function isPathAllowedForRoles(pathname: string, roles: AppRole[]): boole
   switch (zone) {
     case "player":
       return canAccessPlayerDashboard(roles);
-    case "contributor":
-      return canAccessContributorDashboard(roles);
+    case "host":
+      return canAccessHostDashboard(roles);
     case "admin":
       return canAccessAdminConsole(roles);
     case "account_settings":
@@ -68,7 +80,7 @@ export function isPathAllowedForRoles(pathname: string, roles: AppRole[]): boole
 /** Primary landing page after sign-in (highest-privilege dashboard first) */
 export function getDefaultDashboardUrl(roles: AppRole[]): string {
   if (canAccessAdminConsole(roles)) return adminRoutes.home;
-  if (canAccessContributorDashboard(roles)) return dashboardRoutes.contributor;
+  if (canAccessHostDashboard(roles)) return dashboardRoutes.host;
   if (canAccessPlayerDashboard(roles)) return dashboardRoutes.home;
   return `${authRoutes.login}?error=no_role`;
 }
@@ -106,6 +118,8 @@ export function resolveSafeCallbackUrl(
   }
 
   if (!path.startsWith("/")) path = `/${path}`;
+
+  path = normalizeLegacyDashboardPath(path);
 
   if (isPathAllowedForRoles(path, roles)) return path;
   return getDefaultDashboardUrl(roles);

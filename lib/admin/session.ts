@@ -55,7 +55,7 @@ function resolveActiveRole(
   if (cookieValue && roles.includes(cookieValue as AppRole)) {
     return cookieValue as AppRole;
   }
-  const adminRole = roles.find((r) => r === "super_admin" || r === "contributor");
+  const adminRole = roles.find((r) => r === "super_admin" || r === "host");
   return adminRole ?? roles[0] ?? "player";
 }
 

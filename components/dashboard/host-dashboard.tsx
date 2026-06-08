@@ -9,17 +9,13 @@ import type { AppRole } from "@/lib/roles/constants";
 import { userCanAccessAdmin } from "@/lib/roles/dashboard-links";
 import { canAccessPlayerDashboard } from "@/lib/roles/route-access";
 
-type ContributorDashboardProps = {
+type HostDashboardProps = {
   userName: string;
   userEmail: string;
   roles: AppRole[];
 };
 
-export function ContributorDashboard({
-  userName,
-  userEmail,
-  roles,
-}: ContributorDashboardProps) {
+export function HostDashboard({ userName, userEmail, roles }: HostDashboardProps) {
   const canOpenAdmin = userCanAccessAdmin(roles);
   const canOpenPlayer = canAccessPlayerDashboard(roles);
 
@@ -29,7 +25,7 @@ export function ContributorDashboard({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-cp-primary">
-              Contributor workspace
+              Host workspace
             </p>
             <h1 className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
               Welcome, {userName}

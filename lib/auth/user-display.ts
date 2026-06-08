@@ -1,11 +1,12 @@
 /** Display labels for Better Auth `user.role` values */
 const ROLE_LABELS: Record<string, string> = {
   player: "Player",
+  host: "Host",
   admin: "Super Admin",
   super_admin: "Super Admin",
-  editor: "Contributor",
-  contributor: "Contributor",
-  moderator: "Moderator",
+  editor: "Host",
+  contributor: "Host",
+  moderator: "Host",
 };
 
 export function formatUserRole(role: string | null | undefined): string {

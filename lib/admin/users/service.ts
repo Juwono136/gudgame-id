@@ -20,7 +20,7 @@ import { auth } from "@/lib/auth/server";
 import { AppError } from "@/lib/errors";
 import { normalizeNicknameInput } from "@/lib/auth/nickname-rules";
 import type { AppRole } from "@/lib/roles/constants";
-import { pickPrimaryRole } from "@/lib/roles/constants";
+import { getDbRoleFilterValues, pickPrimaryRole } from "@/lib/roles/constants";
 import { getLastLoginMap } from "@/lib/auth/last-login";
 import { getUserRoleAssignments, setUserRoles } from "@/lib/roles/sync";
 import type {
@@ -96,7 +96,7 @@ export async function listAdminUsers(
     const roleRows = await db
       .select({ userId: userRoleAssignments.userId })
       .from(userRoleAssignments)
-      .where(eq(userRoleAssignments.role, role));
+      .where(inArray(userRoleAssignments.role, getDbRoleFilterValues(role)));
     userIdsForRole = roleRows.map((r) => r.userId);
     if (userIdsForRole.length === 0) {
       return { items: [], total: 0, page, pageSize, totalPages: 0 };

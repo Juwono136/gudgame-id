@@ -11,7 +11,7 @@ import { authRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import {
   canAccessAccountSettings,
-  canAccessContributorDashboard,
+  canAccessHostDashboard,
   canAccessPlayerDashboard,
   getAccessDeniedRedirect,
   getDefaultDashboardUrl,
@@ -55,9 +55,9 @@ export async function requirePlayerDashboardAccess(): Promise<RoleGuardContext> 
   return ctx;
 }
 
-export async function requireContributorDashboardAccess(): Promise<RoleGuardContext> {
+export async function requireHostDashboardAccess(): Promise<RoleGuardContext> {
   const ctx = await loadRoleGuardContext();
-  if (!canAccessContributorDashboard(ctx.roles)) deny(ctx.roles);
+  if (!canAccessHostDashboard(ctx.roles)) deny(ctx.roles);
   return ctx;
 }
 

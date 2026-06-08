@@ -51,7 +51,12 @@ import {
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import type { AdminSessionContext } from "@/lib/admin/types";
 import type { AdminUserListItem } from "@/lib/admin/users/service";
-import { APP_ROLES, getRoleLabel, type AppRole } from "@/lib/roles/constants";
+import {
+  APP_ROLES,
+  getRoleLabel,
+  ROLE_DISPLAY_ORDER,
+  type AppRole,
+} from "@/lib/roles/constants";
 import { resolveUserImageUrl } from "@/lib/storage/media-url";
 import { getProfileHandle } from "@/lib/auth/user-display";
 import type { AdminUsersListQuery } from "@/lib/validations/admin-users";
@@ -274,7 +279,7 @@ export function UserManagementPage({ context }: UserManagementPageProps) {
             <span className="w-full text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:w-auto sm:self-center">
               Quick filter
             </span>
-            {(["super_admin", "contributor", "player"] as AppRole[]).map((role) => (
+            {ROLE_DISPLAY_ORDER.map((role) => (
               <button
                 key={role}
                 type="button"

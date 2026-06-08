@@ -1,12 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { getRoleLabel, type AppRole } from "@/lib/roles/constants";
 
-const VARIANT_MAP: Record<
-  AppRole,
-  "player" | "contributor" | "super_admin" | "default"
-> = {
+const VARIANT_MAP: Record<AppRole, "player" | "host" | "super_admin" | "default"> = {
   player: "player",
-  contributor: "contributor",
+  host: "host",
   super_admin: "super_admin",
 };
 

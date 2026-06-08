@@ -8,7 +8,7 @@ const badgeVariants = cva(
       variant: {
         default: "border-cp-border bg-cp-elevated text-cp-logo-accent",
         player: "border-cp-border bg-cp-elevated/80 text-cp-muted",
-        contributor: "border-cp-primary/30 bg-cp-primary/15 text-cp-logo-accent",
+        host: "border-cp-primary/30 bg-cp-primary/15 text-cp-logo-accent",
         super_admin: "border-red-500/30 bg-red-500/15 text-red-300",
         success: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
         warning: "border-amber-500/30 bg-amber-500/15 text-amber-200",

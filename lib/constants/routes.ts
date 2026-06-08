@@ -14,13 +14,16 @@ export const CHANGE_PASSWORD_REQUIRED_PATH = authRoutes.changePasswordRequired;
 export const dashboardRoutes = {
   home: "/dashboard",
   settings: "/dashboard/settings",
-  contributor: "/dashboard/contributor",
+  host: "/dashboard/host",
+  /** @deprecated Renamed to host — use dashboardRoutes.host */
+  contributor: "/dashboard/host",
 } as const;
 
 export const adminRoutes = {
   home: "/admin",
-  /** @deprecated Contributor workspace lives under /dashboard/contributor */
-  contributor: "/dashboard/contributor",
+  /** @deprecated Host workspace lives under /dashboard/host */
+  contributor: "/dashboard/host",
+  host: "/dashboard/host",
   users: "/admin/users",
   contentApproval: "/admin/content-approval",
   wikiEntities: "/admin/wiki-entities",
@@ -28,6 +31,12 @@ export const adminRoutes = {
   sports: "/admin/sports",
   settings: "/admin/settings",
 } as const;
+
+/** Legacy paths that redirect to the host dashboard */
+export const LEGACY_HOST_DASHBOARD_PATHS = [
+  "/dashboard/contributor",
+  "/admin/contributor",
+] as const;
 
 export const publicSportRoutes = {
   sportHub: (sportSlug: string) => `/sports/${sportSlug}`,
@@ -91,7 +100,7 @@ export function isSettingsActive(pathname: string): boolean {
 
 /**
  * Whether a profile-menu dashboard link matches the current route.
- * Avoids marking Player Dashboard active on /dashboard/contributor (prefix clash).
+ * Avoids marking Player Dashboard active on /dashboard/host (prefix clash).
  */
 export function isDashboardNavLinkActive(pathname: string, href: string): boolean {
   if (pathname === href) return true;
@@ -100,10 +109,12 @@ export function isDashboardNavLinkActive(pathname: string, href: string): boolea
     return pathname === dashboardRoutes.home;
   }
 
-  if (href === dashboardRoutes.contributor) {
+  if (href === dashboardRoutes.host) {
     return (
-      pathname === dashboardRoutes.contributor ||
-      pathname.startsWith(`${dashboardRoutes.contributor}/`)
+      pathname === dashboardRoutes.host ||
+      pathname.startsWith(`${dashboardRoutes.host}/`) ||
+      pathname === "/dashboard/contributor" ||
+      pathname.startsWith("/dashboard/contributor/")
     );
   }
 

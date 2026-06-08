@@ -50,7 +50,7 @@ export default async function SportHubPage({ params }: PageProps) {
         <h1 className="mt-2 text-4xl font-bold text-foreground">{sport.name}</h1>
         <p className="mt-4 text-cp-muted">
           Browse players, teams, and gear for {sport.name}. Data is curated by our
-          admin team and contributors.
+          admin team and hosts.
         </p>
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
           {sections.map((s) => (
