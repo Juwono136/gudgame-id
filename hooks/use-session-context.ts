@@ -1,0 +1,49 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import type { AppRole } from "@/lib/roles/constants";
+export type SessionDashboardLink = {
+  role: AppRole;
+  label: string;
+  href: string;
+};
+
+export type SessionContextData = {
+  authenticated: boolean;
+  accountInactive?: boolean;
+  roles: AppRole[];
+  roleLabels: string[];
+  dashboardLinks: SessionDashboardLink[];
+  canAccessAdmin: boolean;
+  permissions?: string[];
+  mustChangePassword?: boolean;
+};
+
+export function useSessionContext(enabled = true) {
+  return useQuery({
+    queryKey: ["session", "context"],
+    queryFn: async () => {
+      const res = await fetch("/api/account/session-context");
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: SessionContextData;
+      }>(res);
+      if (!res.ok) {
+        return {
+          authenticated: false,
+          accountInactive: false,
+          roles: [] as AppRole[],
+          roleLabels: [],
+          dashboardLinks: [],
+          canAccessAdmin: false,
+          mustChangePassword: false,
+        } satisfies SessionContextData;
+      }
+      return json.data;
+    },
+    enabled,
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
+}

@@ -1,0 +1,143 @@
+import "server-only";
+
+import type { WikiEntityType } from "@/db/schema/wiki";
+import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
+import { uploadWikiImage, validateWikiImageFile } from "@/lib/wiki/upload-media";
+import {
+  wikiEntityUpsertSchema,
+  type WikiEntityUpsertInput,
+} from "@/lib/validations/wiki-entities";
+import { AppError } from "@/lib/errors";
+
+const MAX_GALLERY_UPLOADS = 5;
+
+function parseJsonField<T>(raw: FormDataEntryValue | null, fallback: T): T {
+  if (typeof raw !== "string" || !raw.trim()) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export type ParsedWikiFormResult = {
+  data: WikiEntityUpsertInput;
+  imagePatch: {
+    heroStorageKey?: string;
+    heroUrl?: string;
+    primaryStorageKey?: string;
+    primaryUrl?: string;
+  };
+};
+
+export async function parseAndUploadWikiForm(
+  formData: FormData,
+  sportSlug: string,
+): Promise<
+  | { ok: true; result: ParsedWikiFormResult }
+  | { ok: false; status: number; body: Record<string, unknown> }
+> {
+  const rawGallery = parseJsonField(formData.get("gallery"), [] as WikiEntityUpsertInput["gallery"]);
+
+  const parsed = wikiEntityUpsertSchema.safeParse({
+    entityType: formData.get("entityType"),
+    displayName: formData.get("displayName"),
+    nickname: formData.get("nickname") ?? "",
+    slug: formData.get("slug") || undefined,
+    summary: formData.get("summary") ?? "",
+    biography: formData.get("biography") ?? "",
+    status: formData.get("status") ?? "draft",
+    attributes: parseJsonField(formData.get("attributes"), {}),
+    performance: parseJsonField(formData.get("performance"), {}),
+    specs: parseJsonField(formData.get("specs"), {}),
+    features: parseJsonField(formData.get("features"), []),
+    sourceType: formData.get("sourceType") ?? "manual",
+    sourceUrl: formData.get("sourceUrl") ?? "",
+    relations: parseJsonField(formData.get("relations"), []),
+    gallery: rawGallery,
+    heroImageUrl: formData.get("heroImageUrl") ?? "",
+    primaryImageUrl: formData.get("primaryImageUrl") ?? "",
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      status: 422,
+      body: {
+        error: "Validation failed",
+        fieldErrors: parsed.error.flatten().fieldErrors,
+      },
+    };
+  }
+
+  const entityType = parsed.data.entityType as WikiEntityType;
+  const data: WikiEntityUpsertInput = {
+    ...parsed.data,
+    summary: parsed.data.summary ? sanitizeRichText(parsed.data.summary) : parsed.data.summary,
+    biography: parsed.data.biography
+      ? sanitizeRichText(parsed.data.biography)
+      : parsed.data.biography,
+  };
+
+  let imagePatch: ParsedWikiFormResult["imagePatch"] = {};
+
+  const heroFile = formData.get("heroImage");
+  if (heroFile instanceof File && heroFile.size > 0) {
+    const v = validateWikiImageFile(heroFile);
+    if (!v.ok) {
+      return { ok: false, status: 422, body: { error: v.message } };
+    }
+    const up = await uploadWikiImage(v.file, sportSlug, entityType);
+    if (!up.ok) {
+      throw new AppError(up.error, { code: "STORAGE_ERROR", statusCode: 500 });
+    }
+    imagePatch = { ...imagePatch, heroStorageKey: up.storageKey, heroUrl: up.url };
+  }
+
+  const primaryFile = formData.get("primaryImage");
+  if (primaryFile instanceof File && primaryFile.size > 0) {
+    const v = validateWikiImageFile(primaryFile);
+    if (!v.ok) {
+      return { ok: false, status: 422, body: { error: v.message } };
+    }
+    const up = await uploadWikiImage(v.file, sportSlug, entityType);
+    if (!up.ok) {
+      throw new AppError(up.error, { code: "STORAGE_ERROR", statusCode: 500 });
+    }
+    imagePatch = {
+      ...imagePatch,
+      primaryStorageKey: up.storageKey,
+      primaryUrl: up.url,
+    };
+  }
+
+  const galleryFiles = formData
+    .getAll("galleryImages")
+    .filter((f): f is File => f instanceof File && f.size > 0)
+    .slice(0, MAX_GALLERY_UPLOADS);
+
+  const keptExisting = data.gallery.filter((g) => g.url || g.storageKey);
+  const uploaded: WikiEntityUpsertInput["gallery"] = [];
+
+  for (let i = 0; i < galleryFiles.length; i++) {
+    const file = galleryFiles[i]!;
+    const v = validateWikiImageFile(file);
+    if (!v.ok) {
+      return { ok: false, status: 422, body: { error: `Gallery: ${v.message}` } };
+    }
+    const up = await uploadWikiImage(v.file, sportSlug, entityType);
+    if (!up.ok) {
+      throw new AppError(up.error, { code: "STORAGE_ERROR", statusCode: 500 });
+    }
+    uploaded.push({
+      url: up.url,
+      storageKey: up.storageKey,
+      sortOrder: keptExisting.length + i,
+    });
+  }
+
+  const totalGallery = [...keptExisting, ...uploaded].slice(0, MAX_GALLERY_UPLOADS);
+  data.gallery = totalGallery;
+
+  return { ok: true, result: { data, imagePatch } };
+}
