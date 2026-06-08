@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth/server";
 import { getPasswordResetRedirectUrl } from "@/lib/auth/urls-server";
+import { getUserAuthProvidersByEmail } from "@/lib/auth/account-providers";
+import { GOOGLE_ONLY_ACCOUNT_MESSAGE } from "@/lib/auth/map-errors";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema";
 import { logger } from "@/lib/logger";
@@ -42,6 +44,17 @@ export async function POST(request: Request) {
           code: "ACCOUNT_NOT_FOUND",
         },
         { status: 404 },
+      );
+    }
+
+    const providers = await getUserAuthProvidersByEmail(email);
+    if (providers?.isGoogleOnly) {
+      return NextResponse.json(
+        {
+          error: GOOGLE_ONLY_ACCOUNT_MESSAGE,
+          code: "GOOGLE_ONLY_ACCOUNT",
+        },
+        { status: 400 },
       );
     }
 

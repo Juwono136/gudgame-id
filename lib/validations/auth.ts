@@ -84,12 +84,6 @@ export const registerSchema = z
           ctx.addIssue({ code: "custom", message: err });
         }
       }),
-    clubName: z
-      .string()
-      .trim()
-      .max(100, "Club name is too long")
-      .optional()
-      .or(z.literal("")),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",

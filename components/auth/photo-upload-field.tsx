@@ -17,6 +17,8 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const displayError = error ?? localError;
+
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -47,12 +49,12 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
       <div
         className={cn(
           "flex flex-col items-center justify-center rounded-xl border border-dashed p-5 transition-colors sm:flex-row sm:gap-5 sm:p-6",
-          error
-            ? "border-[#ff6b6b]/60 bg-[#ff6b6b]/5"
-            : "border-cp-border bg-cp-elevated/60 hover:border-cp-primary/40",
+          displayError
+            ? "border-destructive/50 bg-destructive/5"
+            : "border-cp-border bg-cp-elevated/60 hover:border-cp-primary/40 dark:bg-cp-elevated/40",
         )}
       >
-        <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cp-border bg-cp-elevated">
+        <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cp-border bg-cp-card">
           {preview ? (
             <Image src={preview} alt="Profile preview" fill className="object-cover" unoptimized />
           ) : (
@@ -68,7 +70,7 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded-lg bg-cp-primary px-4 py-2 text-xs font-semibold text-white hover:bg-[#0033C0]"
+              className="rounded-lg bg-cp-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-[var(--cp-primary-light)]"
               onClick={() => inputRef.current?.click()}
             >
               Choose file
@@ -76,7 +78,7 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
             {preview ? (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded-lg border border-cp-border px-3 py-2 text-xs text-cp-muted hover:text-foreground"
+                className="inline-flex items-center gap-1 rounded-lg border border-cp-border bg-cp-card px-3 py-2 text-xs text-cp-muted transition-colors hover:bg-cp-elevated hover:text-foreground"
                 onClick={() => {
                   handleFile(null);
                   if (inputRef.current) inputRef.current.value = "";
@@ -88,7 +90,7 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
             ) : null}
           </div>
           {fileName ? (
-            <p className="mt-2 max-w-[220px] truncate text-xs text-slate-400">{fileName}</p>
+            <p className="mt-2 max-w-[220px] truncate text-xs text-cp-text-dim">{fileName}</p>
           ) : null}
         </div>
       </div>
@@ -104,9 +106,9 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
         }}
       />
 
-      {error || localError ? (
-        <p className="text-xs text-[#ff6b6b]" role="alert">
-          {error ?? localError}
+      {displayError ? (
+        <p className="text-xs text-destructive" role="alert">
+          {displayError}
         </p>
       ) : null}
     </div>

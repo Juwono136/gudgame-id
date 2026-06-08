@@ -5,12 +5,12 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Loader2 } from "lucide-react";
+import { AuthDivider } from "@/components/auth/auth-divider";
 import { AuthField } from "@/components/auth/auth-field";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AuthShell } from "@/components/auth/auth-shell";
-import {
-  AuthInput,
-  PhoneCountrySelect,
-} from "@/components/auth/auth-form-controls";
+import { AuthInput } from "@/components/auth/auth-form-controls";
+import { AuthPhoneFieldGroup } from "@/components/auth/auth-phone-field-group";
 import { PasswordInput } from "@/components/auth/password-input";
 import { PhotoUploadField } from "@/components/auth/photo-upload-field";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,6 @@ export function RegisterForm() {
       password: "",
       confirmPassword: "",
       nickname: "",
-      clubName: "",
     },
   });
 
@@ -68,7 +67,6 @@ export function RegisterForm() {
     formData.append("password", values.password);
     formData.append("confirmPassword", values.confirmPassword);
     if (values.nickname) formData.append("nickname", values.nickname);
-    if (values.clubName) formData.append("clubName", values.clubName);
 
     registerMutation.mutate(formData, {
       onError: (err: Error & { fieldErrors?: Record<string, string[]> }) => {
@@ -104,6 +102,9 @@ export function RegisterForm() {
         </p>
       }
     >
+      <GoogleSignInButton label="Sign up with Google" />
+      <AuthDivider />
+
       <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
         <PhotoUploadField
           error={photoError}
@@ -138,37 +139,12 @@ export function RegisterForm() {
           />
         </AuthField>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,13rem)_1fr] xl:grid-cols-[minmax(0,15rem)_1fr]">
-          <AuthField
-            label="Country code"
-            htmlFor="phoneCountryCode"
-            error={errors.phoneCountryCode?.message}
-            required
-          >
-            <PhoneCountrySelect
-              control={control}
-              name="phoneCountryCode"
-              aria-invalid={!!errors.phoneCountryCode}
-            />
-          </AuthField>
-
-          <AuthField
-            label="Phone / WhatsApp"
-            htmlFor="phone"
-            error={errors.phone?.message}
-            hint="Digits only, without country code"
-            required
-          >
-            <AuthInput
-              id="phone"
-              type="tel"
-              inputMode="numeric"
-              placeholder="8123456789"
-              aria-invalid={!!errors.phone}
-              {...register("phone")}
-            />
-          </AuthField>
-        </div>
+        <AuthPhoneFieldGroup
+          control={control}
+          register={register}
+          countryError={errors.phoneCountryCode?.message}
+          phoneError={errors.phone?.message}
+        />
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <AuthField
@@ -201,27 +177,21 @@ export function RegisterForm() {
           </AuthField>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <AuthField
-            label="Nickname"
-            htmlFor="nickname"
-            error={errors.nickname?.message}
-            hint="Optional — unique, 3-50 chars, letters/numbers only (no spaces)"
-          >
-            <AuthInput
-              id="nickname"
-              placeholder="e.g. padel_pro_jakarta"
-              autoComplete="username"
-              {...register("nickname", {
-                setValueAs: (v: string) => v.replace(/\s/g, ""),
-              })}
-            />
-          </AuthField>
-
-          <AuthField label="Club name" htmlFor="clubName" error={errors.clubName?.message}>
-            <AuthInput id="clubName" placeholder="Optional" {...register("clubName")} />
-          </AuthField>
-        </div>
+        <AuthField
+          label="Nickname"
+          htmlFor="nickname"
+          error={errors.nickname?.message}
+          hint="Optional — unique, 3-50 chars, letters/numbers only (no spaces)"
+        >
+          <AuthInput
+            id="nickname"
+            placeholder="e.g. padel_pro_jakarta"
+            autoComplete="username"
+            {...register("nickname", {
+              setValueAs: (v: string) => v.replace(/\s/g, ""),
+            })}
+          />
+        </AuthField>
 
         <Button
           type="submit"

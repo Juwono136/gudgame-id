@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ClipboardCheck, FileEdit, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProfileCompletionSection } from "@/components/dashboard/profile-completion-section";
 import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
 import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
@@ -21,6 +22,7 @@ export function HostDashboard({ userName, userEmail, roles }: HostDashboardProps
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+      <ProfileCompletionSection />
       <div className="rounded-2xl border border-cp-border bg-cp-card/70 p-6 backdrop-blur-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>

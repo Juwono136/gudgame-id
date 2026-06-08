@@ -28,7 +28,6 @@ export async function POST(request: Request) {
       password: formData.get("password"),
       confirmPassword: formData.get("confirmPassword"),
       nickname: formData.get("nickname") || "",
-      clubName: formData.get("clubName") || "",
     });
 
     if (!parsed.success) {
@@ -123,7 +122,6 @@ export async function POST(request: Request) {
         phone: data.phone,
         phoneCountryCode: phoneDialCode,
         nickname,
-        clubName: data.clubName || null,
         fullNameKtp: data.fullNameKtp,
         image: upload.url,
         imageStorageKey: upload.storageKey,

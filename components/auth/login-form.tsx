@@ -6,7 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Loader2, Lock, Mail } from "lucide-react";
+import { AuthDivider } from "@/components/auth/auth-divider";
 import { AuthField } from "@/components/auth/auth-field";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthInput } from "@/components/auth/auth-form-controls";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -79,6 +81,9 @@ export function LoginForm() {
           </p>
         </div>
       ) : null}
+
+      <GoogleSignInButton />
+      <AuthDivider />
 
       <form
         className="space-y-5"

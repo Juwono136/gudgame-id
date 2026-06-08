@@ -1,6 +1,9 @@
 export const ACCOUNT_INACTIVE_MESSAGE =
   "This account has been deactivated. Contact an administrator if you need access restored.";
 
+export const GOOGLE_ONLY_ACCOUNT_MESSAGE =
+  "This account was created with Google. Please use Continue with Google to sign in.";
+
 export function mapAuthError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes("verify") || lower.includes("verification")) {

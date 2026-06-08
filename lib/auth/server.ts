@@ -15,6 +15,8 @@ import {
   SESSION_UPDATE_AGE_SECONDS,
 } from "@/lib/auth/constants";
 import { getBaseUrl, getPasswordResetRedirectUrl } from "@/lib/auth/urls-server";
+import { firebaseGooglePlugin } from "@/lib/auth/plugins/firebase-google";
+import { GOOGLE_PROVIDER_ID } from "@/lib/auth/account-providers";
 import { authRoutes } from "@/lib/constants/routes";
 
 const authLog = logger.child({ module: "auth" });
@@ -179,7 +181,13 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [nextCookies()],
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: [GOOGLE_PROVIDER_ID],
+    },
+  },
+  plugins: [nextCookies(), firebaseGooglePlugin()],
 });
 
 export type Session = typeof auth.$Infer.Session;

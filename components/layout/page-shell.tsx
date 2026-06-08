@@ -22,7 +22,7 @@ export function PageShell({
   return (
     <div
       className={cn(
-        "relative bg-cp-bg text-cp-text selection:bg-cp-primary/30 selection:text-white",
+        "relative bg-cp-bg text-foreground selection:bg-cp-primary/25 selection:text-foreground",
         showNavbar ? "min-h-screen" : "flex min-h-[100dvh] flex-col",
       )}
     >

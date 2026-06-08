@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import type { AppRole } from "@/lib/roles/constants";
+import type { ProfileMissingField } from "@/lib/auth/profile-completion-shared";
+
 export type SessionDashboardLink = {
   role: AppRole;
   label: string;
@@ -18,6 +20,11 @@ export type SessionContextData = {
   canAccessAdmin: boolean;
   permissions?: string[];
   mustChangePassword?: boolean;
+  profileComplete?: boolean;
+  profileCompletionPercent?: number;
+  missingProfileFields?: ProfileMissingField[];
+  isGoogleOnly?: boolean;
+  hasGoogle?: boolean;
 };
 
 export function useSessionContext(enabled = true) {

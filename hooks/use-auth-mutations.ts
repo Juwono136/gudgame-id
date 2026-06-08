@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth/client";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import { signInWithGooglePopup } from "@/lib/firebase/client";
 import {
   ACCOUNT_INACTIVE_MESSAGE,
+  GOOGLE_ONLY_ACCOUNT_MESSAGE,
   mapAuthError,
   mapPasswordResetError,
 } from "@/lib/auth/map-errors";
-import { authRoutes } from "@/lib/constants/routes";
+import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import { resolveSafeCallbackUrl } from "@/lib/roles/route-access";
 import type {
@@ -42,12 +44,13 @@ export function useLoginMutation() {
         data?: { eligible?: boolean; reason?: string };
       }>(eligibilityRes);
 
-      if (
-        eligibilityRes.ok &&
-        eligibility.data?.eligible === false &&
-        eligibility.data.reason === "account_inactive"
-      ) {
-        throw new Error(ACCOUNT_INACTIVE_MESSAGE);
+      if (eligibilityRes.ok && eligibility.data?.eligible === false) {
+        if (eligibility.data.reason === "account_inactive") {
+          throw new Error(ACCOUNT_INACTIVE_MESSAGE);
+        }
+        if (eligibility.data.reason === "google_only") {
+          throw new Error(GOOGLE_ONLY_ACCOUNT_MESSAGE);
+        }
       }
 
       const result = await authClient.signIn.email({
@@ -120,6 +123,128 @@ export function useLoginMutation() {
     },
     onError: (error: Error) => {
       toast.error("Sign in failed", { description: error.message });
+    },
+  });
+}
+
+type GoogleSignInResponse = {
+  token?: string;
+  isNewUser?: boolean;
+  profileComplete?: boolean;
+  missingProfileFields?: string[];
+  error?: { message?: string };
+  message?: string;
+};
+
+async function finishAuthRedirect(
+  router: ReturnType<typeof useRouter>,
+  options?: { isNewUser?: boolean; profileComplete?: boolean },
+) {
+  const callbackUrl =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("callbackUrl")
+      : null;
+
+  let roles: AppRole[] = [];
+  let mustChangePassword = false;
+  try {
+    const res = await fetch("/api/account/session-context", { cache: "no-store" });
+    const json = (await res.json()) as {
+      success?: boolean;
+      data?: {
+        roles?: AppRole[];
+        mustChangePassword?: boolean;
+        accountInactive?: boolean;
+        profileComplete?: boolean;
+      };
+    };
+    if (json.data?.accountInactive) {
+      await authClient.signOut();
+      throw new Error(ACCOUNT_INACTIVE_MESSAGE);
+    }
+    if (json.success && json.data?.roles) roles = json.data.roles;
+    mustChangePassword = json.data?.mustChangePassword ?? false;
+
+    if (options?.isNewUser) {
+      toast.success("Welcome to TandingBase!", {
+        description: "Your Google account is connected. Check your inbox for a welcome email.",
+      });
+    } else {
+      toast.success("Signed in with Google", {
+        description: "Redirecting to your dashboard…",
+      });
+    }
+
+    if (options?.profileComplete === false || json.data?.profileComplete === false) {
+      toast.info("Complete your profile", {
+        description: "Add your phone and other details to unlock the full experience.",
+        duration: 8000,
+      });
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === ACCOUNT_INACTIVE_MESSAGE) {
+      throw err;
+    }
+  }
+
+  if (mustChangePassword) {
+    router.push(authRoutes.changePasswordRequired);
+  } else if (options?.profileComplete === false) {
+    router.push(dashboardRoutes.completeProfile);
+  } else {
+    router.push(resolveSafeCallbackUrl(callbackUrl, roles));
+  }
+  router.refresh();
+}
+
+export function useGoogleSignInMutation() {
+  const router = useRouter();
+  const setSubmitting = useAuthUiStore((s) => s.setSubmitting);
+
+  return useMutation({
+    mutationFn: async () => {
+      const idToken = await signInWithGooglePopup();
+      const res = await fetch("/api/auth/firebase/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+        credentials: "include",
+      });
+
+      const payload = await parseJsonResponse<
+        GoogleSignInResponse & { error?: string | { message?: string } }
+      >(res);
+      if (!res.ok) {
+        const errField = payload.error;
+        const message =
+          (typeof errField === "string" ? errField : errField?.message) ??
+          payload.message ??
+          "Google sign-in failed. Please try again.";
+        throw new Error(message);
+      }
+      return payload;
+    },
+    onMutate: () => setSubmitting(true),
+    onSettled: () => setSubmitting(false),
+    onSuccess: async (data) => {
+      try {
+        await finishAuthRedirect(router, {
+          isNewUser: data.isNewUser,
+          profileComplete: data.profileComplete,
+        });
+      } catch (err) {
+        if (err instanceof Error) {
+          toast.error("Sign in failed", { description: err.message });
+        }
+      }
+    },
+    onError: (error: Error) => {
+      const lower = error.message.toLowerCase();
+      if (lower.includes("popup-closed") || lower.includes("cancelled")) {
+        toast.message("Google sign-in cancelled");
+        return;
+      }
+      toast.error("Google sign-in failed", { description: error.message });
     },
   });
 }

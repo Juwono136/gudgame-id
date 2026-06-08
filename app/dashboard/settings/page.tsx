@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageShell } from "@/components/layout/page-shell";
+import { ProfileCompletionSection } from "@/components/dashboard/profile-completion-section";
 import { ThemeSettingsCard } from "@/components/theme/theme-settings-card";
 import { requireAccountSettingsAccess } from "@/lib/auth/role-guard";
 import { getServerSession } from "@/lib/auth/session";
@@ -29,10 +30,12 @@ export default async function SettingsPage() {
           Account preferences for {session.user.email}
         </p>
         <div className="mt-8 space-y-6">
+          <ProfileCompletionSection />
           <ThemeSettingsCard />
           <div className="rounded-2xl border border-cp-border bg-cp-card/60 p-6">
             <p className="text-sm text-cp-muted">
-              Profile and notification settings will be available in a future update.
+              Use the profile completion banner above to add missing account details.
+              Notification preferences will be available in a future update.
             </p>
           </div>
         </div>

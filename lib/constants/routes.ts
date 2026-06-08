@@ -14,6 +14,7 @@ export const CHANGE_PASSWORD_REQUIRED_PATH = authRoutes.changePasswordRequired;
 export const dashboardRoutes = {
   home: "/dashboard",
   settings: "/dashboard/settings",
+  completeProfile: "/dashboard/complete-profile",
   host: "/dashboard/host",
   /** @deprecated Renamed to host — use dashboardRoutes.host */
   contributor: "/dashboard/host",

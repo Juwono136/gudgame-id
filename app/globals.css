@@ -111,6 +111,8 @@
   --color-cp-primary: var(--cp-primary);
   --color-cp-logo-accent: var(--cp-logo-accent);
   --color-cp-muted: var(--cp-text-muted);
+  --color-cp-text-dim: var(--cp-text-dim);
+  --color-cp-bg-input: var(--cp-bg-input);
   --color-cp-text: var(--cp-text);
   --color-cp-sidebar: var(--cp-sidebar);
   --color-ring: var(--ring);

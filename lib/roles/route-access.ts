@@ -47,7 +47,9 @@ export function getDashboardZoneForPath(pathname: string): DashboardZone | null 
   }
   if (
     pathname === dashboardRoutes.settings ||
-    pathname.startsWith(`${dashboardRoutes.settings}/`)
+    pathname.startsWith(`${dashboardRoutes.settings}/`) ||
+    pathname === dashboardRoutes.completeProfile ||
+    pathname.startsWith(`${dashboardRoutes.completeProfile}/`)
   ) {
     return "account_settings";
   }

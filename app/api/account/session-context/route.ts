@@ -1,6 +1,11 @@
+import { eq } from "drizzle-orm";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
+import { getUserAuthProvidersByUserId } from "@/lib/auth/account-providers";
 import { getUserAccountStatusById } from "@/lib/auth/account-status";
+import { getProfileCompletionStatus } from "@/lib/auth/profile-completion";
 import { getServerSession } from "@/lib/auth/session";
+import { getDb } from "@/db/client";
+import { user } from "@/db/schema/auth";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 import { getRoleLabel } from "@/lib/roles/constants";
 import {
@@ -21,6 +26,11 @@ export async function GET() {
         dashboardLinks: [],
         canAccessAdmin: false,
         mustChangePassword: false,
+        profileComplete: true,
+        profileCompletionPercent: 100,
+        missingProfileFields: [],
+        isGoogleOnly: false,
+        hasGoogle: false,
       });
     }
 
@@ -35,10 +45,33 @@ export async function GET() {
         dashboardLinks: [],
         canAccessAdmin: false,
         mustChangePassword: false,
+        profileComplete: true,
+        profileCompletionPercent: 100,
+        missingProfileFields: [],
+        isGoogleOnly: false,
+        hasGoogle: false,
       });
     }
 
     const roles = await getUserRoleAssignments(session.user.id);
+
+    const [dbUser] = await getDb()
+      .select({
+        fullNameKtp: user.fullNameKtp,
+        phone: user.phone,
+        phoneCountryCode: user.phoneCountryCode,
+        image: user.image,
+        imageStorageKey: user.imageStorageKey,
+      })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .limit(1);
+
+    const profileStatus = dbUser
+      ? getProfileCompletionStatus(dbUser)
+      : { isComplete: true, missingFields: [], completionPercent: 100 };
+
+    const providers = await getUserAuthProvidersByUserId(session.user.id);
 
     return jsonSuccess({
       authenticated: true,
@@ -51,6 +84,11 @@ export async function GET() {
       canAccessAdmin: userCanAccessAdmin(roles),
       permissions: [...getPermissionsForRoles(roles)],
       mustChangePassword: account.mustChangePassword,
+      profileComplete: profileStatus.isComplete,
+      profileCompletionPercent: profileStatus.completionPercent,
+      missingProfileFields: profileStatus.missingFields,
+      isGoogleOnly: providers.isGoogleOnly,
+      hasGoogle: providers.hasGoogle,
     });
   } catch (error) {
     return jsonError(error);
