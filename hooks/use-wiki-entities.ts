@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { adminRoutes } from "@/lib/constants/routes";
-import type { WikiEntityDetail, WikiEntityListItem } from "@/lib/wiki/service";
+import type { WikiDirectoryListItem } from "@/lib/wiki/directory-types";
+import type { WikiEntityDetail } from "@/lib/wiki/service";
 import type {
   WikiEntitiesListQuery,
   WikiEntityUpsertInput,
@@ -83,7 +84,7 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery) {
       const json = await parseJsonResponse<{
         success: boolean;
         data: {
-          items: WikiEntityListItem[];
+          items: WikiDirectoryListItem[];
           total: number;
           page: number;
           pageSize: number;

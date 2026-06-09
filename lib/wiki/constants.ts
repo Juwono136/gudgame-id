@@ -6,6 +6,24 @@ export const WIKI_ENTITY_TYPE_LABELS: Record<WikiEntityType, string> = {
   gear: "Gear / Tools",
 };
 
+export const WIKI_DIRECTORY_ENTITY_LABELS: Record<
+  WikiEntityType | "tournament",
+  string
+> = {
+  ...WIKI_ENTITY_TYPE_LABELS,
+  tournament: "Tournament",
+};
+
+export const WIKI_DIRECTORY_TYPE_FILTER_OPTIONS = [
+  { value: "all", label: "All types" },
+  { value: "player", label: "Players" },
+  { value: "gear", label: "Gear" },
+  { value: "tournament", label: "Tournaments" },
+] as const;
+
+export type WikiDirectoryTypeFilterValue =
+  (typeof WIKI_DIRECTORY_TYPE_FILTER_OPTIONS)[number]["value"];
+
 export const WIKI_ENTITY_TYPE_PLURAL: Record<WikiEntityType, string> = {
   player: "Players",
   team: "Teams",

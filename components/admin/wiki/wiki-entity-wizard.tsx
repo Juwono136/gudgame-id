@@ -614,25 +614,6 @@ export function WikiEntityWizard({
             </div>
           ) : null}
 
-          {currentStepId === "performance" && entityType === "player" ? (
-            <section className="rounded-xl border border-cp-border bg-cp-card p-5">
-              <h2 className="text-lg font-semibold text-foreground">Career & performance</h2>
-              <p className="mb-4 text-sm text-cp-muted">
-                Rankings and biodata only — win rate, titles, and skill ratings are computed
-                automatically from match and tournament results.
-              </p>
-              <div className="mt-6">
-                <DynamicFieldGrid
-                  fields={performanceFields}
-                  values={fieldValues}
-                  onChange={(key, v) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: v }))
-                  }
-                />
-              </div>
-            </section>
-          ) : null}
-
           {currentStepId === "performance" && entityType === "team" ? (
             <section className="rounded-xl border border-cp-border bg-cp-card p-5">
               <h2 className="text-lg font-semibold text-foreground">Team performance</h2>

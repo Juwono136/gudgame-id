@@ -24,10 +24,9 @@ const PLAYER_CONFIG: EntityWizardConfig = {
   steps: [
     { id: "classification", label: "Classification" },
     { id: "profile", label: "Player profile" },
-    { id: "performance", label: "Career & stats" },
     { id: "review", label: "Review" },
   ],
-  stepIds: ["classification", "profile", "performance", "review"],
+  stepIds: ["classification", "profile", "review"],
 };
 
 const TEAM_CONFIG: EntityWizardConfig = {

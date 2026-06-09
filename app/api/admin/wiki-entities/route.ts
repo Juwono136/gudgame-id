@@ -1,11 +1,8 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { getTournamentStats } from "@/lib/tournaments/service";
-import {
-  createWikiEntity,
-  getWikiEntityStats,
-  listWikiEntities,
-} from "@/lib/wiki/service";
+import { listWikiDirectory } from "@/lib/wiki/directory";
+import { createWikiEntity, getWikiEntityStats } from "@/lib/wiki/service";
 import { parseAndUploadWikiForm } from "@/lib/wiki/parse-wiki-form";
 import {
   wikiEntitiesListQuerySchema,
@@ -22,7 +19,7 @@ export async function GET(request: Request) {
       Object.fromEntries(url.searchParams.entries()),
     );
     const [list, wikiStats, tournamentStats] = await Promise.all([
-      listWikiEntities(ctx.sportId, query),
+      listWikiDirectory(ctx.sportId, query),
       getWikiEntityStats(ctx.sportId),
       getTournamentStats(ctx.sportId),
     ]);

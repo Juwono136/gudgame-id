@@ -48,7 +48,7 @@ export function PlayerProfileStep({
     <div className="space-y-6">
       <p className="text-sm text-cp-muted">
         Athlete profile for the public player wiki — matches the player My Settings schema.
-        Career stats are configured in the next step (tournament-driven).
+        Rankings and career stats are computed automatically from tournament results.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">

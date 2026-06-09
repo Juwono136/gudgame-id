@@ -40,9 +40,18 @@ import { useWikiEntitiesList, useDeleteWikiEntity } from "@/hooks/use-wiki-entit
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import type { AdminSessionContext } from "@/lib/admin/types";
 import { adminRoutes } from "@/lib/constants/routes";
-import { WIKI_ENTITY_TYPE_LABELS, WIKI_STATUS_LABELS } from "@/lib/wiki/constants";
+import {
+  getPublicWikiPath,
+  WIKI_DIRECTORY_ENTITY_LABELS,
+  WIKI_DIRECTORY_TYPE_FILTER_OPTIONS,
+  WIKI_STATUS_LABELS,
+} from "@/lib/wiki/constants";
 import type { WikiEntityType } from "@/db/schema/wiki";
-import { getPublicWikiPath } from "@/lib/wiki/constants";
+import type { WikiDirectoryListItem } from "@/lib/wiki/directory-types";
+import type { WikiDirectoryTypeFilterValue } from "@/lib/wiki/constants";
+import type { TournamentStatus } from "@/db/schema/tournaments";
+import { TOURNAMENT_STATUS_LABELS } from "@/lib/tournaments/constants";
+import { publicSportRoutes } from "@/lib/constants/routes";
 import type { WikiEntitiesListQuery } from "@/lib/validations/wiki-entities";
 import { cn } from "@/lib/utils";
 
@@ -58,12 +67,53 @@ function formatDate(iso: string) {
   }).format(new Date(iso));
 }
 
+function getDirectoryTypeLabel(item: WikiDirectoryListItem) {
+  return WIKI_DIRECTORY_ENTITY_LABELS[item.entityType];
+}
+
+function getDirectoryStatusLabel(item: WikiDirectoryListItem) {
+  if (item.recordKind === "tournament") {
+    const key = item.status as TournamentStatus;
+    return TOURNAMENT_STATUS_LABELS[key] ?? item.status;
+  }
+  return WIKI_STATUS_LABELS[item.status as keyof typeof WIKI_STATUS_LABELS] ?? item.status;
+}
+
+function getDirectoryStatusClass(item: WikiDirectoryListItem) {
+  if (item.recordKind === "tournament") {
+    if (item.status === "live") return "bg-emerald-900/40 text-emerald-200";
+    if (item.status === "upcoming") return "bg-cp-primary/15 text-cp-primary";
+    return "bg-cp-elevated text-cp-muted";
+  }
+  return item.status === "published"
+    ? "bg-emerald-900/40 text-emerald-200"
+    : "bg-cp-elevated text-cp-muted";
+}
+
+function canViewPublic(item: WikiDirectoryListItem) {
+  if (item.recordKind === "tournament") {
+    return item.status !== "draft" && item.status !== "cancelled";
+  }
+  return item.status === "published";
+}
+
+function getPublicHref(item: WikiDirectoryListItem) {
+  if (item.recordKind === "tournament") {
+    return publicSportRoutes.tournament(item.sportSlug, item.slug);
+  }
+  return getPublicWikiPath(
+    item.sportSlug,
+    item.entityType as WikiEntityType,
+    item.slug,
+  );
+}
+
 export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
   const { confirm } = useConfirmDialog();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
-  const [typeFilter, setTypeFilter] = useState<WikiEntityType | "all">("all");
+  const [typeFilter, setTypeFilter] = useState<WikiDirectoryTypeFilterValue>("all");
   const [statusFilter, setStatusFilter] =
     useState<WikiEntitiesListQuery["status"]>("all");
   const [sortBy, setSortBy] = useState<WikiEntitiesListQuery["sortBy"]>("updated");
@@ -74,7 +124,10 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
       page,
       pageSize: 10,
       search: debouncedSearch || undefined,
-      entityType: typeFilter === "all" ? undefined : typeFilter,
+      entityType:
+        typeFilter === "all"
+          ? undefined
+          : (typeFilter as WikiEntitiesListQuery["entityType"]),
       status: statusFilter,
       sortBy,
       sortDir,
@@ -145,7 +198,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
           <Select
             value={typeFilter}
             onValueChange={(v) => {
-              setTypeFilter(v as WikiEntityType | "all");
+              setTypeFilter(v as WikiDirectoryTypeFilterValue);
               setPage(1);
             }}
           >
@@ -153,9 +206,11 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              <SelectItem value="player">Players</SelectItem>
-              <SelectItem value="gear">Gear</SelectItem>
+              {WIKI_DIRECTORY_TYPE_FILTER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select
@@ -260,18 +315,16 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-cp-muted">
-                          {WIKI_ENTITY_TYPE_LABELS[item.entityType]}
+                          {getDirectoryTypeLabel(item)}
                         </td>
                         <td className="px-4 py-3">
                           <Badge
                             className={cn(
                               "border-0 text-[10px] font-semibold uppercase",
-                              item.status === "published"
-                                ? "bg-emerald-900/40 text-emerald-200"
-                                : "bg-cp-elevated text-cp-muted",
+                              getDirectoryStatusClass(item),
                             )}
                           >
-                            {WIKI_STATUS_LABELS[item.status]}
+                            {getDirectoryStatusLabel(item)}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-cp-muted">
@@ -285,20 +338,18 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  Edit
-                                </Link>
-                              </DropdownMenuItem>
-                              {item.status === "published" ? (
+                              {item.recordKind === "wiki_entity" ? (
+                                <DropdownMenuItem asChild>
+                                  <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Edit
+                                  </Link>
+                                </DropdownMenuItem>
+                              ) : null}
+                              {canViewPublic(item) ? (
                                 <DropdownMenuItem asChild>
                                   <a
-                                    href={getPublicWikiPath(
-                                      item.sportSlug,
-                                      item.entityType,
-                                      item.slug,
-                                    )}
+                                    href={getPublicHref(item)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
@@ -307,13 +358,15 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                                   </a>
                                 </DropdownMenuItem>
                               ) : null}
-                              <DropdownMenuItem
-                                className="text-red-400"
-                                onClick={() => void handleDelete(item.id, item.displayName)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
+                              {item.recordKind === "wiki_entity" ? (
+                                <DropdownMenuItem
+                                  className="text-red-400"
+                                  onClick={() => void handleDelete(item.id, item.displayName)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              ) : null}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
@@ -348,32 +401,57 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                         <div>
                           <p className="font-medium text-foreground">{item.displayName}</p>
                           <p className="text-xs text-cp-muted">
-                            {WIKI_ENTITY_TYPE_LABELS[item.entityType]} · /{item.slug}
+                            {getDirectoryTypeLabel(item)} · /{item.slug}
                           </p>
                         </div>
                         <Badge
                           className={cn(
                             "shrink-0 border-0 text-[10px]",
-                            item.status === "published"
-                              ? "bg-emerald-900/40 text-emerald-200"
-                              : "bg-cp-elevated text-cp-muted",
+                            getDirectoryStatusClass(item),
                           )}
                         >
-                          {WIKI_STATUS_LABELS[item.status]}
+                          {getDirectoryStatusLabel(item)}
                         </Badge>
                       </div>
-                      <div className="mt-2 flex gap-2">
-                        <Button asChild variant="outline" size="sm" className="h-8 border-cp-border">
-                          <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>Edit</Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 text-red-400"
-                          onClick={() => void handleDelete(item.id, item.displayName)}
-                        >
-                          Delete
-                        </Button>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.recordKind === "wiki_entity" ? (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-cp-border"
+                          >
+                            <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>
+                              Edit
+                            </Link>
+                          </Button>
+                        ) : null}
+                        {canViewPublic(item) ? (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-cp-border"
+                          >
+                            <a
+                              href={getPublicHref(item)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              View
+                            </a>
+                          </Button>
+                        ) : null}
+                        {item.recordKind === "wiki_entity" ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-red-400"
+                            onClick={() => void handleDelete(item.id, item.displayName)}
+                          >
+                            Delete
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   </motion.article>
@@ -382,7 +460,9 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
 
               {data && data.items.length === 0 ? (
                 <p className="py-16 text-center text-sm text-cp-muted">
-                  No entities yet. Create your first wiki entry.
+                  {typeFilter === "tournament"
+                    ? "No tournaments yet. Create your first tournament."
+                    : "No entities yet. Create your first wiki entry."}
                 </p>
               ) : null}
             </>

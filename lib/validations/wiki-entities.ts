@@ -6,6 +6,12 @@ import {
 } from "@/db/schema/wiki";
 
 export const wikiEntityTypeSchema = z.enum(WIKI_ENTITY_TYPES);
+
+/** Admin wiki database filter — includes tournaments (separate table). */
+export const wikiDirectoryTypeFilterSchema = z.enum([
+  ...WIKI_ENTITY_TYPES,
+  "tournament",
+] as const);
 export const wikiEntityStatusSchema = z.enum(WIKI_ENTITY_STATUSES);
 
 export const wikiRelationInputSchema = z.object({
@@ -71,7 +77,7 @@ export const wikiEntitiesListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(12),
   search: z.string().trim().max(100).optional(),
-  entityType: wikiEntityTypeSchema.optional(),
+  entityType: wikiDirectoryTypeFilterSchema.optional(),
   status: wikiEntityStatusSchema.or(z.literal("all")).default("all"),
   sortBy: z.enum(["name", "updated", "created"]).default("updated"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
