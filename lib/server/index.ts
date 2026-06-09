@@ -11,6 +11,7 @@ export {
 export { runHealthChecks, type HealthReport } from "@/lib/health";
 
 export {
+  deleteObject,
   ensureStorageBucket,
   getPublicObjectUrl,
   getStorageClient,

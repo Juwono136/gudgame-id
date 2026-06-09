@@ -430,10 +430,30 @@ export async function updateAdminUser(
 
 export async function deleteAdminUser(id: string): Promise<void> {
   const db = getDb();
+
+  const [row] = await db
+    .select({
+      id: user.id,
+      image: user.image,
+      imageStorageKey: user.imageStorageKey,
+    })
+    .from(user)
+    .where(eq(user.id, id))
+    .limit(1);
+
+  if (!row) {
+    throw new AppError("User not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
   const result = await db.delete(user).where(eq(user.id, id)).returning({ id: user.id });
   if (result.length === 0) {
     throw new AppError("User not found", { code: "NOT_FOUND", statusCode: 404 });
   }
+
+  const { deleteUserProfileMediaFromStorage } = await import(
+    "@/lib/storage/object-lifecycle"
+  );
+  await deleteUserProfileMediaFromStorage(row);
 }
 
 export async function getAdminUserStats(): Promise<{

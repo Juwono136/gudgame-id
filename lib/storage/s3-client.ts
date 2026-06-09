@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListBucketsCommand,
@@ -109,6 +110,27 @@ export async function uploadObjectS3(params: {
       cause: err,
       context: { key: params.key },
     });
+  }
+}
+
+export async function deleteObjectS3(key: string): Promise<boolean> {
+  const env = getServerEnv();
+  const client = getStorageClient();
+
+  try {
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: env.STORAGE_BUCKET,
+        Key: key,
+      }),
+    );
+    return true;
+  } catch (err) {
+    log.warn("S3 object delete failed", {
+      key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
   }
 }
 

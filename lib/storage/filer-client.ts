@@ -134,6 +134,27 @@ export async function uploadObjectFiler(params: {
   return { key: params.key, bucket: env.STORAGE_BUCKET };
 }
 
+export async function deleteObjectFiler(key: string): Promise<boolean> {
+  const env = getServerEnv();
+  const path = bucketObjectPath(env.STORAGE_BUCKET, key);
+
+  try {
+    const res = await storageFetch(path, { method: "DELETE" });
+    if (res.status === 404) return true;
+    if (!res.ok) {
+      log.warn("Filer object delete failed", { key, status: res.status });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    log.warn("Filer object delete error", {
+      key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
 export async function getObjectFiler(
   key: string,
 ): Promise<{ body: Uint8Array; contentType: string } | null> {

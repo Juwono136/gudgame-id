@@ -1,12 +1,14 @@
 import { getStorageAuthMode } from "./auth";
 import { getMediaProxyPath } from "./media-url";
 import {
+  deleteObjectFiler,
   ensureStorageBucketFiler,
   getObjectFiler,
   pingStorageFiler,
   uploadObjectFiler,
 } from "./filer-client";
 import {
+  deleteObjectS3,
   ensureStorageBucketS3,
   getObjectS3,
   pingStorageS3,
@@ -46,4 +48,10 @@ export async function getObject(params: { key: string }) {
   return getStorageAuthMode() === "s3"
     ? getObjectS3(params.key)
     : getObjectFiler(params.key);
+}
+
+export async function deleteObject(key: string): Promise<boolean> {
+  return getStorageAuthMode() === "s3"
+    ? deleteObjectS3(key)
+    : deleteObjectFiler(key);
 }

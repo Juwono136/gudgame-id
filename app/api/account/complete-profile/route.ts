@@ -103,6 +103,13 @@ export async function POST(request: Request) {
       if (!upload.ok) {
         return NextResponse.json({ error: upload.error }, { status: 500 });
       }
+      const { deleteStoredObjectIfReplaced } = await import(
+        "@/lib/storage/object-lifecycle"
+      );
+      await deleteStoredObjectIfReplaced(
+        existing.imageStorageKey ?? existing.image,
+        upload.storageKey,
+      );
       imageUrl = upload.url;
       imageStorageKey = upload.storageKey;
     }

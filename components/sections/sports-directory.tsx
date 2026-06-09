@@ -121,89 +121,131 @@ const sportsDatabase: SportCardData[] = [
 
 export default function SportsDirectory() {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 md:py-16 lg:px-8">
-      <FadeInView>
-        <div className="flex flex-col gap-3 border-b border-cp-border pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            Sports Databases
-          </h2>
-          <Link
-            href={publicSportRoutes.sportHub("padel")}
-            className="btn-interactive inline-flex w-fit items-center gap-1 text-sm font-semibold text-cp-primary hover:text-cp-logo-accent"
-          >
-            EXPLORE ALL
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </FadeInView>
+    <section
+      id="sports-databases"
+      className="relative scroll-mt-20"
+      aria-labelledby="sports-databases-heading"
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(0,71,255,0.08),transparent)]" />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-        {sportsDatabase.map((sport, index) => (
-          <FadeInView key={sport.name} delay={index * 0.06}>
-            <article
-              className={cn(
-                "group flex h-full flex-col justify-between rounded-xl border bg-cp-card/50 p-5 backdrop-blur-sm transition-all duration-300 sm:p-6",
-                sport.active
-                  ? "border-cp-primary/40 hover:border-cp-primary/70 hover:shadow-[0_0_24px_rgba(0,71,255,0.12)]"
-                  : "border-cp-border hover:border-cp-border-subtle hover:bg-cp-card/90",
-              )}
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <FadeInView>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cp-primary">
+                Choose your sport
+              </p>
+              <h2
+                id="sports-databases-heading"
+                className="mt-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
+              >
+                Sports Databases
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-cp-muted sm:text-base">
+                Pick a discipline below to browse players, equipment, tournaments, and
+                more. Padel is live now — other sports are rolling out soon.
+              </p>
+            </div>
+            <Link
+              href={publicSportRoutes.sportHub("padel")}
+              className="btn-interactive inline-flex w-fit shrink-0 items-center gap-1 rounded-lg border border-cp-primary/30 bg-cp-primary/10 px-4 py-2 text-sm font-semibold text-cp-primary transition-colors hover:border-cp-primary/50 hover:bg-cp-primary/15"
             >
-              <div>
-                <div className="flex flex-wrap items-start justify-between gap-2 gap-y-3 sm:gap-3">
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div
+              Explore Padel
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </FadeInView>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          {sportsDatabase.map((sport, index) => (
+            <FadeInView key={sport.name} delay={index * 0.05}>
+              <article
+                className={cn(
+                  "group flex h-full flex-col justify-between rounded-xl border p-5 transition-all duration-300 sm:p-6",
+                  sport.active
+                    ? "border-cp-primary/50 bg-cp-card shadow-[0_4px_24px_rgba(0,71,255,0.12)] ring-1 ring-cp-primary/20 hover:border-cp-primary/70 hover:shadow-[0_8px_32px_rgba(0,71,255,0.18)]"
+                    : "border-cp-border bg-cp-card/60 hover:border-cp-border-subtle hover:bg-cp-card/90",
+                )}
+              >
+                <div>
+                  <div className="flex flex-wrap items-start justify-between gap-2 gap-y-3 sm:gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                          sport.iconBg,
+                        )}
+                      >
+                        {sport.icon}
+                      </div>
+                      <div className="min-w-0">
+                        {sport.active ? (
+                          <Link
+                            href={publicSportRoutes.sportHub(sport.slug)}
+                            className="text-base font-bold text-foreground transition-colors hover:text-cp-primary sm:text-lg"
+                          >
+                            {sport.name}
+                          </Link>
+                        ) : (
+                          <h3 className="text-base font-bold text-foreground sm:text-lg">
+                            {sport.name}
+                          </h3>
+                        )}
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded border border-cp-border bg-cp-bg px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-cp-muted sm:px-2 sm:text-[10px]">
+                      {sport.entries}
+                    </span>
+                  </div>
+
+                  {sport.active && (
+                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-cp-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cp-primary">
+                      <span className="h-1.5 w-1.5 rounded-full bg-cp-primary" />
+                      MVP · Live now
+                    </span>
+                  )}
+                  {sport.comingSoon && (
+                    <span className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-wider text-cp-text-dim">
+                      Coming soon
+                    </span>
+                  )}
+
+                  <p className="mt-3 text-sm leading-relaxed text-cp-muted">
+                    {sport.description}
+                  </p>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  {sport.subLinks.map((link) => (
+                    <Link
+                      key={link.label}
+                      href={subLinkHref(sport.slug, link.label, sport.active)}
                       className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-                        sport.iconBg,
+                        "btn-interactive flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-medium sm:px-3",
+                        sport.active
+                          ? "border-cp-border bg-cp-bg/80 text-cp-muted hover:border-cp-primary/30 hover:bg-cp-elevated hover:text-foreground"
+                          : "pointer-events-none border-cp-border/60 bg-cp-bg/40 text-cp-text-dim",
                       )}
                     >
-                      {sport.icon}
-                    </div>
-                    <h3 className="text-base font-bold text-foreground transition-colors group-hover:text-cp-primary sm:text-lg">
-                      {sport.name}
-                    </h3>
-                  </div>
-                  <span className="shrink-0 rounded border border-cp-border bg-cp-bg px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-cp-muted sm:px-2 sm:text-[10px]">
-                    {sport.entries}
-                  </span>
+                      {link.icon}
+                      <span className="truncate">{link.label}</span>
+                    </Link>
+                  ))}
                 </div>
 
                 {sport.active && (
-                  <span className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-wider text-cp-primary">
-                    MVP · Live now
-                  </span>
-                )}
-                {sport.comingSoon && (
-                  <span className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-                    Coming soon
-                  </span>
-                )}
-
-                <p className="mt-3 min-h-0 text-sm leading-relaxed text-cp-muted md:min-h-[3.25rem] lg:min-h-[3.5rem]">
-                  {sport.description}
-                </p>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-2">
-                {sport.subLinks.map((link) => (
                   <Link
-                    key={link.label}
-                    href={subLinkHref(sport.slug, link.label, sport.active)}
-                    className={cn(
-                      "btn-interactive flex items-center gap-2 rounded-lg border border-cp-border bg-cp-bg/50 px-2.5 py-2 text-xs font-medium text-cp-muted sm:px-3",
-                      sport.active
-                        ? "hover:border-cp-primary/30 hover:bg-cp-elevated hover:text-foreground"
-                        : "pointer-events-none text-cp-text-dim",
-                    )}
+                    href={publicSportRoutes.sportHub(sport.slug)}
+                    className="btn-interactive mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cp-primary py-2.5 text-sm font-semibold text-white hover:bg-cp-primary-light"
                   >
-                    {link.icon}
-                    <span className="truncate">{link.label}</span>
+                    Open {sport.name} database
+                    <ArrowUpRight className="h-4 w-4" />
                   </Link>
-                ))}
-              </div>
-            </article>
-          </FadeInView>
-        ))}
+                )}
+              </article>
+            </FadeInView>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -411,6 +411,15 @@ export async function updateWikiEntity(
         ? null
         : existing.publishedAt;
 
+  const nextHeroKey =
+    images?.heroStorageKey ?? existing.heroImageStorageKey ?? null;
+  const nextPrimaryKey =
+    images?.primaryStorageKey ?? existing.primaryImageStorageKey ?? null;
+
+  const { deleteStoredObjectIfReplaced } = await import(
+    "@/lib/storage/object-lifecycle"
+  );
+
   await db
     .update(wikiEntities)
     .set({
@@ -441,6 +450,15 @@ export async function updateWikiEntity(
 
   await syncWikiRelations(id, input.relations);
   await syncWikiGallery(id, input.gallery);
+
+  await deleteStoredObjectIfReplaced(
+    existing.heroImageStorageKey ?? existing.heroImageUrl,
+    nextHeroKey,
+  );
+  await deleteStoredObjectIfReplaced(
+    existing.primaryImageStorageKey ?? existing.primaryImageUrl,
+    nextPrimaryKey,
+  );
 
   const detail = await getWikiEntityById(id);
   if (!detail) {
@@ -473,26 +491,55 @@ async function syncWikiGallery(
   gallery: WikiEntityUpsertInput["gallery"],
 ) {
   const db = getDb();
-  await db.delete(wikiEntityMedia).where(eq(wikiEntityMedia.entityId, entityId));
-  const items = gallery.filter((g) => g.url || g.storageKey);
-  if (items.length === 0) return;
 
-  await db.insert(wikiEntityMedia).values(
-    items.map((g, i) => ({
-      entityId,
-      url: g.url ?? null,
-      storageKey: g.storageKey ?? null,
-      caption: g.caption ?? null,
-      sortOrder: g.sortOrder ?? i,
-      mediaType: "image",
-    })),
+  const existingMedia = await db
+    .select({
+      storageKey: wikiEntityMedia.storageKey,
+      url: wikiEntityMedia.url,
+    })
+    .from(wikiEntityMedia)
+    .where(eq(wikiEntityMedia.entityId, entityId));
+
+  const items = gallery.filter((g) => g.url || g.storageKey);
+
+  const { resolveStorageKey, deleteStoredObjects } = await import(
+    "@/lib/storage/object-lifecycle"
   );
+
+  const previousKeys = new Set(
+    existingMedia
+      .map((m) => resolveStorageKey(m.storageKey ?? m.url))
+      .filter((k): k is string => Boolean(k)),
+  );
+  const nextKeys = new Set(
+    items
+      .map((g) => resolveStorageKey(g.storageKey ?? g.url))
+      .filter((k): k is string => Boolean(k)),
+  );
+  const removedKeys = [...previousKeys].filter((key) => !nextKeys.has(key));
+
+  await db.delete(wikiEntityMedia).where(eq(wikiEntityMedia.entityId, entityId));
+
+  if (items.length > 0) {
+    await db.insert(wikiEntityMedia).values(
+      items.map((g, i) => ({
+        entityId,
+        url: g.url ?? null,
+        storageKey: g.storageKey ?? null,
+        caption: g.caption ?? null,
+        sortOrder: g.sortOrder ?? i,
+        mediaType: "image",
+      })),
+    );
+  }
+
+  await deleteStoredObjects(removedKeys);
 }
 
 export async function deleteWikiEntity(id: number, sportId: number) {
   const db = getDb();
   const [existing] = await db
-    .select({ id: wikiEntities.id })
+    .select()
     .from(wikiEntities)
     .where(and(eq(wikiEntities.id, id), eq(wikiEntities.sportId, sportId)))
     .limit(1);
@@ -501,7 +548,22 @@ export async function deleteWikiEntity(id: number, sportId: number) {
     throw new AppError("Wiki entity not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
+  const gallery = await db
+    .select({
+      storageKey: wikiEntityMedia.storageKey,
+      url: wikiEntityMedia.url,
+    })
+    .from(wikiEntityMedia)
+    .where(eq(wikiEntityMedia.entityId, id));
+
+  const {
+    collectWikiEntityStorageKeys,
+    deleteStoredObjects,
+  } = await import("@/lib/storage/object-lifecycle");
+
+  const storageKeys = collectWikiEntityStorageKeys(existing, gallery);
   await db.delete(wikiEntities).where(eq(wikiEntities.id, id));
+  await deleteStoredObjects(storageKeys);
 }
 
 export async function searchWikiEntitiesForLink(
