@@ -1,6 +1,6 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { ContentHeader } from "@/components/layout/content-header";
-import { PageContentSkeleton } from "@/components/skeletons/page-content-skeleton";
+import { ComingSoonPlaceholder } from "@/components/layout/coming-soon-placeholder";
 import { pageMeta } from "@/lib/constants/pages";
 
 export default function AboutPage() {
@@ -8,7 +8,7 @@ export default function AboutPage() {
   return (
     <PageShell>
       <ContentHeader title={meta.title} description={meta.description} />
-      <PageContentSkeleton />
+      <ComingSoonPlaceholder title={meta.title} description={meta.description} />
     </PageShell>
   );
 }

@@ -9,15 +9,17 @@ type WikiPageShellProps = {
   children: React.ReactNode;
   breadcrumbs: Breadcrumb[];
   className?: string;
+  showGridBackground?: boolean;
 };
 
 export function WikiPageShell({
   children,
   breadcrumbs,
   className,
+  showGridBackground = true,
 }: WikiPageShellProps) {
   return (
-    <PageShell mainClassName="min-h-screen">
+    <PageShell mainClassName="min-h-screen" showGridBackground={showGridBackground}>
       <div className={cn("mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12", className)}>
         <nav className="mb-6 flex flex-wrap items-center gap-1 text-xs text-cp-muted">
           {breadcrumbs.map((crumb, i) => (

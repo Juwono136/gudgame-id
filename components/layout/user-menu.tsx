@@ -16,8 +16,7 @@ import { useSession } from "@/lib/auth/client";
 import { getProfileHandle } from "@/lib/auth/user-display";
 import type { AppRole } from "@/lib/roles/constants";
 import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
-import { useLogoutMutation } from "@/hooks/use-auth-mutations";
-import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
+import { useLogoutWithConfirm } from "@/hooks/use-logout-with-confirm";
 import {
   dashboardRoutes,
   isDashboardNavLinkActive,
@@ -26,7 +25,6 @@ import {
 import { getDashboardLinksForRoles } from "@/lib/roles/dashboard-links";
 import { useSessionContext } from "@/hooks/use-session-context";
 import { resolveUserImageUrl } from "@/lib/storage/media-url";
-import { siteConfig } from "@/lib/config";
 import { ThemeToggleMenuItems } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -122,33 +120,10 @@ const accountLinkClass = (active: boolean) =>
 const accountIconClass = (active: boolean) =>
   cn("h-4 w-4 shrink-0", active ? "text-cp-primary" : "text-cp-muted");
 
-function useLogoutWithConfirm(onNavigate?: () => void) {
-  const { confirm } = useConfirmDialog();
-  const logout = useLogoutMutation();
-
-  const requestLogout = async () => {
-    const confirmed = await confirm({
-      title: `Sign out of ${siteConfig.shortName}?`,
-      description:
-        "You will need to sign in again to access your dashboard and settings. Unsaved changes on open pages may be lost.",
-      confirmLabel: "Log out",
-      cancelLabel: "Stay signed in",
-      variant: "destructive",
-    });
-
-    if (confirmed) {
-      onNavigate?.();
-      logout.mutate();
-    }
-  };
-
-  return { requestLogout, isLoggingOut: logout.isPending };
-}
-
 export function UserMenu({ className, onNavigate }: UserMenuProps) {
   const pathname = usePathname();
   const { data: session, isPending } = useSession();
-  const { requestLogout, isLoggingOut } = useLogoutWithConfirm(onNavigate);
+  const { requestLogout, isLoggingOut } = useLogoutWithConfirm({ onNavigate });
   const hasUser = Boolean(session?.user);
   const { data: sessionCtx } = useSessionContext(hasUser);
   const roles = sessionCtx?.roles ?? [];
@@ -267,7 +242,7 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
 export function UserMenuMobileLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { requestLogout, isLoggingOut } = useLogoutWithConfirm(onNavigate);
+  const { requestLogout, isLoggingOut } = useLogoutWithConfirm({ onNavigate });
   const hasUser = Boolean(session?.user);
   const { data: sessionCtx } = useSessionContext(hasUser);
   const roles = sessionCtx?.roles ?? [];

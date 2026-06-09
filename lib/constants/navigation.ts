@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { HeartHandshake, Newspaper, UserRound, Users } from "lucide-react";
+import { HeartHandshake, Newspaper, UserRound } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -8,7 +8,6 @@ export type NavItem = {
 };
 
 export const mainNavItems: NavItem[] = [
-  { href: "/players", label: "Players", icon: Users },
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/about", label: "About", icon: UserRound },
   { href: "/community", label: "Community", icon: HeartHandshake },

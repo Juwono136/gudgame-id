@@ -88,12 +88,16 @@ export async function deleteUserProfileMediaFromStorage(user: {
   ]);
 }
 
-export function collectWikiEntityStorageKeys(entity: {
-  heroImageStorageKey?: string | null;
-  primaryImageStorageKey?: string | null;
-  heroImageUrl?: string | null;
-  primaryImageUrl?: string | null;
-}, gallery: { storageKey?: string | null; url?: string | null }[]): string[] {
+export function collectWikiEntityStorageKeys(
+  entity: {
+    heroImageStorageKey?: string | null;
+    primaryImageStorageKey?: string | null;
+    heroImageUrl?: string | null;
+    primaryImageUrl?: string | null;
+    attributes?: Record<string, unknown> | null;
+  },
+  gallery: { storageKey?: string | null; url?: string | null }[],
+): string[] {
   const keys: string[] = [];
 
   for (const ref of [
@@ -109,6 +113,20 @@ export function collectWikiEntityStorageKeys(entity: {
   for (const item of gallery) {
     const key = resolveStorageKey(item.storageKey ?? item.url);
     if (key) keys.push(key);
+  }
+
+  const equipment = entity.attributes?.equipment;
+  if (Array.isArray(equipment)) {
+    for (const item of equipment) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      for (const ref of [record.imageStorageKey, record.imageUrl]) {
+        if (typeof ref === "string") {
+          const key = resolveStorageKey(ref);
+          if (key) keys.push(key);
+        }
+      }
+    }
   }
 
   return keys;

@@ -52,6 +52,10 @@ export const wikiEntities = pgTable(
     sourceUrl: text("source_url"),
     scrapedAt: timestamp("scraped_at"),
     publishedAt: timestamp("published_at"),
+    /** Account that owns this player profile (self-managed via My Settings) */
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdBy: text("created_by").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -69,6 +73,7 @@ export const wikiEntities = pgTable(
     index("wiki_entities_sport_type_idx").on(table.sportId, table.entityType),
     index("wiki_entities_status_idx").on(table.status),
     index("wiki_entities_display_name_idx").on(table.displayName),
+    index("wiki_entities_owner_user_idx").on(table.ownerUserId),
   ],
 );
 

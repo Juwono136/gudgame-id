@@ -1,25 +1,33 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Package, User, Users } from "lucide-react";
-import type { WikiEntityType } from "@/db/schema/wiki";
-import { WIKI_ENTITY_TYPE_LABELS } from "@/lib/wiki/constants";
+import { Package, Trophy, User } from "lucide-react";
+import {
+  CREATE_ENTITY_KIND_LABELS,
+  type CreateEntityKind,
+} from "@/lib/wiki/create-entity-kind";
 import { cn } from "@/lib/utils";
 
 const ICONS = {
   player: User,
-  team: Users,
   gear: Package,
+  tournament: Trophy,
 } as const;
 
+const DESCRIPTIONS: Record<CreateEntityKind, string> = {
+  player: "Pro & community athletes",
+  gear: "Rackets, shoes, gloves & more",
+  tournament: "Official, recreational & sparring events",
+};
+
 type EntityTypePickerProps = {
-  value: WikiEntityType;
-  onChange: (type: WikiEntityType) => void;
+  value: CreateEntityKind;
+  onChange: (type: CreateEntityKind) => void;
   disabled?: boolean;
 };
 
 export function EntityTypePicker({ value, onChange, disabled }: EntityTypePickerProps) {
-  const types: WikiEntityType[] = ["player", "team", "gear"];
+  const types: CreateEntityKind[] = ["player", "tournament", "gear"];
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -48,14 +56,10 @@ export function EntityTypePicker({ value, onChange, disabled }: EntityTypePicker
                 selected ? "text-cp-primary" : "text-cp-muted",
               )}
             />
-            <p className="font-semibold text-foreground">{WIKI_ENTITY_TYPE_LABELS[type]}</p>
-            <p className="mt-1 text-xs text-cp-muted">
-              {type === "player"
-                ? "Pro & community athletes"
-                : type === "team"
-                  ? "Duos, squads & clubs"
-                  : "Rackets, shoes, gloves & more"}
+            <p className="font-semibold text-foreground">
+              {CREATE_ENTITY_KIND_LABELS[type]}
             </p>
+            <p className="mt-1 text-xs text-cp-muted">{DESCRIPTIONS[type]}</p>
           </motion.button>
         );
       })}

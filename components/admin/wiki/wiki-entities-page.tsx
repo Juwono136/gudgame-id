@@ -5,6 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
   Loader2,
   MoreVertical,
   Pencil,
@@ -18,6 +21,7 @@ import { AdminLoadingOverlay } from "@/components/admin/ui/admin-loading-overlay
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +50,14 @@ type WikiEntitiesPageProps = {
   context: AdminSessionContext;
 };
 
+function formatDate(iso: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
   const { confirm } = useConfirmDialog();
   const [search, setSearch] = useState("");
@@ -60,7 +72,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
   const queryParams: WikiEntitiesListQuery = useMemo(
     () => ({
       page,
-      pageSize: 12,
+      pageSize: 10,
       search: debouncedSearch || undefined,
       entityType: typeFilter === "all" ? undefined : typeFilter,
       status: statusFilter,
@@ -92,15 +104,13 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
         <AdminLoadingOverlay show={isFetching && !isLoading} />
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-cp-muted">
-              Manage players, teams, and gear for{" "}
-              <span className="font-semibold capitalize text-cp-logo-accent">
-                {context.sportSlug}
-              </span>
-              . Field schemas adapt per sport.
-            </p>
-          </div>
+          <p className="text-sm text-cp-muted">
+            Manage players, gear, and tournaments for{" "}
+            <span className="font-semibold capitalize text-cp-logo-accent">
+              {context.sportSlug}
+            </span>
+            . Field schemas adapt per sport.
+          </p>
           <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
             <Link href={adminRoutes.wikiEntitiesNew}>
               <Plus className="mr-2 h-4 w-4" />
@@ -110,9 +120,9 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
         </div>
 
         {data?.stats ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Players" value={String(data.stats.player)} />
-            <StatCard label="Teams" value={String(data.stats.team)} />
+            <StatCard label="Tournaments" value={String(data.stats.tournaments)} />
             <StatCard label="Gear" value={String(data.stats.gear)} />
             <StatCard label="Published" value={String(data.stats.published)} />
             <StatCard label="Drafts" value={String(data.stats.draft)} />
@@ -145,7 +155,6 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
               <SelectItem value="player">Players</SelectItem>
-              <SelectItem value="team">Teams</SelectItem>
               <SelectItem value="gear">Gear</SelectItem>
             </SelectContent>
           </Select>
@@ -192,113 +201,196 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
           </Select>
         </div>
 
-        {error ? (
-          <p className="text-sm text-red-400">Failed to load entities. Try again.</p>
-        ) : null}
-
-        {isLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-cp-primary" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {data?.items.map((item, i) => (
-              <motion.article
-                key={item.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                className="overflow-hidden rounded-xl border border-cp-border bg-cp-card"
-              >
-                <div className="relative aspect-[16/9] bg-cp-elevated">
-                  {item.primaryImageUrl ? (
-                    <Image
-                      src={item.primaryImageUrl}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-cp-muted">
-                      No image
-                    </div>
-                  )}
-                  <Badge
-                    className={cn(
-                      "absolute left-3 top-3",
-                      item.status === "published"
-                        ? "bg-emerald-900/80 text-emerald-100"
-                        : "bg-cp-elevated text-cp-muted",
-                    )}
-                  >
-                    {WIKI_STATUS_LABELS[item.status]}
-                  </Badge>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-foreground">
-                        {item.displayName}
-                      </p>
-                      <p className="text-xs text-cp-muted">
-                        {WIKI_ENTITY_TYPE_LABELS[item.entityType]} · /{item.slug}
-                      </p>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link
-                            href={`${adminRoutes.wikiEntities}/${item.id}/edit`}
-                          >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit
-                          </Link>
-                        </DropdownMenuItem>
-                        {item.status === "published" ? (
-                          <DropdownMenuItem asChild>
-                            <a
-                              href={getPublicWikiPath(
-                                item.sportSlug,
-                                item.entityType,
-                                item.slug,
+        <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card/50 shadow-sm">
+          {error ? (
+            <p className="p-10 text-center text-sm text-red-400">
+              Failed to load entities. Try again.
+            </p>
+          ) : isLoading ? (
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-xl bg-cp-elevated" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cp-border/80 bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      <th className="px-4 py-3 font-semibold">Entity</th>
+                      <th className="px-4 py-3 font-semibold">Type</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 font-semibold">Updated</th>
+                      <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cp-border/50">
+                    {data?.items.map((item, i) => (
+                      <motion.tr
+                        key={item.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: i * 0.02 }}
+                        className="transition-colors hover:bg-cp-elevated/30"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-cp-border bg-cp-elevated">
+                              {item.primaryImageUrl ? (
+                                <Image
+                                  src={item.primaryImageUrl}
+                                  alt=""
+                                  fill
+                                  className="object-cover"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-[10px] text-cp-muted">
+                                  —
+                                </div>
                               )}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              View public page
-                            </a>
-                          </DropdownMenuItem>
-                        ) : null}
-                        <DropdownMenuItem
-                          className="text-red-400"
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-foreground">
+                                {item.displayName}
+                              </p>
+                              <p className="truncate text-xs text-cp-muted">/{item.slug}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-cp-muted">
+                          {WIKI_ENTITY_TYPE_LABELS[item.entityType]}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            className={cn(
+                              "border-0 text-[10px] font-semibold uppercase",
+                              item.status === "published"
+                                ? "bg-emerald-900/40 text-emerald-200"
+                                : "bg-cp-elevated text-cp-muted",
+                            )}
+                          >
+                            {WIKI_STATUS_LABELS[item.status]}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-cp-muted">
+                          {formatDate(item.updatedAt)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit
+                                </Link>
+                              </DropdownMenuItem>
+                              {item.status === "published" ? (
+                                <DropdownMenuItem asChild>
+                                  <a
+                                    href={getPublicWikiPath(
+                                      item.sportSlug,
+                                      item.entityType,
+                                      item.slug,
+                                    )}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    View public page
+                                  </a>
+                                </DropdownMenuItem>
+                              ) : null}
+                              <DropdownMenuItem
+                                className="text-red-400"
+                                onClick={() => void handleDelete(item.id, item.displayName)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="divide-y divide-cp-border/50 lg:hidden">
+                {data?.items.map((item, i) => (
+                  <motion.article
+                    key={item.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="flex gap-3 p-4"
+                  >
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-cp-border bg-cp-elevated">
+                      {item.primaryImageUrl ? (
+                        <Image
+                          src={item.primaryImageUrl}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-foreground">{item.displayName}</p>
+                          <p className="text-xs text-cp-muted">
+                            {WIKI_ENTITY_TYPE_LABELS[item.entityType]} · /{item.slug}
+                          </p>
+                        </div>
+                        <Badge
+                          className={cn(
+                            "shrink-0 border-0 text-[10px]",
+                            item.status === "published"
+                              ? "bg-emerald-900/40 text-emerald-200"
+                              : "bg-cp-elevated text-cp-muted",
+                          )}
+                        >
+                          {WIKI_STATUS_LABELS[item.status]}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <Button asChild variant="outline" size="sm" className="h-8 border-cp-border">
+                          <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>Edit</Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-red-400"
                           onClick={() => void handleDelete(item.id, item.displayName)}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
                           Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </motion.article>
-            ))}
-          </div>
-        )}
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
 
-        {data && data.items.length === 0 && !isLoading ? (
-          <p className="py-12 text-center text-sm text-cp-muted">
-            No entities yet. Create your first wiki entry.
-          </p>
-        ) : null}
+              {data && data.items.length === 0 ? (
+                <p className="py-16 text-center text-sm text-cp-muted">
+                  No entities yet. Create your first wiki entry.
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
 
         {data && totalPages > 1 ? (
-          <div className="flex justify-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -306,9 +398,10 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
               onClick={() => setPage((p) => p - 1)}
               className="border-cp-border"
             >
+              <ChevronLeft className="h-4 w-4" />
               Previous
             </Button>
-            <span className="flex items-center px-2 text-sm text-cp-muted">
+            <span className="px-2 text-sm text-cp-muted">
               Page {page} of {totalPages}
             </span>
             <Button
@@ -319,6 +412,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
               className="border-cp-border"
             >
               Next
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         ) : null}

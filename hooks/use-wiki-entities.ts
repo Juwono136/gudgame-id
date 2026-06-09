@@ -32,6 +32,7 @@ function buildWikiFormData(
     heroImage?: File | null;
     primaryImage?: File | null;
     gallerySlots?: GallerySlot[];
+    equipmentFiles?: Record<string, File>;
   },
 ): FormData {
   const fd = new FormData();
@@ -59,6 +60,9 @@ function buildWikiFormData(
   for (const slot of files?.gallerySlots ?? []) {
     if (slot.file) fd.append("galleryImages", slot.file);
   }
+  for (const [id, file] of Object.entries(files?.equipmentFiles ?? {})) {
+    fd.append(`equipmentImage_${id}`, file);
+  }
   return fd;
 }
 
@@ -83,7 +87,15 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery) {
           total: number;
           page: number;
           pageSize: number;
-          stats: { player: number; team: number; gear: number; published: number; draft: number };
+          stats: {
+            player: number;
+            gear: number;
+            published: number;
+            draft: number;
+            tournaments: number;
+            tournamentsLive?: number;
+            tournamentsUpcoming?: number;
+          };
           sportSlug: string;
         };
         error?: unknown;

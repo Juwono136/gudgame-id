@@ -1,103 +1,177 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ClipboardCheck, Users } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowRight, BookOpen, Loader2, Users } from "lucide-react";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { StatCard } from "@/components/admin/ui/stat-card";
+import { AdminRangeFilter } from "@/components/admin/dashboard/admin-range-filter";
+import { AdminDashboardCharts } from "@/components/admin/dashboard/admin-dashboard-charts";
+import { AdminRecentActivity } from "@/components/admin/dashboard/admin-recent-activity";
+import { Skeleton } from "@/components/ui/skeleton";
 import { adminRoutes } from "@/lib/constants/routes";
 import type { AdminSessionContext } from "@/lib/admin/types";
-import { getRoleLabel } from "@/lib/roles/constants";
-import { useAdminUserStats } from "@/hooks/use-admin-users";
-import { canManageUsers } from "@/lib/roles/permissions";
+import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
+import type { AdminDashboardRange } from "@/lib/validations/admin-dashboard";
+import {
+  canManageUsers,
+  hasPermission,
+} from "@/lib/roles/permissions";
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0 },
+};
 
 export function AdminOverview({ context }: { context: AdminSessionContext }) {
+  const [range, setRange] = useState<AdminDashboardRange>("month");
+  const { data, isLoading, isFetching, error, refetch } = useAdminDashboardStats(range);
+
   const showUsers = canManageUsers(context.roles);
-  const { data: stats } = useAdminUserStats(showUsers);
+  const showWiki = hasPermission(context.roles, "admin.wiki.manage");
+
+  const rangeLabel =
+    range === "week" ? "last 7 days" : range === "month" ? "last 30 days" : "last 12 months";
 
   return (
     <AdminShell context={context} title="Dashboard">
-      <p className="mb-6 text-sm text-cp-muted">
-        Master console for <span className="capitalize text-foreground">{context.sportSlug}</span>
-        — scale across sports from one place.
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Active sport"
-          value={context.sportSlug}
-          hint="Switch sport in the sidebar to scope future modules"
-        />
-        <StatCard
-          label="Your roles"
-          value={context.roles.map(getRoleLabel).join(", ")}
-          hint="Switch dashboards from your profile menu"
-        />
-        {showUsers ? (
-          <>
-            <StatCard
-              label="Total users"
-              value={stats?.totalStaff ?? "—"}
-              hint={
-                stats
-                  ? `${stats.activeAccounts} active accounts`
-                  : "All registered users"
-              }
-            />
-            <StatCard
-              label="Pending approvals"
-              value="—"
-              hint="Content moderation — coming soon"
-            />
-          </>
-        ) : null}
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-cp-border bg-cp-card/50 p-6">
-          <h2 className="text-lg font-semibold text-foreground">Quick actions</h2>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-cp-primary">
+            Platform overview
+          </p>
+          <h2 className="mt-1 text-lg font-semibold text-foreground sm:text-xl">
+            <span className="capitalize">{context.sportSlug}</span> console
+          </h2>
           <p className="mt-1 text-sm text-cp-muted">
-            Jump into the modules you have permission to use.
+            Live metrics from users and wiki content. Refreshes every minute.
           </p>
-          <ul className="mt-4 space-y-2">
-            {showUsers ? (
-              <li>
-                <Link
-                  href={adminRoutes.users}
-                  className="flex items-center justify-between rounded-xl border border-cp-border bg-cp-elevated/40 px-4 py-3 text-sm font-medium text-foreground transition-colors hover:border-cp-primary/40"
-                >
-                  <span className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-cp-primary" />
-                    User Management
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-cp-muted" />
-                </Link>
-              </li>
-            ) : null}
-            <li>
-              <span className="flex cursor-not-allowed items-center justify-between rounded-xl border border-cp-border/60 px-4 py-3 text-sm text-cp-muted">
-                <span className="flex items-center gap-2">
-                  <ClipboardCheck className="h-4 w-4" />
-                  Content Approval
-                </span>
-                <span className="text-[10px] uppercase tracking-wider">Soon</span>
-              </span>
-            </li>
-          </ul>
-        </section>
+        </div>
 
-        <section className="rounded-2xl border border-cp-border bg-cp-card/50 p-6">
-          <h2 className="text-lg font-semibold text-foreground">Multi-sport ready</h2>
-          <p className="mt-2 text-sm leading-relaxed text-cp-muted">
-            TandingBase is built to add new sports (tennis, pickleball, etc.)
-            without rebuilding the admin shell. Each sport can define its own
-            rules, brackets, gear catalog, and player tiers — while sharing one
-            user directory and role system.
-          </p>
-          <p className="mt-3 text-xs text-cp-logo-accent">
-            Tournament join fees are charged to players at registration time
-            (not tournament creators) — planned for a future release.
-          </p>
-        </section>
+        <div className="flex items-center gap-3">
+          {isFetching && !isLoading ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-cp-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Updating…
+            </span>
+          ) : null}
+          <AdminRangeFilter
+            value={range}
+            onChange={setRange}
+            disabled={isLoading}
+          />
+        </div>
       </div>
+
+      {error ? (
+        <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-center">
+          <p className="text-sm text-red-300">
+            {error instanceof Error ? error.message : "Failed to load dashboard"}
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="mt-3 text-sm font-semibold text-cp-primary hover:underline"
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl bg-cp-elevated" />
+          ))}
+        </div>
+      ) : data ? (
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.06 } } }}
+          className="space-y-6"
+        >
+          <motion.div
+            variants={fadeUp}
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            {showUsers ? (
+              <>
+                <StatCard
+                  label="Total users"
+                  value={data.summary.totalUsers}
+                  hint={`${data.summary.activeAccounts} active accounts`}
+                />
+                <StatCard
+                  label="Logged in (24h)"
+                  value={data.summary.loggedInLast24h}
+                  hint="Users with a session in the last day"
+                />
+                <StatCard
+                  label={`New users (${rangeLabel})`}
+                  value={data.summary.newUsersInRange}
+                  trend={data.summary.newUsersInRange > 0 ? "Growing" : undefined}
+                />
+              </>
+            ) : null}
+
+            {showWiki ? (
+              <>
+                <StatCard
+                  label="Wiki entities"
+                  value={data.summary.wikiTotal}
+                  hint={`${data.summary.wikiPublished} published · ${data.summary.wikiDraft} draft`}
+                />
+                <StatCard
+                  label={`New wiki (${rangeLabel})`}
+                  value={data.summary.newWikiInRange}
+                  hint={`Scoped to ${data.sportSlug}`}
+                />
+              </>
+            ) : null}
+          </motion.div>
+
+          {(showUsers || showWiki) && (
+            <motion.div variants={fadeUp}>
+              <div className="mb-4 flex flex-wrap gap-2">
+                {showUsers ? (
+                  <Link
+                    href={adminRoutes.users}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cp-border bg-cp-elevated/40 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-cp-primary/40 hover:bg-cp-primary/5"
+                  >
+                    <Users className="h-4 w-4 text-cp-primary" />
+                    User management
+                    <ArrowRight className="h-4 w-4 text-cp-muted" />
+                  </Link>
+                ) : null}
+                {showWiki ? (
+                  <Link
+                    href={adminRoutes.wikiEntities}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cp-border bg-cp-elevated/40 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-cp-primary/40 hover:bg-cp-primary/5"
+                  >
+                    <BookOpen className="h-4 w-4 text-emerald-400" />
+                    Wiki entities
+                    <ArrowRight className="h-4 w-4 text-cp-muted" />
+                  </Link>
+                ) : null}
+              </div>
+            </motion.div>
+          )}
+
+          <motion.div variants={fadeUp}>
+            <AdminDashboardCharts data={data} />
+          </motion.div>
+
+          <motion.div variants={fadeUp}>
+            <AdminRecentActivity
+              data={data}
+              showUsers={showUsers}
+              showWiki={showWiki}
+            />
+          </motion.div>
+        </motion.div>
+      ) : null}
     </AdminShell>
   );
 }

@@ -19,6 +19,7 @@ type GalleryUploadFieldProps = {
   onChange: (slots: GallerySlot[]) => void;
   label?: string;
   hint?: string;
+  maxImages?: number;
 };
 
 export function GalleryUploadField({
@@ -26,14 +27,15 @@ export function GalleryUploadField({
   onChange,
   label = "Photo gallery",
   hint = "Up to 5 images shown on the public profile page.",
+  maxImages = MAX_GALLERY_IMAGES,
 }: GalleryUploadFieldProps) {
-  const canAdd = slots.length < MAX_GALLERY_IMAGES;
+  const canAdd = slots.length < maxImages;
 
   const addFiles = (files: FileList | null) => {
     if (!files?.length) return;
     const next = [...slots];
     for (const file of Array.from(files)) {
-      if (next.length >= MAX_GALLERY_IMAGES) break;
+      if (next.length >= maxImages) break;
       if (!file.type.startsWith("image/")) continue;
       if (file.size > 10 * 1024 * 1024) continue;
       next.push({
@@ -57,7 +59,7 @@ export function GalleryUploadField({
           <p className="mt-0.5 text-xs text-cp-muted">{hint}</p>
         </div>
         <span className="text-xs font-medium text-cp-muted">
-          {slots.length}/{MAX_GALLERY_IMAGES}
+          {slots.length}/{maxImages}
         </span>
       </div>
 

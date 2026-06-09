@@ -3,14 +3,10 @@ import "server-only";
 import { and, asc, eq, ilike, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sports, wikiEntities, type WikiEntityType } from "@/db/schema";
+import { getSportDetailBySlug } from "@/lib/sports/service";
 
 export async function getSportBySlug(slug: string) {
-  const [row] = await getDb()
-    .select()
-    .from(sports)
-    .where(and(eq(sports.slug, slug), eq(sports.isActive, true)))
-    .limit(1);
-  return row ?? null;
+  return getSportDetailBySlug(slug);
 }
 
 export async function listPublishedWikiEntities(

@@ -1,6 +1,7 @@
 export type EmailTemplateId =
   | "verify-email"
   | "reset-password"
+  | "password-changed"
   | "welcome"
   | "admin-user-invite";
 
@@ -30,9 +31,17 @@ export type AdminUserInviteTemplateData = {
   appName: string;
 };
 
+export type PasswordChangedTemplateData = {
+  userName: string;
+  appName: string;
+  loginUrl: string;
+  changedAt: string;
+};
+
 export type EmailTemplateDataMap = {
   "verify-email": VerifyEmailTemplateData;
   "reset-password": ResetPasswordTemplateData;
+  "password-changed": PasswordChangedTemplateData;
   welcome: WelcomeEmailTemplateData;
   "admin-user-invite": AdminUserInviteTemplateData;
 };

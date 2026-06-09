@@ -6,6 +6,7 @@ import type {
 import { renderAdminUserInviteTemplate } from "./admin-user-invite";
 import { renderVerifyEmailTemplate } from "./verify-email";
 import { renderResetPasswordTemplate } from "./reset-password";
+import { renderPasswordChangedTemplate } from "./password-changed";
 
 export function renderEmailTemplate<T extends EmailTemplateId>(
   input: SendTemplatedEmailInput<T>,
@@ -18,6 +19,10 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "reset-password":
       return renderResetPasswordTemplate(
         input.data as EmailTemplateDataMap["reset-password"],
+      );
+    case "password-changed":
+      return renderPasswordChangedTemplate(
+        input.data as EmailTemplateDataMap["password-changed"],
       );
     case "admin-user-invite":
       return renderAdminUserInviteTemplate(

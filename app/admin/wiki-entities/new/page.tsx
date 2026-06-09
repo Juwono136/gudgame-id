@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
-import { WikiEntityWizard } from "@/components/admin/wiki/wiki-entity-wizard";
+import { CreateEntityFlow } from "@/components/admin/wiki/create-entity-flow";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { adminRoutes } from "@/lib/constants/routes";
 
@@ -21,7 +21,7 @@ export default async function NewWikiEntityPage() {
         <ArrowLeft className="mr-1 h-4 w-4" />
         Wiki database
       </Link>
-      <WikiEntityWizard sportSlug={context.sportSlug} mode="create" />
+      <CreateEntityFlow sportSlug={context.sportSlug} />
     </AdminShell>
   );
 }

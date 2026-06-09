@@ -1,0 +1,440 @@
+import "server-only";
+
+import { and, eq } from "drizzle-orm";
+import { getDb } from "@/db/client";
+import { sports, wikiEntities, wikiEntityMedia } from "@/db/schema";
+import { AppError } from "@/lib/errors";
+import { getWikiEntityById } from "@/lib/wiki/service";
+import { getSportBySlug } from "@/lib/wiki/public";
+import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
+import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
+import { uploadWikiImage, validateWikiImageFile } from "@/lib/wiki/upload-media";
+import {
+  collectEquipmentStorageRefs,
+  equipmentFromAttributes,
+  mergeEquipmentIntoAttributes,
+  type PlayerEquipmentItem,
+} from "@/lib/wiki/player-equipment";
+import {
+  DEFAULT_PLAYER_SPORT_SLUG,
+  PLAYER_GALLERY_MAX,
+} from "@/lib/wiki/constants";
+import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import {
+  deleteStoredObjectIfReplaced,
+  deleteStoredObjects,
+  resolveStorageKey,
+} from "@/lib/storage/object-lifecycle";
+import type { PlayerProfileUpsertInput } from "@/lib/validations/account-settings";
+import { publicSportRoutes } from "@/lib/constants/routes";
+import {
+  mergePlayerEditableAttributes,
+  parsePlayerEditableAttributes,
+  type PlayerSocialLink,
+} from "@/lib/wiki/player-profile-fields";
+import {
+  getPlayerCareerStats,
+  getSignatureGearItem,
+} from "@/lib/wiki/player-career-stats";
+import { requirePlayerDisplayNameForUser } from "@/lib/account/player-profile/resolve-display-name";
+import { getUserPhotoForWiki } from "@/lib/account/player-profile/sync-primary-photo";
+
+export type PlayerWikiProfileView = {
+  id: number;
+  sportSlug: string;
+  sportName: string;
+  slug: string;
+  displayName: string;
+  summary: string | null;
+  biography: string | null;
+  status: string;
+  primaryImageUrl: string | null;
+  nationality: string | null;
+  age: number | null;
+  socialLinks: PlayerSocialLink[];
+  signatureGearId: string | null;
+  signatureGear: PlayerEquipmentItem | null;
+  yearsActive: string | null;
+  careerStats: ReturnType<typeof getPlayerCareerStats>;
+  attributes: Record<string, unknown>;
+  performance: Record<string, unknown>;
+  equipment: PlayerEquipmentItem[];
+  gallery: {
+    id?: number;
+    url: string | null;
+    storageKey?: string | null;
+    caption: string | null;
+    sortOrder: number;
+  }[];
+  publicUrl: string;
+  updatedAt: string;
+};
+
+function mapPlayerProfile(detail: NonNullable<Awaited<ReturnType<typeof getWikiEntityById>>>): PlayerWikiProfileView {
+  const equipment = equipmentFromAttributes(detail.attributes);
+  const editable = parsePlayerEditableAttributes(detail.attributes);
+  const careerStats = getPlayerCareerStats(detail);
+
+  return {
+    id: detail.id,
+    sportSlug: detail.sportSlug,
+    sportName: detail.sportName,
+    slug: detail.slug,
+    displayName: detail.displayName,
+    summary: detail.summary,
+    biography: detail.biography,
+    status: detail.status,
+    primaryImageUrl: resolveWikiImageUrl(detail.primaryImageUrl),
+    nationality: editable.nationality ?? null,
+    age: editable.age ?? null,
+    socialLinks: editable.socialLinks ?? [],
+    signatureGearId: editable.signatureGearId ?? null,
+    signatureGear: getSignatureGearItem(detail.attributes),
+    yearsActive: careerStats.yearsActive,
+    careerStats,
+    attributes: detail.attributes,
+    performance: detail.performance,
+    equipment,
+    gallery: detail.gallery.map((g) => ({
+      id: g.id,
+      url: resolveWikiImageUrl(g.url),
+      storageKey: null,
+      caption: g.caption,
+      sortOrder: g.sortOrder,
+    })),
+    publicUrl: publicSportRoutes.player(detail.sportSlug, detail.slug),
+    updatedAt: detail.updatedAt,
+  };
+}
+
+function buildPlayerAttributes(
+  existing: Record<string, unknown>,
+  input: PlayerProfileUpsertInput,
+  equipment: PlayerEquipmentItem[],
+): Record<string, unknown> {
+  const withEquipment = mergeEquipmentIntoAttributes(existing, equipment);
+  const age =
+    input.age === "" || input.age === undefined || input.age === null
+      ? null
+      : Number(input.age);
+
+  return mergePlayerEditableAttributes(withEquipment, {
+    nationality: input.nationality?.trim() ?? "",
+    age: Number.isFinite(age) ? age : null,
+    socialLinks: input.socialLinks,
+    signatureGearId: input.signatureGearId || null,
+  });
+}
+
+export async function getPlayerWikiEntityIdForUser(userId: string): Promise<number | null> {
+  const [row] = await getDb()
+    .select({ id: wikiEntities.id })
+    .from(wikiEntities)
+    .where(
+      and(
+        eq(wikiEntities.ownerUserId, userId),
+        eq(wikiEntities.entityType, "player"),
+      ),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
+
+export async function getPlayerWikiProfileForUser(
+  userId: string,
+): Promise<PlayerWikiProfileView | null> {
+  const entityId = await getPlayerWikiEntityIdForUser(userId);
+  if (!entityId) return null;
+  const detail = await getWikiEntityById(entityId);
+  return detail ? mapPlayerProfile(detail) : null;
+}
+
+async function uploadEquipmentImages(
+  equipment: PlayerEquipmentItem[],
+  equipmentFiles: Map<string, File>,
+  sportSlug: string,
+): Promise<PlayerEquipmentItem[]> {
+  const result: PlayerEquipmentItem[] = [];
+
+  for (const item of equipment) {
+    const file = equipmentFiles.get(item.id);
+    if (!file) {
+      result.push(item);
+      continue;
+    }
+
+    const validation = validateWikiImageFile(file);
+    if (!validation.ok) {
+      throw new AppError(validation.message, {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    const upload = await uploadWikiImage(validation.file, sportSlug, "player");
+    if (!upload.ok) {
+      throw new AppError(upload.error, { code: "STORAGE_ERROR", statusCode: 500 });
+    }
+
+    result.push({
+      ...item,
+      imageUrl: upload.url,
+      imageStorageKey: upload.storageKey,
+    });
+  }
+
+  return result;
+}
+
+async function syncEquipmentStorage(
+  previous: PlayerEquipmentItem[],
+  next: PlayerEquipmentItem[],
+) {
+  const prevRefs = new Set(collectEquipmentStorageRefs(previous).map((r) => resolveStorageKey(r)).filter(Boolean));
+  const nextRefs = new Set(collectEquipmentStorageRefs(next).map((r) => resolveStorageKey(r)).filter(Boolean));
+  const removed = [...prevRefs].filter((k) => k && !nextRefs.has(k)) as string[];
+  await deleteStoredObjects(removed);
+}
+
+async function syncPlayerGallery(
+  entityId: number,
+  gallery: PlayerProfileUpsertInput["gallery"],
+) {
+  const db = getDb();
+
+  const existingMedia = await db
+    .select({
+      storageKey: wikiEntityMedia.storageKey,
+      url: wikiEntityMedia.url,
+    })
+    .from(wikiEntityMedia)
+    .where(eq(wikiEntityMedia.entityId, entityId));
+
+  const items = gallery.filter((g) => g.url || g.storageKey);
+
+  const previousKeys = new Set(
+    existingMedia
+      .map((m) => resolveStorageKey(m.storageKey ?? m.url))
+      .filter((k): k is string => Boolean(k)),
+  );
+  const nextKeys = new Set(
+    items
+      .map((g) => resolveStorageKey(g.storageKey ?? g.url))
+      .filter((k): k is string => Boolean(k)),
+  );
+  const removedKeys = [...previousKeys].filter((key) => !nextKeys.has(key));
+
+  await db.delete(wikiEntityMedia).where(eq(wikiEntityMedia.entityId, entityId));
+
+  if (items.length > 0) {
+    await db.insert(wikiEntityMedia).values(
+      items.map((g, i) => ({
+        entityId,
+        url: g.url ?? null,
+        storageKey: g.storageKey ?? null,
+        caption: g.caption ?? null,
+        sortOrder: g.sortOrder ?? i,
+        mediaType: "image",
+      })),
+    );
+  }
+
+  await deleteStoredObjects(removedKeys);
+}
+
+function parseEquipmentFiles(formData: FormData): Map<string, File> {
+  const map = new Map<string, File>();
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith("equipmentImage_") && value instanceof File && value.size > 0) {
+      const id = key.slice("equipmentImage_".length);
+      map.set(id, value);
+    }
+  }
+  return map;
+}
+
+function parseGalleryFiles(formData: FormData): File[] {
+  return formData
+    .getAll("galleryImages")
+    .filter((f): f is File => f instanceof File && f.size > 0)
+    .slice(0, PLAYER_GALLERY_MAX);
+}
+
+export async function upsertPlayerWikiProfile(
+  userId: string,
+  input: PlayerProfileUpsertInput,
+  formData: FormData,
+  options: { create: boolean },
+): Promise<PlayerWikiProfileView> {
+  const sport = await getSportBySlug(DEFAULT_PLAYER_SPORT_SLUG);
+  if (!sport) {
+    throw new AppError("Default sport is not configured", {
+      code: "SERVICE_UNAVAILABLE",
+      statusCode: 503,
+    });
+  }
+
+  const existingId = await getPlayerWikiEntityIdForUser(userId);
+  if (options.create && existingId) {
+    throw new AppError("You already have a player profile", {
+      code: "VALIDATION_ERROR",
+      statusCode: 409,
+    });
+  }
+  if (!options.create && !existingId) {
+    throw new AppError("Player profile not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const equipmentFiles = parseEquipmentFiles(formData);
+  let equipment = await uploadEquipmentImages(
+    input.equipment,
+    equipmentFiles,
+    sport.slug,
+  );
+
+  const db = getDb();
+  const displayName = await requirePlayerDisplayNameForUser(userId);
+  const accountPhoto = await getUserPhotoForWiki(userId);
+
+  const galleryFiles = parseGalleryFiles(formData);
+  const keptGallery = input.gallery.filter((g) => g.url || g.storageKey);
+  const uploadedGallery: PlayerProfileUpsertInput["gallery"] = [];
+
+  for (let i = 0; i < galleryFiles.length; i++) {
+    const file = galleryFiles[i]!;
+    const v = validateWikiImageFile(file);
+    if (!v.ok) {
+      throw new AppError(`Gallery: ${v.message}`, { code: "VALIDATION_ERROR", statusCode: 422 });
+    }
+    const up = await uploadWikiImage(v.file, sport.slug, "player");
+    if (!up.ok) {
+      throw new AppError(up.error, { code: "STORAGE_ERROR", statusCode: 500 });
+    }
+    uploadedGallery.push({
+      url: up.url,
+      storageKey: up.storageKey,
+      sortOrder: keptGallery.length + i,
+    });
+  }
+
+  const totalGallery = [...keptGallery, ...uploadedGallery].slice(0, PLAYER_GALLERY_MAX);
+
+  const biography = input.biography ? sanitizeRichText(input.biography) : null;
+  const summary = input.summary ? sanitizeRichText(input.summary) : null;
+
+  if (options.create) {
+    const baseSlug = slugifyWikiName(displayName);
+    const slug = await ensureUniqueWikiSlug(baseSlug, async (s) => {
+      const [row] = await db
+        .select({ id: wikiEntities.id })
+        .from(wikiEntities)
+        .where(and(eq(wikiEntities.sportId, sport.id), eq(wikiEntities.slug, s)))
+        .limit(1);
+      return Boolean(row);
+    });
+
+    const now = new Date();
+    const attributes = buildPlayerAttributes({}, input, equipment);
+
+    const [created] = await db
+      .insert(wikiEntities)
+      .values({
+        sportId: sport.id,
+        entityType: "player",
+        slug,
+        displayName,
+        summary,
+        biography,
+        status: "published",
+        attributes,
+        performance: {},
+        specs: {},
+        features: [],
+        sourceType: "manual",
+        publishedAt: now,
+        primaryImageUrl: accountPhoto.url,
+        primaryImageStorageKey: accountPhoto.storageKey,
+        ownerUserId: userId,
+        createdBy: userId,
+        updatedBy: userId,
+      })
+      .returning();
+
+    if (!created) {
+      throw new AppError("Failed to create player profile", {
+        code: "DATABASE_ERROR",
+        statusCode: 500,
+      });
+    }
+
+    await syncPlayerGallery(created.id, totalGallery);
+    const detail = await getWikiEntityById(created.id);
+    if (!detail) {
+      throw new AppError("Player profile not found after create", { code: "NOT_FOUND", statusCode: 404 });
+    }
+    return mapPlayerProfile(detail);
+  }
+
+  const entityId = existingId!;
+  const [existing] = await db
+    .select()
+    .from(wikiEntities)
+    .where(
+      and(
+        eq(wikiEntities.id, entityId),
+        eq(wikiEntities.ownerUserId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    throw new AppError("Player profile not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const previousEquipment = equipmentFromAttributes(
+    (existing.attributes ?? {}) as Record<string, unknown>,
+  );
+  equipment = await Promise.resolve(equipment).then(async (next) => {
+    await syncEquipmentStorage(previousEquipment, next);
+    return next;
+  });
+
+  for (const item of equipment) {
+    const prev = previousEquipment.find((p) => p.id === item.id);
+    if (prev) {
+      await deleteStoredObjectIfReplaced(
+        prev.imageStorageKey ?? prev.imageUrl,
+        item.imageStorageKey ?? item.imageUrl,
+      );
+    }
+  }
+
+  const mergedAttributes = buildPlayerAttributes(
+    (existing.attributes ?? {}) as Record<string, unknown>,
+    input,
+    equipment,
+  );
+
+  await db
+    .update(wikiEntities)
+    .set({
+      displayName,
+      summary,
+      biography,
+      attributes: mergedAttributes,
+      primaryImageUrl: accountPhoto.url ?? existing.primaryImageUrl,
+      primaryImageStorageKey:
+        accountPhoto.storageKey ?? existing.primaryImageStorageKey,
+      updatedBy: userId,
+      updatedAt: new Date(),
+    })
+    .where(eq(wikiEntities.id, entityId));
+
+  await syncPlayerGallery(entityId, totalGallery);
+
+  const detail = await getWikiEntityById(entityId);
+  if (!detail) {
+    throw new AppError("Player profile not found after update", { code: "NOT_FOUND", statusCode: 404 });
+  }
+  return mapPlayerProfile(detail);
+}

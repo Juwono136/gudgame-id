@@ -561,7 +561,13 @@ export async function deleteWikiEntity(id: number, sportId: number) {
     deleteStoredObjects,
   } = await import("@/lib/storage/object-lifecycle");
 
-  const storageKeys = collectWikiEntityStorageKeys(existing, gallery);
+  const storageKeys = collectWikiEntityStorageKeys(
+    {
+      ...existing,
+      attributes: (existing.attributes ?? {}) as Record<string, unknown>,
+    },
+    gallery,
+  );
   await db.delete(wikiEntities).where(eq(wikiEntities.id, id));
   await deleteStoredObjects(storageKeys);
 }

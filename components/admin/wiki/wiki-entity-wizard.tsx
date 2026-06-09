@@ -30,7 +30,7 @@ import {
   useCreateWikiEntity,
   useUpdateWikiEntity,
 } from "@/hooks/use-wiki-entities";
-import { EntityTypePicker } from "@/components/admin/wiki/entity-type-picker";
+import { WIKI_ENTITY_TYPE_LABELS } from "@/lib/wiki/constants";
 import { DynamicFieldGrid } from "@/components/admin/wiki/dynamic-field-grid";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
 import { GearCatalogImport } from "@/components/admin/wiki/gear-catalog-import";
@@ -49,12 +49,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
+import {
+  equipmentFromAttributes,
+  mergeEquipmentIntoAttributes,
+  type PlayerEquipmentItem,
+} from "@/lib/wiki/player-equipment";
+import {
+  mergePlayerEditableAttributes,
+  parsePlayerEditableAttributes,
+  type PlayerSocialLink,
+} from "@/lib/wiki/player-profile-fields";
+import { PLAYER_GALLERY_MAX } from "@/lib/wiki/constants";
 
 type WikiEntityWizardProps = {
   sportSlug: string;
   mode: "create" | "edit";
   entityId?: number;
   initial?: WikiEntityDetail;
+  initialEntityType?: WikiEntityType;
+  skipClassification?: boolean;
+  onBackToClassification?: () => void;
 };
 
 export function WikiEntityWizard({
@@ -62,6 +76,9 @@ export function WikiEntityWizard({
   mode,
   entityId,
   initial,
+  initialEntityType,
+  skipClassification = false,
+  onBackToClassification,
 }: WikiEntityWizardProps) {
   const router = useRouter();
   const { confirm } = useConfirmDialog();
@@ -69,13 +86,27 @@ export function WikiEntityWizard({
   const updateMutation = useUpdateWikiEntity(entityId ?? 0);
 
   const [entityType, setEntityType] = useState<WikiEntityType>(
-    initial?.entityType ?? "player",
+    initial?.entityType ?? initialEntityType ?? "player",
   );
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(skipClassification ? 1 : 0);
   const [gearMode, setGearMode] = useState<GearEntryMode>("manual");
 
   const config = useMemo(() => getEntityWizardConfig(entityType), [entityType]);
-  const currentStepId = config.stepIds[stepIndex] as WikiWizardStepId | undefined;
+  const visibleSteps = useMemo(
+    () =>
+      skipClassification
+        ? config.steps.filter((s) => s.id !== "classification")
+        : config.steps,
+    [config.steps, skipClassification],
+  );
+  const visibleStepIds = useMemo(
+    () =>
+      skipClassification
+        ? config.stepIds.filter((id) => id !== "classification")
+        : config.stepIds,
+    [config.stepIds, skipClassification],
+  );
+  const currentStepId = visibleStepIds[stepIndex] as WikiWizardStepId | undefined;
 
   const fieldDefs = useMemo(
     () => getWikiFieldDefinitions(sportSlug, entityType),
@@ -87,6 +118,31 @@ export function WikiEntityWizard({
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [summary, setSummary] = useState(initial?.summary ?? "");
   const [biography, setBiography] = useState(initial?.biography ?? "");
+  const initialPlayerEditable =
+    initial?.entityType === "player"
+      ? parsePlayerEditableAttributes(initial.attributes)
+      : null;
+  const [playerNationality, setPlayerNationality] = useState(
+    initialPlayerEditable?.nationality ?? "",
+  );
+  const [playerAge, setPlayerAge] = useState(
+    initialPlayerEditable?.age?.toString() ?? "",
+  );
+  const [playerSocialLinks, setPlayerSocialLinks] = useState<PlayerSocialLink[]>(
+    initialPlayerEditable?.socialLinks ?? [],
+  );
+  const [playerEquipment, setPlayerEquipment] = useState<PlayerEquipmentItem[]>(
+    initial?.entityType === "player" ? equipmentFromAttributes(initial.attributes) : [],
+  );
+  const [signatureGearId, setSignatureGearId] = useState<string | null>(
+    initialPlayerEditable?.signatureGearId ?? null,
+  );
+  const [playerEquipmentPreviews, setPlayerEquipmentPreviews] = useState<
+    Record<string, string>
+  >({});
+  const [playerEquipmentFiles, setPlayerEquipmentFiles] = useState<
+    Record<string, File>
+  >({});
   const [teamFormat, setTeamFormat] = useState(
     String(initial?.attributes?.teamFormat ?? ""),
   );
@@ -160,11 +216,6 @@ export function WikiEntityWizard({
     setFieldValues({});
   }, [entityType, mode]);
 
-  const handleTypeChange = (type: WikiEntityType) => {
-    if (mode === "edit") return;
-    setEntityType(type);
-  };
-
   const applyGearScrape = useCallback(
     (preview: WikiScrapePreview) => {
       setGearProduct(scrapePreviewToGearProduct(preview));
@@ -215,10 +266,22 @@ export function WikiEntityWizard({
     }
 
     const partitioned = partitionFieldValues(fieldDefs, fieldValues);
-    const attrs =
+    let attrs =
       entityType === "team"
         ? { ...partitioned.attributes, teamFormat }
         : partitioned.attributes;
+
+    if (entityType === "player") {
+      attrs = mergePlayerEditableAttributes(
+        mergeEquipmentIntoAttributes(attrs, playerEquipment),
+        {
+          nationality: playerNationality,
+          age: playerAge.trim() ? Number(playerAge) : null,
+          socialLinks: playerSocialLinks,
+          signatureGearId,
+        },
+      );
+    }
 
     return {
       entityType,
@@ -300,6 +363,7 @@ export function WikiEntityWizard({
       heroImage: heroFile,
       primaryImage: primaryFile,
       gallerySlots,
+      equipmentFiles: entityType === "player" ? playerEquipmentFiles : undefined,
     };
     if (mode === "create") {
       createMutation.mutate({ data: payload, files });
@@ -319,7 +383,7 @@ export function WikiEntityWizard({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <WikiStepper steps={config.steps} currentIndex={stepIndex} />
+      <WikiStepper steps={visibleSteps} currentIndex={stepIndex} />
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -337,15 +401,18 @@ export function WikiEntityWizard({
                 </h2>
                 <p className="mt-1 text-sm text-cp-muted">
                   Each type uses a <strong className="text-slate-300">different form</strong>{" "}
-                  tailored to players, teams, or gear for{" "}
+                  tailored to players, tournaments, or gear for{" "}
                   <span className="text-cp-logo-accent">{sportSlug}</span>.
                 </p>
               </div>
-              <EntityTypePicker
-                value={entityType}
-                onChange={handleTypeChange}
-                disabled={mode === "edit"}
-              />
+              <div className="rounded-xl border border-cp-border bg-cp-card px-5 py-4">
+                <p className="text-sm font-semibold text-foreground">
+                  {WIKI_ENTITY_TYPE_LABELS[entityType]}
+                </p>
+                <p className="mt-1 text-xs text-cp-muted">
+                  Entity type cannot be changed after creation.
+                </p>
+              </div>
             </section>
           ) : null}
 
@@ -382,14 +449,54 @@ export function WikiEntityWizard({
               <div className="lg:col-span-2">
                 <h2 className="mb-4 text-lg font-semibold text-foreground">Player profile</h2>
                 <PlayerProfileStep
-                  values={{ displayName, nickname, slug, summary, biography }}
+                  values={{
+                    displayName,
+                    nickname,
+                    slug,
+                    summary,
+                    biography,
+                    nationality: playerNationality,
+                    age: playerAge,
+                    socialLinks: playerSocialLinks,
+                    equipment: playerEquipment,
+                    signatureGearId,
+                  }}
                   errors={fieldErrors}
+                  equipmentPreviews={playerEquipmentPreviews}
+                  onEquipmentImageChange={(id, file) => {
+                    if (playerEquipmentPreviews[id]) {
+                      URL.revokeObjectURL(playerEquipmentPreviews[id]!);
+                    }
+                    if (!file) {
+                      setPlayerEquipmentFiles((prev) => {
+                        const next = { ...prev };
+                        delete next[id];
+                        return next;
+                      });
+                      setPlayerEquipmentPreviews((prev) => {
+                        const next = { ...prev };
+                        delete next[id];
+                        return next;
+                      });
+                      return;
+                    }
+                    setPlayerEquipmentFiles((prev) => ({ ...prev, [id]: file }));
+                    setPlayerEquipmentPreviews((prev) => ({
+                      ...prev,
+                      [id]: URL.createObjectURL(file),
+                    }));
+                  }}
                   onChange={(p) => {
                     if (p.displayName !== undefined) setDisplayName(p.displayName);
                     if (p.nickname !== undefined) setNickname(p.nickname);
                     if (p.slug !== undefined) setSlug(p.slug);
                     if (p.summary !== undefined) setSummary(p.summary);
                     if (p.biography !== undefined) setBiography(p.biography);
+                    if (p.nationality !== undefined) setPlayerNationality(p.nationality);
+                    if (p.age !== undefined) setPlayerAge(p.age);
+                    if (p.socialLinks !== undefined) setPlayerSocialLinks(p.socialLinks);
+                    if (p.equipment !== undefined) setPlayerEquipment(p.equipment);
+                    if (p.signatureGearId !== undefined) setSignatureGearId(p.signatureGearId);
                   }}
                 />
                 <div className="mt-6">
@@ -397,7 +504,8 @@ export function WikiEntityWizard({
                     slots={gallerySlots}
                     onChange={setGallerySlots}
                     label="Photo gallery"
-                    hint="Up to 5 photos on the public player page (separate from profile photo)."
+                    hint={`Up to ${PLAYER_GALLERY_MAX} photos on the public player page.`}
+                    maxImages={PLAYER_GALLERY_MAX}
                   />
                 </div>
               </div>
@@ -417,6 +525,7 @@ export function WikiEntityWizard({
                 }}
                 onHeroUrl={setHeroPreview}
                 primaryLabel="Profile photo"
+                showHero={false}
               />
             </div>
           ) : null}
@@ -508,8 +617,9 @@ export function WikiEntityWizard({
           {currentStepId === "performance" && entityType === "player" ? (
             <section className="rounded-xl border border-cp-border bg-cp-card p-5">
               <h2 className="text-lg font-semibold text-foreground">Career & performance</h2>
-              <p className="mt-1 text-sm text-cp-muted">
-                Rankings, win rate, and skill ratings for the public player page.
+              <p className="mb-4 text-sm text-cp-muted">
+                Rankings and biodata only — win rate, titles, and skill ratings are computed
+                automatically from match and tournament results.
               </p>
               <div className="mt-6">
                 <DynamicFieldGrid
@@ -602,12 +712,21 @@ export function WikiEntityWizard({
 
       <WizardFooter
         stepIndex={stepIndex}
-        stepCount={config.stepIds.length}
+        stepCount={visibleStepIds.length}
         isPending={isPending}
-        onBack={() => setStepIndex((s) => Math.max(0, s - 1))}
+        backLabel={
+          stepIndex === 0 && onBackToClassification ? "Change classification" : undefined
+        }
+        onBack={() => {
+          if (stepIndex === 0 && onBackToClassification) {
+            onBackToClassification();
+            return;
+          }
+          setStepIndex((s) => Math.max(0, s - 1));
+        }}
         onNext={() => {
           if (!validateStep()) return;
-          setStepIndex((s) => Math.min(config.stepIds.length - 1, s + 1));
+          setStepIndex((s) => Math.min(visibleStepIds.length - 1, s + 1));
         }}
         onSaveDraft={() => void save(false)}
         onPublish={() => void save(true)}
@@ -654,6 +773,7 @@ function WizardFooter({
   stepIndex,
   stepCount,
   isPending,
+  backLabel,
   onBack,
   onNext,
   onSaveDraft,
@@ -662,6 +782,7 @@ function WizardFooter({
   stepIndex: number;
   stepCount: number;
   isPending: boolean;
+  backLabel?: string;
   onBack: () => void;
   onNext: () => void;
   onSaveDraft: () => void;
@@ -671,13 +792,24 @@ function WizardFooter({
 
   return (
     <div className="mt-8 flex flex-col-reverse gap-3 border-t border-cp-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-      <Link
-        href={adminRoutes.wikiEntities}
-        className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-      >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        Back to database
-      </Link>
+      {backLabel && stepIndex === 0 ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          {backLabel}
+        </button>
+      ) : (
+        <Link
+          href={adminRoutes.wikiEntities}
+          className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Back to database
+        </Link>
+      )}
       <div className="flex flex-wrap gap-2">
         {stepIndex > 0 ? (
           <Button type="button" variant="outline" onClick={onBack} className="border-cp-border">

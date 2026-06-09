@@ -9,7 +9,17 @@ import { publicSportRoutes } from "@/lib/constants/routes";
 import { WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
 import type { WikiEntityType } from "@/db/schema/wiki";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
+import {
+  getPlayerCareerStats,
+  getSignatureGearItem,
+} from "@/lib/wiki/player-career-stats";
+import {
+  parsePlayerEditableAttributes,
+  parseSocialLinks,
+} from "@/lib/wiki/player-profile-fields";
 import Image from "next/image";
+import Link from "next/link";
 
 type EntityDetailLayoutProps = {
   entity: WikiEntityDetail;
@@ -77,6 +87,15 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
       : null,
   ].filter(Boolean) as { label: string; variant?: "green" | "blue" | "default" }[];
 
+  const isPlayer = entity.entityType === "player";
+  const playerEditable = isPlayer
+    ? parsePlayerEditableAttributes(entity.attributes)
+    : null;
+  const playerCareer = isPlayer ? getPlayerCareerStats(entity) : null;
+  const playerEquipment = isPlayer ? equipmentFromAttributes(entity.attributes) : [];
+  const signatureGear = isPlayer ? getSignatureGearItem(entity.attributes) : null;
+  const socialLinks = isPlayer ? parseSocialLinks(entity.attributes.socialLinks) : [];
+
   const galleryUrls = entity.gallery
     .map((m) => resolveWikiImageUrl(m.url))
     .filter((u): u is string => Boolean(u));
@@ -141,23 +160,6 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
             </section>
           ) : null}
 
-          {galleryUrls.length > 0 &&
-          (entity.entityType === "player" || entity.entityType === "team") ? (
-            <section className="rounded-xl border border-cp-border bg-cp-card p-6">
-              <h2 className="text-lg font-semibold text-foreground">Photos</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {galleryUrls.map((url, i) => (
-                  <div
-                    key={`${url}-${i}`}
-                    className="relative aspect-square overflow-hidden rounded-lg bg-cp-elevated"
-                  >
-                    <Image src={url} alt="" fill className="object-cover" sizes="(max-width:768px) 50vw, 33vw" />
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
           {entity.features.length > 0 ? (
             <section className="grid gap-4 sm:grid-cols-3">
               {entity.features.map((f) => (
@@ -176,8 +178,137 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
         </div>
 
         <aside className="space-y-6">
+          {isPlayer && (playerEditable?.nationality || playerEditable?.age || playerCareer?.yearsActive) ? (
+            <section className="rounded-xl border border-cp-border bg-cp-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold text-foreground">Biodata</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                {playerEditable?.nationality ? (
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-cp-muted">Nationality</dt>
+                    <dd className="mt-0.5 font-medium text-foreground">{playerEditable.nationality}</dd>
+                  </div>
+                ) : null}
+                {playerEditable?.age != null ? (
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-cp-muted">Age</dt>
+                    <dd className="mt-0.5 font-medium text-foreground">{playerEditable.age}</dd>
+                  </div>
+                ) : null}
+                {playerCareer?.yearsActive ? (
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-cp-muted">Years active</dt>
+                    <dd className="mt-0.5 font-medium text-foreground">{playerCareer.yearsActive}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
+          ) : null}
+
+          {signatureGear ? (
+            <section className="rounded-xl border border-cp-primary/30 bg-cp-primary/5 p-4 sm:p-5">
+              <h2 className="text-sm font-semibold text-foreground">Signature gear</h2>
+              <div className="mt-3 flex gap-3">
+                {signatureGear.imageUrl ? (
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-cp-border">
+                    <Image
+                      src={resolveWikiImageUrl(signatureGear.imageUrl) ?? signatureGear.imageUrl}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="56px"
+                    />
+                  </div>
+                ) : null}
+                <div>
+                  <p className="font-semibold text-foreground">{signatureGear.name}</p>
+                  {signatureGear.brand ? (
+                    <p className="text-xs text-cp-muted">{signatureGear.brand}</p>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {socialLinks.length > 0 ? (
+            <section className="rounded-xl border border-cp-border bg-cp-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold text-foreground">Social</h2>
+              <ul className="mt-3 space-y-2">
+                {socialLinks.map((link) => (
+                  <li key={link.id}>
+                    <Link
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-cp-primary hover:underline"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {playerEquipment.length > 0 ? (
+            <section className="rounded-xl border border-cp-border bg-cp-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold text-foreground">Equipment</h2>
+              <ul className="mt-4 space-y-3">
+                {playerEquipment.map((item) => {
+                  const imageUrl = resolveWikiImageUrl(item.imageUrl);
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex gap-3 rounded-lg border border-cp-border bg-cp-elevated/40 p-3"
+                    >
+                      {imageUrl ? (
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-cp-elevated">
+                          <Image
+                            src={imageUrl}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="56px"
+                          />
+                        </div>
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                        <p className="text-xs capitalize text-cp-muted">{item.category}</p>
+                        {item.brand ? (
+                          <p className="mt-0.5 text-xs text-cp-muted">{item.brand}</p>
+                        ) : null}
+                        {item.notes ? (
+                          <p className="mt-1 text-xs leading-relaxed text-cp-text-dim">
+                            {item.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
+          {galleryUrls.length > 0 &&
+          (entity.entityType === "player" || entity.entityType === "team") ? (
+            <section className="rounded-xl border border-cp-border bg-cp-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold text-foreground">Gallery</h2>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {galleryUrls.slice(0, 4).map((url, i) => (
+                  <div
+                    key={`${url}-${i}`}
+                    className="relative aspect-square overflow-hidden rounded-lg bg-cp-elevated"
+                  >
+                    <Image src={url} alt="" fill className="object-cover" sizes="(max-width:768px) 50vw, 25vw" />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {specItems.length > 0 ? (
-            <SpecGrid title="Technical specs" items={specItems} />
+            <SpecGrid title="Biodata" items={specItems} />
           ) : null}
 
           {entity.relations.length > 0 ? (

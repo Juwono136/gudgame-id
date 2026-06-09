@@ -5,8 +5,13 @@ const MEDIA_API_PREFIX = "/api/media/";
 /** Allowed object keys served through the app media proxy */
 export const PROFILE_MEDIA_PREFIX = "profiles/";
 export const WIKI_MEDIA_PREFIX = "wiki/";
+export const SPORTS_MEDIA_PREFIX = "sports/";
 
-const ALLOWED_MEDIA_PREFIXES = [PROFILE_MEDIA_PREFIX, WIKI_MEDIA_PREFIX] as const;
+const ALLOWED_MEDIA_PREFIXES = [
+  PROFILE_MEDIA_PREFIX,
+  WIKI_MEDIA_PREFIX,
+  SPORTS_MEDIA_PREFIX,
+] as const;
 
 export function isAllowedMediaKey(key: string): boolean {
   const normalized = key.replace(/^\/+/, "");

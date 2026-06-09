@@ -15,6 +15,8 @@ export * from "./schema/auth";
 export * from "./schema/roles";
 export * from "./schema/admin-invite";
 export * from "./schema/wiki";
+export * from "./schema/player-competition";
+export * from "./schema/tournaments";
 
 export { sports, type Sport, type NewSport } from "./schema/sports";
 import { sports } from "./schema/sports";

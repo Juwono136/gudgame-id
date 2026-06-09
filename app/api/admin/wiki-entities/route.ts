@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
+import { getTournamentStats } from "@/lib/tournaments/service";
 import {
   createWikiEntity,
   getWikiEntityStats,
@@ -20,11 +21,24 @@ export async function GET(request: Request) {
     const query = wikiEntitiesListQuerySchema.parse(
       Object.fromEntries(url.searchParams.entries()),
     );
-    const [list, stats] = await Promise.all([
+    const [list, wikiStats, tournamentStats] = await Promise.all([
       listWikiEntities(ctx.sportId, query),
       getWikiEntityStats(ctx.sportId),
+      getTournamentStats(ctx.sportId),
     ]);
-    return jsonSuccess({ ...list, stats, sportSlug: ctx.sportSlug });
+    return jsonSuccess({
+      ...list,
+      stats: {
+        player: wikiStats.player,
+        gear: wikiStats.gear,
+        published: wikiStats.published,
+        draft: wikiStats.draft,
+        tournaments: tournamentStats.total,
+        tournamentsLive: tournamentStats.live,
+        tournamentsUpcoming: tournamentStats.upcoming,
+      },
+      sportSlug: ctx.sportSlug,
+    });
   } catch (error) {
     return jsonError(error);
   }

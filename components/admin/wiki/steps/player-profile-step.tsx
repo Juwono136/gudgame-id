@@ -4,6 +4,17 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { slugifyWikiName } from "@/lib/wiki/slug";
 import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
+import { PlayerSocialLinksEditor } from "@/components/settings/player-social-links-editor";
+import { PlayerEquipmentEditor } from "@/components/settings/player-equipment-editor";
+import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
+import type { PlayerSocialLink } from "@/lib/wiki/player-profile-fields";
+import {
+  PLAYER_AGE_MAX,
+  PLAYER_AGE_MIN,
+  PLAYER_DISPLAY_NAME_MAX,
+  PLAYER_NATIONALITY_MAX,
+  PLAYER_SUMMARY_MAX,
+} from "@/lib/wiki/player-profile-fields";
 
 export type PlayerProfileValues = {
   displayName: string;
@@ -11,19 +22,33 @@ export type PlayerProfileValues = {
   slug: string;
   summary: string;
   biography: string;
+  nationality: string;
+  age: string;
+  socialLinks: PlayerSocialLink[];
+  equipment: PlayerEquipmentItem[];
+  signatureGearId: string | null;
 };
 
 type PlayerProfileStepProps = {
   values: PlayerProfileValues;
   onChange: (patch: Partial<PlayerProfileValues>) => void;
   errors?: Partial<Record<keyof PlayerProfileValues, string>>;
+  equipmentPreviews: Record<string, string>;
+  onEquipmentImageChange: (id: string, file: File | null) => void;
 };
 
-export function PlayerProfileStep({ values, onChange, errors }: PlayerProfileStepProps) {
+export function PlayerProfileStep({
+  values,
+  onChange,
+  errors,
+  equipmentPreviews,
+  onEquipmentImageChange,
+}: PlayerProfileStepProps) {
   return (
-    <div className="space-y-5 rounded-xl border border-cp-border bg-cp-card p-5 sm:p-6">
+    <div className="space-y-6">
       <p className="text-sm text-cp-muted">
-        Athlete profile for the public player wiki — stats and career are configured in the next step.
+        Athlete profile for the public player wiki — matches the player My Settings schema.
+        Career stats are configured in the next step (tournament-driven).
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -31,6 +56,7 @@ export function PlayerProfileStep({ values, onChange, errors }: PlayerProfileSte
           <Label>Full name (official) *</Label>
           <Input
             value={values.displayName}
+            maxLength={PLAYER_DISPLAY_NAME_MAX}
             onChange={(e) => onChange({ displayName: e.target.value })}
             placeholder="e.g. Alejandro Galán"
             className="mt-1.5 border-cp-border bg-cp-elevated"
@@ -44,6 +70,7 @@ export function PlayerProfileStep({ values, onChange, errors }: PlayerProfileSte
           <Label>Nickname / handle</Label>
           <Input
             value={values.nickname}
+            maxLength={120}
             onChange={(e) => onChange({ nickname: e.target.value })}
             placeholder="e.g. Galán"
             className="mt-1.5 border-cp-border bg-cp-elevated"
@@ -53,11 +80,33 @@ export function PlayerProfileStep({ values, onChange, errors }: PlayerProfileSte
           <Label>URL slug</Label>
           <Input
             value={values.slug}
+            maxLength={120}
             onChange={(e) => onChange({ slug: e.target.value })}
             placeholder={slugifyWikiName(values.displayName) || "auto-generated"}
             className="mt-1.5 border-cp-border bg-cp-elevated font-mono text-sm"
           />
           {errors?.slug ? <p className="mt-1 text-xs text-red-400">{errors.slug}</p> : null}
+        </div>
+        <div>
+          <Label>Nationality</Label>
+          <Input
+            value={values.nationality}
+            maxLength={PLAYER_NATIONALITY_MAX}
+            onChange={(e) => onChange({ nationality: e.target.value })}
+            placeholder="e.g. Spain (ESP)"
+            className="mt-1.5 border-cp-border bg-cp-elevated"
+          />
+        </div>
+        <div>
+          <Label>Age</Label>
+          <Input
+            type="number"
+            min={PLAYER_AGE_MIN}
+            max={PLAYER_AGE_MAX}
+            value={values.age}
+            onChange={(e) => onChange({ age: e.target.value })}
+            className="mt-1.5 border-cp-border bg-cp-elevated"
+          />
         </div>
       </div>
 
@@ -81,6 +130,30 @@ export function PlayerProfileStep({ values, onChange, errors }: PlayerProfileSte
           minHeight={200}
           className="mt-1.5"
         />
+      </div>
+
+      <div>
+        <Label>Social media links</Label>
+        <div className="mt-2">
+          <PlayerSocialLinksEditor
+            links={values.socialLinks}
+            onChange={(socialLinks) => onChange({ socialLinks })}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label>Equipment</Label>
+        <div className="mt-2">
+          <PlayerEquipmentEditor
+            items={values.equipment}
+            onChange={(equipment) => onChange({ equipment })}
+            equipmentPreviews={equipmentPreviews}
+            onImageChange={onEquipmentImageChange}
+            signatureGearId={values.signatureGearId}
+            onSignatureChange={(signatureGearId) => onChange({ signatureGearId })}
+          />
+        </div>
       </div>
     </div>
   );

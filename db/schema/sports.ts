@@ -2,11 +2,32 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   serial,
+  text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+
+export const SPORT_VISIBILITY = ["live", "coming_soon", "hidden"] as const;
+export type SportVisibility = (typeof SPORT_VISIBILITY)[number];
+
+export type SportModules = {
+  tournaments: boolean;
+  players: boolean;
+  gear: boolean;
+  rankings: boolean;
+  rules: boolean;
+};
+
+export const DEFAULT_SPORT_MODULES: SportModules = {
+  tournaments: true,
+  players: true,
+  gear: true,
+  rankings: true,
+  rules: true,
+};
 
 export const sports = pgTable(
   "sports",
@@ -14,9 +35,25 @@ export const sports = pgTable(
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 50 }).notNull().unique(),
     slug: varchar("slug", { length: 50 }).notNull().unique(),
+    tagline: varchar("tagline", { length: 160 }),
+    description: text("description"),
+    rulesSummary: text("rules_summary"),
+    rulesContent: text("rules_content"),
+    howToPlay: text("how_to_play"),
+    equipmentOverview: text("equipment_overview"),
+    heroImageUrl: text("hero_image_url"),
+    heroImageStorageKey: varchar("hero_image_storage_key", { length: 512 }),
+    entryCountLabel: varchar("entry_count_label", { length: 32 }),
+    accentColor: varchar("accent_color", { length: 32 }),
+    visibility: varchar("visibility", { length: 20 }).default("coming_soon").notNull(),
+    modules: jsonb("modules").$type<SportModules>().default(DEFAULT_SPORT_MODULES).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
   },
   (table) => [index("sports_slug_idx").on(table.slug)],
 );

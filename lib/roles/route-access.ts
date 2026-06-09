@@ -40,6 +40,14 @@ export function getDashboardZoneForPath(pathname: string): DashboardZone | null 
 
   if (pathname === dashboardRoutes.home) return "player";
   if (
+    pathname === dashboardRoutes.matches ||
+    pathname.startsWith(`${dashboardRoutes.matches}/`) ||
+    pathname === dashboardRoutes.tournaments ||
+    pathname.startsWith(`${dashboardRoutes.tournaments}/`)
+  ) {
+    return "player";
+  }
+  if (
     pathname === dashboardRoutes.host ||
     pathname.startsWith(`${dashboardRoutes.host}/`)
   ) {

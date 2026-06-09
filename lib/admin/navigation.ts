@@ -52,8 +52,6 @@ export const adminNavItems: AdminNavItem[] = [
     href: adminRoutes.sports,
     icon: Trophy,
     permission: "admin.sports.manage",
-    badge: "Soon",
-    disabled: true,
   },
   {
     label: "System Settings",

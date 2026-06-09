@@ -28,6 +28,15 @@ export const WIKI_RELATION_TYPES = {
 export type WikiRelationType =
   (typeof WIKI_RELATION_TYPES)[keyof typeof WIKI_RELATION_TYPES];
 
+/** Gallery limit for admin wiki wizard */
+export const WIKI_GALLERY_MAX = 5;
+
+/** Gallery limit for self-managed player profiles */
+export const PLAYER_GALLERY_MAX = 4;
+
+/** Default sport slug for new self-managed player profiles */
+export const DEFAULT_PLAYER_SPORT_SLUG = "padel";
+
 export function getPublicWikiPath(
   sportSlug: string,
   entityType: WikiEntityType,

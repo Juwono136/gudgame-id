@@ -22,23 +22,14 @@ export default function CTACommunity() {
             your gear, follow your favorite pros, and contribute to the knowledge base.
           </p>
 
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="relative mx-auto mt-6 flex w-full max-w-md flex-col gap-2 sm:mt-8 md:max-w-lg md:flex-row md:items-stretch lg:max-w-md"
-          >
-            <input
-              type="email"
-              required
-              placeholder="Enter your email address"
-              className="h-11 flex-1 rounded-lg border border-cp-border bg-cp-bg-input px-4 text-sm text-foreground placeholder:text-cp-muted transition-colors focus:border-cp-primary focus:outline-none focus:ring-1 focus:ring-cp-primary/40"
-            />
+          <div className="relative mx-auto mt-6 sm:mt-8">
             <Link
-              href="/register"
-              className="btn-interactive glow-primary inline-flex h-11 shrink-0 items-center justify-center rounded-lg bg-cp-primary px-6 text-sm font-semibold text-white hover:bg-[#0033C0]"
+              href={authRoutes.register}
+              className="btn-interactive glow-primary inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#0033C0]"
             >
               SIGN UP NOW
             </Link>
-          </form>
+          </div>
 
           <p className="relative mt-5 text-xs text-cp-text-dim">
             ALREADY A HOST?{" "}

@@ -8,8 +8,14 @@ import {
   type WikiEntityUpsertInput,
 } from "@/lib/validations/wiki-entities";
 import { AppError } from "@/lib/errors";
+import {
+  equipmentFromAttributes,
+  mergeEquipmentIntoAttributes,
+  type PlayerEquipmentItem,
+} from "@/lib/wiki/player-equipment";
+import { WIKI_GALLERY_MAX } from "@/lib/wiki/constants";
 
-const MAX_GALLERY_UPLOADS = 5;
+const MAX_GALLERY_UPLOADS = WIKI_GALLERY_MAX;
 
 function parseJsonField<T>(raw: FormDataEntryValue | null, fallback: T): T {
   if (typeof raw !== "string" || !raw.trim()) return fallback;
@@ -138,6 +144,41 @@ export async function parseAndUploadWikiForm(
 
   const totalGallery = [...keptExisting, ...uploaded].slice(0, MAX_GALLERY_UPLOADS);
   data.gallery = totalGallery;
+
+  if (entityType === "player") {
+    const equipment = equipmentFromAttributes(data.attributes);
+    const equipmentFiles = new Map<string, File>();
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith("equipmentImage_") && value instanceof File && value.size > 0) {
+        equipmentFiles.set(key.slice("equipmentImage_".length), value);
+      }
+    }
+
+    if (equipmentFiles.size > 0) {
+      const updated: PlayerEquipmentItem[] = [];
+      for (const item of equipment) {
+        const file = equipmentFiles.get(item.id);
+        if (!file) {
+          updated.push(item);
+          continue;
+        }
+        const v = validateWikiImageFile(file);
+        if (!v.ok) {
+          return { ok: false, status: 422, body: { error: `Equipment: ${v.message}` } };
+        }
+        const up = await uploadWikiImage(v.file, sportSlug, entityType);
+        if (!up.ok) {
+          throw new AppError(up.error, { code: "STORAGE_ERROR", statusCode: 500 });
+        }
+        updated.push({
+          ...item,
+          imageUrl: up.url,
+          imageStorageKey: up.storageKey,
+        });
+      }
+      data.attributes = mergeEquipmentIntoAttributes(data.attributes, updated);
+    }
+  }
 
   return { ok: true, result: { data, imagePatch } };
 }

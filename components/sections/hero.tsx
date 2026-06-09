@@ -1,16 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, Search } from "lucide-react";
 import { FadeIn } from "@/components/motion/fade-in";
-
-const popularTags = [
-  { label: "Ale Galan", href: "/players" },
-  { label: "Carbon Rackets", href: "/players" },
-  { label: "WPT Master Final", href: "/news" },
-] as const;
 
 export default function Hero() {
   const pathname = usePathname();
@@ -89,23 +82,6 @@ export default function Hero() {
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 </form>
-              </FadeIn>
-
-              <FadeIn mountKey={`hero-tags-${pathname}`} delay={0.24}>
-                <div className="mt-2.5 hidden flex-wrap items-center justify-center gap-x-1 gap-y-1 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-xs backdrop-blur-sm sm:flex lg:justify-end">
-                  <span className="font-medium text-white/90">Popular:</span>
-                  {popularTags.map((tag, i) => (
-                    <span key={tag.label} className="inline-flex items-center">
-                      {i > 0 && <span className="mr-1 text-white/50">·</span>}
-                      <Link
-                        href={tag.href}
-                        className="text-white/90 underline-offset-2 transition-colors hover:text-cp-logo-accent hover:underline"
-                      >
-                        {tag.label}
-                      </Link>
-                    </span>
-                  ))}
-                </div>
               </FadeIn>
             </div>
           </div>

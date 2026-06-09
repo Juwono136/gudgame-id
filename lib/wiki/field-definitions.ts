@@ -92,46 +92,6 @@ const DEFAULT_PLAYER_FIELDS: WikiFieldDefinition[] = [
     group: "performance",
     storeIn: "performance",
   },
-  {
-    key: "winRate",
-    label: "Win rate (%)",
-    type: "rating",
-    group: "performance",
-    storeIn: "performance",
-    min: 0,
-    max: 100,
-  },
-  {
-    key: "careerTitles",
-    label: "Career titles",
-    type: "number",
-    group: "performance",
-    storeIn: "performance",
-  },
-  {
-    key: "power",
-    label: "Power",
-    type: "rating",
-    group: "performance",
-    storeIn: "performance",
-    max: 100,
-  },
-  {
-    key: "control",
-    label: "Control",
-    type: "rating",
-    group: "performance",
-    storeIn: "performance",
-    max: 100,
-  },
-  {
-    key: "agility",
-    label: "Agility",
-    type: "rating",
-    group: "performance",
-    storeIn: "performance",
-    max: 100,
-  },
 ];
 
 const DEFAULT_TEAM_FIELDS: WikiFieldDefinition[] = [

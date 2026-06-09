@@ -14,6 +14,8 @@ export const CHANGE_PASSWORD_REQUIRED_PATH = authRoutes.changePasswordRequired;
 export const dashboardRoutes = {
   home: "/dashboard",
   settings: "/dashboard/settings",
+  matches: "/dashboard/matches",
+  tournaments: "/dashboard/tournaments",
   completeProfile: "/dashboard/complete-profile",
   host: "/dashboard/host",
   /** @deprecated Renamed to host — use dashboardRoutes.host */
@@ -48,6 +50,10 @@ export const publicSportRoutes = {
   team: (sportSlug: string, slug: string) => `/sports/${sportSlug}/teams/${slug}`,
   gear: (sportSlug: string) => `/sports/${sportSlug}/gear`,
   gearItem: (sportSlug: string, slug: string) => `/sports/${sportSlug}/gear/${slug}`,
+  tournaments: (sportSlug: string) => `/sports/${sportSlug}/tournaments`,
+  tournament: (sportSlug: string, slug: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}`,
+  rules: (sportSlug: string) => `/sports/${sportSlug}/rules`,
 } as const;
 
 export const ADMIN_PATH_PREFIX = "/admin" as const;

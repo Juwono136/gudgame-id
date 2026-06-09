@@ -10,13 +10,20 @@ import {
 } from "@/lib/roles/constants";
 import { migrateContributorRoleToHost } from "@/lib/roles/migrate-host-role";
 import { setUserRoles } from "@/lib/roles/sync";
-import { ensureStorageBucket } from "@/lib/storage";
+import { ensureStorageBucket } from "@/lib/storage/client";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ script: "db:seed" });
 
 const MVP_SPORTS = [
-  { name: "Padel", slug: "padel" },
+  {
+    name: "Padel",
+    slug: "padel",
+    visibility: "live" as const,
+    tagline: "Premier Padel, WPT & community coverage",
+    description:
+      "Comprehensive coverage of Premier Padel, WPT, player profiles, and technical gear reviews.",
+  },
 ] as const;
 
 /** Backfill user_role_assignments from legacy user.role column */
@@ -50,14 +57,25 @@ export async function seedDatabase() {
       .limit(1);
 
     if (existing.length > 0) {
-      log.info("Sport already seeded", { slug: sport.slug });
+      await db
+        .update(sports)
+        .set({
+          visibility: sport.visibility,
+          tagline: sport.tagline,
+          description: sport.description,
+          isActive: true,
+        })
+        .where(eq(sports.slug, sport.slug));
+      log.info("Sport backfilled", { slug: sport.slug });
       continue;
     }
 
     await db.insert(sports).values({
       name: sport.name,
       slug: sport.slug,
-      displayOrder: 0,
+      visibility: sport.visibility,
+      tagline: sport.tagline,
+      description: sport.description,
       isActive: true,
     });
     log.info("Sport seeded", { slug: sport.slug });

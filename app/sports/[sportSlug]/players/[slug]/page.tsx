@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { EntityDetailLayout } from "@/components/wiki/entity-detail-layout";
+import { PlayerDetailLayout } from "@/components/wiki/player/player-detail-layout";
 import { getSportBySlug } from "@/lib/wiki/public";
 import { getPublishedWikiEntityBySlug } from "@/lib/wiki/service";
 
@@ -21,5 +21,5 @@ export default async function PlayerWikiPage({ params }: PageProps) {
   const entity = await getPublishedWikiEntityBySlug(sportSlug, "player", slug);
   if (!entity) notFound();
 
-  return <EntityDetailLayout entity={entity} sportName={sport.name} />;
+  return <PlayerDetailLayout entity={entity} sportName={sport.name} />;
 }
