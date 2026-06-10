@@ -19,7 +19,7 @@ import { Check, GripVertical, LogOut, Pencil, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { LobbyTeamView, LobbyMemberView } from "@/lib/tournaments/reclub/teams";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type ReclubLobbyDndProps = {

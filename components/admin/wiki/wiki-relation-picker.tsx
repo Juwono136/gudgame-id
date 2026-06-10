@@ -9,7 +9,7 @@ import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { WikiEntityType } from "@/db/schema/wiki";
+import type { WikiEntityType } from "@/lib/domain/wiki";
 import { cn } from "@/lib/utils";
 
 export type RelationDraft = {

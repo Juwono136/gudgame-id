@@ -4,7 +4,7 @@ import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLogoutMutation } from "@/hooks/use-auth-mutations";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 
 type DashboardShellProps = {
   userName: string;

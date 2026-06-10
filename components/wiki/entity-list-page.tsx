@@ -3,7 +3,7 @@ import Link from "next/link";
 import { WikiPageShell } from "@/components/wiki/wiki-page-shell";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { getPublicWikiPath, WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
-import type { WikiEntityType } from "@/db/schema/wiki";
+import type { WikiEntityType } from "@/lib/domain/wiki";
 
 type EntityListItem = {
   slug: string;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { WikiEntityType } from "@/db/schema/wiki";
+import type { WikiEntityType } from "@/lib/domain/wiki";
 import { EntityTypePicker } from "@/components/admin/wiki/entity-type-picker";
 import { WikiEntityWizard } from "@/components/admin/wiki/wiki-entity-wizard";
 import { TournamentCreateWizard } from "@/components/admin/tournaments/tournament-create-wizard";

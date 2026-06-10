@@ -20,7 +20,7 @@ import { useUpdateAdminUser } from "@/hooks/use-admin-users";
 import { invalidateSessionContext } from "@/lib/session/invalidate-session-context";
 import { APP_ROLES, getRoleLabel, type AppRole } from "@/lib/roles/constants";
 import type { AdminUserListItem } from "@/lib/admin/users/service";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { getProfileHandle } from "@/lib/auth/user-display";
 import { cn } from "@/lib/utils";
 

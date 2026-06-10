@@ -34,7 +34,7 @@ import {
 } from "@/hooks/use-admin-sports";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import type { AdminSessionContext } from "@/lib/admin/types";
-import { SPORT_VISIBILITY } from "@/db/schema/sports";
+import { SPORT_VISIBILITY } from "@/lib/domain/sports";
 import type { SportDetail } from "@/lib/sports/service";
 import type { AdminSportsListQuery } from "@/lib/validations/sports-admin";
 import {

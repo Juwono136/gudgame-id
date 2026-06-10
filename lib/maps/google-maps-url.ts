@@ -78,28 +78,49 @@ export function buildGoogleMapsUrlFromCoords(
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 }
 
-export function buildGoogleMapsEmbedUrl(mapsUrl?: string | null, venue?: string): string | null {
+export type MapsEmbedTarget =
+  | { kind: "coords"; latitude: number; longitude: number }
+  | { kind: "place"; query: string };
+
+/** Resolve venue / maps link into an embed target (coords or place search). */
+export function resolveMapsEmbedTarget(
+  mapsUrl?: string | null,
+  venue?: string,
+): MapsEmbedTarget | null {
   const trimmed = mapsUrl?.trim();
 
   if (trimmed) {
     const coords = extractCoordsFromUrl(trimmed);
     if (coords) {
-      return `https://maps.google.com/maps?q=${coords}&z=16&output=embed`;
+      const [lat, lng] = coords.split(",").map(Number);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { kind: "coords", latitude: lat, longitude: lng };
+      }
     }
 
     const place = extractPlaceNameFromUrl(trimmed);
-    if (place) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=16&output=embed`;
-    }
+    if (place) return { kind: "place", query: place };
 
     if (!trimmed.startsWith("http")) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(trimmed)}&z=16&output=embed`;
+      return { kind: "place", query: trimmed };
     }
   }
 
   if (venue?.trim()) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(venue.trim())}&z=16&output=embed`;
+    return { kind: "place", query: venue.trim() };
   }
 
   return null;
+}
+
+/** Legacy embed URL (no API key). Prefer Maps Embed API via `/api/maps/embed-url`. */
+export function buildGoogleMapsEmbedUrl(mapsUrl?: string | null, venue?: string): string | null {
+  const target = resolveMapsEmbedTarget(mapsUrl, venue);
+  if (!target) return null;
+
+  if (target.kind === "coords") {
+    return `https://maps.google.com/maps?q=${target.latitude},${target.longitude}&z=16&output=embed`;
+  }
+
+  return `https://maps.google.com/maps?q=${encodeURIComponent(target.query)}&z=16&output=embed`;
 }

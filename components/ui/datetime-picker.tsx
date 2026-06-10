@@ -3,7 +3,7 @@
 import { Calendar, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatDateTimePreview } from "@/lib/storage/format-datetime";
+import { formatDateTimePreview } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type DateTimePickerProps = {

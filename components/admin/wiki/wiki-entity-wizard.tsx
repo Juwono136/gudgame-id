@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
-import type { WikiEntityType } from "@/db/schema/wiki";
+import type { WikiEntityType } from "@/lib/domain/wiki";
 import { adminRoutes } from "@/lib/constants/routes";
 import {
   getEntityWizardConfig,

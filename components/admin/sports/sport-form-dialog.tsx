@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DEFAULT_SPORT_MODULES, SPORT_VISIBILITY } from "@/db/schema/sports";
+import { DEFAULT_SPORT_MODULES, SPORT_VISIBILITY } from "@/lib/domain/sports";
 import type { SportDetail } from "@/lib/sports/service";
 import {
   cpSelectContentClass,

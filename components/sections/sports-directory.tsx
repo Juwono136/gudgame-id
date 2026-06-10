@@ -16,7 +16,7 @@ import {
 import { FadeInView } from "@/components/motion/fade-in";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { SportPublicCard } from "@/lib/sports/service";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { UserCircle } from "lucide-react";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type TournamentOrganizerProps = {

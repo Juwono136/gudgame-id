@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { usePlayerSearch } from "@/hooks/use-player-search";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import type { TournamentPlayerSearchResult } from "@/lib/tournaments/players/search";
 import { cn } from "@/lib/utils";
 

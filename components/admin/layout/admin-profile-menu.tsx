@@ -17,7 +17,7 @@ import { useLogoutMutation } from "@/hooks/use-auth-mutations";
 import { useSessionContext } from "@/hooks/use-session-context";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { getProfileHandle } from "@/lib/auth/user-display";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import {
   dashboardRoutes,
   isDashboardNavLinkActive,

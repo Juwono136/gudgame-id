@@ -11,7 +11,7 @@ import { TournamentCard } from "@/components/sports/tournament-card";
 import { FadeInView } from "@/components/motion/fade-in";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { SportDetail } from "@/lib/sports/service";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import type { TournamentListItem } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
 

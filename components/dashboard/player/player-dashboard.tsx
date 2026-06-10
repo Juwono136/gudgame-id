@@ -17,7 +17,7 @@ import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { PlayerDashboardView } from "@/lib/account/player-dashboard/get-dashboard";
-import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import { resolveWikiImageUrl } from "@/lib/media/client";
 
 type PlayerDashboardProps = {
   data: PlayerDashboardView;

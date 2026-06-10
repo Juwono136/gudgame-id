@@ -47,13 +47,13 @@ import {
   WIKI_DIRECTORY_TYPE_FILTER_OPTIONS,
   WIKI_STATUS_LABELS,
 } from "@/lib/wiki/constants";
-import type { WikiEntityType } from "@/db/schema/wiki";
+import type { WikiEntityType } from "@/lib/domain/wiki";
 import {
   getWikiDirectoryItemKey,
   type WikiDirectoryListItem,
 } from "@/lib/wiki/directory-types";
 import type { WikiDirectoryTypeFilterValue } from "@/lib/wiki/constants";
-import type { TournamentStatus } from "@/db/schema/tournaments";
+import type { TournamentStatus } from "@/lib/domain/tournaments";
 import { TOURNAMENT_STATUS_LABELS } from "@/lib/tournaments/constants";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { WikiEntitiesListQuery } from "@/lib/validations/wiki-entities";

@@ -5,7 +5,7 @@ import { PlayerShareButton } from "@/components/wiki/player/player-share-button"
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
 import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
 import type { PlayerSocialLink } from "@/lib/wiki/player-profile-fields";
-import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import { resolveWikiImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type PlayerSidebarProps = {

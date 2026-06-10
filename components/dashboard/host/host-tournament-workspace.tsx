@@ -30,7 +30,7 @@ import {
 } from "@/hooks/use-host-tournaments";
 import { useGenerateBracket, useTournamentBracket } from "@/hooks/use-tournament-bracket";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
-import { TOURNAMENT_STATUSES, type TournamentStatus } from "@/db/schema/tournaments";
+import { TOURNAMENT_STATUSES, type TournamentStatus } from "@/lib/domain/tournaments";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 
 function formatIdr(amount: number) {

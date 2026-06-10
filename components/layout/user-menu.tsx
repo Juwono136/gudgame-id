@@ -24,7 +24,7 @@ import {
 } from "@/lib/constants/routes";
 import { getDashboardLinksForRoles } from "@/lib/roles/dashboard-links";
 import { useSessionContext } from "@/hooks/use-session-context";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { ThemeToggleMenuItems } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 

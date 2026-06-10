@@ -7,8 +7,8 @@ import { RelatedEntities } from "@/components/wiki/related-entities";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
-import type { WikiEntityType } from "@/db/schema/wiki";
-import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import type { WikiEntityType } from "@/lib/domain/wiki";
+import { resolveWikiImageUrl } from "@/lib/media/client";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
 import {
   getPlayerCareerStats,

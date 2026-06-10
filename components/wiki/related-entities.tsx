@@ -1,10 +1,10 @@
 import Image from "next/image";
-import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import { resolveWikiImageUrl } from "@/lib/media/client";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { WikiEntityRelationView } from "@/lib/wiki/service";
 import { getPublicWikiPath } from "@/lib/wiki/constants";
-import type { WikiEntityType } from "@/db/schema/wiki";
+import type { WikiEntityType } from "@/lib/domain/wiki";
 
 type RelatedEntitiesProps = {
   title: string;

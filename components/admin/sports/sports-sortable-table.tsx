@@ -7,7 +7,7 @@ import { ExternalLink, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { publicSportRoutes } from "@/lib/constants/routes";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import type { SportDetail } from "@/lib/sports/service";
 import { cn } from "@/lib/utils";
 

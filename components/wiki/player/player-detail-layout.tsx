@@ -11,7 +11,7 @@ import {
 import { PlayerSidebar } from "@/components/wiki/player/player-sidebar";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
-import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+import { resolveWikiImageUrl } from "@/lib/media/client";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
 import {
   getPlayerCareerStats,

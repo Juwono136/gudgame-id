@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type SportHeroImageFieldProps = {

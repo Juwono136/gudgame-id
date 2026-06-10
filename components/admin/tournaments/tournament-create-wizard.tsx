@@ -41,7 +41,7 @@ import {
   TOURNAMENT_TYPES,
   type TournamentStatus,
   type TournamentType,
-} from "@/db/schema/tournaments";
+} from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
 import { cn } from "@/lib/utils";

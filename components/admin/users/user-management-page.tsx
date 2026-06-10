@@ -57,7 +57,7 @@ import {
   ROLE_DISPLAY_ORDER,
   type AppRole,
 } from "@/lib/roles/constants";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { getProfileHandle } from "@/lib/auth/user-display";
 import type { AdminUsersListQuery } from "@/lib/validations/admin-users";
 import { cn } from "@/lib/utils";

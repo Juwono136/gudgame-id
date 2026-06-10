@@ -6,7 +6,7 @@ import { UserCircle } from "lucide-react";
 import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
 import { Button } from "@/components/ui/button";
 import type { AppRole } from "@/lib/roles/constants";
-import { resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type DashboardWelcomeCardProps = {

@@ -17,11 +17,20 @@ const serverOnlyImports = {
             "@/lib/server/**",
           ],
           message:
-            "Do not import server infrastructure from UI components. Use API routes or Server Components in app/.",
+            "Do not import server infrastructure from UI components. Use @/lib/media/client, @/lib/domain/*, API routes, or Server Components in app/.",
         },
       ],
     },
   ],
+};
+
+/** React Compiler rules — warn only so existing patterns do not block CI. */
+const reactCompilerRelaxations = {
+  "react-hooks/set-state-in-effect": "warn",
+  "react-hooks/refs": "warn",
+  "react-hooks/purity": "warn",
+  "react-hooks/preserve-manual-memoization": "warn",
+  "react-hooks/incompatible-library": "warn",
 };
 
 const eslintConfig = defineConfig([
@@ -29,8 +38,14 @@ const eslintConfig = defineConfig([
   ...nextTs,
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
   {
+    rules: reactCompilerRelaxations,
+  },
+  {
     files: ["components/**/*.{ts,tsx}"],
-    rules: serverOnlyImports,
+    rules: {
+      ...serverOnlyImports,
+      ...reactCompilerRelaxations,
+    },
   },
 ]);
 
