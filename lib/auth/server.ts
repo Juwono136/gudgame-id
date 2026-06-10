@@ -39,7 +39,7 @@ function getAuthSecret(): string {
   if (process.env.NODE_ENV === "production") {
     throw new Error("BETTER_AUTH_SECRET must be at least 32 characters in production");
   }
-  return "dev-only-court-pedia-auth-secret-min-32-chars!!";
+  return "dev-only-tandingbase-auth-secret-min-32-chars!!";
 }
 
 const appBaseUrl = getBaseUrl();

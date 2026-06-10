@@ -101,7 +101,9 @@ jobs:
           PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
 
       - name: Bootstrap super admin user
-        run: docker compose --profile migrate run --rm db-migrate npm run db:bootstrap-admin
+        run: |
+          docker compose --profile migrate build db-migrate
+          docker compose --profile migrate run --rm db-migrate npm run db:bootstrap-admin
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}

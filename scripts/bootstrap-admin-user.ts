@@ -1,20 +1,44 @@
 /**
  * Idempotent bootstrap: ensure a super_admin account exists (CI / first deploy).
  *
- * Env (GitHub Secrets):
+ * GitHub Secrets (no quotes in the UI):
  *   BOOTSTRAP_ADMIN_EMAIL
- *   BOOTSTRAP_ADMIN_PASSWORD  (min 8 chars — Better Auth rule)
- *   BOOTSTRAP_ADMIN_NAME      (optional, default "Super Admin")
- *
- * Skips silently when email/password are unset so deploy works before secrets are added.
+ *   BOOTSTRAP_ADMIN_PASSWORD  (min 8 chars)
+ *   BOOTSTRAP_ADMIN_NAME      (optional)
  */
-import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { hashPassword } from "better-auth/crypto";
 import { closeDatabase, getDb } from "@/db/client";
-import { user } from "@/db/schema/auth";
+import { account, user } from "@/db/schema/auth";
 import { getBootstrapAuth } from "@/lib/auth/bootstrap-auth";
 import { authRoutes } from "@/lib/constants/routes";
-import { setUserRoles } from "@/lib/roles/sync";
+import { getUserRoleAssignments, setUserRoles } from "@/lib/roles/sync";
 import { logger } from "@/lib/logger";
+
+const log = logger.child({ script: "bootstrap-admin-user" });
+
+const DEFAULT_NAME = "Super Admin";
+const BOOTSTRAP_ROLES = ["super_admin", "player"] as const;
+const CREDENTIAL_PROVIDER_ID = "credential";
+
+function normalizeEnvValue(value: string | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const visible = local.slice(0, 2);
+  return `${visible}***@${domain}`;
+}
 
 function getBaseUrl(): string {
   return (
@@ -24,22 +48,27 @@ function getBaseUrl(): string {
   ).replace(/\/$/, "");
 }
 
-const log = logger.child({ script: "bootstrap-admin-user" });
-
-const DEFAULT_NAME = "Super Admin";
-const BOOTSTRAP_ROLES = ["super_admin", "player"] as const;
-
-function getBootstrapConfig():
-  | { email: string; password: string; name: string }
-  | null {
-  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "";
+function getBootstrapConfig(): { email: string; password: string; name: string } {
+  const email = normalizeEnvValue(process.env.BOOTSTRAP_ADMIN_EMAIL).toLowerCase();
+  const password = normalizeEnvValue(process.env.BOOTSTRAP_ADMIN_PASSWORD);
+  const inCi = process.env.GITHUB_ACTIONS === "true";
 
   if (!email || !password) {
-    log.info(
-      "BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD not set — skipping bootstrap admin",
-    );
-    return null;
+    const message =
+      "[bootstrap-admin] BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD must be set " +
+      "(GitHub Secrets → workflow env → docker-compose db-migrate environment).";
+
+    if (inCi) {
+      console.error(message);
+      console.error(
+        `[bootstrap-admin] CI check: hasEmail=${Boolean(email)} hasPassword=${Boolean(password)}`,
+      );
+      process.exit(1);
+    }
+
+    console.warn(`${message} Skipping locally.`);
+    log.warn("Bootstrap admin skipped — missing email or password env");
+    process.exit(0);
   }
 
   if (password.length < 8) {
@@ -49,7 +78,7 @@ function getBootstrapConfig():
     process.exit(1);
   }
 
-  const name = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || DEFAULT_NAME;
+  const name = normalizeEnvValue(process.env.BOOTSTRAP_ADMIN_NAME) || DEFAULT_NAME;
   return { email, password, name };
 }
 
@@ -70,6 +99,60 @@ async function markBootstrapUserReady(userId: string, name: string): Promise<voi
       updatedAt: new Date(),
     })
     .where(eq(user.id, userId));
+}
+
+async function syncBootstrapPassword(userId: string, password: string): Promise<void> {
+  const hashed = await hashPassword(password);
+  const now = new Date();
+  const db = getDb();
+
+  const [existingCred] = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(
+      and(eq(account.userId, userId), eq(account.providerId, CREDENTIAL_PROVIDER_ID)),
+    )
+    .limit(1);
+
+  if (existingCred) {
+    await db
+      .update(account)
+      .set({ password: hashed, updatedAt: now })
+      .where(eq(account.id, existingCred.id));
+    return;
+  }
+
+  await db.insert(account).values({
+    id: randomUUID(),
+    accountId: userId,
+    providerId: CREDENTIAL_PROVIDER_ID,
+    userId,
+    password: hashed,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function verifyBootstrapAdmin(userId: string, email: string): Promise<void> {
+  const roles = await getUserRoleAssignments(userId);
+  if (!roles.includes("super_admin")) {
+    throw new Error(
+      `Verification failed: ${email} does not have super_admin (roles: ${roles.join(", ") || "none"})`,
+    );
+  }
+
+  const [row] = await getDb()
+    .select({
+      emailVerified: user.emailVerified,
+      isActive: user.isActive,
+    })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (!row?.emailVerified || !row.isActive) {
+    throw new Error(`Verification failed: ${email} is not active or email not verified`);
+  }
 }
 
 async function createBootstrapUser(
@@ -97,12 +180,10 @@ async function createBootstrapUser(
 }
 
 async function main(): Promise<void> {
-  const config = getBootstrapConfig();
-  if (!config) {
-    return;
-  }
+  const { email, password, name } = getBootstrapConfig();
 
-  const { email, password, name } = config;
+  console.log(`[bootstrap-admin] Ensuring super_admin for ${maskEmail(email)}`);
+
   const db = getDb();
 
   const [existing] = await db
@@ -111,21 +192,25 @@ async function main(): Promise<void> {
     .where(eq(user.email, email))
     .limit(1);
 
+  let userId: string;
+
   if (existing) {
-    await markBootstrapUserReady(existing.id, name);
-    await ensureSuperAdminRoles(existing.id);
-    log.info("Bootstrap admin already exists — roles and flags refreshed", {
-      userId: existing.id,
-      email: existing.email,
-    });
-    console.log(`[bootstrap-admin] OK: ${existing.email} (existing user, super_admin ensured)`);
-    await closeDatabase();
-    return;
+    userId = existing.id;
+    await markBootstrapUserReady(userId, name);
+    await syncBootstrapPassword(userId, password);
+    await ensureSuperAdminRoles(userId);
+    log.info("Bootstrap admin updated", { userId, email: existing.email });
+    console.log(
+      `[bootstrap-admin] OK: ${existing.email} (existing user — password synced, super_admin ensured)`,
+    );
+  } else {
+    userId = await createBootstrapUser(email, password, name);
+    log.info("Bootstrap admin created", { userId, email });
+    console.log(`[bootstrap-admin] OK: ${email} created with super_admin role`);
   }
 
-  const userId = await createBootstrapUser(email, password, name);
-  log.info("Bootstrap admin created", { userId, email });
-  console.log(`[bootstrap-admin] OK: ${email} created with super_admin role`);
+  await verifyBootstrapAdmin(userId, email);
+  console.log(`[bootstrap-admin] Verified: super_admin role active for ${maskEmail(email)}`);
 
   await closeDatabase();
 }
