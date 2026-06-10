@@ -1,18 +1,16 @@
 /**
- * Idempotent bootstrap: ensure a super_admin account exists (CI / first deploy).
+ * Create one super_admin user for first deploy (no email sent).
  *
- * GitHub Secrets (no quotes in the UI):
- *   BOOTSTRAP_ADMIN_EMAIL
- *   BOOTSTRAP_ADMIN_PASSWORD  (min 8 chars)
- *   BOOTSTRAP_ADMIN_NAME      (optional)
+ * GitHub Secrets (no quotes): BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD
+ * Optional: BOOTSTRAP_ADMIN_NAME
  */
+process.env.DB_SCRIPT_MODE = "true";
+
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { closeDatabase, getDb } from "@/db/client";
 import { account, user } from "@/db/schema/auth";
-import { getBootstrapAuth } from "@/lib/auth/bootstrap-auth";
-import { authRoutes } from "@/lib/constants/routes";
 import { getUserRoleAssignments, setUserRoles } from "@/lib/roles/sync";
 import { logger } from "@/lib/logger";
 
@@ -36,16 +34,7 @@ function normalizeEnvValue(value: string | undefined): string {
 function maskEmail(email: string): string {
   const [local, domain] = email.split("@");
   if (!domain) return "***";
-  const visible = local.slice(0, 2);
-  return `${visible}***@${domain}`;
-}
-
-function getBaseUrl(): string {
-  return (
-    process.env.BETTER_AUTH_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
+  return `${local.slice(0, 2)}***@${domain}`;
 }
 
 function getBootstrapConfig(): { email: string; password: string; name: string } {
@@ -55,26 +44,19 @@ function getBootstrapConfig(): { email: string; password: string; name: string }
 
   if (!email || !password) {
     const message =
-      "[bootstrap-admin] BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD must be set " +
-      "(GitHub Secrets → workflow env → docker-compose db-migrate environment).";
+      "[bootstrap-admin] BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD are required.";
 
     if (inCi) {
       console.error(message);
-      console.error(
-        `[bootstrap-admin] CI check: hasEmail=${Boolean(email)} hasPassword=${Boolean(password)}`,
-      );
       process.exit(1);
     }
 
     console.warn(`${message} Skipping locally.`);
-    log.warn("Bootstrap admin skipped — missing email or password env");
     process.exit(0);
   }
 
   if (password.length < 8) {
-    console.error(
-      "[bootstrap-admin] BOOTSTRAP_ADMIN_PASSWORD must be at least 8 characters.",
-    );
+    console.error("[bootstrap-admin] BOOTSTRAP_ADMIN_PASSWORD must be at least 8 characters.");
     process.exit(1);
   }
 
@@ -82,26 +64,7 @@ function getBootstrapConfig(): { email: string; password: string; name: string }
   return { email, password, name };
 }
 
-async function ensureSuperAdminRoles(userId: string): Promise<void> {
-  await setUserRoles(userId, [...BOOTSTRAP_ROLES]);
-}
-
-async function markBootstrapUserReady(userId: string, name: string): Promise<void> {
-  await getDb()
-    .update(user)
-    .set({
-      name,
-      fullNameKtp: name,
-      emailVerified: true,
-      isActive: true,
-      mustChangePassword: false,
-      invitedByAdmin: false,
-      updatedAt: new Date(),
-    })
-    .where(eq(user.id, userId));
-}
-
-async function syncBootstrapPassword(userId: string, password: string): Promise<void> {
+async function syncCredentialPassword(userId: string, password: string): Promise<void> {
   const hashed = await hashPassword(password);
   const now = new Date();
   const db = getDb();
@@ -133,26 +96,20 @@ async function syncBootstrapPassword(userId: string, password: string): Promise<
   });
 }
 
-async function verifyBootstrapAdmin(userId: string, email: string): Promise<void> {
-  const roles = await getUserRoleAssignments(userId);
-  if (!roles.includes("super_admin")) {
-    throw new Error(
-      `Verification failed: ${email} does not have super_admin (roles: ${roles.join(", ") || "none"})`,
-    );
-  }
-
-  const [row] = await getDb()
-    .select({
-      emailVerified: user.emailVerified,
-      isActive: user.isActive,
+async function markBootstrapUserReady(userId: string, name: string): Promise<void> {
+  await getDb()
+    .update(user)
+    .set({
+      name,
+      fullNameKtp: name,
+      emailVerified: true,
+      isActive: true,
+      mustChangePassword: false,
+      invitedByAdmin: false,
+      role: "super_admin",
+      updatedAt: new Date(),
     })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-
-  if (!row?.emailVerified || !row.isActive) {
-    throw new Error(`Verification failed: ${email} is not active or email not verified`);
-  }
+    .where(eq(user.id, userId));
 }
 
 async function createBootstrapUser(
@@ -160,29 +117,51 @@ async function createBootstrapUser(
   password: string,
   name: string,
 ): Promise<string> {
-  const baseUrl = getBaseUrl();
-  const signUp = await getBootstrapAuth().api.signUpEmail({
-    body: {
-      email,
-      password,
-      name,
-      callbackURL: `${baseUrl}${authRoutes.verifyEmail}?status=success`,
-    },
+  const userId = randomUUID();
+  const now = new Date();
+  const hashed = await hashPassword(password);
+
+  await getDb().insert(user).values({
+    id: userId,
+    name,
+    email,
+    emailVerified: true,
+    isActive: true,
+    mustChangePassword: false,
+    invitedByAdmin: false,
+    fullNameKtp: name,
+    role: "super_admin",
+    createdAt: now,
+    updatedAt: now,
   });
 
-  if (!signUp?.user?.id) {
-    throw new Error("signUpEmail did not return a user id");
-  }
+  await getDb().insert(account).values({
+    id: randomUUID(),
+    accountId: userId,
+    providerId: CREDENTIAL_PROVIDER_ID,
+    userId,
+    password: hashed,
+    createdAt: now,
+    updatedAt: now,
+  });
 
-  await markBootstrapUserReady(signUp.user.id, name);
-  await ensureSuperAdminRoles(signUp.user.id);
-  return signUp.user.id;
+  await setUserRoles(userId, [...BOOTSTRAP_ROLES]);
+  return userId;
+}
+
+async function verifyBootstrapAdmin(userId: string, email: string): Promise<void> {
+  const roles = await getUserRoleAssignments(userId);
+  if (!roles.includes("super_admin")) {
+    throw new Error(
+      `Verification failed: ${email} missing super_admin (got: ${roles.join(", ") || "none"})`,
+    );
+  }
 }
 
 async function main(): Promise<void> {
   const { email, password, name } = getBootstrapConfig();
 
-  console.log(`[bootstrap-admin] Ensuring super_admin for ${maskEmail(email)}`);
+  console.log(`[bootstrap-admin] Ensuring super_admin for ${maskEmail(email)} (no email sent)`);
 
   const db = getDb();
 
@@ -197,29 +176,22 @@ async function main(): Promise<void> {
   if (existing) {
     userId = existing.id;
     await markBootstrapUserReady(userId, name);
-    await syncBootstrapPassword(userId, password);
-    await ensureSuperAdminRoles(userId);
-    log.info("Bootstrap admin updated", { userId, email: existing.email });
-    console.log(
-      `[bootstrap-admin] OK: ${existing.email} (existing user — password synced, super_admin ensured)`,
-    );
+    await syncCredentialPassword(userId, password);
+    await setUserRoles(userId, [...BOOTSTRAP_ROLES]);
+    console.log(`[bootstrap-admin] OK: ${existing.email} updated (super_admin, password synced)`);
   } else {
     userId = await createBootstrapUser(email, password, name);
-    log.info("Bootstrap admin created", { userId, email });
     console.log(`[bootstrap-admin] OK: ${email} created with super_admin role`);
   }
 
   await verifyBootstrapAdmin(userId, email);
-  console.log(`[bootstrap-admin] Verified: super_admin role active for ${maskEmail(email)}`);
+  log.info("Bootstrap admin ready", { userId, email });
 
   await closeDatabase();
 }
 
 main().catch((err) => {
   log.error("Bootstrap admin failed", err);
-  console.error(
-    "[bootstrap-admin] Failed:",
-    err instanceof Error ? err.message : String(err),
-  );
+  console.error("[bootstrap-admin] Failed:", err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

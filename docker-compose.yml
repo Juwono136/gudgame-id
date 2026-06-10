@@ -103,6 +103,7 @@ services:
     # Env for migrate / seed / bootstrap — must be declared here so `docker compose run` injects them.
     environment:
       DATABASE_URL: ${DATABASE_URL:-}
+      DB_SCRIPT_MODE: ${DB_SCRIPT_MODE:-true}
       NODE_ENV: ${NODE_ENV:-production}
       # Seed (first deploy only)
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
@@ -110,11 +111,7 @@ services:
       STORAGE_AUTH_MODE: ${STORAGE_AUTH_MODE:-nginx-basic}
       USERNAME_STORAGE: ${USERNAME_STORAGE:-}
       PASSWORD_STORAGE: ${PASSWORD_STORAGE:-}
-      # Bootstrap super admin (GitHub Secrets → CI env → compose)
-      REDIS_URL: ${REDIS_URL:-}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+      # Bootstrap super admin — DATABASE_URL + secrets only (no SMTP / full app env)
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
