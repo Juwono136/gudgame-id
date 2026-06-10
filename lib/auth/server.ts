@@ -19,12 +19,23 @@ import { firebaseGooglePlugin } from "@/lib/auth/plugins/firebase-google";
 import { authRedisSecondaryStorage } from "@/lib/auth/redis-secondary-storage";
 import { GOOGLE_PROVIDER_ID } from "@/lib/auth/account-providers";
 import { authRoutes } from "@/lib/constants/routes";
+import {
+  DOCKER_BUILD_AUTH_SECRET,
+  isBuildTimeEnvValidationSkipped,
+} from "@/lib/config/build-time";
 
 const authLog = logger.child({ module: "auth" });
 
 function getAuthSecret(): string {
+  if (isBuildTimeEnvValidationSkipped()) {
+    const secret = process.env.BETTER_AUTH_SECRET;
+    if (secret && secret.length >= 32) return secret;
+    return DOCKER_BUILD_AUTH_SECRET;
+  }
+
   const secret = process.env.BETTER_AUTH_SECRET;
   if (secret && secret.length >= 32) return secret;
+
   if (process.env.NODE_ENV === "production") {
     throw new Error("BETTER_AUTH_SECRET must be at least 32 characters in production");
   }

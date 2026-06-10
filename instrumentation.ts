@@ -1,7 +1,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    // `next build` has no database — runtime env is validated when the container starts.
-    if (process.env.NEXT_PHASE === "phase-production-build") return;
+    const { isBuildTimeEnvValidationSkipped } = await import("@/lib/config/build-time");
+    if (isBuildTimeEnvValidationSkipped()) return;
 
     const { assertProductionEnv } = await import("@/lib/config/env.server");
     const { isXenditStagingMode } = await import("@/lib/config/xendit-env");
