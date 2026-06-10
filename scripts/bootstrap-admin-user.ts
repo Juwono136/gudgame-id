@@ -11,11 +11,18 @@
 import { eq } from "drizzle-orm";
 import { closeDatabase, getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { auth } from "@/lib/auth/server";
+import { getBootstrapAuth } from "@/lib/auth/bootstrap-auth";
 import { authRoutes } from "@/lib/constants/routes";
-import { getBaseUrl } from "@/lib/auth/urls-server";
 import { setUserRoles } from "@/lib/roles/sync";
 import { logger } from "@/lib/logger";
+
+function getBaseUrl(): string {
+  return (
+    process.env.BETTER_AUTH_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
 
 const log = logger.child({ script: "bootstrap-admin-user" });
 
@@ -71,7 +78,7 @@ async function createBootstrapUser(
   name: string,
 ): Promise<string> {
   const baseUrl = getBaseUrl();
-  const signUp = await auth.api.signUpEmail({
+  const signUp = await getBootstrapAuth().api.signUpEmail({
     body: {
       email,
       password,
