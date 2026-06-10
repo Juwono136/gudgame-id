@@ -13,6 +13,8 @@ export type RateLimitOptions = {
   limit: number;
   /** Window length in seconds */
   windowSeconds: number;
+  /** When Redis is unavailable, reject instead of allowing (recommended for auth). */
+  failClosedInProduction?: boolean;
 };
 
 export type RateLimitResult = {
@@ -45,7 +47,21 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
       resetAt,
     };
   } catch (error) {
-    log.warn("Rate limit check failed — allowing request", { key: options.key, error });
+    const failClosed =
+      options.failClosedInProduction === true &&
+      process.env.NODE_ENV === "production";
+
+    log.warn(
+      failClosed
+        ? "Rate limit check failed — rejecting request"
+        : "Rate limit check failed — allowing request",
+      { key: options.key, error },
+    );
+
+    if (failClosed) {
+      return { allowed: false, remaining: 0, resetAt: now + windowMs };
+    }
+
     return { allowed: true, remaining: options.limit, resetAt: now + windowMs };
   }
 }

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  isXenditDevelopmentKey,
+  isXenditProductionKey,
+  isXenditStagingMode,
+} from "@/lib/config/xendit-env";
 
 const serverSchema = z
   .object({
@@ -28,6 +33,15 @@ const serverSchema = z
     HEALTH_CHECK_TOKEN: z.string().min(16).optional(),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
     GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+    XENDIT_SECRET_KEY: z.string().min(1).optional(),
+    XENDIT_WEBHOOK_TOKEN: z.string().min(16).optional(),
+    XENDIT_XENPLATFORM_ENABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v !== "false"),
+    SMTP_HOST: z.string().optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;
@@ -60,15 +74,78 @@ const serverSchema = z
       });
     }
 
+    if (!data.HEALTH_CHECK_TOKEN) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["HEALTH_CHECK_TOKEN"],
+        message: "HEALTH_CHECK_TOKEN (min 16 chars) is required in production",
+      });
+    }
+
+    const xenditKey = data.XENDIT_SECRET_KEY?.trim();
+    const xenditStaging = isXenditStagingMode();
+
+    if (!xenditKey) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["XENDIT_SECRET_KEY"],
+        message: "XENDIT_SECRET_KEY is required in production",
+      });
+    } else if (xenditStaging) {
+      if (!isXenditDevelopmentKey(xenditKey)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["XENDIT_SECRET_KEY"],
+          message:
+            "XENDIT_STAGING_MODE=true requires a Test key (xnd_development_…). Remove staging mode for live payments.",
+        });
+      }
+    } else if (!isXenditProductionKey(xenditKey)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["XENDIT_SECRET_KEY"],
+        message:
+          "XENDIT_SECRET_KEY must be a production key (xnd_production_…), or set XENDIT_STAGING_MODE=true for Test keys on a public deploy",
+      });
+    }
+
+    if (!data.XENDIT_WEBHOOK_TOKEN) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["XENDIT_WEBHOOK_TOKEN"],
+        message: "XENDIT_WEBHOOK_TOKEN is required in production",
+      });
+    }
+
+    const allowLocalStorage = process.env.STORAGE_ALLOW_LOCALHOST === "true";
     if (
-      data.STORAGE_ENDPOINT?.includes("127.0.0.1") ||
-      data.STORAGE_ENDPOINT?.includes("localhost")
+      !allowLocalStorage &&
+      (data.STORAGE_ENDPOINT?.includes("127.0.0.1") ||
+        data.STORAGE_ENDPOINT?.includes("localhost"))
     ) {
       ctx.addIssue({
         code: "custom",
         path: ["STORAGE_ENDPOINT"],
         message:
-          "STORAGE_ENDPOINT must not use localhost in production (use internal GCP endpoint)",
+          "STORAGE_ENDPOINT must not use localhost in production unless STORAGE_ALLOW_LOCALHOST=true (single-VM deploy)",
+      });
+    }
+
+    if (!data.SMTP_USER || !data.SMTP_PASS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_USER"],
+        message: "SMTP_USER and SMTP_PASS are required in production email delivery",
+      });
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (!appUrl?.startsWith("https://")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["BETTER_AUTH_URL"],
+        message:
+          "NEXT_PUBLIC_APP_URL and BETTER_AUTH_URL must use HTTPS in production",
       });
     }
   });

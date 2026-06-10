@@ -1,3 +1,4 @@
+import { guardApiRequest } from "@/lib/api/guard-request";
 import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
@@ -24,10 +25,12 @@ type XenditInvoiceWebhook = {
 
 export async function POST(request: Request) {
   try {
+    await guardApiRequest(request, { tier: "webhook", skipOriginCheck: true });
     await enforceRateLimit({
       key: "xendit-webhook",
       limit: 120,
       windowSeconds: 60,
+      failClosedInProduction: true,
     });
 
     const token = request.headers.get("x-callback-token");

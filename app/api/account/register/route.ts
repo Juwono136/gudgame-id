@@ -10,6 +10,7 @@ import { getNicknameFormatError } from "@/lib/auth/nickname-rules";
 import { isNicknameAvailable, normalizeNickname } from "@/lib/auth/nickname";
 import { authRoutes } from "@/lib/constants/routes";
 import { getDialByCountryCode } from "@/lib/constants/phone-countries";
+import { guardApiRequest } from "@/lib/api/guard-request";
 
 const log = logger.child({ route: "/api/account/register" });
 
@@ -17,6 +18,8 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    await guardApiRequest(request, { tier: "register" });
+
     const formData = await request.formData();
     const photoFile = formData.get("photo");
 

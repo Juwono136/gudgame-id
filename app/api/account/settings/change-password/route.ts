@@ -12,11 +12,13 @@ import {
   setPasswordSettingsSchema,
 } from "@/lib/validations/account-settings";
 import { AppError } from "@/lib/errors";
+import { guardApiRequest } from "@/lib/api/guard-request";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    await guardApiRequest(request, { tier: "sensitive" });
     await requireAccountSettingsAccess();
     const session = await getServerSession();
     if (!session?.user) {

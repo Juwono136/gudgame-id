@@ -8,6 +8,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/db/schema";
 import { logger } from "@/lib/logger";
 import { forgotPasswordSchema } from "@/lib/validations/auth";
+import { guardApiRequest } from "@/lib/api/guard-request";
 
 const log = logger.child({ route: "/api/account/forgot-password" });
 
@@ -15,6 +16,8 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    await guardApiRequest(request, { tier: "passwordReset" });
+
     const body = await request.json();
     const parsed = forgotPasswordSchema.safeParse(body);
 

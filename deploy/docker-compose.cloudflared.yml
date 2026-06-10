@@ -1,0 +1,17 @@
+# Cloudflare Tunnel — exposes TandingBase to the internet without opening HTTP ports
+# Domain: tandingbase.portproject.my.id (configure in Cloudflare Zero Trust dashboard)
+#
+# Prerequisites:
+#   1. Create tunnel in Cloudflare → copy token
+#   2. Add public hostname: tandingbase.portproject.my.id → http://localhost:3000
+#   3. export CLOUDFLARE_TUNNEL_TOKEN=... in /opt/tandingbase/.env.cloudflare
+#
+# Run: docker compose -f deploy/docker-compose.cloudflared.yml --env-file /opt/tandingbase/.env.cloudflare up -d
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tandingbase-cloudflared
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}

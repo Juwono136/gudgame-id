@@ -1,0 +1,113 @@
+# Isolated Compose project — do not run `docker compose down --remove-orphans` globally on the VPS.
+name: tandingbase-app
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME}/tandingbase:latest
+    container_name: tandingbase-app
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      # Main
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      STRICT_PRODUCTION_ENV: ${STRICT_PRODUCTION_ENV:-true}
+
+      # Database & cache (host services via host.docker.internal)
+      DATABASE_URL: ${DATABASE_URL:-}
+      REDIS_URL: ${REDIS_URL:-}
+
+      # Auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      AUTH_LOCKOUT_ENABLED: ${AUTH_LOCKOUT_ENABLED:-true}
+
+      # Firebase (server)
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+
+      # Firebase (client — also baked at build; keep for SSR consistency)
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
+
+      # Email
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+
+      # SeaweedFS object storage (nginx gateway on host :8333)
+      STORAGE_ALLOW_LOCALHOST: ${STORAGE_ALLOW_LOCALHOST:-true}
+      STORAGE_AUTH_MODE: ${STORAGE_AUTH_MODE:-nginx-basic}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://host.docker.internal:8333}
+      NEXT_PUBLIC_STORAGE_URL: ${NEXT_PUBLIC_STORAGE_URL:-}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-court-pedia}
+      STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
+      USERNAME_STORAGE: ${USERNAME_STORAGE:-}
+      PASSWORD_STORAGE: ${PASSWORD_STORAGE:-}
+
+      # Xendit
+      XENDIT_STAGING_MODE: ${XENDIT_STAGING_MODE:-true}
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY:-}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN:-}
+      XENDIT_XENPLATFORM_ENABLED: ${XENDIT_XENPLATFORM_ENABLED:-true}
+
+      # Google Maps
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+
+      # Ops
+      HEALTH_CHECK_TOKEN: ${HEALTH_CHECK_TOKEN:-}
+      WIKI_SCRAPE_ALLOWED_HOSTS: ${WIKI_SCRAPE_ALLOWED_HOSTS:-}
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    networks:
+      - tunnel
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'curl -fsS -H "X-Health-Token: $${HEALTH_CHECK_TOKEN}" http://127.0.0.1:3000/api/health | grep -q "status" || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # One-off: apply SQL migrations from db/migrations (same as npm run db:migrate:prod).
+  # docker compose --profile migrate run --rm db-migrate
+  db-migrate:
+    profiles: ["migrate"]
+    working_dir: /app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tunnel
+    command: ["npx", "drizzle-kit", "migrate", "--config", "drizzle.config.ts"]
+
+networks:
+  tunnel:
+    external: true

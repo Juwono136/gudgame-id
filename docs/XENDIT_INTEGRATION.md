@@ -32,6 +32,21 @@ REDIS_URL="redis://127.0.0.1:6379"
 
 **Never commit real secret keys.** Use Test keys until production go-live.
 
+### Deployed app, still testing payments (staging)
+
+You can run `NODE_ENV=production` on a public URL while keeping Xendit **Test** keys:
+
+```env
+XENDIT_STAGING_MODE=true
+XENDIT_SECRET_KEY=xnd_development_…
+XENDIT_WEBHOOK_TOKEN=…   # from Xendit Test dashboard; escape $ as $$ in APP_ENV_FILE
+STRICT_PRODUCTION_ENV=true
+```
+
+Configure webhooks in the Xendit dashboard while in **Test mode** pointing to your public URL.
+
+Before real go-live: set `XENDIT_STAGING_MODE=false`, replace with `xnd_production_…`, and reconfigure webhooks in **Live mode**.
+
 Set `XENDIT_XENPLATFORM_ENABLED="false"` only if you want invoice payments without automatic host routing (legacy mode).
 
 ## 3. Xendit Dashboard setup
@@ -58,6 +73,8 @@ Set `XENDIT_XENPLATFORM_ENABLED="false"` only if you want invoice payments witho
    ```
    https://YOUR_DOMAIN/api/webhooks/xendit
    ```
+
+   Production (GCP VM + Cloudflare): `https://tandingbase.portproject.my.id/api/webhooks/xendit` — see [DEPLOYMENT_GCP.md](./DEPLOYMENT_GCP.md).
 
 4. Configure these events (minimum):
    - **Invoice paid** → same URL

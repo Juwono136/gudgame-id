@@ -1,0 +1,167 @@
+name: TandingBase CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/tandingbase:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/tandingbase:latest
+          cache-to: type=inline
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_SITE_URL=${{ secrets.NEXT_PUBLIC_SITE_URL }}
+            NEXT_PUBLIC_STORAGE_URL=${{ secrets.NEXT_PUBLIC_STORAGE_URL }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            BETTER_AUTH_URL=${{ secrets.BETTER_AUTH_URL }}
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, tandingbase]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull latest image
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/tandingbase:latest
+
+      - name: Ensure Docker network exists
+        env:
+          TUNNEL_NAME: ${{ secrets.TUNNEL_NAME }}
+        run: |
+          NET="${TUNNEL_NAME:-tunnel}"
+          docker network inspect "${NET}" >/dev/null 2>&1 || docker network create "${NET}"
+
+      - name: Build DB migration image
+        run: docker compose --profile migrate build --pull db-migrate
+
+      - name: Run DB migration
+        run: docker compose --profile migrate run --rm db-migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+      # Only recreate this app — never `docker compose down --remove-orphans` (can remove other stacks).
+      - name: Deploy TandingBase app
+        run: |
+          docker compose pull app
+          docker compose up -d --no-deps app
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+          # Main
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          STRICT_PRODUCTION_ENV: ${{ secrets.STRICT_PRODUCTION_ENV }}
+
+          # Database & cache
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+
+          # Auth
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          AUTH_LOCKOUT_ENABLED: ${{ secrets.AUTH_LOCKOUT_ENABLED }}
+
+          # Firebase (server)
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+
+          # Firebase (client)
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+
+          # Email
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+
+          # SeaweedFS
+          STORAGE_ALLOW_LOCALHOST: ${{ secrets.STORAGE_ALLOW_LOCALHOST }}
+          STORAGE_AUTH_MODE: ${{ secrets.STORAGE_AUTH_MODE }}
+          STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
+          NEXT_PUBLIC_STORAGE_URL: ${{ secrets.NEXT_PUBLIC_STORAGE_URL }}
+          STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
+          STORAGE_REGION: ${{ secrets.STORAGE_REGION }}
+          USERNAME_STORAGE: ${{ secrets.USERNAME_STORAGE }}
+          PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
+
+          # Xendit
+          XENDIT_STAGING_MODE: ${{ secrets.XENDIT_STAGING_MODE }}
+          XENDIT_SECRET_KEY: ${{ secrets.XENDIT_SECRET_KEY }}
+          XENDIT_WEBHOOK_TOKEN: ${{ secrets.XENDIT_WEBHOOK_TOKEN }}
+          XENDIT_XENPLATFORM_ENABLED: ${{ secrets.XENDIT_XENPLATFORM_ENABLED }}
+
+          # Google Maps
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+
+          # Ops
+          HEALTH_CHECK_TOKEN: ${{ secrets.HEALTH_CHECK_TOKEN }}
+          WIKI_SCRAPE_ALLOWED_HOSTS: ${{ secrets.WIKI_SCRAPE_ALLOWED_HOSTS }}
+
+      - name: Smoke test health endpoint
+        env:
+          HEALTH_CHECK_TOKEN: ${{ secrets.HEALTH_CHECK_TOKEN }}
+        run: |
+          sleep 12
+          curl -fsS \
+            -H "X-Health-Token: ${HEALTH_CHECK_TOKEN}" \
+            "http://127.0.0.1:3000/api/health" \
+            | jq -e '.status == "healthy" or .status == "degraded"'
+
+      - name: Cleanup dangling images
+        run: docker image prune -f

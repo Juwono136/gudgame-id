@@ -16,6 +16,7 @@ import {
 } from "@/lib/auth/constants";
 import { getBaseUrl, getPasswordResetRedirectUrl } from "@/lib/auth/urls-server";
 import { firebaseGooglePlugin } from "@/lib/auth/plugins/firebase-google";
+import { authRedisSecondaryStorage } from "@/lib/auth/redis-secondary-storage";
 import { GOOGLE_PROVIDER_ID } from "@/lib/auth/account-providers";
 import { authRoutes } from "@/lib/constants/routes";
 
@@ -30,6 +31,8 @@ function getAuthSecret(): string {
   return "dev-only-court-pedia-auth-secret-min-32-chars!!";
 }
 
+const appBaseUrl = getBaseUrl();
+
 export const auth = betterAuth({
   database: drizzleAdapter(getDb(), {
     provider: "pg",
@@ -41,7 +44,27 @@ export const auth = betterAuth({
     },
   }),
   secret: getAuthSecret(),
-  baseURL: getBaseUrl(),
+  baseURL: appBaseUrl,
+  trustedOrigins: [appBaseUrl],
+  rateLimit: {
+    enabled: process.env.NODE_ENV === "production",
+    window: 60,
+    max: 100,
+    storage: "secondary-storage",
+    customRules: {
+      "/sign-in/email": { window: 60, max: 10 },
+      "/sign-up/email": { window: 3600, max: 5 },
+      "/forget-password": { window: 3600, max: 5 },
+      "/request-password-reset": { window: 3600, max: 5 },
+    },
+  },
+  secondaryStorage: authRedisSecondaryStorage,
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+    ipAddress: {
+      ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for", "x-real-ip"],
+    },
+  },
   session: {
     expiresIn: SESSION_EXPIRES_IN_SECONDS,
     updateAge: SESSION_UPDATE_AGE_SECONDS,

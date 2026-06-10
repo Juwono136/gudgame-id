@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const clientSchema = z.object({
+const clientSchema = z
+  .object({
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   NEXT_PUBLIC_STORAGE_URL: z.string().url().optional(),
@@ -8,7 +9,20 @@ const clientSchema = z.object({
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: z.string().optional(),
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().optional(),
   NEXT_PUBLIC_FIREBASE_APP_ID: z.string().optional(),
-});
+})
+  .superRefine((data, ctx) => {
+    if (process.env.NODE_ENV !== "production") return;
+    for (const key of ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_SITE_URL"] as const) {
+      const value = data[key];
+      if (value && !value.startsWith("https://")) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} must use HTTPS in production`,
+        });
+      }
+    }
+  });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
 

@@ -17,14 +17,7 @@ import {
   isRoleProtectedPath,
   resolveSafeCallbackUrl,
 } from "@/lib/roles/route-access";
-
-const SECURITY_HEADERS: Record<string, string> = {
-  "X-Frame-Options": "DENY",
-  "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-  "X-DNS-Prefetch-Control": "on",
-};
+import { applySecurityHeadersToNextResponse } from "@/lib/security/headers";
 
 type SessionProxyContext = {
   roles: AppRole[];
@@ -84,6 +77,10 @@ function resolveLegacyHostDashboardRedirect(
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname.startsWith("/api/")) {
+    return applySecurityHeadersToNextResponse(NextResponse.next());
+  }
+
   const legacyRedirect = resolveLegacyHostDashboardRedirect(request, pathname);
   if (legacyRedirect) return legacyRedirect;
   const sessionCookie = getSessionCookie(request);
@@ -142,26 +139,11 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next();
-
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    response.headers.set(key, value);
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    response.headers.set(
-      "Strict-Transport-Security",
-      "max-age=63072000; includeSubDomains; preload",
-    );
-  }
-
-  response.headers.set("X-Request-Path", pathname);
-
-  return response;
+  return applySecurityHeadersToNextResponse(NextResponse.next());
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|images/|manifest.webmanifest|api/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|images/|manifest.webmanifest).*)",
   ],
 };

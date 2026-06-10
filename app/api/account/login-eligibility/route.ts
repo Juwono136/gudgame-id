@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
+import { guardApiRequest } from "@/lib/api/guard-request";
 import { getUserAuthProvidersByEmail } from "@/lib/auth/account-providers";
 import { getUserAccountStatusByEmail } from "@/lib/auth/account-status";
 
@@ -9,6 +10,8 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    await guardApiRequest(request, { tier: "auth" });
+
     const body = bodySchema.parse(await request.json());
     const email = body.email.trim().toLowerCase();
     const status = await getUserAccountStatusByEmail(email);

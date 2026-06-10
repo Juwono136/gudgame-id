@@ -1,6 +1,8 @@
 # Deploying Court Pedia on Google Cloud Platform
 
-This guide describes a production-ready target architecture **without Docker files in the repo** (Cloud Build can use the official Node buildpack or a Dockerfile you add later).
+> **Updated:** VM + Docker deployment guide moved to **[DEPLOYMENT_GCP.md](./DEPLOYMENT_GCP.md)** (Compute Engine, Docker Hub, GitHub Actions, Cloudflare Tunnel).
+
+This page retains the **Cloud Run / managed GCP** reference architecture for future scaling.
 
 ## Recommended GCP services
 

@@ -1,0 +1,16 @@
+.git
+.github
+.next
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.production.example
+coverage
+.cursor
+*.md
+docs
+deploy/scripts/*.log
+terminals
+**/*.test.ts
+**/*.spec.ts
