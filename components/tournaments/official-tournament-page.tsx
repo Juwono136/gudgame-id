@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Calendar, ChevronLeft, CreditCard, MapPin, Trophy, Users } from "lucide-react";
+import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Trophy, Users } from "lucide-react";
+import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
 import { OfficialLeaderboard } from "@/components/tournaments/official-leaderboard";
@@ -68,6 +69,7 @@ export function OfficialTournamentPage({
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
   const registerHref = `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}/register`;
   const [publicUrl, setPublicUrl] = useState("");
+  const [resumingPayment, setResumingPayment] = useState(false);
   useEffect(() => {
     setPublicUrl(window.location.href);
   }, []);
@@ -82,13 +84,45 @@ export function OfficialTournamentPage({
     tournament.slug,
   );
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!isAuthenticated) {
       router.push(`${authRoutes.register}?callbackUrl=${encodeURIComponent(registerHref)}`);
       return;
     }
-    if (regStatus?.status === "pending_payment" && regStatus.invoiceUrl) {
-      window.location.href = regStatus.invoiceUrl;
+    if (regStatus?.status === "pending_payment") {
+      if (regStatus.invoiceUrl) {
+        window.location.href = regStatus.invoiceUrl;
+        return;
+      }
+
+      setResumingPayment(true);
+      try {
+        const res = await fetch(
+          `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/register`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              teamName: regStatus.teamName?.trim() || "Team",
+              memberUserIds: [],
+            }),
+          },
+        );
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error?.message ?? "Could not resume payment");
+        }
+        const invoiceUrl = json.data?.invoiceUrl as string | undefined;
+        if (invoiceUrl) {
+          window.location.href = invoiceUrl;
+          return;
+        }
+        toast.error("Payment link is not available. Try again in a moment.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not resume payment");
+      } finally {
+        setResumingPayment(false);
+      }
       return;
     }
     router.push(registerHref);
@@ -322,17 +356,26 @@ export function OfficialTournamentPage({
 
             <Button
               className="btn-interactive mt-6 h-12 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light"
-              disabled={!summary.registrationOpen && regStatus?.status !== "pending_payment"}
-              onClick={handleRegister}
+              disabled={
+                resumingPayment ||
+                (!summary.registrationOpen && regStatus?.status !== "pending_payment")
+              }
+              onClick={() => void handleRegister()}
             >
-              <CreditCard className="mr-2 h-4 w-4" />
+              {resumingPayment ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CreditCard className="mr-2 h-4 w-4" />
+              )}
               {!isAuthenticated
                 ? "Sign up to register"
-                : regStatus?.status === "confirmed"
-                  ? "Registered"
-                  : regStatus?.status === "pending_payment"
-                    ? "Continue payment"
-                    : "Pay & register"}
+                : resumingPayment
+                  ? "Opening payment…"
+                  : regStatus?.status === "confirmed"
+                    ? "Registered"
+                    : regStatus?.status === "pending_payment"
+                      ? "Continue payment"
+                      : "Pay & register"}
             </Button>
 
           

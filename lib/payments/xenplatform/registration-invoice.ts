@@ -41,10 +41,12 @@ export async function createRegistrationInvoiceWithSplit(
 
   const hostAccount = await getActiveHostXenditAccount(context.hostUserId);
   if (!hostAccount) {
-    throw new AppError(
-      "Tournament host has not completed payout setup. Ask the organizer to enable XenPlatform payouts in the host dashboard.",
-      { code: "HOST_PAYOUT_NOT_CONFIGURED", statusCode: 503 },
-    );
+    log.warn("Host XenPlatform not active — invoice without split (fees stay on master account)", {
+      hostUserId: context.hostUserId,
+      registrationId: context.registrationId,
+    });
+    const invoice = await createXenditInvoice(input);
+    return { invoice, splitRuleId: null, hostPayoutStatus: "skipped" };
   }
 
   if (context.split.hostPayoutIdr <= 0) {

@@ -361,6 +361,149 @@ export async function getRegistrationDetail(registrationId: number) {
   return row ?? null;
 }
 
+async function rollbackDraftRegistration(teamId: number, registrationId: number): Promise<void> {
+  const db = getDb();
+  await db
+    .delete(tournamentPayments)
+    .where(eq(tournamentPayments.registrationId, registrationId));
+  await db
+    .delete(tournamentRegistrations)
+    .where(eq(tournamentRegistrations.id, registrationId));
+  await db.delete(tournamentTeamMembers).where(eq(tournamentTeamMembers.teamId, teamId));
+  await db.delete(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+}
+
+async function issueRegistrationInvoice(
+  tournament: TournamentDetail,
+  registrationId: number,
+  payerUserId: string,
+  payerEmail: string,
+  fee: number,
+): Promise<{ paymentId: number; invoiceUrl: string }> {
+  const db = getDb();
+  const settings = await getPlatformPaymentSettings();
+  const split = calculateOfficialPaymentSplit(fee, settings);
+  const externalId = `tnd-${tournament.id}-reg-${registrationId}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  const { invoice, splitRuleId, hostPayoutStatus } = await createRegistrationInvoiceWithSplit(
+    {
+      externalId,
+      amount: split.totalChargeIdr,
+      payerEmail,
+      description: `${tournament.name} — team registration`,
+      successRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register/success?registrationId=${registrationId}`,
+      failureRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register?failed=1`,
+      items: [
+        {
+          name: "Tournament registration",
+          quantity: 1,
+          price: split.registrationFeeIdr,
+        },
+        ...(split.processingFeeIdr > 0
+          ? [
+              {
+                name: "Processing fee",
+                quantity: 1,
+                price: split.processingFeeIdr,
+              },
+            ]
+          : []),
+      ],
+      metadata: {
+        tournamentId: String(tournament.id),
+        registrationId: String(registrationId),
+        platformFeeIdr: String(split.platformFeeIdr),
+        hostPayoutIdr: String(split.hostPayoutIdr),
+      },
+    },
+    {
+      tournamentId: tournament.id,
+      registrationId,
+      hostUserId: tournament.createdBy,
+      split,
+    },
+  );
+
+  const [existingPayment] = await db
+    .select({ id: tournamentPayments.id })
+    .from(tournamentPayments)
+    .where(eq(tournamentPayments.registrationId, registrationId))
+    .limit(1);
+
+  if (existingPayment) {
+    await db
+      .update(tournamentPayments)
+      .set({
+        xenditInvoiceId: invoice.id,
+        xenditExternalId: externalId,
+        amountIdr: split.totalChargeIdr,
+        platformFeeIdr: split.platformFeeIdr,
+        hostPayoutIdr: split.hostPayoutIdr,
+        processingFeeIdr: split.processingFeeIdr,
+        status: "pending",
+        invoiceUrl: invoice.invoice_url,
+        xenditSplitRuleId: splitRuleId,
+        hostPayoutStatus,
+        metadata: { split, xenPlatform: Boolean(splitRuleId) },
+      })
+      .where(eq(tournamentPayments.id, existingPayment.id));
+
+    return { paymentId: existingPayment.id, invoiceUrl: invoice.invoice_url };
+  }
+
+  const [payment] = await db
+    .insert(tournamentPayments)
+    .values({
+      tournamentId: tournament.id,
+      registrationId,
+      payerUserId,
+      xenditInvoiceId: invoice.id,
+      xenditExternalId: externalId,
+      amountIdr: split.totalChargeIdr,
+      platformFeeIdr: split.platformFeeIdr,
+      hostPayoutIdr: split.hostPayoutIdr,
+      processingFeeIdr: split.processingFeeIdr,
+      status: "pending",
+      invoiceUrl: invoice.invoice_url,
+      xenditSplitRuleId: splitRuleId,
+      hostPayoutStatus,
+      metadata: { split, xenPlatform: Boolean(splitRuleId) },
+    })
+    .returning();
+
+  if (!payment) {
+    throw new AppError("Could not record payment", { code: "DATABASE_ERROR", statusCode: 500 });
+  }
+
+  return { paymentId: payment.id, invoiceUrl: invoice.invoice_url };
+}
+
+async function resumePendingOfficialRegistration(
+  tournament: TournamentDetail,
+  payerUserId: string,
+  payerEmail: string,
+  registrationId: number,
+): Promise<{ registrationId: number; paymentId: number; invoiceUrl: string }> {
+  const fee = tournament.registrationFeeIdr;
+  if (!fee || fee <= 0) {
+    throw new AppError("Registration fee is not configured.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+  }
+
+  const { paymentId, invoiceUrl } = await issueRegistrationInvoice(
+    tournament,
+    registrationId,
+    payerUserId,
+    payerEmail,
+    fee,
+  );
+
+  return { registrationId, paymentId, invoiceUrl };
+}
+
 export async function startOfficialRegistration(
   tournament: TournamentDetail,
   payerUserId: string,
@@ -398,12 +541,20 @@ export async function startOfficialRegistration(
       statusCode: 409,
     });
   }
-  if (existing.status === "pending_payment" && existing.invoiceUrl) {
-    return {
-      registrationId: existing.registrationId!,
-      paymentId: 0,
-      invoiceUrl: existing.invoiceUrl,
-    };
+  if (existing.status === "pending_payment" && existing.registrationId) {
+    if (existing.invoiceUrl) {
+      return {
+        registrationId: existing.registrationId,
+        paymentId: 0,
+        invoiceUrl: existing.invoiceUrl,
+      };
+    }
+    return resumePendingOfficialRegistration(
+      tournament,
+      payerUserId,
+      payerEmail,
+      existing.registrationId,
+    );
   }
 
   if (tournament.maxTeams) {
@@ -417,119 +568,89 @@ export async function startOfficialRegistration(
   }
 
   const db = getDb();
-  const settings = await getPlatformPaymentSettings();
-  const split = calculateOfficialPaymentSplit(fee, settings);
+  let team: { id: number };
+  let registration: { id: number };
 
-  const [team] = await db
-    .insert(tournamentTeams)
-    .values({
-      tournamentId: tournament.id,
-      name: input.teamName.trim(),
-      captainUserId: payerUserId,
-    })
-    .returning();
+  try {
+    const [insertedTeam] = await db
+      .insert(tournamentTeams)
+      .values({
+        tournamentId: tournament.id,
+        name: input.teamName.trim(),
+        captainUserId: payerUserId,
+      })
+      .returning();
 
-  if (!team) {
-    throw new AppError("Could not create team", { code: "DATABASE_ERROR", statusCode: 500 });
+    if (!insertedTeam) {
+      throw new AppError("Could not create team", { code: "DATABASE_ERROR", statusCode: 500 });
+    }
+    team = insertedTeam;
+
+    const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
+    await db.insert(tournamentTeamMembers).values(
+      uniqueMembers.map((userId, i) => ({
+        teamId: team.id,
+        userId,
+        slotIndex: i,
+        role: i === 0 ? "captain" : "member",
+      })),
+    );
+
+    const [insertedRegistration] = await db
+      .insert(tournamentRegistrations)
+      .values({
+        tournamentId: tournament.id,
+        teamId: team.id,
+        registeredByUserId: payerUserId,
+        status: "pending_payment",
+      })
+      .returning();
+
+    if (!insertedRegistration) {
+      throw new AppError("Could not create registration", {
+        code: "DATABASE_ERROR",
+        statusCode: 500,
+      });
+    }
+    registration = insertedRegistration;
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (message.includes("tournament_teams_name_uidx") || message.includes("unique")) {
+      const retry = await getUserRegistrationStatus(tournament.id, payerUserId);
+      if (retry.status === "pending_payment" && retry.registrationId) {
+        return resumePendingOfficialRegistration(
+          tournament,
+          payerUserId,
+          payerEmail,
+          retry.registrationId,
+        );
+      }
+      throw new AppError("A team with this name is already registered for this tournament.", {
+        code: "CONFLICT",
+        statusCode: 409,
+      });
+    }
+    throw cause;
   }
 
-  const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
-  await db.insert(tournamentTeamMembers).values(
-    uniqueMembers.map((userId, i) => ({
-      teamId: team.id,
-      userId,
-      slotIndex: i,
-      role: i === 0 ? "captain" : "member",
-    })),
-  );
-
-  const [registration] = await db
-    .insert(tournamentRegistrations)
-    .values({
-      tournamentId: tournament.id,
-      teamId: team.id,
-      registeredByUserId: payerUserId,
-      status: "pending_payment",
-    })
-    .returning();
-
-  if (!registration) {
-    throw new AppError("Could not create registration", {
-      code: "DATABASE_ERROR",
-      statusCode: 500,
-    });
-  }
-
-  const externalId = `tnd-${tournament.id}-reg-${registration.id}`;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const { invoice, splitRuleId, hostPayoutStatus } = await createRegistrationInvoiceWithSplit(
-    {
-      externalId,
-      amount: split.totalChargeIdr,
-      payerEmail,
-      description: `${tournament.name} — team registration`,
-      successRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register/success?registrationId=${registration.id}`,
-      failureRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register?failed=1`,
-      items: [
-        {
-          name: "Tournament registration",
-          quantity: 1,
-          price: split.registrationFeeIdr,
-        },
-        ...(split.processingFeeIdr > 0
-          ? [
-              {
-                name: "Processing fee",
-                quantity: 1,
-                price: split.processingFeeIdr,
-              },
-            ]
-          : []),
-      ],
-      metadata: {
-        tournamentId: String(tournament.id),
-        registrationId: String(registration.id),
-        platformFeeIdr: String(split.platformFeeIdr),
-        hostPayoutIdr: String(split.hostPayoutIdr),
-      },
-    },
-    {
-      tournamentId: tournament.id,
-      registrationId: registration.id,
-      hostUserId: tournament.createdBy,
-      split,
-    },
-  );
-
-  const [payment] = await db
-    .insert(tournamentPayments)
-    .values({
-      tournamentId: tournament.id,
-      registrationId: registration.id,
+  try {
+    const { paymentId, invoiceUrl } = await issueRegistrationInvoice(
+      tournament,
+      registration.id,
       payerUserId,
-      xenditInvoiceId: invoice.id,
-      xenditExternalId: externalId,
-      amountIdr: split.totalChargeIdr,
-      platformFeeIdr: split.platformFeeIdr,
-      hostPayoutIdr: split.hostPayoutIdr,
-      processingFeeIdr: split.processingFeeIdr,
-      status: "pending",
-      invoiceUrl: invoice.invoice_url,
-      xenditSplitRuleId: splitRuleId,
-      hostPayoutStatus,
-      metadata: { split, xenPlatform: Boolean(splitRuleId) },
-    })
-    .returning();
+      payerEmail,
+      fee,
+    );
 
-  if (!payment) {
-    throw new AppError("Could not record payment", { code: "DATABASE_ERROR", statusCode: 500 });
+    return {
+      registrationId: registration.id,
+      paymentId,
+      invoiceUrl,
+    };
+  } catch (error) {
+    await rollbackDraftRegistration(team.id, registration.id);
+    throw error;
   }
-
-  return {
-    registrationId: registration.id,
-    paymentId: payment.id,
-    invoiceUrl: invoice.invoice_url,
-  };
 }
 
 export async function confirmPaymentByInvoiceId(xenditInvoiceId: string): Promise<void> {
