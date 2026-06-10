@@ -1,29 +1,10 @@
 FROM node:20-alpine AS base
 
 FROM base AS deps
-RUN apk add --no-cache ca-certificates libc6-compat
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json ./
-
-# Transient registry.npmjs.org failures are common in CI — retry + longer timeouts.
-ENV NPM_CONFIG_FETCH_RETRIES=5 \
-    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
-    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
-    NPM_CONFIG_FETCH_TIMEOUT=300000 \
-    NPM_CONFIG_AUDIT=false \
-    NPM_CONFIG_FUND=false
-
-RUN --mount=type=cache,target=/root/.npm \
-    sh -ec '\
-      for attempt in 1 2 3 4 5; do \
-        echo "npm ci attempt ${attempt}/5..."; \
-        npm ci && exit 0; \
-        echo "npm ci failed, waiting before retry..."; \
-        sleep $((attempt * 20)); \
-      done; \
-      echo "npm ci failed after 5 attempts"; \
-      exit 1 \
-    '
+RUN npm ci
 
 FROM base AS builder
 WORKDIR /app

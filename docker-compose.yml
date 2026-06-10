@@ -106,7 +106,7 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - tunnel
-    command: ["npx", "drizzle-kit", "migrate", "--config", "drizzle.config.ts"]
+    command: ["npm", "run", "db:migrate:prod"]
 
 networks:
   tunnel:
