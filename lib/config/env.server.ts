@@ -5,6 +5,13 @@ import {
   isXenditStagingMode,
 } from "@/lib/config/xendit-env";
 
+/** Skip strict production rules during `next build` in Docker (no secrets at build time). */
+export function isBuildTimeEnvValidationSkipped(): boolean {
+  if (process.env.SKIP_ENV_VALIDATION === "true") return true;
+  if (process.env.NEXT_PHASE === "phase-production-build") return true;
+  return false;
+}
+
 const serverSchema = z
   .object({
     NODE_ENV: z
@@ -45,6 +52,7 @@ const serverSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;
+    if (isBuildTimeEnvValidationSkipped()) return;
 
     if (!data.BETTER_AUTH_SECRET) {
       ctx.addIssue({
@@ -206,5 +214,6 @@ export function tryGetServerEnv():
 /** Called on server boot (instrumentation) — validates production constraints early. */
 export function assertProductionEnv(): void {
   if (process.env.NODE_ENV !== "production") return;
+  if (isBuildTimeEnvValidationSkipped()) return;
   getServerEnv();
 }

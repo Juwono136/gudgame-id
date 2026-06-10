@@ -42,6 +42,8 @@ ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SE
 ENV NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
 
 ENV NODE_OPTIONS=--max-old-space-size=4096
+# Runtime secrets are injected at deploy — skip strict env checks during `next build` only.
+ENV SKIP_ENV_VALIDATION=true
 
 RUN npm run build
 
