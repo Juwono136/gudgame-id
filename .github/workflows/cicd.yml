@@ -87,11 +87,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
-      - name: Seed database (sports & defaults)
+      - name: Seed database (sports & defaults, idempotent)
         run: docker compose --profile migrate run --rm db-migrate npm run db:seed
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+          # Storage only needed when inserting new sport rows (first deploy)
           STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
           STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
           STORAGE_AUTH_MODE: ${{ secrets.STORAGE_AUTH_MODE }}

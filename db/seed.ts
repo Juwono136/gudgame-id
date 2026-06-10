@@ -1,3 +1,6 @@
+/** Seed/migrate scripts only need DATABASE_URL — not full production env (Redis, etc.). */
+process.env.DB_SCRIPT_MODE = "true";
+
 import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { closeDatabase, getDb } from "./client";
@@ -36,29 +39,40 @@ export async function syncLegacyUserRoles() {
   }
 }
 
-export async function seedDatabase() {
+export async function isSportsSeedComplete(): Promise<boolean> {
   const db = getDb();
 
   for (const sport of DEFAULT_SPORT_SEEDS) {
-    const existing = await db
+    const [existing] = await db
       .select({ id: sports.id })
       .from(sports)
       .where(eq(sports.slug, sport.slug))
       .limit(1);
 
-    if (existing.length > 0) {
-      await db
-        .update(sports)
-        .set({
-          visibility: sport.visibility,
-          tagline: sport.tagline,
-          description: sport.description,
-          isActive: true,
-        })
-        .where(eq(sports.slug, sport.slug));
-      log.info("Sport backfilled", { slug: sport.slug });
-      continue;
-    }
+    if (!existing) return false;
+  }
+
+  return DEFAULT_SPORT_SEEDS.length > 0;
+}
+
+/** @returns true when new sport rows were inserted */
+export async function seedDatabase(): Promise<boolean> {
+  if (await isSportsSeedComplete()) {
+    log.info("Sports seed already complete — skipping");
+    return false;
+  }
+
+  const db = getDb();
+  let inserted = false;
+
+  for (const sport of DEFAULT_SPORT_SEEDS) {
+    const [existing] = await db
+      .select({ id: sports.id })
+      .from(sports)
+      .where(eq(sports.slug, sport.slug))
+      .limit(1);
+
+    if (existing) continue;
 
     await db.insert(sports).values({
       name: sport.name,
@@ -68,23 +82,34 @@ export async function seedDatabase() {
       description: sport.description,
       isActive: true,
     });
+    inserted = true;
     log.info("Sport seeded", { slug: sport.slug });
   }
+
+  return inserted;
 }
 
 async function main() {
   log.info("Starting database seed");
-  await seedDatabase();
+
+  const insertedSports = await seedDatabase();
+
+  if (!insertedSports && (await isSportsSeedComplete())) {
+    log.info("Default data already present — running lightweight role backfill only");
+  }
+
   await syncLegacyUserRoles();
   await migrateContributorRoleToHost();
 
-  try {
-    await ensureStorageBucket();
-    log.info("Storage bucket ready");
-  } catch (err) {
-    log.warn("Storage bucket setup skipped or failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
+  if (insertedSports) {
+    try {
+      await ensureStorageBucket();
+      log.info("Storage bucket ready");
+    } catch (err) {
+      log.warn("Storage bucket setup skipped or failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   await closeDatabase();

@@ -16,10 +16,24 @@ type DbGlobal = {
 
 const globalForDb = globalThis as unknown as DbGlobal;
 
-function createQueryClient(): Sql {
-  const { DATABASE_URL } = getServerEnv();
+function resolveDatabaseUrl(): string {
+  if (process.env.DB_SCRIPT_MODE === "true") {
+    const url = process.env.DATABASE_URL?.trim();
+    if (!url) {
+      throw new Error(
+        "[db] DATABASE_URL is required when DB_SCRIPT_MODE=true (seed/migrate scripts)",
+      );
+    }
+    return url;
+  }
 
-  return postgres(DATABASE_URL, {
+  return getServerEnv().DATABASE_URL;
+}
+
+function createQueryClient(): Sql {
+  const databaseUrl = resolveDatabaseUrl();
+
+  return postgres(databaseUrl, {
     max: process.env.NODE_ENV === "production" ? 10 : 5,
     idle_timeout: 20,
     connect_timeout: 10,
