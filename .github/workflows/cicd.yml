@@ -87,6 +87,31 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
+      - name: Seed database (sports & defaults)
+        run: docker compose --profile migrate run --rm db-migrate npm run db:seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
+          STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
+          STORAGE_AUTH_MODE: ${{ secrets.STORAGE_AUTH_MODE }}
+          USERNAME_STORAGE: ${{ secrets.USERNAME_STORAGE }}
+          PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
+
+      - name: Bootstrap super admin user
+        run: docker compose --profile migrate run --rm db-migrate npm run db:bootstrap-admin
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
+          BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
+
       # Only recreate this app — never `docker compose down --remove-orphans` (can remove other stacks).
       - name: Deploy TandingBase app
         run: |
