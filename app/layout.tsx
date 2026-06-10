@@ -6,6 +6,9 @@ import { brandAssets, siteConfig } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { AppProviders } from "@/providers/app-providers";
 
+/** App reads live DB/Redis data — do not prerender at `next build` (Docker has no database). */
+export const dynamic = "force-dynamic";
+
 const lexend = Lexend({
   subsets: ["latin"],
   variable: "--font-sans",

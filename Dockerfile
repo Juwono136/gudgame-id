@@ -14,31 +14,12 @@ COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# `.dockerignore` excludes `.env*`, so set placeholders for `next build` only.
-# The running container receives real values from docker-compose / GitHub Secrets.
+# `.dockerignore` excludes `.env*`. Placeholders only for module resolution during `next build`.
+# Pages are force-dynamic — build does not connect to Postgres. Runtime env comes from compose / CI secrets.
 ARG DATABASE_URL=postgresql://docker-build:docker-build@127.0.0.1:5432/docker_build
 ENV DATABASE_URL=${DATABASE_URL}
 ARG REDIS_URL=redis://127.0.0.1:6379
 ENV REDIS_URL=${REDIS_URL}
-ARG BETTER_AUTH_SECRET=docker-build-placeholder-min-32-chars-long
-ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-ARG BETTER_AUTH_URL=https://tandingbase.portproject.my.id
-ENV BETTER_AUTH_URL=${BETTER_AUTH_URL}
-ARG HEALTH_CHECK_TOKEN=docker-build-health-token-16
-ENV HEALTH_CHECK_TOKEN=${HEALTH_CHECK_TOKEN}
-ARG XENDIT_STAGING_MODE=true
-ENV XENDIT_STAGING_MODE=${XENDIT_STAGING_MODE}
-ARG XENDIT_SECRET_KEY=xnd_development_docker_build_placeholder_key
-ENV XENDIT_SECRET_KEY=${XENDIT_SECRET_KEY}
-ARG XENDIT_WEBHOOK_TOKEN=docker-build-webhook-token-16
-ENV XENDIT_WEBHOOK_TOKEN=${XENDIT_WEBHOOK_TOKEN}
-ENV XENDIT_XENPLATFORM_ENABLED=true
-ENV SMTP_USER=build@local
-ENV SMTP_PASS=build
-ENV USERNAME_STORAGE=build
-ENV PASSWORD_STORAGE=build
-ENV STORAGE_ALLOW_LOCALHOST=true
-ENV STORAGE_ENDPOINT=http://127.0.0.1:8333
 
 # Bake public URLs + Firebase client config into the bundle.
 ARG NEXT_PUBLIC_APP_URL=https://tandingbase.portproject.my.id
