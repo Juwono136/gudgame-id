@@ -35,15 +35,23 @@ function normalizeLegacyDashboardPath(pathname: string): string {
   return pathname;
 }
 
+function isCommunityTournamentPath(pathname: string): boolean {
+  return (
+    pathname === dashboardRoutes.tournaments ||
+    pathname.startsWith(`${dashboardRoutes.tournaments}/`)
+  );
+}
+
 export function getDashboardZoneForPath(pathname: string): DashboardZone | null {
   pathname = normalizeLegacyDashboardPath(pathname);
 
   if (pathname === dashboardRoutes.home) return "player";
+  if (isCommunityTournamentPath(pathname)) return "account_settings";
   if (
     pathname === dashboardRoutes.matches ||
     pathname.startsWith(`${dashboardRoutes.matches}/`) ||
-    pathname === dashboardRoutes.tournaments ||
-    pathname.startsWith(`${dashboardRoutes.tournaments}/`)
+    pathname === dashboardRoutes.payments ||
+    pathname.startsWith(`${dashboardRoutes.payments}/`)
   ) {
     return "player";
   }

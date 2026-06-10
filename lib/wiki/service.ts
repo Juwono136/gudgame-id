@@ -22,6 +22,7 @@ import {
   type WikiEntityType,
 } from "@/db/schema";
 import { AppError } from "@/lib/errors";
+import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
 import type {
   WikiEntitiesListQuery,
@@ -62,6 +63,8 @@ export type WikiEntityRelationView = {
 export type WikiEntityDetail = WikiEntityListItem & {
   biography: string | null;
   heroImageUrl: string | null;
+  heroImageStorageKey: string | null;
+  primaryImageStorageKey: string | null;
   attributes: Record<string, unknown>;
   performance: Record<string, unknown>;
   specs: Record<string, unknown>;
@@ -86,7 +89,7 @@ function mapEntityRow(
     nickname: row.nickname,
     summary: row.summary,
     status: row.status as WikiEntityStatus,
-    primaryImageUrl: row.primaryImageUrl,
+    primaryImageUrl: resolveWikiImageUrl(row.primaryImageUrl, row.primaryImageStorageKey),
     sourceType: row.sourceType,
     updatedAt: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
@@ -253,6 +256,8 @@ export async function getWikiEntityById(
     ...base,
     biography: row.entity.biography,
     heroImageUrl: row.entity.heroImageUrl,
+    heroImageStorageKey: row.entity.heroImageStorageKey,
+    primaryImageStorageKey: row.entity.primaryImageStorageKey,
     attributes: (row.entity.attributes ?? {}) as Record<string, unknown>,
     performance: (row.entity.performance ?? {}) as Record<string, unknown>,
     specs: (row.entity.specs ?? {}) as Record<string, unknown>,
@@ -593,6 +598,36 @@ export async function searchWikiEntitiesForLink(
       and(
         eq(wikiEntities.sportId, sportId),
         inArray(wikiEntities.entityType, entityTypes),
+        or(
+          ilike(wikiEntities.displayName, term),
+          ilike(wikiEntities.nickname, term),
+        )!,
+      ),
+    )
+    .orderBy(asc(wikiEntities.displayName))
+    .limit(limit);
+}
+
+/** Published gear only — for tournament equipment picker (debounced search). */
+export async function searchPublishedGearForTournament(
+  sportId: number,
+  search: string,
+  limit = 15,
+) {
+  const db = getDb();
+  const term = `%${search.trim()}%`;
+  return db
+    .select({
+      id: wikiEntities.id,
+      slug: wikiEntities.slug,
+      displayName: wikiEntities.displayName,
+    })
+    .from(wikiEntities)
+    .where(
+      and(
+        eq(wikiEntities.sportId, sportId),
+        eq(wikiEntities.entityType, "gear"),
+        eq(wikiEntities.status, "published"),
         or(
           ilike(wikiEntities.displayName, term),
           ilike(wikiEntities.nickname, term),

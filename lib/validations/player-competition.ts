@@ -19,6 +19,7 @@ export const playerMatchesListQuerySchema = listBaseSchema.extend({
 export type PlayerMatchesListQuery = z.infer<typeof playerMatchesListQuerySchema>;
 
 export const playerTournamentsListQuerySchema = listBaseSchema.extend({
+  scope: z.enum(["all", "created", "joined"]).default("created"),
   year: z.preprocess(
     (val) => (val === "" || val == null ? undefined : val),
     z.coerce.number().int().min(1990).max(2100).optional(),

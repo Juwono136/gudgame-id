@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { PlayerTournamentsListPage } from "@/components/dashboard/player/competition/player-tournaments-list-page";
-import { requirePlayerDashboardAccess } from "@/lib/auth/role-guard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { requireRoleGuardContext } from "@/lib/auth/role-guard";
 
 export const metadata = {
   title: "Tournament History",
@@ -8,11 +10,19 @@ export const metadata = {
 };
 
 export default async function PlayerTournamentsPage() {
-  await requirePlayerDashboardAccess();
+  const { roles } = await requireRoleGuardContext();
 
   return (
     <PageShell showGridBackground={false}>
-      <PlayerTournamentsListPage />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-24">
+            <LoadingSpinner label="Loading tournaments…" />
+          </div>
+        }
+      >
+        <PlayerTournamentsListPage roles={roles} />
+      </Suspense>
     </PageShell>
   );
 }

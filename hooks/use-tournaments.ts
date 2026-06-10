@@ -43,6 +43,57 @@ export function useCreateTournament() {
   });
 }
 
+export function useUpdateAdminTournament(tournamentId: number) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: TournamentUpsertInput) => {
+      const res = await fetch(`/api/admin/tournaments/${tournamentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { tournament: TournamentDetail };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Failed to update tournament"));
+      }
+      return json.data.tournament;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+      toast.success("Tournament updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useDeleteAdminTournament() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tournamentId: number) => {
+      const res = await fetch(`/api/admin/tournaments/${tournamentId}`, {
+        method: "DELETE",
+      });
+      const json = await parseJsonResponse<{ success: boolean; error?: unknown }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Failed to delete tournament"));
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+      toast.success("Tournament deleted");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
 export function useAdminTournamentsList(query: TournamentsListQuery) {
   const params = new URLSearchParams();
   params.set("page", String(query.page));

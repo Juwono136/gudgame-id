@@ -3,7 +3,8 @@ export type EmailTemplateId =
   | "reset-password"
   | "password-changed"
   | "welcome"
-  | "admin-user-invite";
+  | "admin-user-invite"
+  | "registration-confirmed";
 
 export type VerifyEmailTemplateData = {
   userName: string;
@@ -38,12 +39,26 @@ export type PasswordChangedTemplateData = {
   changedAt: string;
 };
 
+export type RegistrationConfirmedTemplateData = {
+  appName: string;
+  userName: string;
+  tournamentName: string;
+  teamName: string;
+  sportName: string;
+  venue: string | null;
+  dateRange: string;
+  feePaid: string | null;
+  teamMembers: string[];
+  tournamentUrl: string;
+};
+
 export type EmailTemplateDataMap = {
   "verify-email": VerifyEmailTemplateData;
   "reset-password": ResetPasswordTemplateData;
   "password-changed": PasswordChangedTemplateData;
   welcome: WelcomeEmailTemplateData;
   "admin-user-invite": AdminUserInviteTemplateData;
+  "registration-confirmed": RegistrationConfirmedTemplateData;
 };
 
 export type SendTemplatedEmailInput<T extends EmailTemplateId> = {

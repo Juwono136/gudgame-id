@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { WikiEntityRelationView } from "@/lib/wiki/service";
@@ -27,9 +28,9 @@ export function RelatedEntities({ title, relations, sportSlug }: RelatedEntities
               className="flex items-center gap-3 rounded-lg border border-cp-border bg-cp-elevated/50 p-3 transition-colors hover:border-cp-primary/40"
             >
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-cp-elevated">
-                {rel.entity.primaryImageUrl ? (
+                {resolveWikiImageUrl(rel.entity.primaryImageUrl) ? (
                   <Image
-                    src={rel.entity.primaryImageUrl}
+                    src={resolveWikiImageUrl(rel.entity.primaryImageUrl)!}
                     alt=""
                     fill
                     className="object-cover"

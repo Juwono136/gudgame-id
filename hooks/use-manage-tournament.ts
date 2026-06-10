@@ -1,0 +1,67 @@
+"use client";
+
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import type { TournamentDetail } from "@/lib/tournaments/service";
+import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
+
+export function useUpdateManageTournament(tournamentId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: TournamentUpsertInput) => {
+      const res = await fetch(`/api/tournaments/manage/${tournamentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { tournament: TournamentDetail };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not update tournament"));
+      }
+      return json.data.tournament;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["account", "player", "tournaments"] });
+      void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
+      void qc.invalidateQueries({ queryKey: ["public", "tournaments"] });
+      toast.success("Tournament updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useDeleteManageTournament() {
+  const qc = useQueryClient();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: async (tournamentId: number) => {
+      const res = await fetch(`/api/tournaments/manage/${tournamentId}`, {
+        method: "DELETE",
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { deleted: boolean };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not delete tournament"));
+      }
+      return json.data.deleted;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["account", "player", "tournaments"] });
+      void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
+      void qc.invalidateQueries({ queryKey: ["public", "tournaments"] });
+      toast.success("Tournament deleted");
+      router.push("/dashboard/tournaments");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}

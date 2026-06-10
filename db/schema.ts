@@ -17,6 +17,10 @@ export * from "./schema/admin-invite";
 export * from "./schema/wiki";
 export * from "./schema/player-competition";
 export * from "./schema/tournaments";
+export * from "./schema/tournament-registration";
+export * from "./schema/tournament-payments";
+export * from "./schema/tournament-matches";
+export * from "./schema/host-xendit";
 
 export { sports, type Sport, type NewSport } from "./schema/sports";
 import { sports } from "./schema/sports";

@@ -16,8 +16,13 @@ export const dashboardRoutes = {
   settings: "/dashboard/settings",
   matches: "/dashboard/matches",
   tournaments: "/dashboard/tournaments",
+  tournamentsNew: "/dashboard/tournaments/new",
+  tournamentEdit: (id: number | string) => `/dashboard/tournaments/${id}/edit`,
+  payments: "/dashboard/payments",
   completeProfile: "/dashboard/complete-profile",
   host: "/dashboard/host",
+  hostTournaments: "/dashboard/host/tournaments",
+  hostTournament: (id: number | string) => `/dashboard/host/tournaments/${id}`,
   /** @deprecated Renamed to host — use dashboardRoutes.host */
   contributor: "/dashboard/host",
 } as const;
@@ -31,6 +36,7 @@ export const adminRoutes = {
   contentApproval: "/admin/content-approval",
   wikiEntities: "/admin/wiki-entities",
   wikiEntitiesNew: "/admin/wiki-entities/new",
+  tournamentEdit: (id: number | string) => `/admin/wiki-entities/tournaments/${id}/edit`,
   sports: "/admin/sports",
   settings: "/admin/settings",
 } as const;

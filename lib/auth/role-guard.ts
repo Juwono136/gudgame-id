@@ -8,6 +8,7 @@ import {
   signOutCurrentSession,
 } from "@/lib/auth/session";
 import { authRoutes } from "@/lib/constants/routes";
+import { AppError } from "@/lib/errors";
 import type { AppRole } from "@/lib/roles/constants";
 import {
   canAccessAccountSettings,
@@ -47,6 +48,25 @@ function deny(roles: AppRole[]): never {
 
 export async function requireRoleGuardContext(): Promise<RoleGuardContext> {
   return loadRoleGuardContext();
+}
+
+/** API routes must return JSON — never redirect to login HTML. */
+export async function requireApiRoleGuardContext(): Promise<RoleGuardContext> {
+  const session = await getServerSession();
+  if (!session?.user) {
+    throw new AppError("Authentication required", {
+      code: "UNAUTHORIZED",
+      statusCode: 401,
+    });
+  }
+
+  const account = await getUserAccountStatusById(session.user.id);
+  if (account && !account.isActive) {
+    throw new AppError("Account is inactive", { code: "FORBIDDEN", statusCode: 403 });
+  }
+
+  const roles = await getUserRoleAssignments(session.user.id);
+  return { userId: session.user.id, roles };
 }
 
 export async function requirePlayerDashboardAccess(): Promise<RoleGuardContext> {

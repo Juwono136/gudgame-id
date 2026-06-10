@@ -55,7 +55,7 @@ export function ChangePasswordForm({ hasPassword, hasGoogle }: ChangePasswordFor
     }
   };
 
-  const isPending = changeMutation.isPending || setMutation.isPending;
+  const isPending = isSetMode ? setMutation.isPending : changeMutation.isPending;
 
   return (
     <SettingsSectionCard
@@ -122,7 +122,7 @@ export function ChangePasswordForm({ hasPassword, hasGoogle }: ChangePasswordFor
           <Button
             type="submit"
             disabled={isPending}
-            className="min-w-[160px] rounded-lg bg-cp-primary font-semibold hover:bg-cp-primary-light"
+            className="w-full min-w-[160px] rounded-lg bg-cp-primary font-semibold hover:bg-cp-primary-light sm:w-auto"
           >
             {isPending ? (
               <>

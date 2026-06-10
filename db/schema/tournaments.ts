@@ -21,8 +21,18 @@ export const TOURNAMENT_STATUSES = [
 ] as const;
 export type TournamentStatus = (typeof TOURNAMENT_STATUSES)[number];
 
-export const TOURNAMENT_TYPES = ["official", "recreational", "sparring"] as const;
+/** official = paid/legal (stats count); recreational = free reclub (no ranking impact) */
+export const TOURNAMENT_TYPES = ["official", "recreational"] as const;
 export type TournamentType = (typeof TOURNAMENT_TYPES)[number];
+
+export const TOURNAMENT_FORMATS = [
+  "single_elimination",
+  "double_elimination",
+  "round_robin",
+  "groups",
+  "open_play",
+] as const;
+export type TournamentFormat = (typeof TOURNAMENT_FORMATS)[number];
 
 export const tournaments = pgTable(
   "tournaments",
@@ -39,6 +49,14 @@ export const tournaments = pgTable(
     tournamentType: varchar("tournament_type", { length: 20 }).notNull(),
     rules: text("rules"),
     venue: varchar("venue", { length: 200 }),
+    categoryLabel: varchar("category_label", { length: 80 }),
+    format: varchar("format", { length: 40 }).default("single_elimination").notNull(),
+    maxTeams: integer("max_teams"),
+    playersPerTeam: integer("players_per_team").default(2).notNull(),
+    registrationFeeIdr: integer("registration_fee_idr"),
+    prizePoolIdr: integer("prize_pool_idr"),
+    registrationOpensAt: timestamp("registration_opens_at"),
+    registrationClosesAt: timestamp("registration_closes_at"),
     startsAt: timestamp("starts_at"),
     endsAt: timestamp("ends_at"),
     coverImageUrl: text("cover_image_url"),

@@ -27,6 +27,7 @@ const serverSchema = z
     STORAGE_AUTH_MODE: z.enum(["nginx-basic", "s3"]).default("nginx-basic"),
     HEALTH_CHECK_TOKEN: z.string().min(16).optional(),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
+    GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;

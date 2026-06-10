@@ -9,7 +9,11 @@ export type ErrorCode =
   | "DATABASE_ERROR"
   | "CACHE_ERROR"
   | "INTERNAL_ERROR"
-  | "SERVICE_UNAVAILABLE";
+  | "SERVICE_UNAVAILABLE"
+  | "PAYMENT_NOT_CONFIGURED"
+  | "HOST_PAYOUT_NOT_CONFIGURED"
+  | "PAYMENT_GATEWAY_ERROR"
+  | "INVALID_TOURNAMENT_TYPE";
 
 export class AppError extends Error {
   readonly code: ErrorCode;

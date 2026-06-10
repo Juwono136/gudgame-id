@@ -136,22 +136,24 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
           </div>
         </div>
 
-        <AuthField label="Full name" htmlFor="fullNameKtp" error={errors.fullNameKtp?.message}>
-          <AuthInput id="fullNameKtp" {...register("fullNameKtp")} autoComplete="name" />
-        </AuthField>
+        <div className="grid gap-4 sm:grid-cols-1">
+          <AuthField label="Full name" htmlFor="fullNameKtp" error={errors.fullNameKtp?.message}>
+            <AuthInput id="fullNameKtp" {...register("fullNameKtp")} autoComplete="name" />
+          </AuthField>
 
-        <AuthPhoneFieldGroup
-          control={control}
-          register={register}
-          countryError={errors.phoneCountryCode?.message}
-          phoneError={errors.phone?.message}
-        />
+          <AuthPhoneFieldGroup
+            control={control}
+            register={register}
+            countryError={errors.phoneCountryCode?.message}
+            phoneError={errors.phone?.message}
+          />
+        </div>
 
         <div className="flex justify-end border-t border-cp-border pt-4">
           <Button
             type="submit"
             disabled={mutation.isPending || (!isDirty && !photo)}
-            className="min-w-[140px] rounded-lg bg-cp-primary font-semibold hover:bg-cp-primary-light"
+            className="w-full min-w-[140px] rounded-lg bg-cp-primary font-semibold hover:bg-cp-primary-light sm:w-auto"
           >
             {mutation.isPending ? (
               <>

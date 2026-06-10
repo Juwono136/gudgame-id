@@ -19,10 +19,18 @@ export type PlayerMatchListItem = {
 };
 
 export type PlayerTournamentListItem = {
-  id: number;
+  id: string;
+  source: "official" | "recreational";
+  tournamentId: number | null;
   year: number;
   tournamentName: string;
   category: string | null;
   placement: string;
   playedAt: string | null;
+  sportSlug: string | null;
+  slug: string | null;
+  status: string | null;
+  canManage: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
 };

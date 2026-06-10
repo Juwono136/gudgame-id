@@ -1,12 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
+import { CurrencyInput, formatIdrDisplay } from "@/components/tournaments/form/currency-input";
+import { TournamentCoverPreview } from "@/components/tournaments/form/tournament-cover-preview";
+import {
+  TournamentCoverUpload,
+  type TournamentCoverValue,
+} from "@/components/tournaments/form/tournament-cover-upload";
+import { revokeLocalPreviewUrl } from "@/lib/tournaments/cover-preview-url";
+import { TournamentGearPicker } from "@/components/tournaments/form/tournament-gear-picker";
+import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
+import { uploadTournamentCoverClient } from "@/lib/tournaments/upload-cover-client";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,9 +29,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateTournament } from "@/hooks/use-tournaments";
-import { adminRoutes } from "@/lib/constants/routes";
-import { slugifyWikiName } from "@/lib/wiki/slug";
+import { useCreateTournament, useUpdateAdminTournament } from "@/hooks/use-tournaments";
+import { useCreateHostTournament } from "@/hooks/use-host-tournaments";
+import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
+import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
+import { getTournamentRuleSections, getVenueMapsUrl } from "@/lib/tournaments/settings";
+import type { TournamentDetail } from "@/lib/tournaments/service";
+import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
 import {
   TOURNAMENT_STATUSES,
   TOURNAMENT_TYPES,
@@ -26,6 +43,7 @@ import {
   type TournamentType,
 } from "@/db/schema/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
+import { slugifyWikiName } from "@/lib/wiki/slug";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -45,35 +63,140 @@ const STATUS_LABELS: Record<TournamentStatus, string> = {
 };
 
 const TYPE_LABELS: Record<TournamentType, string> = {
-  official: "Official / legal",
-  recreational: "Recreational / reclub",
-  sparring: "Sparring / free play",
+  official: "Official — paid & ranked",
+  recreational: "Reclub — free community play",
 };
+
+function toLocalDatetime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 type TournamentCreateWizardProps = {
   sportSlug: string;
   onBack?: () => void;
+  mode?: "admin" | "host";
+  initial?: TournamentDetail;
+  tournamentId?: number;
 };
 
-export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWizardProps) {
-  const createMutation = useCreateTournament();
+export function TournamentCreateWizard({
+  sportSlug,
+  onBack,
+  mode = "admin",
+  initial,
+  tournamentId,
+}: TournamentCreateWizardProps) {
+  const isEdit = Boolean(initial && tournamentId);
+  const adminCreate = useCreateTournament();
+  const hostCreate = useCreateHostTournament();
+  const adminUpdate = useUpdateAdminTournament(tournamentId ?? 0);
+  const hostUpdate = useUpdateManageTournament(tournamentId ?? 0);
+  const updateMutation = mode === "admin" ? adminUpdate : hostUpdate;
+  const createMutation = mode === "host" ? hostCreate : adminCreate;
+  const router = useRouter();
   const [stepIndex, setStepIndex] = useState(0);
   const currentStepId = STEPS[stepIndex]?.id ?? "basics";
 
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [summary, setSummary] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<TournamentStatus>("draft");
-  const [tournamentType, setTournamentType] = useState<TournamentType>("official");
-  const [venue, setVenue] = useState("");
-  const [rules, setRules] = useState("");
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [slug, setSlug] = useState(initial?.slug ?? "");
+  const [summary, setSummary] = useState(initial?.summary ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [status, setStatus] = useState<TournamentStatus>(initial?.status ?? "upcoming");
+  const [tournamentType, setTournamentType] = useState<TournamentType>(
+    initial?.tournamentType ?? "official",
+  );
+  const [venue, setVenue] = useState(initial?.venue ?? "");
+  const [venueMapsUrl, setVenueMapsUrl] = useState(
+    initial ? (getVenueMapsUrl(initial) ?? "") : "",
+  );
+  const [cover, setCover] = useState<TournamentCoverValue>(() => ({
+    previewUrl: initial?.coverImageUrl ?? null,
+    storageKey: initial?.coverImageStorageKey ?? null,
+    pendingFile: null,
+    removed: false,
+  }));
+  const [submitting, setSubmitting] = useState(false);
+  const coverPreviewRef = useRef(cover.previewUrl);
+  coverPreviewRef.current = cover.previewUrl;
+
+  useEffect(() => {
+    return () => revokeLocalPreviewUrl(coverPreviewRef.current);
+  }, []);
+  const initialRules = initial ? getTournamentRuleSections(initial) : null;
+  const [rules, setRules] = useState(initial?.rules ?? "");
+  const [eligibilityRules, setEligibilityRules] = useState(
+    initialRules?.eligibilityHtml ?? "",
+  );
+  const [matchFormatRules, setMatchFormatRules] = useState(
+    initialRules?.matchFormatHtml ?? initial?.rules ?? "",
+  );
+  const [equipmentStandardsRules, setEquipmentStandardsRules] = useState(
+    initialRules?.equipmentStandardsHtml ?? "",
+  );
+  const [gearEntityIds, setGearEntityIds] = useState<number[]>(
+    initialRules?.gearEntityIds ?? [],
+  );
+  const [startsAt, setStartsAt] = useState(toLocalDatetime(initial?.startsAt));
+  const [endsAt, setEndsAt] = useState(toLocalDatetime(initial?.endsAt));
+  const [registrationFeeIdr, setRegistrationFeeIdr] = useState(
+    initial?.registrationFeeIdr ? String(initial.registrationFeeIdr) : "",
+  );
+  const [prizePoolIdr, setPrizePoolIdr] = useState(
+    initial?.prizePoolIdr ? String(initial.prizePoolIdr) : "",
+  );
+  const sportDefaults = getSportTournamentDefaults(sportSlug);
+  const [maxTeams, setMaxTeams] = useState(
+    String(initial?.maxTeams ?? sportDefaults.maxTeams),
+  );
+  const [playersPerTeam, setPlayersPerTeam] = useState(
+    String(initial?.playersPerTeam ?? sportDefaults.playersPerTeam),
+  );
+  const [categoryLabel, setCategoryLabel] = useState(initial?.categoryLabel ?? "");
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(
+    toLocalDatetime(initial?.registrationClosesAt),
+  );
+
+  useEffect(() => {
+    if (!initial) return;
+    setName(initial.name);
+    setSlug(initial.slug);
+    setSummary(initial.summary ?? "");
+    setDescription(initial.description ?? "");
+    setStatus(initial.status);
+    setTournamentType(initial.tournamentType);
+    setVenue(initial.venue ?? "");
+    setVenueMapsUrl(getVenueMapsUrl(initial) ?? "");
+    setCover({
+      previewUrl: initial.coverImageUrl ?? null,
+      storageKey: initial.coverImageStorageKey ?? null,
+      pendingFile: null,
+      removed: false,
+    });
+    const sections = getTournamentRuleSections(initial);
+    setRules(initial.rules ?? "");
+    setEligibilityRules(sections.eligibilityHtml ?? "");
+    setMatchFormatRules(sections.matchFormatHtml ?? initial.rules ?? "");
+    setEquipmentStandardsRules(sections.equipmentStandardsHtml ?? "");
+    setGearEntityIds(sections.gearEntityIds ?? []);
+    setStartsAt(toLocalDatetime(initial.startsAt));
+    setEndsAt(toLocalDatetime(initial.endsAt));
+    setRegistrationFeeIdr(
+      initial.registrationFeeIdr ? String(initial.registrationFeeIdr) : "",
+    );
+    setPrizePoolIdr(initial.prizePoolIdr ? String(initial.prizePoolIdr) : "");
+    setMaxTeams(String(initial.maxTeams ?? sportDefaults.maxTeams));
+    setPlayersPerTeam(String(initial.playersPerTeam ?? sportDefaults.playersPerTeam));
+    setCategoryLabel(initial.categoryLabel ?? "");
+    setRegistrationClosesAt(toLocalDatetime(initial.registrationClosesAt));
+  }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
 
   const resolvedSlug = slug.trim() || slugifyWikiName(name);
 
-  const payload = useMemo((): TournamentUpsertInput => {
+  const buildPayload = (coverStorageKey: string | undefined): TournamentUpsertInput => {
     const toIso = (local: string) => {
       if (!local.trim()) return "";
       const d = new Date(local);
@@ -86,23 +209,29 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
       description,
       status,
       tournamentType,
-      rules,
+      format: (initial?.format ?? "single_elimination") as TournamentUpsertInput["format"],
+      rules: tournamentType === "recreational" ? rules : undefined,
+      eligibilityRules: tournamentType === "official" ? eligibilityRules : undefined,
+      matchFormatRules: tournamentType === "official" ? matchFormatRules : rules,
+      equipmentStandardsRules:
+        tournamentType === "official" ? equipmentStandardsRules : undefined,
+      gearEntityIds: tournamentType === "official" ? gearEntityIds : undefined,
       venue,
+      venueMapsUrl: venueMapsUrl.trim() || undefined,
+      coverImageStorageKey: coverStorageKey,
+      maxTeams: maxTeams ? Number(maxTeams) : undefined,
+      playersPerTeam: Number(playersPerTeam) || 2,
+      registrationFeeIdr:
+        tournamentType === "official" && registrationFeeIdr
+          ? Number(registrationFeeIdr)
+          : undefined,
+      prizePoolIdr: prizePoolIdr ? Number(prizePoolIdr) : undefined,
+      categoryLabel,
+      registrationClosesAt: toIso(registrationClosesAt),
       startsAt: toIso(startsAt),
       endsAt: toIso(endsAt),
     };
-  }, [
-    name,
-    resolvedSlug,
-    summary,
-    description,
-    status,
-    tournamentType,
-    rules,
-    venue,
-    startsAt,
-    endsAt,
-  ]);
+  };
 
   const validateStep = (): boolean => {
     if (currentStepId === "basics") {
@@ -112,6 +241,13 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
       }
       if (resolvedSlug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(resolvedSlug)) {
         toast.error("Invalid URL slug");
+        return false;
+      }
+      if (
+        tournamentType === "official" &&
+        (!registrationFeeIdr || Number(registrationFeeIdr) <= 0)
+      ) {
+        toast.error("Official tournaments require a registration fee (IDR)");
         return false;
       }
     }
@@ -124,11 +260,50 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
     return true;
   };
 
-  const handleSubmit = () => {
-    if (!validateStep()) return;
-    createMutation.mutate(payload);
+  const resolveCoverStorageKey = async (): Promise<string | undefined> => {
+    if (cover.removed && !cover.pendingFile) return undefined;
+    if (cover.pendingFile) {
+      const uploaded = await uploadTournamentCoverClient(
+        cover.pendingFile,
+        sportSlug,
+        tournamentId,
+      );
+      return uploaded.storageKey;
+    }
+    return cover.storageKey?.trim() || undefined;
   };
 
+  const handleSubmit = async () => {
+    if (!validateStep()) return;
+    setSubmitting(true);
+    try {
+      const coverKey = await resolveCoverStorageKey();
+      const payload = buildPayload(coverKey);
+
+      if (isEdit) {
+        updateMutation.mutate(payload, {
+          onSuccess: () => {
+            router.push(mode === "admin" ? adminRoutes.wikiEntities : dashboardRoutes.tournaments);
+          },
+        });
+        return;
+      }
+      createMutation.mutate(payload, {
+        onSuccess: (tournament) => {
+          if (mode === "host") {
+            router.push(dashboardRoutes.hostTournament(tournament.id));
+          }
+        },
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Banner upload failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isPending =
+    submitting || (isEdit ? updateMutation.isPending : createMutation.isPending);
   const isLast = stepIndex >= STEPS.length - 1;
 
   return (
@@ -145,17 +320,15 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
           className="mt-6 space-y-6"
         >
           {currentStepId === "basics" ? (
-            <section className="space-y-4 rounded-xl border border-cp-border bg-cp-card/50 p-6">
+            <section className="space-y-6 rounded-xl border border-cp-border bg-cp-card/50 p-6">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Tournament basics</h2>
                 <p className="mt-1 text-sm text-cp-muted">
-                  Create a tournament for{" "}
-                  <span className="font-medium capitalize text-cp-logo-accent">
-                    {sportSlug}
-                  </span>
-                  . Teams and brackets will be configured in the tournament workspace later.
+                  {isEdit ? "Update" : "Create"} a tournament for{" "}
+                  <span className="font-medium capitalize text-cp-logo-accent">{sportSlug}</span>.
                 </p>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="t-name">Name</Label>
@@ -174,7 +347,8 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
                     value={slug}
                     onChange={(e) => setSlug(e.target.value)}
                     placeholder={resolvedSlug || "auto-generated"}
-                    className="border-cp-border bg-cp-elevated"
+                    disabled={isEdit}
+                    className="border-cp-border bg-cp-elevated disabled:opacity-60"
                   />
                 </div>
                 <div className="space-y-2">
@@ -182,6 +356,7 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
                   <Select
                     value={tournamentType}
                     onValueChange={(v) => setTournamentType(v as TournamentType)}
+                    disabled={isEdit}
                   >
                     <SelectTrigger className="border-cp-border bg-cp-elevated">
                       <SelectValue />
@@ -196,100 +371,179 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>Visibility</Label>
                   <Select
-                    value={status}
-                    onValueChange={(v) => setStatus(v as TournamentStatus)}
+                    value={status === "draft" ? "draft" : "scheduled"}
+                    onValueChange={(v) =>
+                      setStatus(v === "draft" ? "draft" : "upcoming")
+                    }
                   >
                     <SelectTrigger className="border-cp-border bg-cp-elevated">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {TOURNAMENT_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {STATUS_LABELS[s]}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="scheduled">Published — auto status from dates</SelectItem>
+                      <SelectItem value="draft">Draft — hidden until you publish</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-cp-muted">
+                    Live / upcoming / completed is set automatically from start and end dates.
+                  </p>
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="t-summary">Short summary</Label>
+                {tournamentType === "official" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Registration fee (IDR) *</Label>
+                      <CurrencyInput
+                        value={registrationFeeIdr}
+                        onChange={setRegistrationFeeIdr}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Prize pool (IDR)</Label>
+                      <CurrencyInput value={prizePoolIdr} onChange={setPrizePoolIdr} />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="t-category">Category label</Label>
+                      <Input
+                        id="t-category"
+                        value={categoryLabel}
+                        onChange={(e) => setCategoryLabel(e.target.value)}
+                        placeholder="P1 · Men's doubles"
+                        className="border-cp-border bg-cp-elevated"
+                      />
+                    </div>
+                  </>
+                ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="t-max-teams">Max teams</Label>
                   <Input
-                    id="t-summary"
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                    placeholder="One-line description for listings"
+                    id="t-max-teams"
+                    type="number"
+                    min={2}
+                    value={maxTeams}
+                    onChange={(e) => setMaxTeams(e.target.value)}
                     className="border-cp-border bg-cp-elevated"
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="t-desc">Description</Label>
-                  <textarea
-                    id="t-desc"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={4}
-                    placeholder="Overview, format, prizes…"
-                    className={cn(
-                      "flex w-full rounded-md border border-cp-border bg-cp-elevated px-3 py-2 text-sm text-foreground",
-                      "placeholder:text-cp-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary/40",
-                    )}
+                <div className="space-y-2">
+                  <Label htmlFor="t-ppt">Players per team</Label>
+                  <Input
+                    id="t-ppt"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={playersPerTeam}
+                    onChange={(e) => setPlayersPerTeam(e.target.value)}
+                    className="border-cp-border bg-cp-elevated"
                   />
                 </div>
               </div>
+
+              <div>
+                <Label>Short summary</Label>
+                <p className="mb-2 text-xs text-cp-muted">Shown on listings and cards.</p>
+                <RichTextEditor
+                  value={summary}
+                  onChange={setSummary}
+                  placeholder="One-line pitch for this event"
+                  minHeight={100}
+                />
+              </div>
+
+              <div>
+                <Label>Description</Label>
+                <RichTextEditor
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="Overview, format, prizes…"
+                  minHeight={160}
+                />
+              </div>
+
+              <TournamentCoverUpload value={cover} onChange={setCover} />
             </section>
           ) : null}
 
           {currentStepId === "schedule" ? (
-            <section className="space-y-4 rounded-xl border border-cp-border bg-cp-card/50 p-6">
+            <section className="space-y-6 rounded-xl border border-cp-border bg-cp-card/50 p-6">
               <h2 className="text-lg font-semibold text-foreground">Schedule & rules</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="t-starts">Starts</Label>
-                  <Input
-                    id="t-starts"
-                    type="datetime-local"
-                    value={startsAt}
-                    onChange={(e) => setStartsAt(e.target.value)}
-                    className="border-cp-border bg-cp-elevated"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="t-ends">Ends</Label>
-                  <Input
-                    id="t-ends"
-                    type="datetime-local"
-                    value={endsAt}
-                    onChange={(e) => setEndsAt(e.target.value)}
-                    className="border-cp-border bg-cp-elevated"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="t-venue">Venue</Label>
-                  <Input
-                    id="t-venue"
-                    value={venue}
-                    onChange={(e) => setVenue(e.target.value)}
-                    placeholder="Jakarta Padel Arena"
-                    className="border-cp-border bg-cp-elevated"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="t-rules">Tournament rules</Label>
-                  <textarea
-                    id="t-rules"
-                    value={rules}
-                    onChange={(e) => setRules(e.target.value)}
-                    rows={6}
-                    placeholder="Match format, scoring, registration requirements…"
-                    className={cn(
-                      "flex w-full rounded-md border border-cp-border bg-cp-elevated px-3 py-2 text-sm text-foreground",
-                      "placeholder:text-cp-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary/40",
-                    )}
-                  />
-                </div>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <DateTimePicker label="Starts" value={startsAt} onChange={setStartsAt} />
+                <DateTimePicker label="Ends" value={endsAt} onChange={setEndsAt} min={startsAt} />
+                {tournamentType === "official" ? (
+                  <div className="sm:col-span-2">
+                    <DateTimePicker
+                      label="Registration closes"
+                      value={registrationClosesAt}
+                      onChange={setRegistrationClosesAt}
+                    />
+                  </div>
+                ) : null}
               </div>
+
+              <VenueAutocompleteField
+                venue={venue}
+                mapsUrl={venueMapsUrl}
+                onVenueChange={setVenue}
+                onMapsUrlChange={setVenueMapsUrl}
+              />
+
+              {tournamentType === "official" ? (
+                <div className="space-y-6">
+                  <div>
+                    <Label>Eligibility & categories</Label>
+                    <p className="mb-2 text-xs text-cp-muted">
+                      Who can register, age/skill requirements, category notes.
+                    </p>
+                    <RichTextEditor
+                      value={eligibilityRules}
+                      onChange={setEligibilityRules}
+                      placeholder="Eligibility and category rules…"
+                      minHeight={140}
+                    />
+                  </div>
+                  <div>
+                    <Label>Match format</Label>
+                    <p className="mb-2 text-xs text-cp-muted">
+                      Scoring, sets, tie-breaks, scheduling, and match flow.
+                    </p>
+                    <RichTextEditor
+                      value={matchFormatRules}
+                      onChange={setMatchFormatRules}
+                      placeholder="Match format and scoring rules…"
+                      minHeight={160}
+                    />
+                  </div>
+                  <div>
+                    <Label>Equipment standards</Label>
+                    <p className="mb-2 text-xs text-cp-muted">
+                      Required gear, inspections, and non-compliance policy.
+                    </p>
+                    <RichTextEditor
+                      value={equipmentStandardsRules}
+                      onChange={setEquipmentStandardsRules}
+                      placeholder="Equipment requirements…"
+                      minHeight={140}
+                    />
+                  </div>
+                  <TournamentGearPicker
+                    sportSlug={sportSlug}
+                    selectedIds={gearEntityIds}
+                    onChange={setGearEntityIds}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <Label>Tournament rules</Label>
+                  <RichTextEditor
+                    value={rules}
+                    onChange={setRules}
+                    placeholder="Document the rules players must follow"
+                    minHeight={200}
+                  />
+                </div>
+              )}
             </section>
           ) : null}
 
@@ -303,6 +557,14 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
                 <ReviewRow label="Status" value={STATUS_LABELS[status]} />
                 <ReviewRow label="Venue" value={venue || "—"} />
                 <ReviewRow
+                  label="Fee"
+                  value={
+                    registrationFeeIdr
+                      ? `Rp ${formatIdrDisplay(Number(registrationFeeIdr))}`
+                      : "Free"
+                  }
+                />
+                <ReviewRow
                   label="Schedule"
                   value={
                     startsAt
@@ -311,8 +573,15 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
                   }
                 />
               </dl>
-              {summary ? (
-                <p className="text-sm text-cp-muted">{summary}</p>
+              {cover.previewUrl && !cover.removed ? (
+                <div className="relative mt-4 h-44 overflow-hidden rounded-xl border border-cp-border sm:h-52">
+                  <TournamentCoverPreview src={cover.previewUrl} fill />
+                  <div className="absolute inset-0 bg-gradient-to-t from-cp-bg via-cp-bg/40 to-transparent" />
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <p className="text-lg font-bold text-foreground drop-shadow-sm">{name}</p>
+                    <p className="text-sm text-cp-muted capitalize">{sportSlug}</p>
+                  </div>
+                </div>
               ) : null}
             </section>
           ) : null}
@@ -329,6 +598,22 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
             <ArrowLeft className="mr-1 h-4 w-4" />
             Change classification
           </button>
+        ) : isEdit ? (
+          <Link
+            href={dashboardRoutes.tournaments}
+            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Tournament history
+          </Link>
+        ) : mode === "host" ? (
+          <Link
+            href={dashboardRoutes.hostTournaments}
+            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            All tournaments
+          </Link>
         ) : (
           <Link
             href={adminRoutes.wikiEntities}
@@ -366,13 +651,11 @@ export function TournamentCreateWizard({ sportSlug, onBack }: TournamentCreateWi
             <Button
               type="button"
               className="bg-cp-primary hover:bg-cp-primary-light"
-              disabled={createMutation.isPending}
-              onClick={handleSubmit}
+              disabled={isPending}
+              onClick={() => void handleSubmit()}
             >
-              {createMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Create tournament
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {isEdit ? "Save changes" : "Create tournament"}
             </Button>
           )}
         </div>

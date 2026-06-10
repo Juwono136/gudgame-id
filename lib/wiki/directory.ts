@@ -9,6 +9,8 @@ import { listWikiEntities, type WikiEntityListItem } from "@/lib/wiki/service";
 
 export type { WikiDirectoryListItem, WikiDirectoryTypeFilter } from "@/lib/wiki/directory-types";
 
+const MERGED_FETCH_CAP = 500;
+
 function mapTournamentRow(row: TournamentListItem): WikiDirectoryListItem {
   return {
     recordKind: "tournament",
@@ -36,29 +38,139 @@ function mapWikiRow(row: WikiEntityListItem): WikiDirectoryListItem {
   };
 }
 
-function toTournamentListQuery(query: WikiEntitiesListQuery): TournamentsListQuery {
+export type WikiDirectoryOptions = {
+  /** Admin wiki: only tournaments created by this user. */
+  tournamentCreatedBy?: string;
+};
+
+function toTournamentListQuery(
+  query: WikiEntitiesListQuery,
+  options?: WikiDirectoryOptions,
+): TournamentsListQuery {
   const status: TournamentsListQuery["status"] =
     query.status === "draft" ? "draft" : "all";
 
   return {
-    page: query.page,
-    pageSize: query.pageSize,
+    page: 1,
+    pageSize: MERGED_FETCH_CAP,
     search: query.search,
     status: status as TournamentsListQuery["status"],
+    createdBy: options?.tournamentCreatedBy,
     sortBy: query.sortBy === "name" ? "name" : "updated",
     sortDir: query.sortDir,
   };
 }
 
-export async function listWikiDirectory(sportId: number, query: WikiEntitiesListQuery) {
+function tournamentMatchesWikiStatus(
+  status: WikiEntitiesListQuery["status"],
+  tournamentStatus: string,
+): boolean {
+  if (status === "all") return true;
+  if (status === "draft") return tournamentStatus === "draft";
+  if (status === "archived") return tournamentStatus === "cancelled";
+  if (status === "published") {
+    return tournamentStatus === "upcoming" || tournamentStatus === "live" || tournamentStatus === "completed";
+  }
+  return true;
+}
+
+function sortDirectoryItems(
+  items: WikiDirectoryListItem[],
+  sortBy: WikiEntitiesListQuery["sortBy"],
+  sortDir: WikiEntitiesListQuery["sortDir"],
+): WikiDirectoryListItem[] {
+  const dir = sortDir === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => {
+    if (sortBy === "name") {
+      return a.displayName.localeCompare(b.displayName) * dir;
+    }
+    const aTime = new Date(sortBy === "created" ? a.createdAt : a.updatedAt).getTime();
+    const bTime = new Date(sortBy === "created" ? b.createdAt : b.updatedAt).getTime();
+    return (aTime - bTime) * dir;
+  });
+}
+
+function paginateDirectoryItems(
+  items: WikiDirectoryListItem[],
+  page: number,
+  pageSize: number,
+) {
+  const total = items.length;
+  const offset = (page - 1) * pageSize;
+  return {
+    items: items.slice(offset, offset + pageSize),
+    total,
+    page,
+    pageSize,
+    totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+  };
+}
+
+async function listMergedWikiDirectory(
+  sportId: number,
+  query: WikiEntitiesListQuery,
+  options?: WikiDirectoryOptions,
+) {
+  const wikiQuery: WikiEntitiesListQuery = {
+    ...query,
+    entityType: undefined,
+    page: 1,
+    pageSize: MERGED_FETCH_CAP,
+  };
+
+  const [wikiResult, tournamentResult] = await Promise.all([
+    listWikiEntities(sportId, wikiQuery),
+    listTournaments(sportId, toTournamentListQuery(query, options)),
+  ]);
+
+  const tournamentItems = tournamentResult.items
+    .filter((row) => tournamentMatchesWikiStatus(query.status, row.status))
+    .map(mapTournamentRow);
+
+  const merged = sortDirectoryItems(
+    [...wikiResult.items.map(mapWikiRow), ...tournamentItems],
+    query.sortBy,
+    query.sortDir,
+  );
+
+  return paginateDirectoryItems(merged, query.page, query.pageSize);
+}
+
+export async function listWikiDirectory(
+  sportId: number,
+  query: WikiEntitiesListQuery,
+  options?: WikiDirectoryOptions,
+) {
   if (query.entityType === "tournament") {
-    const result = await listTournaments(sportId, toTournamentListQuery(query));
+    const result = await listTournaments(sportId, {
+      ...toTournamentListQuery(query, options),
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+    const filtered = result.items.filter((row) =>
+      tournamentMatchesWikiStatus(query.status, row.status),
+    );
     return {
-      items: result.items.map(mapTournamentRow),
-      total: result.total,
+      items: filtered.map(mapTournamentRow),
+      total:
+        query.status === "all"
+          ? result.total
+          : filtered.length,
       page: result.page,
       pageSize: result.pageSize,
+      totalPages:
+        query.status === "all"
+          ? result.totalPages
+          : filtered.length === 0
+            ? 0
+            : Math.ceil(filtered.length / result.pageSize),
     };
+  }
+
+  const isAllTypes = !query.entityType;
+
+  if (isAllTypes) {
+    return listMergedWikiDirectory(sportId, query, options);
   }
 
   const wikiEntityType: WikiEntityType | undefined =

@@ -100,8 +100,11 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
     .map((m) => resolveWikiImageUrl(m.url))
     .filter((u): u is string => Boolean(u));
 
-  const primaryImage = resolveWikiImageUrl(entity.primaryImageUrl);
-  const heroImage = resolveWikiImageUrl(entity.heroImageUrl);
+  const primaryImage = resolveWikiImageUrl(
+    entity.primaryImageUrl,
+    entity.primaryImageStorageKey,
+  );
+  const heroImage = resolveWikiImageUrl(entity.heroImageUrl, entity.heroImageStorageKey);
 
   return (
     <WikiPageShell

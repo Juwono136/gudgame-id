@@ -1,4 +1,4 @@
-import type { TournamentStatus } from "@/db/schema/tournaments";
+import type { TournamentStatus, TournamentType } from "@/db/schema/tournaments";
 
 export const TOURNAMENT_STATUS_LABELS: Record<TournamentStatus, string> = {
   draft: "Draft",
@@ -6,4 +6,9 @@ export const TOURNAMENT_STATUS_LABELS: Record<TournamentStatus, string> = {
   live: "Live",
   completed: "Completed",
   cancelled: "Cancelled",
+};
+
+export const TOURNAMENT_TYPE_LABELS: Record<TournamentType, string> = {
+  official: "Official — paid & ranked",
+  recreational: "Reclub — free community play",
 };

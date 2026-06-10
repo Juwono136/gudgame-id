@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Search, Swords } from "lucide-react";
+import { Search, Swords } from "lucide-react";
+import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,8 +20,13 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePlayerMatchesList } from "@/hooks/use-player-competition";
 import { dashboardRoutes } from "@/lib/constants/routes";
+import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerMatchesListQuery } from "@/lib/validations/player-competition";
 import { cn } from "@/lib/utils";
+
+type PlayerMatchesListPageProps = {
+  roles: AppRole[];
+};
 
 function formatPlayedAt(iso: string) {
   return new Intl.DateTimeFormat("en", {
@@ -31,7 +36,7 @@ function formatPlayedAt(iso: string) {
   }).format(new Date(iso));
 }
 
-export function PlayerMatchesListPage() {
+export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
@@ -60,30 +65,17 @@ export function PlayerMatchesListPage() {
   const yearOptions = data?.years ?? [];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:py-10">
-      <Link
-        href={dashboardRoutes.home}
-        className="inline-flex items-center gap-1.5 text-sm text-cp-primary hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to dashboard
-      </Link>
-
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-cp-primary">
-            Match history
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            All matches
-          </h1>
-          <p className="mt-1 text-sm text-cp-muted">
-            Complete record of your tournament matches on TandingBase.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+    <DashboardWorkspaceShell
+      roles={roles}
+      variant="player"
+      title="Match log"
+      description="Complete record of your tournament matches on TandingBase."
+      breadcrumbs={[
+        { label: "Overview", href: dashboardRoutes.home },
+        { label: "Match log" },
+      ]}
+    >
+      <div className="rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
         <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:p-5 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
@@ -236,6 +228,6 @@ export function PlayerMatchesListPage() {
           />
         ) : null}
       </div>
-    </div>
+    </DashboardWorkspaceShell>
   );
 }

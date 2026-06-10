@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { PlayerDashboard } from "@/components/dashboard/player/player-dashboard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { getPlayerDashboardData } from "@/lib/account/player-dashboard/get-dashboard";
 import { requirePlayerDashboardAccess } from "@/lib/auth/role-guard";
 
@@ -14,7 +16,15 @@ export default async function DashboardPage() {
 
   return (
     <PageShell showGridBackground={false}>
-      <PlayerDashboard data={data} />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-24">
+            <LoadingSpinner label="Loading dashboard…" />
+          </div>
+        }
+      >
+        <PlayerDashboard data={data} />
+      </Suspense>
     </PageShell>
   );
 }

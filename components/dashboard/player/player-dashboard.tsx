@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, UserCircle } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProfileCompletionBanner } from "@/components/dashboard/profile-completion-banner";
 import { PlayerDashboardToolbar } from "@/components/dashboard/player/player-dashboard-toolbar";
 import { PlayerPageCompletionPrompt } from "@/components/dashboard/player/player-page-completion-prompt";
-import { PlayerHero } from "@/components/wiki/player/player-hero";
+import { DashboardQuickLinks } from "@/components/dashboard/dashboard-quick-links";
+import { DashboardWelcomeCard } from "@/components/dashboard/dashboard-welcome-card";
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
 import { PlayerCareerStatsSection } from "@/components/wiki/player/player-career-stats";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/components/wiki/player/player-matches-section";
 import { PlayerSidebar } from "@/components/wiki/player/player-sidebar";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
-import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
+import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { PlayerDashboardView } from "@/lib/account/player-dashboard/get-dashboard";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
@@ -38,20 +39,6 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
     playerProfile?.primaryImageUrl ?? account.imageUrl ?? null;
   const heroSummary = playerProfile?.summary ?? null;
 
-  const badges: { label: string; variant: "nationality" | "tier" | "default" }[] = [];
-  if (playerProfile?.careerStats.tier) {
-    badges.push({
-      label: `${playerProfile.careerStats.tier.toUpperCase()} TIER`,
-      variant: "tier",
-    });
-  }
-  if (playerProfile?.nationality) {
-    badges.push({
-      label: playerProfile.nationality.toUpperCase(),
-      variant: "nationality",
-    });
-  }
-
   const galleryUrls =
     playerProfile?.gallery
       .map((g) => resolveWikiImageUrl(g.url))
@@ -64,71 +51,67 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
       : (playerProfile?.equipment ?? []);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:py-10">
+    <DashboardWorkspaceShell
+      roles={roles}
+      variant="player"
+      title="Overview"
+      description="Profile, sessions, and match history at a glance."
+      actions={<PlayerDashboardToolbar publicPageUrl={playerProfile?.publicUrl} />}
+    >
+      <DashboardWelcomeCard
+        displayName={heroName}
+        email={account.email}
+        imageUrl={heroImage}
+        roles={roles}
+        subtitle={heroSummary ? undefined : "Complete your profile to unlock the full player experience."}
+        action={
+          playerProfile?.publicUrl
+            ? { label: "View public page", href: playerProfile.publicUrl }
+            : { label: "Open settings", href: `${dashboardRoutes.settings}#player-profile` }
+        }
+      />
+
+      <DashboardQuickLinks
+        items={[
+          {
+            href: `${dashboardRoutes.tournaments}?scope=created`,
+            label: "My sessions",
+            description: "Tournaments you created",
+            icon: "gamepad2",
+            accent: "emerald",
+          },
+          {
+            href: `${dashboardRoutes.tournaments}?scope=joined`,
+            label: "Joined",
+            description: "Events you played in",
+            icon: "users",
+          },
+          {
+            href: dashboardRoutes.matches,
+            label: "Match log",
+            description: "Scores and results",
+            icon: "swords",
+          },
+          {
+            href: dashboardRoutes.settings,
+            label: "Settings",
+            description: "Profile & account",
+            icon: "settings",
+            accent: "primary",
+          },
+        ]}
+      />
+
       {!accountCompletion.isComplete ? (
         <ProfileCompletionBanner
           completionPercent={accountCompletion.completionPercent}
           missingFields={accountCompletion.missingFields}
-          className="mb-6"
         />
       ) : null}
 
-      <PlayerPageCompletionPrompt
-        completion={playerPageCompletion}
-        className="mb-6"
-      />
+      <PlayerPageCompletionPrompt completion={playerPageCompletion} />
 
-      <div className="mb-6 flex flex-col gap-4 sm:mb-8 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-cp-primary">
-            Player dashboard
-          </p>
-          <h1 className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
-            Welcome back, {heroName}
-          </h1>
-          <p className="mt-1 text-sm text-cp-muted">{account.email}</p>
-          <ProfileRoleBadges roles={roles} className="mt-3" />
-        </div>
-        <PlayerDashboardToolbar publicPageUrl={playerProfile?.publicUrl} />
-      </div>
-
-      <PlayerHero
-        displayName={heroName}
-        summary={heroSummary}
-        imageUrl={heroImage}
-        badges={badges}
-      />
-
-      {!playerProfile ? (
-        <PlayerPageCard
-          title="Your public player page"
-          description="Not created yet"
-          className="mt-8"
-          variant="highlight"
-        >
-          <div className="flex flex-col items-center gap-4 py-6 text-center sm:flex-row sm:text-left">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-cp-primary/15 text-cp-primary">
-              <UserCircle className="h-7 w-7" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">
-                You haven&apos;t published a player page yet
-              </p>
-              <p className="mt-1 text-sm text-cp-muted">
-                Build your public profile with biography, equipment, and gallery — just like the
-                player pages on the main site. Start in My Settings under{" "}
-                <strong className="font-medium text-foreground">Player page</strong>.
-              </p>
-            </div>
-            <Button asChild className="shrink-0 rounded-lg bg-cp-primary font-semibold">
-              <Link href={`${dashboardRoutes.settings}#player-profile`}>
-                Get started
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </PlayerPageCard>
-      ) : (
+      {playerProfile ? (
         <div className="mt-8 grid grid-cols-1 gap-6 lg:mt-10 lg:grid-cols-3 lg:gap-8">
           <div className="order-2 space-y-6 lg:order-1 lg:col-span-2">
             <PlayerCareerStatsSection stats={playerProfile.careerStats} />
@@ -162,6 +145,25 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
               </PlayerPageCard>
             )}
 
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:p-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                Community play
+              </p>
+              <h2 className="mt-1 text-base font-semibold text-foreground">
+                Host a free reclub session
+              </h2>
+              <p className="mt-1 text-sm text-cp-muted">
+                Create a recreational tournament for friends and club mates. No registration
+                fee, no official ranking impact.
+              </p>
+              <Button asChild size="sm" className="mt-4 bg-emerald-600 hover:bg-emerald-500">
+                <Link href={dashboardRoutes.tournamentsNew}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create reclub tournament
+                </Link>
+              </Button>
+            </div>
+
             <PlayerRecentMatchesSection
               matches={recentMatches}
               viewAllHref={dashboardRoutes.matches}
@@ -169,6 +171,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
             <PlayerTournamentHistorySection
               tournaments={recentTournaments}
               viewAllHref={dashboardRoutes.tournaments}
+              createReclubHref={dashboardRoutes.tournamentsNew}
             />
           </div>
 
@@ -193,7 +196,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
             </div>
           </div>
         </div>
-      )}
-    </div>
+      ) : null}
+    </DashboardWorkspaceShell>
   );
 }

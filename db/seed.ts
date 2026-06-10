@@ -4,6 +4,7 @@ import { closeDatabase, getDb } from "./client";
 import { user } from "./schema/auth";
 import { userRoleAssignments } from "./schema/roles";
 import { sports } from "./schema";
+import { DEFAULT_SPORT_SEEDS } from "@/lib/sports/default-sport-data";
 import {
   normalizeLegacyRole,
   type AppRole,
@@ -14,17 +15,6 @@ import { ensureStorageBucket } from "@/lib/storage/client";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ script: "db:seed" });
-
-const MVP_SPORTS = [
-  {
-    name: "Padel",
-    slug: "padel",
-    visibility: "live" as const,
-    tagline: "Premier Padel, WPT & community coverage",
-    description:
-      "Comprehensive coverage of Premier Padel, WPT, player profiles, and technical gear reviews.",
-  },
-] as const;
 
 /** Backfill user_role_assignments from legacy user.role column */
 export async function syncLegacyUserRoles() {
@@ -49,7 +39,7 @@ export async function syncLegacyUserRoles() {
 export async function seedDatabase() {
   const db = getDb();
 
-  for (const sport of MVP_SPORTS) {
+  for (const sport of DEFAULT_SPORT_SEEDS) {
     const existing = await db
       .select({ id: sports.id })
       .from(sports)

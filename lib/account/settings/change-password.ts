@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth/server";
 import { getUserAuthProvidersByUserId } from "@/lib/auth/account-providers";
 import { AppError } from "@/lib/errors";
-import { sendTemplatedEmail } from "@/lib/email/send";
+import { sendTemplatedEmailInBackground } from "@/lib/email/send";
 import { siteConfig } from "@/lib/config";
 import type { ChangePasswordSettingsInput } from "@/lib/validations/account-settings";
 
@@ -40,24 +40,19 @@ export async function changeAccountPassword(
     });
   }
 
-  const emailResult = await sendTemplatedEmail({
-    to: email,
-    template: "password-changed",
-    data: {
-      userName: displayName || email,
-      appName: siteConfig.name,
-      loginUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/login`,
-      changedAt: new Date().toISOString(),
+  sendTemplatedEmailInBackground(
+    {
+      to: email,
+      template: "password-changed",
+      data: {
+        userName: displayName || email,
+        appName: siteConfig.name,
+        loginUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/login`,
+        changedAt: new Date().toISOString(),
+      },
     },
-  });
-
-  if (!emailResult.ok) {
-    // Password already changed — log but don't fail the request
-    const { logger } = await import("@/lib/logger");
-    logger.child({ module: "change-password" }).warn("Password changed email failed", {
-      error: emailResult.error,
-    });
-  }
+    { module: "change-password" },
+  );
 
   return { success: true as const };
 }

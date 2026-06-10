@@ -6,11 +6,13 @@ const MEDIA_API_PREFIX = "/api/media/";
 export const PROFILE_MEDIA_PREFIX = "profiles/";
 export const WIKI_MEDIA_PREFIX = "wiki/";
 export const SPORTS_MEDIA_PREFIX = "sports/";
+export const TOURNAMENTS_MEDIA_PREFIX = "tournaments/";
 
 const ALLOWED_MEDIA_PREFIXES = [
   PROFILE_MEDIA_PREFIX,
   WIKI_MEDIA_PREFIX,
   SPORTS_MEDIA_PREFIX,
+  TOURNAMENTS_MEDIA_PREFIX,
 ] as const;
 
 export function isAllowedMediaKey(key: string): boolean {
@@ -67,10 +69,16 @@ export function resolveUserImageUrl(
 
   if (trimmed.startsWith(MEDIA_API_PREFIX)) return trimmed;
 
-  // External CDN or other public URLs
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return trimmed;
+  const asKey = trimmed.replace(/^\/+/, "");
+  if (isAllowedMediaKey(asKey)) {
+    try {
+      return getMediaProxyPath(asKey);
+    } catch {
+      return null;
+    }
   }
 
-  return trimmed;
+  if (trimmed.startsWith("https://")) return trimmed;
+
+  return null;
 }

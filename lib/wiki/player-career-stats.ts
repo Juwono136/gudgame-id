@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  deriveTierFromPoints,
+  formatPlayerTierLabel,
+  normalizePlayerTier,
+} from "@/lib/player/tier";
 import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
 import { parsePlayerEditableAttributes } from "@/lib/wiki/player-profile-fields";
@@ -8,8 +13,9 @@ export type PlayerCareerStats = {
   worldRank: number | null;
   totalPoints: number | null;
   winRate: number | null;
-  careerTitles: number | null;
+  /** Display label: Pemula, Menengah, Pro, Gold */
   tier: string | null;
+  tierLevel: string | null;
   yearsActive: string | null;
 };
 
@@ -35,27 +41,19 @@ export function getPlayerCareerStats(entity: PlayerCareerStatsSource): PlayerCar
   };
 
   const tierRaw = perf.tier ?? entity.attributes.tier;
-  const tier =
-    typeof tierRaw === "string" && tierRaw.trim()
-      ? tierRaw
-      : deriveTierFromPoints(num("totalPoints"));
+  const tierLevel =
+    normalizePlayerTier(typeof tierRaw === "string" ? tierRaw : null) ??
+    deriveTierFromPoints(num("totalPoints"));
+  const tier = tierLevel ? formatPlayerTierLabel(tierLevel) : null;
 
   return {
     worldRank: num("worldRank"),
     totalPoints: num("totalPoints"),
     winRate: num("winRate"),
-    careerTitles: num("careerTitles"),
     tier,
+    tierLevel,
     yearsActive: computeYearsActive(editable.proSince, editable.firstTournamentAt),
   };
-}
-
-function deriveTierFromPoints(points: number | null): string | null {
-  if (points == null) return null;
-  if (points >= 10000) return "gold";
-  if (points >= 5000) return "silver";
-  if (points >= 1000) return "bronze";
-  return "pro";
 }
 
 function computeYearsActive(

@@ -1,5 +1,8 @@
-import { getServerSession } from "@/lib/auth/session";
+import { Suspense } from "react";
+import { PageShell } from "@/components/layout/page-shell";
 import { HostDashboard } from "@/components/dashboard/host-dashboard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { getServerSession } from "@/lib/auth/session";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
 import type { Metadata } from "next";
 
@@ -13,10 +16,20 @@ export default async function HostDashboardPage() {
   const user = session?.user;
 
   return (
-    <HostDashboard
-      userName={user?.name ?? "Host"}
-      userEmail={user?.email ?? ""}
-      roles={roles}
-    />
+    <PageShell showGridBackground={false}>
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-24">
+            <LoadingSpinner label="Loading host dashboard…" />
+          </div>
+        }
+      >
+        <HostDashboard
+          userName={user?.name ?? "Host"}
+          userEmail={user?.email ?? ""}
+          roles={roles}
+        />
+      </Suspense>
+    </PageShell>
   );
 }

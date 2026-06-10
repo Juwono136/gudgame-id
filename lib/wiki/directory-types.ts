@@ -19,3 +19,8 @@ export type WikiDirectoryListItem = {
   updatedAt: string;
   createdAt: string;
 };
+
+/** Stable React key — wiki entity id 1 and tournament id 1 are different records. */
+export function getWikiDirectoryItemKey(item: WikiDirectoryListItem): string {
+  return `${item.recordKind}:${item.id}`;
+}

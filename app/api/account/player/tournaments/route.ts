@@ -3,7 +3,7 @@ import {
   listDistinctTournamentYears,
   listPlayerTournaments,
 } from "@/lib/account/player-competition/list-tournaments";
-import { requirePlayerDashboardAccess } from "@/lib/auth/role-guard";
+import { requireRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
 import { playerTournamentsListQuerySchema } from "@/lib/validations/player-competition";
 
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    const { userId } = await requirePlayerDashboardAccess();
+    const { userId, roles } = await requireRoleGuardContext();
     const url = new URL(request.url);
     const parsed = playerTournamentsListQuerySchema.safeParse(
       Object.fromEntries(url.searchParams.entries()),
@@ -25,9 +25,9 @@ export async function GET(request: Request) {
       });
     }
 
-    const list = await listPlayerTournaments(userId, parsed.data);
+    const list = await listPlayerTournaments(userId, roles, parsed.data);
     const years = url.searchParams.get("includeYears") === "1"
-      ? await listDistinctTournamentYears(userId)
+      ? await listDistinctTournamentYears(userId, roles)
       : undefined;
 
     return jsonSuccess({ ...list, years });

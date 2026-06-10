@@ -1,62 +1,109 @@
 "use client";
 
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { ProfileCompletionSection } from "@/components/dashboard/profile-completion-section";
 import { ThemeSettingsCard } from "@/components/theme/theme-settings-card";
 import { AccountInfoReadonly } from "@/components/settings/account-info-readonly";
 import { StaffProfileForm } from "@/components/settings/staff-profile-form";
 import { PlayerSettingsForm } from "@/components/settings/player-settings-form";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
+import {
+  SettingsTabNav,
+  type SettingsTab,
+  type SettingsTabId,
+} from "@/components/settings/settings-tab-nav";
 import { useAccountSettings } from "@/hooks/use-account-settings";
-import { FadeInView } from "@/components/motion/fade-in";
+import type { AppRole } from "@/lib/roles/constants";
 import { resolvePlayerDisplayNameFromAccount } from "@/lib/wiki/player-profile-fields";
+import { cn } from "@/lib/utils";
 
 type SettingsPageClientProps = {
   backHref: string;
   email: string;
+  roles: AppRole[];
+  workspaceVariant: "player" | "host";
 };
 
-const NAV_ITEMS = [
-  { id: "profile", label: "Profile" },
-  { id: "player-profile", label: "Player page" },
-  { id: "security", label: "Security" },
-  { id: "appearance", label: "Appearance" },
-] as const;
+const ALL_TABS: SettingsTab[] = [
+  { id: "profile", label: "Profile", shortLabel: "Profile" },
+  { id: "player-profile", label: "Player page", shortLabel: "Player" },
+  { id: "security", label: "Security", shortLabel: "Security" },
+  { id: "appearance", label: "Appearance", shortLabel: "Theme" },
+];
 
-export function SettingsPageClient({ backHref, email }: SettingsPageClientProps) {
+function parseHashTab(hash: string, allowed: SettingsTabId[]): SettingsTabId | null {
+  const id = hash.replace(/^#/, "") as SettingsTabId;
+  return allowed.includes(id) ? id : null;
+}
+
+export function SettingsPageClient({
+  backHref,
+  email,
+  roles,
+  workspaceVariant,
+}: SettingsPageClientProps) {
   const { data, isLoading, isError, refetch } = useAccountSettings();
 
   const isPlayer = data?.roles.includes("player");
 
-  const navItems = NAV_ITEMS.filter((item) => {
-    if (item.id === "player-profile") return isPlayer;
-    return true;
-  });
+  const tabs = useMemo(
+    () =>
+      ALL_TABS.filter((tab) => {
+        if (tab.id === "player-profile") return isPlayer;
+        return true;
+      }),
+    [isPlayer],
+  );
+
+  const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
+
+  const [activeTab, setActiveTab] = useState<SettingsTabId>("profile");
+
+  const syncFromHash = useCallback(() => {
+    const fromHash = parseHashTab(window.location.hash, tabIds);
+    if (fromHash) setActiveTab(fromHash);
+  }, [tabIds]);
+
+  useEffect(() => {
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, [syncFromHash]);
+
+  useEffect(() => {
+    if (data) syncFromHash();
+  }, [data, syncFromHash]);
+
+  useEffect(() => {
+    if (!tabIds.includes(activeTab)) {
+      setActiveTab("profile");
+    }
+  }, [activeTab, tabIds]);
+
+  const handleTabChange = (id: SettingsTabId) => {
+    setActiveTab(id);
+    window.history.replaceState(null, "", `#${id}`);
+  };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-      <Link href={backHref} className="text-sm text-cp-primary hover:underline">
-        ← Back to dashboard
-      </Link>
-
-      <div className="mt-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            My Settings
-          </h1>
-          <p className="mt-2 text-sm text-cp-muted">
-            Manage your account, player profile, and preferences for {email}
-          </p>
-        </div>
-      </div>
-
+    <DashboardWorkspaceShell
+      roles={roles}
+      variant={workspaceVariant}
+      title="Settings"
+      description={`Account, player profile, and preferences for ${email}`}
+      breadcrumbs={[
+        { label: "Overview", href: backHref },
+        { label: "Settings" },
+      ]}
+    >
       {isLoading ? (
-        <div className="mt-16 flex justify-center">
+        <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-cp-primary" />
         </div>
       ) : isError || !data ? (
-        <div className="mt-10 rounded-2xl border border-cp-border bg-cp-card p-6 text-center">
+        <div className="rounded-2xl border border-cp-border bg-cp-card p-6 text-center">
           <p className="text-sm text-cp-muted">Could not load settings.</p>
           <button
             type="button"
@@ -67,61 +114,49 @@ export function SettingsPageClient({ backHref, email }: SettingsPageClientProps)
           </button>
         </div>
       ) : (
-        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <nav className="hidden lg:block">
-            <ul className="sticky top-24 space-y-1">
-              {navItems.map((item) => (
-                <li key={item.id}>
-                  <a
-                    href={`#${item.id}`}
-                    className="block rounded-lg px-3 py-2 text-sm font-medium text-cp-muted transition-colors hover:bg-cp-elevated hover:text-foreground"
-                  >
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
+        <div className="space-y-6">
+          <SettingsTabNav tabs={tabs} active={activeTab} onChange={handleTabChange} />
 
-          <div className="min-w-0 space-y-6">
-            <FadeInView>
-              <ProfileCompletionSection />
-            </FadeInView>
-
-            <FadeInView delay={0.04}>
-              <StaffProfileForm settings={data} />
-            </FadeInView>
-
-            {isPlayer ? (
-              <FadeInView delay={0.08}>
-                <PlayerSettingsForm
-                  key={`player-${data.playerProfile?.id ?? "new"}-${data.playerProfile?.updatedAt ?? ""}-${data.account.fullNameKtp ?? data.account.name ?? ""}`}
-                  profile={data.playerProfile}
-                  accountImageUrl={data.account.imageUrl}
-                  accountFullName={resolvePlayerDisplayNameFromAccount(data.account)}
-                />
-              </FadeInView>
+          <div
+            role="tabpanel"
+            aria-labelledby={activeTab}
+            className={cn("min-w-0", activeTab === "player-profile" ? "max-w-5xl" : "max-w-3xl")}
+          >
+            {activeTab === "profile" ? (
+              <div className="space-y-6">
+                <ProfileCompletionSection />
+                <StaffProfileForm settings={data} />
+                <AccountInfoReadonly settings={data} />
+              </div>
             ) : null}
 
-            <FadeInView delay={0.12}>
-              <AccountInfoReadonly settings={data} />
-            </FadeInView>
-
-            <FadeInView delay={0.16}>
-              <ChangePasswordForm
-                hasPassword={data.auth.hasPassword}
-                hasGoogle={data.auth.hasGoogle}
+            {activeTab === "player-profile" && isPlayer ? (
+              <PlayerSettingsForm
+                key={`player-${data.playerProfile?.id ?? "new"}-${data.playerProfile?.updatedAt ?? ""}-${data.account.fullNameKtp ?? data.account.name ?? ""}`}
+                profile={data.playerProfile}
+                accountImageUrl={data.account.imageUrl}
+                accountFullName={resolvePlayerDisplayNameFromAccount(data.account)}
+                onGoToProfile={() => handleTabChange("profile")}
               />
-            </FadeInView>
+            ) : null}
 
-            <FadeInView delay={0.2}>
+            {activeTab === "security" ? (
+              <div className="space-y-6">
+                <ChangePasswordForm
+                  hasPassword={data.auth.hasPassword}
+                  hasGoogle={data.auth.hasGoogle}
+                />
+              </div>
+            ) : null}
+
+            {activeTab === "appearance" ? (
               <div id="appearance">
                 <ThemeSettingsCard variant="settings" />
               </div>
-            </FadeInView>
+            ) : null}
           </div>
         </div>
       )}
-    </div>
+    </DashboardWorkspaceShell>
   );
 }

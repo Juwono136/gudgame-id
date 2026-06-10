@@ -38,7 +38,10 @@ export function PlayerDetailLayout({ entity, sportName }: PlayerDetailLayoutProp
     .map((m) => resolveWikiImageUrl(m.url))
     .filter((u): u is string => Boolean(u));
 
-  const primaryImage = resolveWikiImageUrl(entity.primaryImageUrl);
+  const primaryImage = resolveWikiImageUrl(
+    entity.primaryImageUrl,
+    entity.primaryImageStorageKey,
+  );
 
   const badges: { label: string; variant: "nationality" | "tier" | "default" }[] = [];
 

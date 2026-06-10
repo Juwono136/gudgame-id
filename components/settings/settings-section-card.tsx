@@ -24,7 +24,7 @@ export function SettingsSectionCard({
     <section
       id={id}
       className={cn(
-        "scroll-mt-24 rounded-2xl border border-cp-border bg-cp-card/70 p-5 shadow-sm backdrop-blur-sm sm:p-6",
+        "scroll-mt-24 rounded-2xl border border-cp-border bg-cp-card p-4 shadow-sm sm:p-6",
         className,
       )}
     >

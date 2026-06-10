@@ -10,28 +10,24 @@ import {
   getUserAuthProvidersByUserId,
 } from "@/lib/auth/account-providers";
 import { AppError } from "@/lib/errors";
-import { sendTemplatedEmail } from "@/lib/email/send";
+import { sendTemplatedEmailInBackground } from "@/lib/email/send";
 import { siteConfig } from "@/lib/config";
 import type { ChangePasswordSettingsInput } from "@/lib/validations/account-settings";
 
-async function sendPasswordChangedEmail(email: string, displayName: string) {
-  const emailResult = await sendTemplatedEmail({
-    to: email,
-    template: "password-changed",
-    data: {
-      userName: displayName || email,
-      appName: siteConfig.name,
-      loginUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/login`,
-      changedAt: new Date().toISOString(),
+function sendPasswordChangedEmail(email: string, displayName: string) {
+  sendTemplatedEmailInBackground(
+    {
+      to: email,
+      template: "password-changed",
+      data: {
+        userName: displayName || email,
+        appName: siteConfig.name,
+        loginUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/login`,
+        changedAt: new Date().toISOString(),
+      },
     },
-  });
-
-  if (!emailResult.ok) {
-    const { logger } = await import("@/lib/logger");
-    logger.child({ module: "set-password" }).warn("Password email failed", {
-      error: emailResult.error,
-    });
-  }
+    { module: "set-password" },
+  );
 }
 
 /** Google-only (or password-less) accounts: add email/password sign-in. */
@@ -85,7 +81,7 @@ export async function setInitialAccountPassword(
     });
   }
 
-  await sendPasswordChangedEmail(
+  sendPasswordChangedEmail(
     dbUser.email,
     dbUser.fullNameKtp ?? dbUser.name ?? dbUser.email,
   );

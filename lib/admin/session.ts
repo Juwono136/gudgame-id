@@ -22,6 +22,7 @@ import {
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 import { adminRoutes, authRoutes } from "@/lib/constants/routes";
 import { getDefaultDashboardUrl } from "@/lib/roles/route-access";
+import { ensureDefaultSports } from "@/lib/sports/ensure-default-sport";
 import type { AdminSessionContext } from "@/lib/admin/types";
 
 export type { AdminSessionContext };
@@ -31,11 +32,20 @@ async function resolveSportContext(): Promise<{ sportSlug: string; sportId: numb
   const cookieStore = await cookies();
   const slugFromCookie = cookieStore.get(ADMIN_SPORT_COOKIE)?.value;
 
-  const allSports = await db
+  let allSports = await db
     .select()
     .from(sports)
     .where(eq(sports.isActive, true))
     .orderBy(asc(sports.displayOrder));
+
+  if (allSports.length === 0) {
+    await ensureDefaultSports();
+    allSports = await db
+      .select()
+      .from(sports)
+      .where(eq(sports.isActive, true))
+      .orderBy(asc(sports.displayOrder));
+  }
 
   if (allSports.length === 0) {
     return { sportSlug: "padel", sportId: 0 };

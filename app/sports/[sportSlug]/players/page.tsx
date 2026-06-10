@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
-import { EntityListPage } from "@/components/wiki/entity-list-page";
-import { getSportBySlug, listPublishedWikiEntities } from "@/lib/wiki/public";
+import { WikiPageShell } from "@/components/wiki/wiki-page-shell";
+import { PlayerRankingTable } from "@/components/wiki/player-ranking-table";
+import { getSportBySlug } from "@/lib/wiki/public";
+import { publicSportRoutes } from "@/lib/constants/routes";
 
 type PageProps = {
   params: Promise<{ sportSlug: string }>;
@@ -9,16 +11,17 @@ type PageProps = {
 export default async function PlayersListPage({ params }: PageProps) {
   const { sportSlug } = await params;
   const sport = await getSportBySlug(sportSlug);
-  if (!sport) notFound();
-
-  const items = await listPublishedWikiEntities(sportSlug, "player");
+  if (!sport || sport.visibility !== "live") notFound();
 
   return (
-    <EntityListPage
-      sportSlug={sportSlug}
-      sportName={sport.name}
-      entityType="player"
-      items={items}
-    />
+    <WikiPageShell
+      breadcrumbs={[
+        { label: "Home", href: "/" },
+        { label: sport.name, href: publicSportRoutes.sportHub(sportSlug) },
+        { label: "Players" },
+      ]}
+    >
+      <PlayerRankingTable sportSlug={sportSlug} sportName={sport.name} />
+    </WikiPageShell>
   );
 }

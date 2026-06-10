@@ -127,9 +127,12 @@ export function SportHubContent({ sport, live, upcoming, past }: SportHubContent
       ) : null}
 
       <section className="mt-14 space-y-10">
-        {live.length > 0 ? (
-          <TournamentSection title="Live now" tournaments={live} sportSlug={sport.slug} />
-        ) : null}
+        <TournamentSection
+          title="Live tournaments"
+          tournaments={live}
+          sportSlug={sport.slug}
+          emptyMessage="No live tournaments right now."
+        />
         <TournamentSection
           title="Upcoming tournaments"
           tournaments={upcoming}

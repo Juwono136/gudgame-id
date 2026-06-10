@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -9,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { sports } from "./sports";
+import { tournaments } from "./tournaments";
 import { wikiEntities } from "./wiki";
 
 export const MATCH_RESULT_TYPES = ["win", "loss"] as const;
@@ -26,6 +28,10 @@ export const playerMatches = pgTable(
       onDelete: "set null",
     }),
     sportId: integer("sport_id").references(() => sports.id, { onDelete: "set null" }),
+    tournamentId: integer("tournament_id").references(() => tournaments.id, {
+      onDelete: "set null",
+    }),
+    isOfficial: boolean("is_official").default(true).notNull(),
     tournamentName: varchar("tournament_name", { length: 200 }).notNull(),
     opponents: varchar("opponents", { length: 300 }).notNull(),
     resultType: varchar("result_type", { length: 10 }).notNull(),
@@ -53,6 +59,10 @@ export const playerTournamentResults = pgTable(
       onDelete: "set null",
     }),
     sportId: integer("sport_id").references(() => sports.id, { onDelete: "set null" }),
+    tournamentId: integer("tournament_id").references(() => tournaments.id, {
+      onDelete: "set null",
+    }),
+    isOfficial: boolean("is_official").default(true).notNull(),
     year: integer("year").notNull(),
     tournamentName: varchar("tournament_name", { length: 200 }).notNull(),
     category: varchar("category", { length: 80 }),

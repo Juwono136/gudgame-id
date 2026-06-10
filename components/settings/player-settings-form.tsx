@@ -41,12 +41,14 @@ type PlayerSettingsFormProps = {
   profile: PlayerWikiProfileView | null;
   accountImageUrl?: string | null;
   accountFullName: string;
+  onGoToProfile?: () => void;
 };
 
 export function PlayerSettingsForm({
   profile,
   accountImageUrl,
   accountFullName,
+  onGoToProfile,
 }: PlayerSettingsFormProps) {
   const mutation = useSavePlayerProfile();
   const isCreate = !profile;
@@ -174,9 +176,13 @@ export function PlayerSettingsForm({
         {!hasAccountFullName ? (
           <p className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200/90">
             Your public player name comes from your account full name. Complete your{" "}
-            <a href="#profile" className="font-medium text-cp-primary hover:underline">
+            <button
+              type="button"
+              onClick={onGoToProfile}
+              className="font-medium text-cp-primary hover:underline"
+            >
               Profile
-            </a>{" "}
+            </button>{" "}
             before creating or saving your player page.
           </p>
         ) : (
@@ -187,31 +193,39 @@ export function PlayerSettingsForm({
             <p className="mt-1 text-sm font-semibold text-foreground">{accountFullName}</p>
             <p className="mt-1 text-xs text-cp-text-dim">
               Synced from your account full name. Update it in the{" "}
-              <a href="#profile" className="font-medium text-cp-primary hover:underline">
+              <button
+                type="button"
+                onClick={onGoToProfile}
+                className="font-medium text-cp-primary hover:underline"
+              >
                 Profile
-              </a>{" "}
-              section.
+              </button>{" "}
+              tab.
             </p>
           </div>
         )}
 
         {accountImageUrl ? (
-          <div className="mb-6 flex items-center gap-4 rounded-xl border border-cp-border bg-cp-elevated/30 p-4">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-cp-border">
+          <div className="mb-6 flex flex-col gap-3 rounded-xl border border-cp-border bg-cp-elevated/30 p-4 sm:flex-row sm:items-center">
+            <div className="relative mx-auto h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-cp-border sm:mx-0">
               <Image src={accountImageUrl} alt="" fill className="object-cover" unoptimized />
             </div>
-            <p className="text-sm text-cp-muted">
+            <p className="text-center text-sm text-cp-muted sm:text-left">
               Public player photo is synced from your account profile. Update it in the{" "}
-              <a href="#profile" className="font-medium text-cp-primary hover:underline">
+              <button
+                type="button"
+                onClick={onGoToProfile}
+                className="font-medium text-cp-primary hover:underline"
+              >
                 Profile
-              </a>{" "}
-              section.
+              </button>{" "}
+              tab.
             </p>
           </div>
         ) : null}
 
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">
             <AuthField label="Nationality" htmlFor="nationality">
               <AuthInput
                 id="nationality"
@@ -230,6 +244,7 @@ export function PlayerSettingsForm({
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder={`${PLAYER_AGE_MIN}–${PLAYER_AGE_MAX}`}
+                className="max-w-[120px]"
               />
             </AuthField>
           </div>
@@ -371,12 +386,12 @@ export function PlayerSettingsForm({
         </div>
       </SettingsSectionCard>
 
-      <div className="flex justify-end">
+      <div className="sticky bottom-4 z-10 flex justify-end rounded-xl border border-cp-border/80 bg-cp-bg/90 p-3 backdrop-blur-md sm:static sm:border-0 sm:bg-transparent sm:p-0">
         <Button
           type="button"
           disabled={mutation.isPending || !hasAccountFullName}
           onClick={() => void onSubmit()}
-          className="min-w-[180px] rounded-lg bg-cp-primary font-semibold hover:bg-cp-primary-light"
+          className="w-full min-w-[180px] rounded-lg bg-cp-primary font-semibold hover:bg-cp-primary-light sm:w-auto"
         >
           {mutation.isPending ? (
             <>

@@ -18,10 +18,11 @@ export async function GET(request: Request) {
     const query = wikiEntitiesListQuerySchema.parse(
       Object.fromEntries(url.searchParams.entries()),
     );
+    const directoryOptions = { tournamentCreatedBy: ctx.userId };
     const [list, wikiStats, tournamentStats] = await Promise.all([
-      listWikiDirectory(ctx.sportId, query),
+      listWikiDirectory(ctx.sportId, query, directoryOptions),
       getWikiEntityStats(ctx.sportId),
-      getTournamentStats(ctx.sportId),
+      getTournamentStats(ctx.sportId, ctx.userId),
     ]);
     return jsonSuccess({
       ...list,

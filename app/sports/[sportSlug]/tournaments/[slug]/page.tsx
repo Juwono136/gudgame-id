@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
-import { TournamentDetailContent } from "@/components/sports/tournament-detail-content";
+import { TournamentPageRouter } from "@/components/tournaments/tournament-page-router";
 import { getSportBySlug } from "@/lib/wiki/public";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 
@@ -24,7 +24,7 @@ export default async function TournamentDetailPage({ params }: PageProps) {
 
   return (
     <PageShell>
-      <TournamentDetailContent tournament={tournament} />
+      <TournamentPageRouter tournament={tournament} />
     </PageShell>
   );
 }

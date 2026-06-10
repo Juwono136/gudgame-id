@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { extractApiErrorMessage } from "@/lib/api/extract-error-message";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import type { AccountSettingsView } from "@/lib/account/settings/get-settings";
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
@@ -27,9 +28,14 @@ export function useUpdateStaffProfile() {
         method: "PATCH",
         body: formData,
       });
-      const json = await parseJsonResponse<ApiSuccess<{ message: string }> & { error?: string; fieldErrors?: Record<string, string[]> }>(res);
+      const json = await parseJsonResponse<
+        ApiSuccess<{ message: string }> & {
+          error?: string | { message?: string };
+          fieldErrors?: Record<string, string[]>;
+        }
+      >(res);
       if (!res.ok) {
-        const err = new Error(json.error ?? "Could not update profile") as Error & {
+        const err = new Error(extractApiErrorMessage(json, "Could not update profile")) as Error & {
           fieldErrors?: Record<string, string[]>;
         };
         err.fieldErrors = json.fieldErrors;
@@ -53,10 +59,10 @@ export function useSetPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await parseJsonResponse<ApiSuccess<{ message: string }> & { error?: string }>(
-        res,
-      );
-      if (!res.ok) throw new Error(json.error ?? "Could not create password");
+      const json = await parseJsonResponse<
+        ApiSuccess<{ message: string }> & { error?: string | { message?: string } }
+      >(res);
+      if (!res.ok) throw new Error(extractApiErrorMessage(json, "Could not create password"));
       return json.data;
     },
     onSuccess: () => {
@@ -67,6 +73,7 @@ export function useSetPassword() {
 }
 
 export function useChangePassword() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
       currentPassword: string;
@@ -78,15 +85,23 @@ export function useChangePassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await parseJsonResponse<ApiSuccess<{ message: string }> & { error?: string; fieldErrors?: Record<string, string[]> }>(res);
+      const json = await parseJsonResponse<
+        ApiSuccess<{ message: string }> & {
+          error?: string | { message?: string };
+          fieldErrors?: Record<string, string[]>;
+        }
+      >(res);
       if (!res.ok) {
-        const err = new Error(json.error ?? "Could not change password") as Error & {
+        const err = new Error(extractApiErrorMessage(json, "Could not change password")) as Error & {
           fieldErrors?: Record<string, string[]>;
         };
         err.fieldErrors = json.fieldErrors;
         throw err;
       }
       return json.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["account", "settings"] });
     },
   });
 }
@@ -107,12 +122,14 @@ export function useSavePlayerProfile() {
       });
       const json = await parseJsonResponse<
         ApiSuccess<{ profile: PlayerWikiProfileView; message: string }> & {
-          error?: string;
+          error?: string | { message?: string };
           fieldErrors?: Record<string, string[]>;
         }
       >(res);
       if (!res.ok) {
-        const err = new Error(json.error ?? "Could not save player profile") as Error & {
+        const err = new Error(
+          extractApiErrorMessage(json, "Could not save player profile"),
+        ) as Error & {
           fieldErrors?: Record<string, string[]>;
         };
         err.fieldErrors = json.fieldErrors;

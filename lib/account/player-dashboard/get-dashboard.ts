@@ -71,9 +71,10 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       sortBy: "playedAt",
       sortDir: "desc",
     }),
-    listPlayerTournaments(userId, {
+    listPlayerTournaments(userId, roles, {
       page: 1,
       pageSize: 3,
+      scope: "all",
       sortBy: "year",
       sortDir: "desc",
     }),

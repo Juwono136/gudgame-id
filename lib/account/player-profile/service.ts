@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import { sports, wikiEntities, wikiEntityMedia } from "@/db/schema";
 import { AppError } from "@/lib/errors";
 import { getWikiEntityById } from "@/lib/wiki/service";
+import { ensureDefaultSports } from "@/lib/sports/ensure-default-sport";
 import { getSportBySlug } from "@/lib/wiki/public";
 import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
 import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
@@ -266,12 +267,16 @@ export async function upsertPlayerWikiProfile(
   formData: FormData,
   options: { create: boolean },
 ): Promise<PlayerWikiProfileView> {
+  await ensureDefaultSports();
   const sport = await getSportBySlug(DEFAULT_PLAYER_SPORT_SLUG);
   if (!sport) {
-    throw new AppError("Default sport is not configured", {
-      code: "SERVICE_UNAVAILABLE",
-      statusCode: 503,
-    });
+    throw new AppError(
+      "Default sport is not available. Run npm run db:seed or add an active sport in Admin.",
+      {
+        code: "SERVICE_UNAVAILABLE",
+        statusCode: 503,
+      },
+    );
   }
 
   const existingId = await getPlayerWikiEntityIdForUser(userId);

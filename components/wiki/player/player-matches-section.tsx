@@ -14,6 +14,7 @@ type PlayerRecentMatchesSectionProps = {
 type PlayerTournamentHistorySectionProps = {
   tournaments?: PlayerTournamentListItem[];
   viewAllHref?: string;
+  createReclubHref?: string;
 };
 
 function ViewAllAction({ href }: { href: string }) {
@@ -105,6 +106,7 @@ export function PlayerRecentMatchesSection({
 export function PlayerTournamentHistorySection({
   tournaments = [],
   viewAllHref,
+  createReclubHref,
 }: PlayerTournamentHistorySectionProps) {
   const hasTournaments = tournaments.length > 0;
 
@@ -144,11 +146,18 @@ export function PlayerTournamentHistorySection({
             <p className="max-w-sm text-xs text-cp-muted">
               Placements and categories will be listed here once tournament data is available.
             </p>
-            {viewAllHref ? (
-              <Button asChild variant="outline" size="sm" className="mt-2 border-cp-border">
-                <Link href={viewAllHref}>Browse tournament history</Link>
-              </Button>
-            ) : null}
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              {createReclubHref ? (
+                <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-500">
+                  <Link href={createReclubHref}>Create free reclub</Link>
+                </Button>
+              ) : null}
+              {viewAllHref ? (
+                <Button asChild variant="outline" size="sm" className="border-cp-border">
+                  <Link href={viewAllHref}>Browse tournament history</Link>
+                </Button>
+              ) : null}
+            </div>
           </div>
         )}
       </div>

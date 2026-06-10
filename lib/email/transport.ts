@@ -45,8 +45,6 @@ export async function sendRawEmail(params: {
       },
     });
 
-    await transport.verify();
-
     await transport.sendMail({
       from: `"TandingBase" <${user}>`,
       to: params.to,

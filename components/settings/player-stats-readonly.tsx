@@ -29,9 +29,6 @@ export function PlayerStatsReadonly({ profile }: PlayerStatsReadonlyProps) {
     stats.winRate != null
       ? { label: "Win rate", value: stats.winRate, max: 100 }
       : null,
-    stats.careerTitles != null
-      ? { label: "Career titles", value: stats.careerTitles, max: undefined }
-      : null,
   ].filter(Boolean) as { label: string; value: number; max?: number }[];
 
   if (metrics.length === 0 && !stats.tier) {
