@@ -13,7 +13,9 @@ export function canAccessPlayerDashboard(roles: AppRole[]): boolean {
 }
 
 export function canAccessHostDashboard(roles: AppRole[]): boolean {
-  return roles.includes("host");
+  // Super admins can create/manage official tournaments too, so they must be allowed
+  // to access host workspace and payout settings even if they don't explicitly have host role.
+  return roles.includes("host") || roles.includes("super_admin");
 }
 
 export function canAccessAdminConsole(roles: AppRole[]): boolean {

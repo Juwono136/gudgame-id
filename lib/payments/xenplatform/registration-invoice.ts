@@ -40,7 +40,7 @@ export async function createRegistrationInvoiceWithSplit(
   }
 
   const hostAccount = await getActiveHostXenditAccount(context.hostUserId);
-  if (!hostAccount) {
+  if (!hostAccount?.xenditAccountId) {
     log.warn("Host XenPlatform not active — invoice without split (fees stay on master account)", {
       hostUserId: context.hostUserId,
       registrationId: context.registrationId,

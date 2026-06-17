@@ -249,12 +249,15 @@ export function useGoogleSignInMutation() {
   });
 }
 
-export function useRegisterMutation() {
+export function useRegisterMutation(callbackUrl?: string | null) {
   const router = useRouter();
   const setSubmitting = useAuthUiStore((s) => s.setSubmitting);
 
   return useMutation({
     mutationFn: async (formData: FormData) => {
+      if (callbackUrl) {
+        formData.append("callbackUrl", callbackUrl);
+      }
       const response = await fetch("/api/account/register", {
         method: "POST",
         body: formData,
@@ -285,7 +288,12 @@ export function useRegisterMutation() {
           data.message ??
           "Check your email to verify your account before signing in.",
       });
-      router.push(data.redirectTo ?? authRoutes.checkEmail);
+      const next =
+        data.redirectTo ??
+        (callbackUrl
+          ? `${authRoutes.checkEmail}?callbackUrl=${encodeURIComponent(callbackUrl)}`
+          : authRoutes.checkEmail);
+      router.push(next);
     },
     onError: (error: Error & { fieldErrors?: Record<string, string[]> }) => {
       toast.error("Registration failed", { description: error.message });

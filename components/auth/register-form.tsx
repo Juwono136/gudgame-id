@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -25,8 +26,14 @@ import { useRegisterMutation } from "@/hooks/use-auth-mutations";
 import { useAuthUiStore } from "@/stores/auth-ui-store";
 import { cn } from "@/lib/utils";
 
-export function RegisterForm() {
-  const registerMutation = useRegisterMutation();
+export function RegisterForm({ callbackUrl: callbackUrlProp }: { callbackUrl?: string | null }) {
+  const searchParams = useSearchParams();
+  const callbackUrl = callbackUrlProp ?? searchParams.get("callbackUrl");
+  const loginHref = callbackUrl
+    ? `${authRoutes.login}?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : authRoutes.login;
+
+  const registerMutation = useRegisterMutation(callbackUrl);
   const isSubmitting = useAuthUiStore((s) => s.isSubmitting);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState<string | undefined>();
@@ -94,7 +101,7 @@ export function RegisterForm() {
         <p className="text-sm text-cp-muted">
           Already have an account?{" "}
           <Link
-            href={authRoutes.login}
+            href={loginHref}
             className="font-semibold text-cp-primary hover:underline"
           >
             Sign In

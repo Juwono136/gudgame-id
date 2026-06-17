@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
 import { OfficialLeaderboard } from "@/components/tournaments/official-leaderboard";
+import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
+import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
 import { TournamentCountdown } from "@/components/tournaments/tournament-countdown";
 import { TournamentOrganizer } from "@/components/tournaments/tournament-organizer";
 import { TournamentRulesAccordion } from "@/components/tournaments/tournament-rules-accordion";
@@ -20,12 +22,15 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
-import { authRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
+import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { TournamentRuleSections } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { isActiveRegistrationStatus } from "@/lib/tournaments/registration/urls";
 
 function formatIdr(amount: number | null | undefined) {
   if (amount == null) return "—";
@@ -47,6 +52,7 @@ function formatDateRange(starts: string | null, ends: string | null) {
 type OfficialTournamentPageProps = {
   tournament: TournamentDetail;
   summary: TournamentRegistrationSummary;
+  publicRoster: LobbyTeamView[];
   isAuthenticated: boolean;
   canManage?: boolean;
   venueMapsUrl?: string | null;
@@ -59,6 +65,7 @@ const TABS = ["Overview", "Bracket", "Leaderboard"] as const;
 export function OfficialTournamentPage({
   tournament,
   summary,
+  publicRoster,
   isAuthenticated,
   canManage = false,
   venueMapsUrl = null,
@@ -66,10 +73,12 @@ export function OfficialTournamentPage({
   gearItems = [],
 }: OfficialTournamentPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
   const registerHref = `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}/register`;
   const [publicUrl, setPublicUrl] = useState("");
   const [resumingPayment, setResumingPayment] = useState(false);
+  const [editRegistrationOpen, setEditRegistrationOpen] = useState(false);
   useEffect(() => {
     setPublicUrl(window.location.href);
   }, []);
@@ -89,9 +98,13 @@ export function OfficialTournamentPage({
       router.push(`${authRoutes.register}?callbackUrl=${encodeURIComponent(registerHref)}`);
       return;
     }
+    if (regStatus?.status === "awaiting_confirmation" && regStatus.confirmUrl) {
+      router.push(regStatus.confirmUrl);
+      return;
+    }
     if (regStatus?.status === "pending_payment") {
-      if (regStatus.invoiceUrl) {
-        window.location.href = regStatus.invoiceUrl;
+      if (regStatus.checkoutUrl) {
+        router.push(regStatus.checkoutUrl);
         return;
       }
 
@@ -112,12 +125,12 @@ export function OfficialTournamentPage({
         if (!res.ok) {
           throw new Error(json.error?.message ?? "Could not resume payment");
         }
-        const invoiceUrl = json.data?.invoiceUrl as string | undefined;
-        if (invoiceUrl) {
-          window.location.href = invoiceUrl;
+        const checkoutUrl = json.data?.checkoutUrl as string | undefined;
+        if (checkoutUrl) {
+          router.push(checkoutUrl);
           return;
         }
-        toast.error("Payment link is not available. Try again in a moment.");
+        toast.error("Checkout is not available. Try again in a moment.");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not resume payment");
       } finally {
@@ -269,6 +282,25 @@ export function OfficialTournamentPage({
                     ? ` · ${summary.spotsRemaining} team spots left`
                     : ""}
                 </p>
+                {publicRoster.length > 0 ? (
+                  <ul className="mt-5 space-y-3">
+                    {publicRoster.map((team) => (
+                      <li
+                        key={team.id}
+                        className="rounded-xl border border-cp-border bg-cp-elevated/40 px-4 py-3"
+                      >
+                        <p className="font-medium text-foreground">{team.name}</p>
+                        <p className="mt-1 text-xs text-cp-muted">
+                          {team.members.map((m) => m.displayName).join(" · ")}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-4 text-sm text-cp-muted">
+                    Confirmed teams will appear here once registration and payment are complete.
+                  </p>
+                )}
               </section>
               {tournament.description ? (
                 <section className="rounded-2xl border border-cp-border bg-cp-card p-6">
@@ -348,6 +380,10 @@ export function OfficialTournamentPage({
                 You&apos;re registered
                 {regStatus.teamName ? ` · ${regStatus.teamName}` : ""}
               </Badge>
+            ) : regStatus?.status === "awaiting_confirmation" ? (
+              <Badge className="mt-4 border-0 bg-blue-500/20 text-blue-300">
+                Confirm participation
+              </Badge>
             ) : regStatus?.status === "pending_payment" ? (
               <Badge className="mt-4 border-0 bg-amber-500/20 text-amber-300">
                 Payment pending
@@ -358,7 +394,9 @@ export function OfficialTournamentPage({
               className="btn-interactive mt-6 h-12 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light"
               disabled={
                 resumingPayment ||
-                (!summary.registrationOpen && regStatus?.status !== "pending_payment")
+                (!summary.registrationOpen &&
+                  regStatus?.status !== "pending_payment" &&
+                  regStatus?.status !== "awaiting_confirmation")
               }
               onClick={() => void handleRegister()}
             >
@@ -370,16 +408,61 @@ export function OfficialTournamentPage({
               {!isAuthenticated
                 ? "Sign up to register"
                 : resumingPayment
-                  ? "Opening payment…"
+                  ? "Opening checkout…"
                   : regStatus?.status === "confirmed"
                     ? "Registered"
-                    : regStatus?.status === "pending_payment"
-                      ? "Continue payment"
-                      : "Pay & register"}
+                    : regStatus?.status === "awaiting_confirmation"
+                      ? "Confirm participation"
+                      : regStatus?.status === "pending_payment"
+                        ? "Continue to checkout"
+                        : "Register team"}
             </Button>
 
-          
+            {isAuthenticated &&
+            regStatus?.registrationId &&
+            regStatus.status &&
+            isActiveRegistrationStatus(regStatus.status) ? (
+              <OfficialRegistrationManageActions
+                registrationId={regStatus.registrationId}
+                sportSlug={tournament.sportSlug}
+                slug={tournament.slug}
+                teamName={regStatus.teamName}
+                registrationStatus={regStatus.status}
+                layout="stacked"
+                onEditTeam={() => setEditRegistrationOpen(true)}
+                onCancelled={() => {
+                  void queryClient.invalidateQueries({
+                    queryKey: ["tournaments", "registration-status", tournament.sportSlug, tournament.slug],
+                  });
+                }}
+                redirectOnCancel={publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}
+              />
+            ) : null}
+
+            {canManage ? (
+              <Button asChild variant="outline" className="mt-3 w-full border-cp-border">
+                <Link href={dashboardRoutes.hostTournament(tournament.id)}>
+                  Manage registrations
+                </Link>
+              </Button>
+            ) : null}
           </div>
+
+          {editRegistrationOpen && regStatus?.registrationId ? (
+            <OfficialRegistrationEditDialog
+              open={editRegistrationOpen}
+              onOpenChange={setEditRegistrationOpen}
+              registrationId={regStatus.registrationId}
+              sportSlug={tournament.sportSlug}
+              tournamentSlug={tournament.slug}
+              tournamentName={tournament.name}
+              onSaved={() => {
+                void queryClient.invalidateQueries({
+                  queryKey: ["tournaments", "registration-status", tournament.sportSlug, tournament.slug],
+                });
+              }}
+            />
+          ) : null}
 
           <TournamentShareCard url={publicUrl} tournamentName={tournament.name} />
 

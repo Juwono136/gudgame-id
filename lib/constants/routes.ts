@@ -23,6 +23,8 @@ export const dashboardRoutes = {
   host: "/dashboard/host",
   hostTournaments: "/dashboard/host/tournaments",
   hostTournament: (id: number | string) => `/dashboard/host/tournaments/${id}`,
+  hostTournamentEdit: (id: number | string) => `/dashboard/host/tournaments/${id}/edit`,
+  hostPayments: "/dashboard/host/payments",
   /** @deprecated Renamed to host — use dashboardRoutes.host */
   contributor: "/dashboard/host",
 } as const;

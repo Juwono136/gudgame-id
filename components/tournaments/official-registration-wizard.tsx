@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 const STEPS = [
   { id: "team", label: "Team" },
   { id: "partners", label: "Partners" },
-  { id: "payment", label: "Payment" },
+  { id: "review", label: "Review" },
 ] as const;
 
 function formatIdr(amount: number | null) {
@@ -57,9 +57,9 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
 
   const handleSubmit = async () => {
     const ok = await confirm({
-      title: "Confirm registration & payment?",
-      description: `You will be redirected to Xendit to pay ${formatIdr(tournament.registrationFeeIdr)} for team "${teamName.trim()}".`,
-      confirmLabel: "Continue to payment",
+      title: "Submit registration?",
+      description: `Team "${teamName.trim()}" will be reserved for ${tournament.name}. You will confirm participation before payment is unlocked.`,
+      confirmLabel: "Submit registration",
       cancelLabel: "Cancel",
     });
     if (!ok) return;
@@ -80,9 +80,17 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message ?? "Registration failed");
 
-      const invoiceUrl = json.data?.invoiceUrl as string | undefined;
-      if (invoiceUrl) {
-        window.location.href = invoiceUrl;
+      const confirmUrl = json.data?.confirmUrl as string | undefined;
+      if (confirmUrl) {
+        toast.success("Registration submitted", {
+          description: "Confirm your participation to unlock payment.",
+        });
+        router.push(confirmUrl);
+        return;
+      }
+      const checkoutUrl = json.data?.checkoutUrl as string | undefined;
+      if (checkoutUrl) {
+        router.push(checkoutUrl);
         return;
       }
       toast.success("Registration created");
@@ -96,7 +104,7 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <LoadingOverlay show={submitting} label="Creating invoice…" />
+      <LoadingOverlay show={submitting} label="Submitting registration…" />
 
       <div className="flex items-center justify-between">
         <Link href={hubHref} className="inline-flex items-center text-sm text-cp-muted hover:text-foreground">
@@ -177,7 +185,10 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
 
             {step === 2 ? (
               <>
-                <h2 className="font-semibold text-foreground">Review & pay</h2>
+                <h2 className="font-semibold text-foreground">Review registration</h2>
+                <p className="mt-1 text-sm text-cp-muted">
+                  After submitting, you will confirm participation before payment is processed.
+                </p>
                 <dl className="mt-4 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <dt className="text-cp-muted">Team</dt>

@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar, ChevronRight, Gamepad2, Plus, Trophy } from "lucide-react";
+import { Calendar, ChevronRight, Gamepad2, Pencil, Plus, Trash2, Trophy } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
-import { HostPayoutSetupCard } from "@/components/dashboard/host/host-payout-setup-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useHostTournamentsList } from "@/hooks/use-host-tournaments";
+import { useHostTournamentsList, useDeleteHostTournament } from "@/hooks/use-host-tournaments";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
+import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
+import { useRouter } from "next/navigation";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useMemo } from "react";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-500/20 text-slate-300",
@@ -26,7 +30,27 @@ type HostTournamentsHubProps = {
 };
 
 export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
+  const router = useRouter();
+  const { confirm } = useConfirmDialog();
   const { data: items = [], isLoading, isError, error } = useHostTournamentsList();
+  const deleteTournament = useDeleteHostTournament();
+
+  const isEditableStatus = useMemo(() => {
+    return (status: string) => status !== "completed" && status !== "cancelled";
+  }, []);
+
+  const handleDelete = async (id: number, name: string) => {
+    const ok = await confirm({
+      title: `Delete "${name}"?`,
+      description:
+        "This cannot be undone. Tournaments with paid registrations or active brackets cannot be deleted.",
+      confirmLabel: "Delete tournament",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    deleteTournament.mutate(id);
+  };
 
   return (
     <DashboardWorkspaceShell
@@ -47,7 +71,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
         </Button>
       }
     >
-      <HostPayoutSetupCard />
+      <LoadingOverlay show={deleteTournament.isPending} label="Deleting tournament…" />
 
       {isLoading ? (
         <div className="mt-16 flex justify-center">
@@ -115,8 +139,43 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
                     </p>
                   ) : null}
                 </Link>
-                <div className="flex items-center gap-3">
-                  <Button asChild variant="outline" size="sm" className="border-cp-border">
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                  {isEditableStatus(t.status) ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-cp-border sm:w-auto"
+                    >
+                      <Link href={dashboardRoutes.hostTournamentEdit(t.id)}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-cp-border sm:w-auto"
+                      onClick={() =>
+                        toast.error("This tournament can’t be edited", {
+                          description:
+                            "Completed or cancelled tournaments are locked for edits.",
+                        })
+                      }
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                  )}
+
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-cp-border sm:w-auto"
+                  >
                     <Link
                       href={publicSportRoutes.tournament(t.sportSlug, t.slug)}
                       target="_blank"
@@ -124,7 +183,16 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
                       Public page
                     </Link>
                   </Button>
-                  <Link href={dashboardRoutes.hostTournament(t.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 sm:w-auto"
+                    onClick={() => void handleDelete(t.id, t.name)}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                  <Link href={dashboardRoutes.hostTournament(t.id)} className="hidden sm:block">
                     <ChevronRight className="h-5 w-5 text-cp-muted transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>

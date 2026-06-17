@@ -4,7 +4,11 @@ import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { playerTournamentResults } from "@/db/schema/player-competition";
 import { sports } from "@/db/schema/sports";
-import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
+import {
+  tournamentRegistrations,
+  tournamentTeamMembers,
+  tournamentTeams,
+} from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { buildPaginatedResult } from "@/lib/account/player-competition/paginate";
 import type {
@@ -48,6 +52,35 @@ function mapOfficialRow(
 
 async function listOfficialParticipations(userId: string): Promise<UnifiedTournamentRow[]> {
   const db = getDb();
+
+  const captainRegs = await db
+    .select({
+      tournamentId: tournamentRegistrations.tournamentId,
+      registrationId: tournamentRegistrations.id,
+      status: tournamentRegistrations.status,
+      teamName: tournamentTeams.name,
+    })
+    .from(tournamentRegistrations)
+    .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
+    .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
+    .where(
+      and(
+        eq(tournamentRegistrations.registeredByUserId, userId),
+        eq(tournaments.tournamentType, "official"),
+        inArray(tournamentRegistrations.status, [
+          "awaiting_confirmation",
+          "pending_payment",
+          "confirmed",
+        ]),
+      ),
+    );
+
+  const regByTournament = new Map(
+    captainRegs.map((r) => [
+      r.tournamentId,
+      { registrationId: r.registrationId, status: r.status, teamName: r.teamName },
+    ]),
+  );
 
   const memberRows = await db
     .selectDistinct({
@@ -96,6 +129,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
     const date = row.startsAt ?? row.createdAt;
     const year = date ? new Date(date).getFullYear() : new Date().getFullYear();
     const isOrganizer = row.createdBy === userId;
+    const reg = regByTournament.get(row.tournamentId);
 
     byTournamentId.set(row.tournamentId, {
       id: `official-${row.tournamentId}`,
@@ -104,7 +138,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       year,
       tournamentName: row.tournamentName,
       category: row.categoryLabel ?? "Official",
-      placement: isOrganizer ? "Organizer" : "Registered",
+      placement: isOrganizer ? "Organizer" : reg?.status === "confirmed" ? "Registered" : "Pending",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
@@ -113,6 +147,12 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       canManage: false,
       canEdit: false,
       canDelete: false,
+      registrationId: reg?.registrationId ?? null,
+      registrationStatus: reg?.status ?? null,
+      registrationTeamName: reg?.teamName ?? null,
+      canEditRegistration: reg?.status === "awaiting_confirmation",
+      canManageRegistration:
+        reg?.status === "awaiting_confirmation" || reg?.status === "pending_payment",
     });
   }
 

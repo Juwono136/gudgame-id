@@ -12,6 +12,13 @@ export type XenditInvoiceItem = {
   category?: string;
 };
 
+export type XenditPaymentMethod =
+  | "BANK_TRANSFER"
+  | "CREDIT_CARD"
+  | "EWALLET"
+  | "QRIS"
+  | "RETAIL_OUTLET";
+
 export type CreateXenditInvoiceInput = {
   externalId: string;
   amount: number;
@@ -23,6 +30,10 @@ export type CreateXenditInvoiceInput = {
   metadata?: Record<string, string>;
   /** XenPlatform split rule — routes host payout on settlement */
   splitRuleId?: string;
+  /** Restrict available payment channels on the invoice */
+  paymentMethods?: XenditPaymentMethod[];
+  /** TandingBase sends its own emails — never use Xendit invoice emails */
+  shouldSendEmail?: boolean;
 };
 
 export type XenditInvoiceResponse = {
@@ -53,7 +64,10 @@ export async function createXenditInvoice(
     currency: "IDR",
     items: input.items,
     metadata: input.metadata,
-    should_send_email: true,
+    should_send_email: input.shouldSendEmail ?? false,
+    ...(input.paymentMethods?.length
+      ? { payment_methods: input.paymentMethods }
+      : {}),
   };
 
   log.debug("Creating Xendit invoice", {

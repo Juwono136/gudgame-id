@@ -9,6 +9,7 @@ import {
 } from "@/lib/payments/xenplatform/split-webhook";
 import {
   confirmPaymentByInvoiceId,
+  confirmPaymentByRegistrationId,
   failPaymentByInvoiceId,
 } from "@/lib/tournaments/registration/service";
 import { logger } from "@/lib/logger";
@@ -20,8 +21,24 @@ export const runtime = "nodejs";
 type XenditInvoiceWebhook = {
   id?: string;
   external_id?: string;
+  reference_id?: string;
   status?: string;
+  event?: string;
+  data?: {
+    reference_id?: string;
+    external_id?: string;
+    status?: string;
+    metadata?: Record<string, string>;
+  };
 };
+
+function parseRegistrationIdFromReference(ref?: string | null): number | null {
+  if (!ref) return null;
+  const match = ref.match(/reg-(\d+)/);
+  if (!match?.[1]) return null;
+  const id = Number(match[1]);
+  return Number.isFinite(id) ? id : null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -42,6 +59,31 @@ export async function POST(request: Request) {
 
     if (body.event === "split.payment") {
       await handleSplitPaymentWebhook(body);
+      return jsonSuccess({ received: true });
+    }
+
+    if (body.event === "split.payment") {
+      await handleSplitPaymentWebhook(body);
+      return jsonSuccess({ received: true });
+    }
+
+    const qrRef = body.data?.reference_id ?? body.reference_id;
+    const qrStatus = body.data?.status?.toUpperCase() ?? body.status?.toUpperCase();
+    if (
+      (body.event === "qr.payment" || body.event === "qr_code.payment") &&
+      qrStatus === "COMPLETED"
+    ) {
+      const regId =
+        Number(body.data?.metadata?.registrationId) ||
+        parseRegistrationIdFromReference(qrRef);
+      if (regId) await confirmPaymentByRegistrationId(regId);
+      return jsonSuccess({ received: true });
+    }
+
+    const vaExternalId = body.external_id ?? body.data?.external_id;
+    if (vaExternalId?.includes("-va") && (qrStatus === "PAID" || body.status?.toUpperCase() === "PAID")) {
+      const regId = parseRegistrationIdFromReference(vaExternalId);
+      if (regId) await confirmPaymentByRegistrationId(regId);
       return jsonSuccess({ received: true });
     }
 

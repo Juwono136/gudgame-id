@@ -1,11 +1,11 @@
 "use client";
 
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AdminProfileMenu } from "./admin-profile-menu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import type { AdminSessionContext } from "@/lib/admin/types";
-import { cn } from "@/lib/utils";
 
 type AdminNavbarProps = {
   context: AdminSessionContext;
@@ -34,17 +34,7 @@ export function AdminNavbar({ context, title, onMenuOpen }: AdminNavbarProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          className={cn(
-            "relative shrink-0 rounded-lg p-2 text-cp-muted transition-colors",
-            "hover:bg-cp-elevated hover:text-foreground",
-          )}
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-cp-primary" />
-        </button>
+        <NotificationBell />
 
         <ThemeToggle />
         <AdminProfileMenu context={context} />

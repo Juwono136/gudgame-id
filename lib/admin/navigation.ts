@@ -1,12 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  ClipboardCheck,
-  LayoutDashboard,
-  Settings,
-  Trophy,
-  Users,
-  BookOpen,
-} from "lucide-react";
+import { ClipboardCheck, CreditCard, LayoutDashboard, Settings, Trophy, Users, BookOpen } from "lucide-react";
 import { adminRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { Permission } from "@/lib/roles/permissions";
@@ -52,6 +45,12 @@ export const adminNavItems: AdminNavItem[] = [
     href: adminRoutes.sports,
     icon: Trophy,
     permission: "admin.sports.manage",
+  },
+  {
+    label: "Payment settings",
+    href: `${adminRoutes.settings}/payments`,
+    icon: CreditCard,
+    permission: "admin.users.manage",
   },
   {
     label: "System Settings",

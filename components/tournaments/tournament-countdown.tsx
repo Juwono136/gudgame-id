@@ -20,6 +20,8 @@ function getTimeLeft(target: number) {
   return { diff, days, hours, minutes, seconds };
 }
 
+const PLACEHOLDER = { diff: 1, days: 0, hours: 0, minutes: 0, seconds: 0 };
+
 export function TournamentCountdown({
   targetDate,
   label = "Registration closes in",
@@ -27,12 +29,15 @@ export function TournamentCountdown({
   onComplete,
 }: TournamentCountdownProps) {
   const target = targetDate ? new Date(targetDate).getTime() : null;
-  const [left, setLeft] = useState(() =>
-    target ? getTimeLeft(target) : { diff: 0, days: 0, hours: 0, minutes: 0, seconds: 0 },
-  );
+  const [mounted, setMounted] = useState(false);
+  const [left, setLeft] = useState(PLACEHOLDER);
 
   useEffect(() => {
-    if (!target) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!target || !mounted) return;
     const tick = () => {
       const next = getTimeLeft(target);
       setLeft(next);
@@ -41,11 +46,11 @@ export function TournamentCountdown({
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [target, onComplete]);
+  }, [target, onComplete, mounted]);
 
   if (!targetDate) return null;
 
-  if (left.diff <= 0) {
+  if (mounted && left.diff <= 0) {
     return (
       <p className={cn("text-sm font-medium text-amber-400", className)}>Closed</p>
     );
@@ -66,11 +71,11 @@ export function TournamentCountdown({
           <motion.div
             key={u.label}
             className="flex min-w-[52px] flex-col items-center rounded-lg border border-cp-border bg-cp-elevated/80 px-2 py-2"
-            animate={{ scale: u.label === "Sec" ? [1, 1.02, 1] : 1 }}
+            animate={mounted && u.label === "Sec" ? { scale: [1, 1.02, 1] } : undefined}
             transition={{ duration: 0.3 }}
           >
-            <span className="text-xl font-bold tabular-nums text-foreground">
-              {String(u.value).padStart(2, "0")}
+            <span className="text-xl font-bold tabular-nums text-foreground" suppressHydrationWarning>
+              {mounted ? String(u.value).padStart(2, "0") : "--"}
             </span>
             <span className="text-[9px] uppercase text-cp-muted">{u.label}</span>
           </motion.div>

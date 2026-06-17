@@ -12,6 +12,7 @@ type DateTimePickerProps = {
   label?: string;
   className?: string;
   min?: string;
+  disabled?: boolean;
 };
 
 /** Styled date + time picker (native inputs with consistent dark UI). */
@@ -21,6 +22,7 @@ export function DateTimePicker({
   label,
   className,
   min,
+  disabled = false,
 }: DateTimePickerProps) {
   const datePart = value ? value.slice(0, 10) : "";
   const timePart = value.length >= 16 ? value.slice(11, 16) : "";
@@ -44,7 +46,8 @@ export function DateTimePicker({
             value={datePart}
             min={min?.slice(0, 10)}
             onChange={(e) => update(e.target.value, timePart)}
-            className="border-cp-border bg-cp-bg-input pl-10 [color-scheme:dark]"
+            disabled={disabled}
+            className="border-cp-border bg-cp-bg-input pl-10 [color-scheme:dark] disabled:opacity-50"
           />
         </div>
         <div className="relative">
@@ -53,7 +56,7 @@ export function DateTimePicker({
             type="time"
             value={timePart}
             onChange={(e) => update(datePart || new Date().toISOString().slice(0, 10), e.target.value)}
-            disabled={!datePart}
+            disabled={disabled || !datePart}
             className="border-cp-border bg-cp-bg-input pl-10 [color-scheme:dark] disabled:opacity-50"
           />
         </div>

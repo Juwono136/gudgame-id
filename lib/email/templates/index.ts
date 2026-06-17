@@ -5,6 +5,10 @@ import type {
 } from "@/lib/email/types";
 import { renderAdminUserInviteTemplate } from "./admin-user-invite";
 import { renderRegistrationConfirmedTemplate } from "./registration-confirmed";
+import { renderRegistrationConfirmParticipationTemplate } from "./registration-confirm-participation";
+import { renderRegistrationPaymentReminderTemplate } from "./registration-payment-reminder";
+import { renderRegistrationTeamInviteTemplate } from "./registration-team-invite";
+import { renderRegistrationCancelledTemplate } from "./registration-cancelled";
 import { renderVerifyEmailTemplate } from "./verify-email";
 import { renderResetPasswordTemplate } from "./reset-password";
 import { renderPasswordChangedTemplate } from "./password-changed";
@@ -32,6 +36,22 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "registration-confirmed":
       return renderRegistrationConfirmedTemplate(
         input.data as EmailTemplateDataMap["registration-confirmed"],
+      );
+    case "registration-confirm-participation":
+      return renderRegistrationConfirmParticipationTemplate(
+        input.data as EmailTemplateDataMap["registration-confirm-participation"],
+      );
+    case "registration-payment-reminder":
+      return renderRegistrationPaymentReminderTemplate(
+        input.data as EmailTemplateDataMap["registration-payment-reminder"],
+      );
+    case "registration-team-invite":
+      return renderRegistrationTeamInviteTemplate(
+        input.data as EmailTemplateDataMap["registration-team-invite"],
+      );
+    case "registration-cancelled":
+      return renderRegistrationCancelledTemplate(
+        input.data as EmailTemplateDataMap["registration-cancelled"],
       );
     case "welcome":
       throw new Error("Welcome email template is not implemented yet");

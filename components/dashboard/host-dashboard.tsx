@@ -5,7 +5,6 @@ import { Plus, Trophy } from "lucide-react";
 import { DashboardQuickLinks } from "@/components/dashboard/dashboard-quick-links";
 import { DashboardWelcomeCard } from "@/components/dashboard/dashboard-welcome-card";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
-import { HostPayoutSetupCard } from "@/components/dashboard/host/host-payout-setup-card";
 import { ProfileCompletionSection } from "@/components/dashboard/profile-completion-section";
 import { Button } from "@/components/ui/button";
 import { useHostTournamentsList } from "@/hooks/use-host-tournaments";
@@ -95,8 +94,6 @@ export function HostDashboard({ userName, userEmail, roles }: HostDashboardProps
       />
 
       <ProfileCompletionSection />
-
-      <HostPayoutSetupCard />
 
       <section className="mt-6 rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
         <div className="flex flex-col gap-3 border-b border-cp-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

@@ -19,9 +19,6 @@ export default async function AdminEditTournamentPage({ params }: PageProps) {
 
   const tournament = await getTournamentById(tournamentId);
   if (!tournament || tournament.sportId !== ctx.sportId) notFound();
-  if (tournament.createdBy !== ctx.userId) {
-    redirect(adminRoutes.wikiEntities);
-  }
 
   try {
     assertTournamentEditable(tournament);

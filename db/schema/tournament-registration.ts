@@ -13,9 +13,11 @@ import { tournaments } from "./tournaments";
 
 export const REGISTRATION_STATUSES = [
   "draft",
+  "awaiting_confirmation",
   "pending_payment",
   "confirmed",
   "cancelled",
+  "declined",
 ] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
@@ -82,6 +84,13 @@ export const tournamentRegistrations = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     status: varchar("status", { length: 24 }).default("draft").notNull(),
+    /** When captain confirmed participation (before payment) */
+    confirmedAt: timestamp("confirmed_at"),
+    confirmedByUserId: text("confirmed_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    declinedAt: timestamp("declined_at"),
+    paymentDueAt: timestamp("payment_due_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

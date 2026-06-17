@@ -33,4 +33,9 @@ export type PlayerTournamentListItem = {
   canManage: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  registrationId?: number | null;
+  registrationStatus?: string | null;
+  registrationTeamName?: string | null;
+  canEditRegistration?: boolean;
+  canManageRegistration?: boolean;
 };

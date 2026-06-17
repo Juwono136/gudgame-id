@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { LogIn, Menu, Search, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu, UserMenuMobileLinks } from "@/components/layout/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useSession } from "@/lib/auth/client";
 import {
@@ -90,6 +91,8 @@ export default function Navbar() {
           </div>
 
           <ThemeToggle />
+
+          {isAuthenticated ? <NotificationBell className="hidden md:inline-flex" /> : null}
 
           <button
             type="button"

@@ -595,6 +595,10 @@ export async function updateTournament(
     .select({
       coverImageStorageKey: tournaments.coverImageStorageKey,
       settings: tournaments.settings,
+      status: tournaments.status,
+      tournamentType: tournaments.tournamentType,
+      registrationOpensAt: tournaments.registrationOpensAt,
+      registrationClosesAt: tournaments.registrationClosesAt,
     })
     .from(tournaments)
     .where(and(eq(tournaments.id, id), eq(tournaments.sportId, sportId)))
@@ -608,6 +612,17 @@ export async function updateTournament(
   const startsAt = parseOptionalDate(input.startsAt);
   const endsAt = parseOptionalDate(input.endsAt);
   const status = resolveStatusOnWrite(input.status, startsAt, endsAt);
+
+  const scheduleLocked =
+    current?.tournamentType === "official" &&
+    (current.status === "live" || current.status === "completed");
+
+  const registrationOpensAt = scheduleLocked
+    ? current.registrationOpensAt
+    : parseOptionalDate(input.registrationOpensAt);
+  const registrationClosesAt = scheduleLocked
+    ? current.registrationClosesAt
+    : (parseOptionalDate(input.registrationClosesAt) ?? startsAt);
 
   const [updated] = await getDb()
     .update(tournaments)
@@ -627,9 +642,8 @@ export async function updateTournament(
       registrationFeeIdr:
         input.tournamentType === "official" ? (input.registrationFeeIdr ?? null) : null,
       prizePoolIdr: input.prizePoolIdr ?? null,
-      registrationOpensAt: parseOptionalDate(input.registrationOpensAt),
-      registrationClosesAt:
-        parseOptionalDate(input.registrationClosesAt) ?? startsAt,
+      registrationOpensAt,
+      registrationClosesAt,
       startsAt,
       endsAt,
       coverImageUrl: nextCoverKey ? null : input.coverImageUrl?.trim() || null,

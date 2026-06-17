@@ -4,12 +4,10 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   CreditCard,
-  Gamepad2,
   LayoutDashboard,
-  Plus,
+  Settings,
   Swords,
   Trophy,
-  UserCircle,
   Users,
 } from "lucide-react";
 import type { AppRole } from "@/lib/roles/constants";
@@ -25,7 +23,6 @@ type DashboardNavProps = {
 type NavItem = {
   href: string;
   label: string;
-  shortLabel?: string;
   icon: typeof LayoutDashboard;
   match?: (path: string) => boolean;
 };
@@ -38,26 +35,15 @@ const PLAYER_ITEMS: NavItem[] = [
     match: (p) => p === dashboardRoutes.home,
   },
   {
-    href: `${dashboardRoutes.tournaments}?scope=created`,
-    label: "My sessions",
-    shortLabel: "Hosted",
-    icon: Gamepad2,
+    href: dashboardRoutes.tournaments,
+    label: "Tournaments",
+    icon: Trophy,
     match: (p) =>
-      p.startsWith(dashboardRoutes.tournaments) &&
-      (p.includes("scope=created") ||
-        p.includes("/tournaments/new") ||
-        /\/tournaments\/\d+\/edit/.test(p)),
-  },
-  {
-    href: `${dashboardRoutes.tournaments}?scope=joined`,
-    label: "Joined",
-    icon: Users,
-    match: (p) => p.includes("scope=joined"),
+      p.startsWith(dashboardRoutes.tournaments) && !p.startsWith(dashboardRoutes.host),
   },
   {
     href: dashboardRoutes.matches,
     label: "Match log",
-    shortLabel: "Matches",
     icon: Swords,
     match: (p) => p.startsWith(dashboardRoutes.matches),
   },
@@ -70,7 +56,7 @@ const PLAYER_ITEMS: NavItem[] = [
   {
     href: dashboardRoutes.settings,
     label: "Settings",
-    icon: UserCircle,
+    icon: Settings,
     match: (p) => p.startsWith(dashboardRoutes.settings),
   },
 ];
@@ -84,26 +70,21 @@ const HOST_ITEMS: NavItem[] = [
   },
   {
     href: dashboardRoutes.hostTournaments,
-    label: "My tournaments",
-    shortLabel: "Events",
+    label: "Tournaments",
     icon: Trophy,
-    match: (p) =>
-      p.startsWith(`${dashboardRoutes.host}/tournaments`) &&
-      !p.includes("/tournaments/new"),
+    match: (p) => p.startsWith(`${dashboardRoutes.host}/tournaments`),
   },
   {
-    href: `${dashboardRoutes.host}/tournaments/new`,
-    label: "Create official",
-    shortLabel: "Official",
-    icon: Plus,
-    match: (p) => p === `${dashboardRoutes.host}/tournaments/new`,
+    href: dashboardRoutes.hostPayments,
+    label: "Payments & payout",
+    icon: CreditCard,
+    match: (p) => p.startsWith(dashboardRoutes.hostPayments),
   },
   {
-    href: dashboardRoutes.tournamentsNew,
-    label: "Create reclub",
-    shortLabel: "Reclub",
-    icon: Gamepad2,
-    match: (p) => p === dashboardRoutes.tournamentsNew,
+    href: dashboardRoutes.settings,
+    label: "Settings",
+    icon: Settings,
+    match: (p) => p.startsWith(dashboardRoutes.settings),
   },
 ];
 
@@ -128,7 +109,7 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
       aria-label={variant === "host" ? "Host navigation" : "Player navigation"}
     >
       <p className="mb-1 hidden px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:block">
-        {variant === "host" ? "Host menu" : "Player menu"}
+        {variant === "host" ? "Host workspace" : "Player workspace"}
       </p>
 
       <div className="flex gap-1.5 overflow-x-auto scroll-smooth pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-col lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
@@ -162,7 +143,7 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
               className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-cp-muted transition-colors hover:bg-cp-elevated/60 hover:text-cp-primary"
             >
               <Trophy className="h-4 w-4 shrink-0" />
-              <span>Host workspace</span>
+              <span>Switch to host</span>
             </Link>
           ) : null}
           {variant === "host" ? (
@@ -171,7 +152,7 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
               className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-cp-muted transition-colors hover:bg-cp-elevated/60 hover:text-emerald-300"
             >
               <Users className="h-4 w-4 shrink-0" />
-              <span>Player workspace</span>
+              <span>Switch to player</span>
             </Link>
           ) : null}
         </div>

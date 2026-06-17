@@ -26,8 +26,12 @@ export const hostXenditAccounts = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    /** Xendit business / sub-account ID (for-user-id / split destination) */
-    xenditAccountId: varchar("xendit_account_id", { length: 80 }).notNull(),
+    bankCode: varchar("bank_code", { length: 20 }),
+    bankAccountNumber: varchar("bank_account_number", { length: 40 }),
+    bankAccountHolder: varchar("bank_account_holder", { length: 120 }),
+    payoutSchedule: varchar("payout_schedule", { length: 20 }).default("weekly"),
+    /** XenPlatform sub-account — optional; bank details used for scheduled disbursement */
+    xenditAccountId: varchar("xendit_account_id", { length: 80 }),
     accountEmail: varchar("account_email", { length: 200 }).notNull(),
     businessName: varchar("business_name", { length: 200 }),
     status: varchar("status", { length: 20 }).default("pending").notNull(),

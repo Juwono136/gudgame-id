@@ -13,11 +13,23 @@ import { tournaments } from "@/db/schema/tournaments";
 import { AppError } from "@/lib/errors";
 import { isXenditConfigured } from "@/lib/payments/xendit";
 import { createRegistrationInvoiceWithSplit } from "@/lib/payments/xenplatform/registration-invoice";
+import type { XenditPaymentMethod } from "@/lib/payments/xendit/invoices";
 import { getPlatformPaymentSettings } from "@/lib/tournaments/payments/platform-settings";
 import { calculateOfficialPaymentSplit } from "@/lib/tournaments/payments/split";
 import { syncReclubParticipation } from "@/lib/tournaments/stats/sync";
 import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import {
+  confirmUrl,
+  checkoutUrl,
+  notifyAwaitingConfirmation,
+  notifyHostPlayerPaid,
+  notifyPlayerRegistrationConfirmed,
+  notifyRegistrationCancelled,
+  notifyTeamMemberInvitations,
+} from "@/lib/tournaments/registration/notify-flow";
+import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 
 export type TournamentLobbyTeam = {
   id: number;
@@ -59,7 +71,21 @@ export async function getRegistrationSummary(
     .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .where(eq(tournamentTeams.tournamentId, tournamentId));
+    .innerJoin(
+      tournamentRegistrations,
+      eq(tournamentRegistrations.teamId, tournamentTeams.id),
+    )
+    .innerJoin(
+      tournamentPayments,
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+    )
+    .where(
+      and(
+        eq(tournamentTeams.tournamentId, tournamentId),
+        eq(tournamentRegistrations.status, "confirmed"),
+        eq(tournamentPayments.status, "paid"),
+      ),
+    );
 
   const registeredTeams = Number(teamRow?.count ?? 0);
   const registeredPlayers = Number(playerRow?.count ?? 0);
@@ -111,6 +137,33 @@ export async function listLobbyTeams(tournamentId: number): Promise<TournamentLo
       })),
     };
   });
+}
+
+/** Teams visible on the public tournament page — confirmed registration with paid fee only. */
+export async function listOfficialPublicRoster(tournamentId: number): Promise<LobbyTeamView[]> {
+  const db = getDb();
+  const paidRows = await db
+    .select({ teamId: tournamentRegistrations.teamId })
+    .from(tournamentRegistrations)
+    .innerJoin(
+      tournamentPayments,
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+    )
+    .where(
+      and(
+        eq(tournamentRegistrations.tournamentId, tournamentId),
+        eq(tournamentRegistrations.status, "confirmed"),
+        eq(tournamentPayments.status, "paid"),
+      ),
+    );
+
+  const paidTeamIds = new Set(
+    paidRows.map((r) => r.teamId).filter((id): id is number => id != null),
+  );
+  if (!paidTeamIds.size) return [];
+
+  const all = await listLobbyTeamsDetailed(tournamentId);
+  return all.filter((t) => paidTeamIds.has(t.id));
 }
 
 export async function joinReclubTournament(
@@ -217,13 +270,22 @@ export type OfficialRegistrationInput = {
 };
 
 export type UserRegistrationStatus = {
-  status: "none" | "pending_payment" | "confirmed" | "cancelled";
+  status:
+    | "none"
+    | "awaiting_confirmation"
+    | "pending_payment"
+    | "confirmed"
+    | "cancelled"
+    | "declined";
   registrationId: number | null;
   teamId: number | null;
   teamName: string | null;
   paymentStatus: string | null;
   invoiceUrl: string | null;
   amountIdr: number | null;
+  confirmUrl: string | null;
+  checkoutUrl: string | null;
+  paymentDueAt: string | null;
 };
 
 function assertRegistrationWindow(tournament: TournamentDetail): void {
@@ -255,7 +317,11 @@ async function countActiveRegistrations(tournamentId: number): Promise<number> {
     .where(
       and(
         eq(tournamentRegistrations.tournamentId, tournamentId),
-        inArray(tournamentRegistrations.status, ["confirmed", "pending_payment"]),
+        inArray(tournamentRegistrations.status, [
+          "confirmed",
+          "pending_payment",
+          "awaiting_confirmation",
+        ]),
       ),
     );
   return Number(row?.count ?? 0);
@@ -275,8 +341,13 @@ export async function getUserRegistrationStatus(
       paymentStatus: tournamentPayments.status,
       invoiceUrl: tournamentPayments.invoiceUrl,
       amountIdr: tournamentPayments.amountIdr,
+      paymentDueAt: tournamentRegistrations.paymentDueAt,
+      sportSlug: sports.slug,
+      tournamentSlug: tournaments.slug,
     })
     .from(tournamentRegistrations)
+    .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
     .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
     .leftJoin(
       tournamentPayments,
@@ -287,9 +358,11 @@ export async function getUserRegistrationStatus(
         eq(tournamentRegistrations.tournamentId, tournamentId),
         eq(tournamentRegistrations.registeredByUserId, userId),
         inArray(tournamentRegistrations.status, [
+          "awaiting_confirmation",
           "pending_payment",
           "confirmed",
           "cancelled",
+          "declined",
         ]),
       ),
     )
@@ -305,15 +378,17 @@ export async function getUserRegistrationStatus(
       paymentStatus: null,
       invoiceUrl: null,
       amountIdr: null,
+      confirmUrl: null,
+      checkoutUrl: null,
+      paymentDueAt: null,
     };
   }
 
-  const status =
-    row.status === "confirmed"
-      ? "confirmed"
-      : row.status === "pending_payment"
-        ? "pending_payment"
-        : "cancelled";
+  const status = row.status as UserRegistrationStatus["status"];
+  const tournamentPath = {
+    sportSlug: row.sportSlug,
+    slug: row.tournamentSlug,
+  };
 
   return {
     status,
@@ -323,6 +398,15 @@ export async function getUserRegistrationStatus(
     paymentStatus: row.paymentStatus,
     invoiceUrl: row.invoiceUrl,
     amountIdr: row.amountIdr,
+    confirmUrl:
+      status === "awaiting_confirmation"
+        ? confirmUrl(tournamentPath, row.registrationId)
+        : null,
+    checkoutUrl:
+      status === "pending_payment"
+        ? checkoutUrl(tournamentPath, row.registrationId)
+        : null,
+    paymentDueAt: row.paymentDueAt?.toISOString() ?? null,
   };
 }
 
@@ -337,6 +421,7 @@ export async function getRegistrationDetail(registrationId: number) {
       tournamentName: tournaments.name,
       tournamentSlug: tournaments.slug,
       sportSlug: sports.slug,
+      sportName: sports.name,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
       startsAt: tournaments.startsAt,
@@ -344,7 +429,13 @@ export async function getRegistrationDetail(registrationId: number) {
       paymentStatus: tournamentPayments.status,
       invoiceUrl: tournamentPayments.invoiceUrl,
       amountIdr: tournamentPayments.amountIdr,
+      platformFeeIdr: tournamentPayments.platformFeeIdr,
+      processingFeeIdr: tournamentPayments.processingFeeIdr,
+      hostPayoutIdr: tournamentPayments.hostPayoutIdr,
+      registrationFeeIdr: tournaments.registrationFeeIdr,
+      playersPerTeam: tournaments.playersPerTeam,
       paidAt: tournamentPayments.paidAt,
+      paymentDueAt: tournamentRegistrations.paymentDueAt,
       registeredByUserId: tournamentRegistrations.registeredByUserId,
     })
     .from(tournamentRegistrations)
@@ -361,7 +452,7 @@ export async function getRegistrationDetail(registrationId: number) {
   return row ?? null;
 }
 
-async function rollbackDraftRegistration(teamId: number, registrationId: number): Promise<void> {
+export async function rollbackDraftRegistration(teamId: number, registrationId: number): Promise<void> {
   const db = getDb();
   await db
     .delete(tournamentPayments)
@@ -373,13 +464,19 @@ async function rollbackDraftRegistration(teamId: number, registrationId: number)
   await db.delete(tournamentTeams).where(eq(tournamentTeams.id, teamId));
 }
 
-async function issueRegistrationInvoice(
+export type IssueInvoiceOptions = {
+  paymentMethods?: XenditPaymentMethod[];
+  paymentMethodLabel?: string;
+};
+
+export async function issueRegistrationInvoice(
   tournament: TournamentDetail,
   registrationId: number,
   payerUserId: string,
   payerEmail: string,
   fee: number,
-): Promise<{ paymentId: number; invoiceUrl: string }> {
+  options?: IssueInvoiceOptions,
+): Promise<{ paymentId: number; invoiceUrl: string; amountIdr: number }> {
   const db = getDb();
   const settings = await getPlatformPaymentSettings();
   const split = calculateOfficialPaymentSplit(fee, settings);
@@ -393,7 +490,9 @@ async function issueRegistrationInvoice(
       payerEmail,
       description: `${tournament.name} — team registration`,
       successRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register/success?registrationId=${registrationId}`,
-      failureRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register?failed=1`,
+      failureRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register/checkout?registrationId=${registrationId}&failed=1`,
+      paymentMethods: options?.paymentMethods,
+      shouldSendEmail: false,
       items: [
         {
           name: "Tournament registration",
@@ -445,11 +544,11 @@ async function issueRegistrationInvoice(
         invoiceUrl: invoice.invoice_url,
         xenditSplitRuleId: splitRuleId,
         hostPayoutStatus,
-        metadata: { split, xenPlatform: Boolean(splitRuleId) },
+        metadata: { split, xenPlatform: Boolean(splitRuleId), paymentMethod: options?.paymentMethodLabel },
       })
       .where(eq(tournamentPayments.id, existingPayment.id));
 
-    return { paymentId: existingPayment.id, invoiceUrl: invoice.invoice_url };
+    return { paymentId: existingPayment.id, invoiceUrl: invoice.invoice_url, amountIdr: split.totalChargeIdr };
   }
 
   const [payment] = await db
@@ -468,7 +567,7 @@ async function issueRegistrationInvoice(
       invoiceUrl: invoice.invoice_url,
       xenditSplitRuleId: splitRuleId,
       hostPayoutStatus,
-      metadata: { split, xenPlatform: Boolean(splitRuleId) },
+      metadata: { split, xenPlatform: Boolean(splitRuleId), paymentMethod: options?.paymentMethodLabel },
     })
     .returning();
 
@@ -476,7 +575,7 @@ async function issueRegistrationInvoice(
     throw new AppError("Could not record payment", { code: "DATABASE_ERROR", statusCode: 500 });
   }
 
-  return { paymentId: payment.id, invoiceUrl: invoice.invoice_url };
+  return { paymentId: payment.id, invoiceUrl: invoice.invoice_url, amountIdr: split.totalChargeIdr };
 }
 
 async function resumePendingOfficialRegistration(
@@ -484,7 +583,7 @@ async function resumePendingOfficialRegistration(
   payerUserId: string,
   payerEmail: string,
   registrationId: number,
-): Promise<{ registrationId: number; paymentId: number; invoiceUrl: string }> {
+): Promise<{ registrationId: number; paymentId: number; invoiceUrl: string; amountIdr: number }> {
   const fee = tournament.registrationFeeIdr;
   if (!fee || fee <= 0) {
     throw new AppError("Registration fee is not configured.", {
@@ -493,7 +592,7 @@ async function resumePendingOfficialRegistration(
     });
   }
 
-  const { paymentId, invoiceUrl } = await issueRegistrationInvoice(
+  const { paymentId, invoiceUrl, amountIdr } = await issueRegistrationInvoice(
     tournament,
     registrationId,
     payerUserId,
@@ -501,15 +600,25 @@ async function resumePendingOfficialRegistration(
     fee,
   );
 
-  return { registrationId, paymentId, invoiceUrl };
+  return { registrationId, paymentId, invoiceUrl, amountIdr };
 }
+
+export type OfficialRegistrationResult = {
+  registrationId: number;
+  status: "awaiting_confirmation" | "pending_payment";
+  confirmUrl?: string;
+  checkoutUrl?: string;
+  paymentId?: number;
+  invoiceUrl?: string;
+  amountIdr?: number;
+};
 
 export async function startOfficialRegistration(
   tournament: TournamentDetail,
   payerUserId: string,
   payerEmail: string,
   input: OfficialRegistrationInput,
-): Promise<{ registrationId: number; paymentId: number; invoiceUrl: string }> {
+): Promise<OfficialRegistrationResult> {
   if (tournament.tournamentType !== "official") {
     throw new AppError("Free registration only for reclub tournaments.", {
       code: "INVALID_TOURNAMENT_TYPE",
@@ -541,20 +650,37 @@ export async function startOfficialRegistration(
       statusCode: 409,
     });
   }
+  if (existing.status === "awaiting_confirmation" && existing.registrationId) {
+    return {
+      registrationId: existing.registrationId,
+      status: "awaiting_confirmation",
+      confirmUrl: existing.confirmUrl ?? confirmUrl(tournament, existing.registrationId),
+    };
+  }
   if (existing.status === "pending_payment" && existing.registrationId) {
     if (existing.invoiceUrl) {
       return {
         registrationId: existing.registrationId,
-        paymentId: 0,
+        status: "pending_payment",
+        checkoutUrl: existing.checkoutUrl ?? checkoutUrl(tournament, existing.registrationId),
         invoiceUrl: existing.invoiceUrl,
+        amountIdr: existing.amountIdr ?? undefined,
       };
     }
-    return resumePendingOfficialRegistration(
+    const resumed = await resumePendingOfficialRegistration(
       tournament,
       payerUserId,
       payerEmail,
       existing.registrationId,
     );
+    return {
+      registrationId: resumed.registrationId,
+      status: "pending_payment",
+      checkoutUrl: checkoutUrl(tournament, resumed.registrationId),
+      paymentId: resumed.paymentId,
+      invoiceUrl: resumed.invoiceUrl,
+      amountIdr: resumed.amountIdr,
+    };
   }
 
   if (tournament.maxTeams) {
@@ -570,6 +696,7 @@ export async function startOfficialRegistration(
   const db = getDb();
   let team: { id: number };
   let registration: { id: number };
+  const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
 
   try {
     const [insertedTeam] = await db
@@ -586,7 +713,6 @@ export async function startOfficialRegistration(
     }
     team = insertedTeam;
 
-    const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
     await db.insert(tournamentTeamMembers).values(
       uniqueMembers.map((userId, i) => ({
         teamId: team.id,
@@ -602,7 +728,7 @@ export async function startOfficialRegistration(
         tournamentId: tournament.id,
         teamId: team.id,
         registeredByUserId: payerUserId,
-        status: "pending_payment",
+        status: "awaiting_confirmation",
       })
       .returning();
 
@@ -617,13 +743,28 @@ export async function startOfficialRegistration(
     const message = cause instanceof Error ? cause.message : String(cause);
     if (message.includes("tournament_teams_name_uidx") || message.includes("unique")) {
       const retry = await getUserRegistrationStatus(tournament.id, payerUserId);
+      if (retry.status === "awaiting_confirmation" && retry.registrationId) {
+        return {
+          registrationId: retry.registrationId,
+          status: "awaiting_confirmation",
+          confirmUrl: confirmUrl(tournament, retry.registrationId),
+        };
+      }
       if (retry.status === "pending_payment" && retry.registrationId) {
-        return resumePendingOfficialRegistration(
+        const resumed = await resumePendingOfficialRegistration(
           tournament,
           payerUserId,
           payerEmail,
           retry.registrationId,
         );
+        return {
+          registrationId: resumed.registrationId,
+          status: "pending_payment",
+          checkoutUrl: checkoutUrl(tournament, resumed.registrationId),
+          paymentId: resumed.paymentId,
+          invoiceUrl: resumed.invoiceUrl,
+          amountIdr: resumed.amountIdr,
+        };
       }
       throw new AppError("A team with this name is already registered for this tournament.", {
         code: "CONFLICT",
@@ -633,36 +774,153 @@ export async function startOfficialRegistration(
     throw cause;
   }
 
-  try {
-    const { paymentId, invoiceUrl } = await issueRegistrationInvoice(
-      tournament,
-      registration.id,
-      payerUserId,
-      payerEmail,
-      fee,
-    );
+  void notifyAwaitingConfirmation(
+    tournament,
+    registration.id,
+    payerUserId,
+    input.teamName.trim(),
+  );
 
-    return {
-      registrationId: registration.id,
-      paymentId,
-      invoiceUrl,
-    };
-  } catch (error) {
-    await rollbackDraftRegistration(team.id, registration.id);
-    throw error;
-  }
+  void notifyTeamMemberInvitations(
+    tournament,
+    registration.id,
+    payerUserId,
+    input.teamName.trim(),
+    uniqueMembers,
+  );
+
+  return {
+    registrationId: registration.id,
+    status: "awaiting_confirmation",
+    confirmUrl: confirmUrl(tournament, registration.id),
+  };
 }
 
-export async function confirmPaymentByInvoiceId(xenditInvoiceId: string): Promise<void> {
+export async function updateOfficialRegistration(
+  tournament: TournamentDetail,
+  registrationId: number,
+  userId: string,
+  input: OfficialRegistrationInput,
+): Promise<{ registrationId: number; confirmUrl: string }> {
+  if (tournament.tournamentType !== "official") {
+    throw new AppError("Only official tournaments support this flow.", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
+  assertRegistrationWindow(tournament);
+
+  const db = getDb();
+  const [registration] = await db
+    .select()
+    .from(tournamentRegistrations)
+    .where(
+      and(
+        eq(tournamentRegistrations.id, registrationId),
+        eq(tournamentRegistrations.tournamentId, tournament.id),
+        eq(tournamentRegistrations.registeredByUserId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!registration) {
+    throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  if (registration.status !== "awaiting_confirmation") {
+    throw new AppError("You can only edit your team before confirming participation.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+  }
+
+  if (!registration.teamId) {
+    throw new AppError("Team not found for this registration", {
+      code: "NOT_FOUND",
+      statusCode: 404,
+    });
+  }
+
+  const teamId = registration.teamId;
+  const uniqueMembers = [...new Set([userId, ...input.memberUserIds])];
+  const playersPerTeam = tournament.playersPerTeam ?? 2;
+
+  if (uniqueMembers.length > playersPerTeam) {
+    throw new AppError(`Teams can have at most ${playersPerTeam} players.`, {
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+  }
+
+  const previousMembers = await db
+    .select({ userId: tournamentTeamMembers.userId })
+    .from(tournamentTeamMembers)
+    .where(eq(tournamentTeamMembers.teamId, teamId));
+
+  const previousMemberIds = previousMembers.map((m) => m.userId);
+  const trimmedName = input.teamName.trim();
+
+  try {
+    await db
+      .update(tournamentTeams)
+      .set({ name: trimmedName, captainUserId: userId })
+      .where(eq(tournamentTeams.id, teamId));
+
+    await db.delete(tournamentTeamMembers).where(eq(tournamentTeamMembers.teamId, teamId));
+
+    await db.insert(tournamentTeamMembers).values(
+      uniqueMembers.map((memberId, i) => ({
+        teamId,
+        userId: memberId,
+        slotIndex: i,
+        role: i === 0 ? "captain" : "member",
+      })),
+    );
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (message.includes("tournament_teams_name_uidx") || message.includes("unique")) {
+      throw new AppError("A team with this name is already registered for this tournament.", {
+        code: "CONFLICT",
+        statusCode: 409,
+      });
+    }
+    throw cause;
+  }
+
+  const newInvitees = uniqueMembers.filter(
+    (id) => id !== userId && !previousMemberIds.includes(id),
+  );
+  if (newInvitees.length) {
+    void notifyTeamMemberInvitations(
+      tournament,
+      registrationId,
+      userId,
+      trimmedName,
+      newInvitees,
+    );
+  }
+
+  return {
+    registrationId,
+    confirmUrl: confirmUrl(tournament, registrationId),
+  };
+}
+
+export async function confirmPaymentByRegistrationId(registrationId: number): Promise<void> {
   const db = getDb();
   const [payment] = await db
     .select()
     .from(tournamentPayments)
-    .where(eq(tournamentPayments.xenditInvoiceId, xenditInvoiceId))
+    .where(eq(tournamentPayments.registrationId, registrationId))
     .limit(1);
 
   if (!payment || payment.status === "paid") return;
+  await finalizePaidPayment(payment);
+}
 
+async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSelect): Promise<void> {
+  const db = getDb();
   await db
     .update(tournamentPayments)
     .set({ status: "paid", paidAt: new Date() })
@@ -680,6 +938,30 @@ export async function confirmPaymentByInvoiceId(xenditInvoiceId: string): Promis
     );
     void sendRegistrationConfirmedEmails(payment.registrationId, appOrigin.replace(/\/$/, ""));
   }
+
+  void notifyHostPlayerPaid(payment.registrationId);
+
+  const detail = await getRegistrationDetail(payment.registrationId);
+  if (detail) {
+    void notifyPlayerRegistrationConfirmed(
+      payment.registrationId,
+      payment.payerUserId,
+      detail.tournamentName,
+      `${appOrigin.replace(/\/$/, "")}/sports/${detail.sportSlug}/tournaments/${detail.tournamentSlug}`,
+    );
+  }
+}
+
+export async function confirmPaymentByInvoiceId(xenditInvoiceId: string): Promise<void> {
+  const db = getDb();
+  const [payment] = await db
+    .select()
+    .from(tournamentPayments)
+    .where(eq(tournamentPayments.xenditInvoiceId, xenditInvoiceId))
+    .limit(1);
+
+  if (!payment || payment.status === "paid") return;
+  await finalizePaidPayment(payment);
 }
 
 export async function failPaymentByInvoiceId(
@@ -695,28 +977,18 @@ export async function failPaymentByInvoiceId(
 
   if (!payment || payment.status === "paid") return;
 
-  await db
-    .update(tournamentPayments)
-    .set({ status: reason })
-    .where(eq(tournamentPayments.id, payment.id));
+  const { markPaymentAttemptFailed, expireRegistrationIfOverdue } = await import(
+    "@/lib/tournaments/registration/payment-expiry"
+  );
 
-  const [registration] = await db
-    .select()
-    .from(tournamentRegistrations)
-    .where(eq(tournamentRegistrations.id, payment.registrationId))
-    .limit(1);
-
-  if (!registration || registration.status === "confirmed") return;
-
-  await db
-    .update(tournamentRegistrations)
-    .set({ status: "cancelled" })
-    .where(eq(tournamentRegistrations.id, payment.registrationId));
-
-  if (registration.teamId) {
+  if (reason === "expired") {
+    await expireRegistrationIfOverdue(payment.registrationId);
     await db
-      .delete(tournamentTeamMembers)
-      .where(eq(tournamentTeamMembers.teamId, registration.teamId));
-    await db.delete(tournamentTeams).where(eq(tournamentTeams.id, registration.teamId));
+      .update(tournamentPayments)
+      .set({ status: "expired" })
+      .where(eq(tournamentPayments.id, payment.id));
+    return;
   }
+
+  await markPaymentAttemptFailed(payment.registrationId, reason);
 }

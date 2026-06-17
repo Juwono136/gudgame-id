@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Pencil, Plus, Search, Trash2, Trophy } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
+import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
+import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -59,6 +61,12 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
   const [year, setYear] = useState<string>("all");
   const [sortBy, setSortBy] = useState<PlayerTournamentsListQuery["sortBy"]>("year");
   const [sortDir, setSortDir] = useState<PlayerTournamentsListQuery["sortDir"]>("desc");
+  const [editRegistration, setEditRegistration] = useState<{
+    registrationId: number;
+    sportSlug: string;
+    slug: string;
+    tournamentName: string;
+  } | null>(null);
 
   const queryParams: PlayerTournamentsListQuery = useMemo(
     () => ({
@@ -73,7 +81,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
     [page, debouncedSearch, year, sortBy, sortDir, scope],
   );
 
-  const { data, isLoading, isFetching, error } = usePlayerTournamentsList(queryParams, {
+  const { data, isLoading, isFetching, error, refetch } = usePlayerTournamentsList(queryParams, {
     includeYears: true,
   });
 
@@ -82,13 +90,13 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
   const scopeTabs: { id: PlayerTournamentsListQuery["scope"]; label: string; hint: string }[] = [
     {
       id: "created",
-      label: "Sessions host",
-      hint: "Tournaments and reclub sessions you created",
+      label: "I host",
+      hint: "Reclub sessions and community events you created",
     },
     {
       id: "joined",
-      label: "Sessions joined",
-      hint: "Events you participated in as a player",
+      label: "I joined",
+      hint: "Tournaments you participated in as a player",
     },
   ];
 
@@ -98,7 +106,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
     <DashboardWorkspaceShell
       roles={roles}
       variant="player"
-      title={scope === "created" ? "Sessions you host" : "Sessions you joined"}
+      title={scope === "created" ? "My tournaments" : "Joined tournaments"}
       description={activeTab?.hint}
       breadcrumbs={[
         { label: "Player", href: dashboardRoutes.home },
@@ -254,7 +262,11 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
                           <p className="text-sm font-medium text-foreground">{row.tournamentName}</p>
                         )}
                         {row.status ? (
-                          <p className="text-xs capitalize text-cp-muted">{row.status}</p>
+                          <p className="text-xs capitalize text-cp-muted">
+                            {row.registrationStatus
+                              ? row.registrationStatus.replace(/_/g, " ")
+                              : row.status}
+                          </p>
                         ) : null}
                       </div>
                       <Badge
@@ -277,6 +289,32 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
                         {row.placement}
                       </p>
                       <div className="flex justify-end gap-1 sm:col-start-6">
+                        {scope === "joined" &&
+                        row.source === "official" &&
+                        row.canManageRegistration &&
+                        row.registrationId &&
+                        row.registrationStatus &&
+                        row.sportSlug &&
+                        row.slug ? (
+                          <OfficialRegistrationManageActions
+                            registrationId={row.registrationId}
+                            sportSlug={row.sportSlug}
+                            slug={row.slug}
+                            teamName={row.registrationTeamName}
+                            registrationStatus={row.registrationStatus}
+                            layout="compact"
+                            onEditTeam={() => {
+                              setEditRegistration({
+                                registrationId: row.registrationId!,
+                                sportSlug: row.sportSlug!,
+                                slug: row.slug!,
+                                tournamentName: row.tournamentName,
+                              });
+                            }}
+                            onCancelled={() => void refetch()}
+                            redirectOnCancel={undefined}
+                          />
+                        ) : null}
                         {row.canEdit && row.tournamentId ? (
                           <Button
                             asChild
@@ -335,6 +373,20 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
           />
         ) : null}
       </div>
+
+      {editRegistration ? (
+        <OfficialRegistrationEditDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditRegistration(null);
+          }}
+          registrationId={editRegistration.registrationId}
+          sportSlug={editRegistration.sportSlug}
+          tournamentSlug={editRegistration.slug}
+          tournamentName={editRegistration.tournamentName}
+          onSaved={() => void refetch()}
+        />
+      ) : null}
     </DashboardWorkspaceShell>
   );
 }

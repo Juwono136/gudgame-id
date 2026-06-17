@@ -33,6 +33,11 @@ import { useCreateTournament, useUpdateAdminTournament } from "@/hooks/use-tourn
 import { useCreateHostTournament } from "@/hooks/use-host-tournaments";
 import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
 import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
+import {
+  tournamentAfterSaveUrl,
+  tournamentListUrl,
+  type TournamentEditWorkspace,
+} from "@/lib/tournaments/edit-routes";
 import { getTournamentRuleSections, getVenueMapsUrl } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
@@ -79,6 +84,7 @@ type TournamentCreateWizardProps = {
   sportSlug: string;
   onBack?: () => void;
   mode?: "admin" | "host";
+  workspace?: TournamentEditWorkspace;
   initial?: TournamentDetail;
   tournamentId?: number;
 };
@@ -87,6 +93,7 @@ export function TournamentCreateWizard({
   sportSlug,
   onBack,
   mode = "admin",
+  workspace = "player",
   initial,
   tournamentId,
 }: TournamentCreateWizardProps) {
@@ -283,7 +290,11 @@ export function TournamentCreateWizard({
       if (isEdit) {
         updateMutation.mutate(payload, {
           onSuccess: () => {
-            router.push(mode === "admin" ? adminRoutes.wikiEntities : dashboardRoutes.tournaments);
+            if (mode === "admin") {
+              router.push(adminRoutes.wikiEntities);
+            } else {
+              router.push(tournamentAfterSaveUrl(workspace, tournamentId));
+            }
           },
         });
         return;
@@ -477,7 +488,18 @@ export function TournamentCreateWizard({
                       label="Registration closes"
                       value={registrationClosesAt}
                       onChange={setRegistrationClosesAt}
+                      disabled={
+                        isEdit &&
+                        (initial?.status === "live" || initial?.status === "completed")
+                      }
                     />
+                    {isEdit &&
+                    (initial?.status === "live" || initial?.status === "completed") ? (
+                      <p className="mt-1 text-xs text-amber-400">
+                        Registration dates cannot be changed while the tournament is live or
+                        completed.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -600,11 +622,11 @@ export function TournamentCreateWizard({
           </button>
         ) : isEdit ? (
           <Link
-            href={dashboardRoutes.tournaments}
+            href={mode === "admin" ? adminRoutes.wikiEntities : tournamentListUrl(workspace)}
             className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
           >
             <ArrowLeft className="mr-1 h-4 w-4" />
-            Tournament history
+            {workspace === "host" ? "My tournaments" : "My tournaments"}
           </Link>
         ) : mode === "host" ? (
           <Link

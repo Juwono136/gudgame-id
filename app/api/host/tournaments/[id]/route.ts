@@ -1,7 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
-import { assertTournamentEditable } from "@/lib/tournaments/manage-policy";
+import { assertTournamentDeletable, assertTournamentEditable } from "@/lib/tournaments/manage-policy";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { deleteTournament, updateTournament } from "@/lib/tournaments/service";
 import { getTournamentById } from "@/lib/tournaments/workspace/service";
@@ -70,6 +70,7 @@ export async function DELETE(
     if (!canManageTournament(roles, existing.createdBy, userId)) {
       throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
     }
+    assertTournamentDeletable(existing);
 
     const [paid] = await getDb()
       .select({ id: tournamentPayments.id })

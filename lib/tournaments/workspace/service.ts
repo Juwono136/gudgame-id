@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import {
   tournamentRegistrations,
+  tournamentTeamMembers,
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
@@ -32,8 +33,12 @@ export type HostTournamentWorkspace = {
     status: string;
     teamName: string | null;
     registeredByName: string;
+    registeredByUserId: string;
     paymentStatus: string | null;
     amountIdr: number | null;
+    confirmedAt: string | null;
+    paymentDueAt: string | null;
+    members: { userId: string; displayName: string; role: string }[];
   }[];
   revenue: {
     totalCollectedIdr: number;
@@ -133,10 +138,14 @@ export async function getHostTournamentWorkspace(
     .select({
       id: tournamentRegistrations.id,
       status: tournamentRegistrations.status,
+      teamId: tournamentRegistrations.teamId,
       teamName: tournamentTeams.name,
       registeredByName: user.name,
+      registeredByUserId: tournamentRegistrations.registeredByUserId,
       paymentStatus: tournamentPayments.status,
       amountIdr: tournamentPayments.amountIdr,
+      confirmedAt: tournamentRegistrations.confirmedAt,
+      paymentDueAt: tournamentRegistrations.paymentDueAt,
     })
     .from(tournamentRegistrations)
     .innerJoin(user, eq(tournamentRegistrations.registeredByUserId, user.id))
@@ -147,6 +156,23 @@ export async function getHostTournamentWorkspace(
     )
     .where(eq(tournamentRegistrations.tournamentId, tournament.id))
     .orderBy(desc(tournamentRegistrations.createdAt));
+
+  const teamIds = regRows
+    .map((r) => r.teamId)
+    .filter((id): id is number => id != null);
+
+  const memberRows = teamIds.length
+    ? await getDb()
+        .select({
+          teamId: tournamentTeamMembers.teamId,
+          userId: tournamentTeamMembers.userId,
+          role: tournamentTeamMembers.role,
+          displayName: user.name,
+        })
+        .from(tournamentTeamMembers)
+        .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+        .where(inArray(tournamentTeamMembers.teamId, teamIds))
+    : [];
 
   const paidRows = await getDb()
     .select({
@@ -181,8 +207,18 @@ export async function getHostTournamentWorkspace(
       status: r.status,
       teamName: r.teamName,
       registeredByName: r.registeredByName,
+      registeredByUserId: r.registeredByUserId,
       paymentStatus: r.paymentStatus,
       amountIdr: r.amountIdr,
+      confirmedAt: r.confirmedAt?.toISOString() ?? null,
+      paymentDueAt: r.paymentDueAt?.toISOString() ?? null,
+      members: memberRows
+        .filter((m) => m.teamId === r.teamId)
+        .map((m) => ({
+          userId: m.userId,
+          displayName: m.displayName,
+          role: m.role,
+        })),
     })),
     revenue: { totalCollectedIdr, platformFeesIdr, hostPayoutIdr },
   };
@@ -200,6 +236,13 @@ export async function updateTournamentStatus(
   }
   if (!canManageTournament(roles, tournament.createdBy, userId)) {
     throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
+  }
+
+  if (tournament.tournamentType === "official") {
+    throw new AppError(
+      "Official tournament status is set automatically from the event schedule.",
+      { code: "VALIDATION_ERROR", statusCode: 400 },
+    );
   }
 
   await getDb()

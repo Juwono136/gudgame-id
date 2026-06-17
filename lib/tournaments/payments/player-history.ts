@@ -9,6 +9,7 @@ import { sports } from "@/db/schema/sports";
 
 export type PlayerPaymentHistoryItem = {
   id: number;
+  registrationId: number;
   tournamentId: number;
   tournamentName: string;
   sportSlug: string;
@@ -39,6 +40,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
   const rows = await getDb()
     .select({
       id: tournamentPayments.id,
+      registrationId: tournamentPayments.registrationId,
       tournamentId: tournamentPayments.tournamentId,
       tournamentName: tournaments.name,
       sportSlug: sports.slug,
@@ -59,6 +61,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
 
   return rows.map((r) => ({
     id: r.id,
+    registrationId: r.registrationId,
     tournamentId: r.tournamentId,
     tournamentName: r.tournamentName,
     sportSlug: r.sportSlug,

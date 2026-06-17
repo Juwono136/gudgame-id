@@ -1,7 +1,7 @@
 import { getServerSession } from "@/lib/auth/session";
 import { OfficialTournamentPage } from "@/components/tournaments/official-tournament-page";
 import { ReclubTournamentPage } from "@/components/tournaments/reclub-tournament-page";
-import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
+import { getRegistrationSummary, listOfficialPublicRoster } from "@/lib/tournaments/registration/service";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
@@ -43,11 +43,13 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       tournament.sportId,
       ruleSections.gearEntityIds,
     );
+    const publicRoster = await listOfficialPublicRoster(tournament.id);
 
     return (
       <OfficialTournamentPage
         tournament={tournament}
         summary={summary}
+        publicRoster={publicRoster}
         isAuthenticated={isAuthenticated}
         canManage={canManage}
         venueMapsUrl={getVenueMapsUrl(tournament)}

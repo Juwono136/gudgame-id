@@ -7,13 +7,17 @@ import { EMAIL_VERIFICATION_EXPIRES_IN_SECONDS } from "@/lib/auth/constants";
 const EXPIRY_HOURS = Math.round(EMAIL_VERIFICATION_EXPIRES_IN_SECONDS / 3600);
 
 type PageProps = {
-  searchParams: Promise<{ status?: string; error?: string }>;
+  searchParams: Promise<{ status?: string; error?: string; callbackUrl?: string }>;
 };
 
 export default async function VerifyEmailResultPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const status = params.status?.toLowerCase();
   const error = params.error?.toLowerCase() ?? "";
+  const callbackUrl = params.callbackUrl;
+  const loginHref = callbackUrl
+    ? `${authRoutes.login}?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : authRoutes.login;
 
   const isSuccess = status === "success" && !error;
   const isExpired =
@@ -37,11 +41,11 @@ export default async function VerifyEmailResultPage({ searchParams }: PageProps)
             </div>
             <h1 className="mt-6 text-2xl font-bold text-white">Email verified</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-400">
-              Your email is confirmed. You can now sign in and access your TandingBase
-              dashboard.
+              Your email is confirmed. Sign in to continue
+              {callbackUrl ? " to the tournament or page you were joining." : " to TandingBase."}
             </p>
             <Link
-              href={authRoutes.login}
+              href={loginHref}
               className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#0033C0]"
             >
               Sign In

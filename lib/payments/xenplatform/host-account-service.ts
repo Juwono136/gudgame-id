@@ -63,7 +63,7 @@ export async function getActiveHostXenditAccount(
     .where(eq(hostXenditAccounts.userId, userId))
     .limit(1);
 
-  if (!row || row.status !== "active") return null;
+  if (!row || row.status !== "active" || !row.xenditAccountId) return null;
   return row;
 }
 
@@ -166,7 +166,7 @@ export async function refreshHostXenditAccountStatus(userId: string): Promise<Ho
     .where(eq(hostXenditAccounts.userId, userId))
     .limit(1);
 
-  if (!row) return getHostPayoutProfile(userId);
+  if (!row?.xenditAccountId) return getHostPayoutProfile(userId);
 
   try {
     const remote = await getManagedSubAccount(row.xenditAccountId);

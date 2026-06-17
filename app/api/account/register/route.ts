@@ -99,13 +99,23 @@ export async function POST(request: Request) {
     const baseUrl =
       process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "";
 
+    const callbackUrlRaw = formData.get("callbackUrl");
+    const callbackUrl =
+      typeof callbackUrlRaw === "string" && callbackUrlRaw.trim()
+        ? callbackUrlRaw.trim()
+        : null;
+
+    const verifyCallback = callbackUrl
+      ? `${baseUrl}${authRoutes.verifyEmail}?status=success&callbackUrl=${encodeURIComponent(callbackUrl)}`
+      : `${baseUrl}${authRoutes.verifyEmail}?status=success`;
+
     const signUpResult = await auth.api.signUpEmail({
       body: {
         name: data.fullNameKtp,
         email,
         password: data.password,
         image: upload.url,
-        callbackURL: `${baseUrl}${authRoutes.verifyEmail}?status=success`,
+        callbackURL: verifyCallback,
       },
     });
 
@@ -139,7 +149,9 @@ export async function POST(request: Request) {
       success: true,
       message:
         "Account created. Check your email to verify your address before signing in.",
-      redirectTo: authRoutes.checkEmail,
+      redirectTo: callbackUrl
+        ? `${authRoutes.checkEmail}?callbackUrl=${encodeURIComponent(callbackUrl)}`
+        : authRoutes.checkEmail,
     });
   } catch (err) {
     log.error("Registration failed", err);

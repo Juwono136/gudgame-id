@@ -8,8 +8,17 @@ export const metadata = {
   title: "Check your email",
 };
 
-export default async function CheckEmailPage() {
-  await redirectIfAuthenticated();
+type PageProps = {
+  searchParams: Promise<{ callbackUrl?: string }>;
+};
+
+export default async function CheckEmailPage({ searchParams }: PageProps) {
+  const { callbackUrl } = await searchParams;
+  await redirectIfAuthenticated(callbackUrl);
+
+  const loginHref = callbackUrl
+    ? `${authRoutes.login}?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : authRoutes.login;
 
   return (
     <PageShell showGridBackground={false} showFooter={false} showNavbar={false}>
@@ -20,13 +29,14 @@ export default async function CheckEmailPage() {
         <h1 className="mt-6 text-2xl font-bold text-white">Check your inbox</h1>
         <p className="mt-3 text-sm leading-relaxed text-slate-400">
           We sent a confirmation link to your email. Click the link to verify your
-          account, then sign in to access your TandingBase dashboard.
+          account, then sign in to continue.
+          {callbackUrl ? " You will return to where you left off." : ""}
         </p>
         <p className="mt-2 text-xs text-cp-muted">
           Did not receive it? Check spam or wait a few minutes before requesting again.
         </p>
         <Link
-          href={authRoutes.login}
+          href={loginHref}
           className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#0033C0]"
         >
           Back to Sign In
