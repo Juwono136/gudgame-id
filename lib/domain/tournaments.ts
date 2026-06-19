@@ -1,5 +1,11 @@
 /** Client-safe tournament domain types and constants. */
 
+export type TournamentId = string;
+export type RegistrationId = string;
+export type TournamentPaymentId = string;
+export type TournamentTeamId = string;
+export type TournamentMatchId = string;
+
 export {
   TOURNAMENT_STATUSES,
   TOURNAMENT_TYPES,

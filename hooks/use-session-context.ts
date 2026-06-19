@@ -32,10 +32,6 @@ export function useSessionContext(enabled = true) {
     queryKey: ["session", "context"],
     queryFn: async () => {
       const res = await fetch("/api/account/session-context");
-      const json = await parseJsonResponse<{
-        success: boolean;
-        data: SessionContextData;
-      }>(res);
       if (!res.ok) {
         return {
           authenticated: false,
@@ -47,6 +43,11 @@ export function useSessionContext(enabled = true) {
           mustChangePassword: false,
         } satisfies SessionContextData;
       }
+
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: SessionContextData;
+      }>(res);
       return json.data;
     },
     enabled,

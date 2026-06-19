@@ -7,6 +7,7 @@ import { Bell, CheckCheck, Loader2, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -47,7 +48,7 @@ function NotificationRow({
   compact = false,
 }: {
   item: NotificationItem;
-  onRead: (id: number, url?: string | null) => void;
+  onRead: (id: string, url?: string | null) => void;
   compact?: boolean;
 }) {
   const unread = !item.readAt;
@@ -91,7 +92,7 @@ export function NotificationBell({ className }: { className?: string }) {
   const allQuery = useNotificationsSearch(search, modalOpen);
 
   const handleRead = useCallback(
-    (id: number, actionUrl?: string | null) => {
+    (id: string, actionUrl?: string | null) => {
       void markRead.mutateAsync(id).finally(() => {
         if (actionUrl) router.push(actionUrl);
       });
@@ -117,7 +118,7 @@ export function NotificationBell({ className }: { className?: string }) {
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -181,6 +182,9 @@ export function NotificationBell({ className }: { className?: string }) {
         <DialogContent className="max-h-[85vh] max-w-lg overflow-hidden p-0">
           <DialogHeader className="border-b border-cp-border px-5 py-4">
             <DialogTitle>All notifications</DialogTitle>
+            <DialogDescription className="sr-only">
+              Search and browse your notification history.
+            </DialogDescription>
             <div className="relative mt-3">
               <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
               <Input

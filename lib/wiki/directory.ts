@@ -107,7 +107,7 @@ function paginateDirectoryItems(
 }
 
 async function listMergedWikiDirectory(
-  sportId: number,
+  sportId: string,
   query: WikiEntitiesListQuery,
   options?: WikiDirectoryOptions,
 ) {
@@ -137,7 +137,7 @@ async function listMergedWikiDirectory(
 }
 
 export async function listWikiDirectory(
-  sportId: number,
+  sportId: string,
   query: WikiEntitiesListQuery,
   options?: WikiDirectoryOptions,
 ) {

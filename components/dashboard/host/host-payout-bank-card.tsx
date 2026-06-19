@@ -198,7 +198,7 @@ export function HostPayoutBankCard({ className }: { className?: string }) {
   });
 
   const setPrimary = useMutation({
-    mutationFn: async (accountId: number) => {
+    mutationFn: async (accountId: string) => {
       const res = await fetch(`/api/host/payout/bank/${accountId}/primary`, { method: "POST" });
       const json = await parseJsonResponse(res);
       if (!res.ok) throw new Error((json as { error?: { message?: string } }).error?.message ?? "Failed");

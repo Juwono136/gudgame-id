@@ -15,7 +15,7 @@ export const wikiDirectoryTypeFilterSchema = z.enum([
 export const wikiEntityStatusSchema = z.enum(WIKI_ENTITY_STATUSES);
 
 export const wikiRelationInputSchema = z.object({
-  toEntityId: z.coerce.number().int().positive(),
+  toEntityId: z.string().uuid(),
   relationType: z.string().trim().min(1).max(40),
   metadata: z.record(z.string(), z.unknown()).optional(),
   sortOrder: z.coerce.number().int().min(0).optional(),

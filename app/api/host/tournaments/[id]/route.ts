@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { assertTournamentDeletable, assertTournamentEditable } from "@/lib/tournaments/manage-policy";
 import { canManageTournament } from "@/lib/tournaments/permissions";
@@ -20,10 +21,7 @@ export async function PATCH(
   try {
     const { userId, roles } = await requireHostDashboardAccess();
     const { id } = await params;
-    const tournamentId = Number(id);
-    if (!Number.isFinite(tournamentId) || tournamentId <= 0) {
-      throw new AppError("Invalid tournament id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const tournamentId = parseEntityIdParam(id, "tournament id");
 
     const existing = await getTournamentById(tournamentId);
     if (!existing) {
@@ -58,10 +56,7 @@ export async function DELETE(
   try {
     const { userId, roles } = await requireHostDashboardAccess();
     const { id } = await params;
-    const tournamentId = Number(id);
-    if (!Number.isFinite(tournamentId) || tournamentId <= 0) {
-      throw new AppError("Invalid tournament id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const tournamentId = parseEntityIdParam(id, "tournament id");
 
     const existing = await getTournamentById(tournamentId);
     if (!existing) {

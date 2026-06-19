@@ -4,7 +4,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useEffect, useState } from "react";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
-import type { NotificationItem } from "@/lib/notifications/types";
+import type { NotificationId, NotificationItem } from "@/lib/notifications/types";
 
 export function useUnreadNotificationCount(enabled = true) {
   return useQuery({
@@ -74,7 +74,7 @@ export function useNotificationsSearch(search: string, enabled: boolean) {
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: NotificationId) => {
       const res = await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
       const json = await parseJsonResponse(res);
       if (!res.ok) throw new Error(extractApiErrorMessage(json as never, "Could not mark as read"));

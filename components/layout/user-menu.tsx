@@ -123,14 +123,19 @@ const accountIconClass = (active: boolean) =>
 export function UserMenu({ className, onNavigate }: UserMenuProps) {
   const pathname = usePathname();
   const { data: session, isPending } = useSession();
+  const { data: sessionCtx } = useSessionContext();
+  const isAuthenticated =
+    Boolean(session?.user) || sessionCtx?.authenticated === true;
   const { requestLogout, isLoggingOut } = useLogoutWithConfirm({ onNavigate });
-  const hasUser = Boolean(session?.user);
-  const { data: sessionCtx } = useSessionContext(hasUser);
   const roles = sessionCtx?.roles ?? [];
   const dashboardLinks = useMemo(
     () => getDashboardLinksForRoles(roles),
     [roles],
   );
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (isPending || !session?.user) {
     return (
@@ -151,7 +156,7 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
   const settingsActive = isSettingsActive(pathname);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         className={cn(
           "inline-flex h-10 w-10 items-center justify-center rounded-full border border-cp-border bg-cp-elevated outline-none transition-colors",
@@ -242,16 +247,17 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
 export function UserMenuMobileLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { data: sessionCtx } = useSessionContext();
   const { requestLogout, isLoggingOut } = useLogoutWithConfirm({ onNavigate });
-  const hasUser = Boolean(session?.user);
-  const { data: sessionCtx } = useSessionContext(hasUser);
+  const isAuthenticated =
+    Boolean(session?.user) || sessionCtx?.authenticated === true;
   const roles = sessionCtx?.roles ?? [];
   const dashboardLinks = useMemo(
     () => getDashboardLinksForRoles(roles),
     [roles],
   );
 
-  if (!session?.user) return null;
+  if (!isAuthenticated || !session?.user) return null;
 
   const user = session.user as SessionUser;
   const profile = getProfileHandle(user);

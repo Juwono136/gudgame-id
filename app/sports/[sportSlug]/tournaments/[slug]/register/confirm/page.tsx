@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { RegistrationConfirmClient } from "@/components/tournaments/registration-confirm-client";
+import { isUuid, parseEntityIdParam } from "@/lib/domain/uuid";
 import { getServerSession } from "@/lib/auth/session";
 import { authRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { getUserRegistrationStatus } from "@/lib/tournaments/registration/service";
@@ -18,10 +19,10 @@ export default async function TournamentRegisterConfirmPage({
 }: PageProps) {
   const { sportSlug, slug } = await params;
   const { registrationId: regIdRaw } = await searchParams;
-  const registrationId = Number(regIdRaw);
-  if (!Number.isFinite(registrationId)) {
+  if (!regIdRaw?.trim() || !isUuid(regIdRaw.trim())) {
     redirect(publicSportRoutes.tournament(sportSlug, slug) + "/register");
   }
+  const registrationId = parseEntityIdParam(regIdRaw, "registration id");
 
   const session = await getServerSession();
   if (!session?.user) {

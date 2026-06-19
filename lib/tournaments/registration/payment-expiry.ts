@@ -16,7 +16,7 @@ const log = logger.child({ module: "payment-expiry" });
 export type PaymentWindowState = "active" | "expired" | "not_applicable";
 
 export async function expireRegistrationIfOverdue(
-  registrationId: number,
+  registrationId: string,
 ): Promise<PaymentWindowState> {
   const db = getDb();
   const [registration] = await db
@@ -54,7 +54,7 @@ export async function expireRegistrationIfOverdue(
 }
 
 export async function markPaymentAttemptFailed(
-  registrationId: number,
+  registrationId: string,
   reason: "failed" | "expired",
 ): Promise<void> {
   const db = getDb();

@@ -1,5 +1,5 @@
 export type HostBankAccountView = {
-  id: number;
+  id: string;
   bankCode: string;
   bankAccountNumber: string;
   bankAccountHolder: string;

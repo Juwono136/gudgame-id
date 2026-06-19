@@ -2,7 +2,6 @@ import {
   index,
   integer,
   pgTable,
-  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -10,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { tournaments } from "./tournaments";
+import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 export const REGISTRATION_STATUSES = [
   "draft",
@@ -25,8 +25,8 @@ export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 export const tournamentTeams = pgTable(
   "tournament_teams",
   {
-    id: serial("id").primaryKey(),
-    tournamentId: integer("tournament_id")
+    id: uuidPrimaryKey(),
+    tournamentId: uuidFk("tournament_id")
       .notNull()
       .references(() => tournaments.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
@@ -51,8 +51,8 @@ export const tournamentTeams = pgTable(
 export const tournamentTeamMembers = pgTable(
   "tournament_team_members",
   {
-    id: serial("id").primaryKey(),
-    teamId: integer("team_id")
+    id: uuidPrimaryKey(),
+    teamId: uuidFk("team_id")
       .notNull()
       .references(() => tournamentTeams.id, { onDelete: "cascade" }),
     userId: text("user_id")
@@ -73,11 +73,11 @@ export const tournamentTeamMembers = pgTable(
 export const tournamentRegistrations = pgTable(
   "tournament_registrations",
   {
-    id: serial("id").primaryKey(),
-    tournamentId: integer("tournament_id")
+    id: uuidPrimaryKey(),
+    tournamentId: uuidFk("tournament_id")
       .notNull()
       .references(() => tournaments.id, { onDelete: "cascade" }),
-    teamId: integer("team_id").references(() => tournamentTeams.id, {
+    teamId: uuidFk("team_id").references(() => tournamentTeams.id, {
       onDelete: "set null",
     }),
     registeredByUserId: text("registered_by_user_id")

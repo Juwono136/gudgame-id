@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { queryPaymentTransactions } from "@/lib/tournaments/payments/transactions-query";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
       search: url.searchParams.get("search") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
       tournamentId: url.searchParams.get("tournamentId")
-        ? Number(url.searchParams.get("tournamentId"))
+        ? parseEntityIdParam(url.searchParams.get("tournamentId")!, "tournament id")
         : undefined,
     });
 

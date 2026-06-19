@@ -33,7 +33,7 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
   return (
     <div
       className={cn(
-        "min-w-0 overflow-x-clip",
+        "min-w-0",
         showMobileNav ? dashboardMobileBottomNavPaddingClass : null,
       )}
     >

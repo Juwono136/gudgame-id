@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import {
   deleteWikiEntity,
   getWikiEntityById,
@@ -17,10 +18,7 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const ctx = await requireWikiManagementAccess();
     const { id } = await context.params;
-    const entityId = Number(id);
-    if (!Number.isFinite(entityId)) {
-      throw new AppError("Invalid entity id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const entityId = parseEntityIdParam(id, "entity id");
     const entity = await getWikiEntityById(entityId);
     if (!entity || entity.sportId !== ctx.sportId) {
       throw new AppError("Wiki entity not found", { code: "NOT_FOUND", statusCode: 404 });
@@ -35,10 +33,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const ctx = await requireWikiManagementAccess();
     const { id } = await context.params;
-    const entityId = Number(id);
-    if (!Number.isFinite(entityId)) {
-      throw new AppError("Invalid entity id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const entityId = parseEntityIdParam(id, "entity id");
 
     const formData = await request.formData();
     const parsed = await parseAndUploadWikiForm(formData, ctx.sportSlug);
@@ -65,10 +60,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const ctx = await requireWikiManagementAccess();
     const { id } = await context.params;
-    const entityId = Number(id);
-    if (!Number.isFinite(entityId)) {
-      throw new AppError("Invalid entity id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const entityId = parseEntityIdParam(id, "entity id");
     await deleteWikiEntity(entityId, ctx.sportId);
     return jsonSuccess({ deleted: true });
   } catch (error) {

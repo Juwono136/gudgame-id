@@ -8,6 +8,7 @@ const listBaseSchema = z.object({
 
 export const playerMatchesListQuerySchema = listBaseSchema.extend({
   result: z.enum(["all", "win", "loss"]).default("all"),
+  type: z.enum(["all", "official", "recreational"]).default("all"),
   year: z.preprocess(
     (val) => (val === "" || val == null ? undefined : val),
     z.coerce.number().int().min(1990).max(2100).optional(),

@@ -36,8 +36,7 @@ import type {
 } from "@/lib/validations/tournaments";
 
 export type TournamentListItem = {
-  id: number;
-  sportId: number;
+  id: string; sportId: string;
   sportSlug: string;
   sportName: string;
   slug: string;
@@ -81,8 +80,7 @@ export type TournamentsListResult = {
 };
 
 function mapListRow(row: {
-  id: number;
-  sportId: number;
+  id: string; sportId: string;
   sportSlug: string;
   sportName: string;
   slug: string;
@@ -134,7 +132,7 @@ function sortColumn(sortBy: TournamentsListQuery["sortBy"]) {
 }
 
 export async function listTournaments(
-  sportId: number,
+  sportId: string,
   query: TournamentsListQuery,
 ): Promise<TournamentsListResult> {
   const db = getDb();
@@ -454,7 +452,7 @@ export async function getTournamentBySlug(
   );
 }
 
-async function ensureUniqueSlug(sportId: number, baseSlug: string, excludeId?: number) {
+async function ensureUniqueSlug(sportId: string, baseSlug: string, excludeId?: string) {
   let slug = baseSlug;
   let n = 0;
   while (true) {
@@ -476,7 +474,7 @@ function parseOptionalDate(value?: string): Date | null {
 }
 
 export async function createTournament(
-  sportId: number,
+  sportId: string,
   userId: string,
   input: TournamentUpsertInput,
 ): Promise<TournamentDetail> {
@@ -548,7 +546,7 @@ export async function createTournament(
   return detail;
 }
 
-export async function getTournamentStats(sportId: number, createdBy?: string) {
+export async function getTournamentStats(sportId: string, createdBy?: string) {
   const conditions = [eq(tournaments.sportId, sportId)];
   if (createdBy) {
     conditions.push(eq(tournaments.createdBy, createdBy));
@@ -584,8 +582,8 @@ export async function getTournamentStats(sportId: number, createdBy?: string) {
 }
 
 export async function updateTournament(
-  id: number,
-  sportId: number,
+  id: string,
+  sportId: string,
   input: TournamentUpsertInput,
 ): Promise<TournamentDetail> {
   const baseSlug = input.slug?.trim() || slugifyWikiName(input.name);
@@ -675,7 +673,7 @@ export async function updateTournament(
   return detail;
 }
 
-export async function deleteTournament(id: number, sportId: number): Promise<void> {
+export async function deleteTournament(id: string, sportId: string): Promise<void> {
   const [existing] = await getDb()
     .select({
       slug: tournaments.slug,
@@ -705,7 +703,7 @@ export async function deleteTournament(id: number, sportId: number): Promise<voi
   }
 }
 
-export async function countTournamentsForSport(sportId: number): Promise<number> {
+export async function countTournamentsForSport(sportId: string): Promise<number> {
   const [row] = await getDb()
     .select({ count: count() })
     .from(tournaments)

@@ -30,8 +30,8 @@ import type {
 } from "@/lib/validations/wiki-entities";
 
 export type WikiEntityListItem = {
-  id: number;
-  sportId: number;
+  id: string;
+  sportId: string;
   sportSlug: string;
   sportName: string;
   entityType: WikiEntityType;
@@ -47,12 +47,12 @@ export type WikiEntityListItem = {
 };
 
 export type WikiEntityRelationView = {
-  id: number;
+  id: string;
   relationType: string;
   metadata: Record<string, unknown>;
   sortOrder: number;
   entity: {
-    id: number;
+    id: string;
     entityType: WikiEntityType;
     slug: string;
     displayName: string;
@@ -71,7 +71,7 @@ export type WikiEntityDetail = WikiEntityListItem & {
   features: { title: string; description: string; icon?: string }[];
   sourceUrl: string | null;
   publishedAt: string | null;
-  gallery: { id: number; url: string | null; caption: string | null; sortOrder: number }[];
+  gallery: { id: string; url: string | null; caption: string | null; sortOrder: number }[];
   relations: WikiEntityRelationView[];
 };
 
@@ -97,7 +97,7 @@ function mapEntityRow(
 }
 
 export async function listWikiEntities(
-  sportId: number,
+  sportId: string,
   query: WikiEntitiesListQuery,
 ) {
   const db = getDb();
@@ -156,7 +156,7 @@ export async function listWikiEntities(
   };
 }
 
-export async function getWikiEntityStats(sportId: number) {
+export async function getWikiEntityStats(sportId: string) {
   const db = getDb();
   const rows = await db
     .select({
@@ -180,7 +180,7 @@ export async function getWikiEntityStats(sportId: number) {
   return totals;
 }
 
-async function loadRelations(entityId: number): Promise<WikiEntityRelationView[]> {
+async function loadRelations(entityId: string): Promise<WikiEntityRelationView[]> {
   const db = getDb();
   const links = await db
     .select()
@@ -220,7 +220,7 @@ async function loadRelations(entityId: number): Promise<WikiEntityRelationView[]
 }
 
 export async function getWikiEntityById(
-  id: number,
+  id: string,
   options?: { publishedOnly?: boolean },
 ): Promise<WikiEntityDetail | null> {
   const db = getDb();
@@ -299,7 +299,7 @@ export async function getPublishedWikiEntityBySlug(
 }
 
 export async function createWikiEntity(
-  sportId: number,
+  sportId: string,
   input: WikiEntityUpsertInput,
   actorId: string,
   images?: {
@@ -369,8 +369,8 @@ export async function createWikiEntity(
 }
 
 export async function updateWikiEntity(
-  id: number,
-  sportId: number,
+  id: string,
+  sportId: string,
   input: WikiEntityUpsertInput,
   actorId: string,
   images?: {
@@ -473,7 +473,7 @@ export async function updateWikiEntity(
 }
 
 async function syncWikiRelations(
-  entityId: number,
+  entityId: string,
   relations: WikiEntityUpsertInput["relations"],
 ) {
   const db = getDb();
@@ -492,7 +492,7 @@ async function syncWikiRelations(
 }
 
 async function syncWikiGallery(
-  entityId: number,
+  entityId: string,
   gallery: WikiEntityUpsertInput["gallery"],
 ) {
   const db = getDb();
@@ -541,7 +541,7 @@ async function syncWikiGallery(
   await deleteStoredObjects(removedKeys);
 }
 
-export async function deleteWikiEntity(id: number, sportId: number) {
+export async function deleteWikiEntity(id: string, sportId: string) {
   const db = getDb();
   const [existing] = await db
     .select()
@@ -578,7 +578,7 @@ export async function deleteWikiEntity(id: number, sportId: number) {
 }
 
 export async function searchWikiEntitiesForLink(
-  sportId: number,
+  sportId: string,
   entityTypes: WikiEntityType[],
   search: string,
   limit = 10,
@@ -610,7 +610,7 @@ export async function searchWikiEntitiesForLink(
 
 /** Published gear only — for tournament equipment picker (debounced search). */
 export async function searchPublishedGearForTournament(
-  sportId: number,
+  sportId: string,
   search: string,
   limit = 15,
 ) {

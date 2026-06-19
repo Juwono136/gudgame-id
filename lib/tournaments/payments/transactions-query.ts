@@ -22,7 +22,7 @@ export type TransactionQueryOptions = {
   offset?: number;
   search?: string;
   status?: string;
-  tournamentId?: number;
+  tournamentId?: string;
   dateFrom?: string;
   dateTo?: string;
 };
@@ -152,6 +152,8 @@ export async function queryPaymentTransactions(
   let totalHostPayoutIdr = 0;
   let paidCount = 0;
   let pendingCount = 0;
+  let expiredCount = 0;
+  let failedCount = 0;
 
   for (const row of summaryRows) {
     if (row.status === "paid") {
@@ -162,6 +164,12 @@ export async function queryPaymentTransactions(
     }
     if (row.status === "pending") {
       pendingCount += Number(row.cnt);
+    }
+    if (row.status === "expired") {
+      expiredCount += Number(row.cnt);
+    }
+    if (row.status === "failed") {
+      failedCount += Number(row.cnt);
     }
   }
 
@@ -202,6 +210,8 @@ export async function queryPaymentTransactions(
       totalHostPayoutIdr,
       paidCount,
       pendingCount,
+      expiredCount,
+      failedCount,
     },
   };
 }

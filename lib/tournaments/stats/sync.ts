@@ -25,7 +25,7 @@ export async function syncReclubMatchToPlayerHistory(input: {
   const opponents = [match.teamAName, match.teamBName].filter(Boolean).join(" vs ");
   const playedAt = match.endedAt ?? match.startedAt ?? new Date();
 
-  const teamIds = [match.teamAId, match.teamBId].filter((id): id is number => id != null);
+  const teamIds = [match.teamAId, match.teamBId].filter((id): id is string => id != null);
   const membership =
     teamIds.length > 0
       ? await db
@@ -114,8 +114,8 @@ export async function syncReclubBracketResult(input: {
   roundLabel: string;
   teamAName: string | null;
   teamBName: string | null;
-  teamAId: number | null;
-  teamBId: number | null;
+  teamAId: string | null;
+  teamBId: string | null;
   scoreA: number;
   scoreB: number;
   participantUserIds: string[];
@@ -223,7 +223,7 @@ export async function syncOfficialPlacement(input: {
   userId: string;
   placement: string;
   placementRank: number | null;
-  wikiEntityId?: number | null;
+  wikiEntityId?: string | null;
 }): Promise<void> {
   const { tournament, userId, placement, placementRank, wikiEntityId } = input;
   const year = tournament.startsAt

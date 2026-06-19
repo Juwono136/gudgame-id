@@ -43,7 +43,7 @@ export function useCreateTournament() {
   });
 }
 
-export function useUpdateAdminTournament(tournamentId: number) {
+export function useUpdateAdminTournament(tournamentId: string) {
   const qc = useQueryClient();
 
   return useMutation({
@@ -76,7 +76,7 @@ export function useDeleteAdminTournament() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (tournamentId: number) => {
+    mutationFn: async (tournamentId: string) => {
       const res = await fetch(`/api/admin/tournaments/${tournamentId}`, {
         method: "DELETE",
       });

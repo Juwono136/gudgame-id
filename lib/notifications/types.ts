@@ -14,9 +14,11 @@ export const NOTIFICATION_TYPES = [
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
+export type NotificationId = string;
+
 /** Serialized notification row from API routes. */
 export type NotificationItem = {
-  id: number;
+  id: NotificationId;
   userId: string;
   type: NotificationType | string;
   title: string;

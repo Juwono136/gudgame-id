@@ -23,7 +23,7 @@ const TABLE_HEAD_CLASS =
 type SportsSortableTableProps = {
   items: SportDetail[];
   canReorder: boolean;
-  onPageReorder: (orderedPageIds: number[]) => void;
+  onPageReorder: (orderedPageIds: string[]) => void;
   onEdit: (sport: SportDetail) => void;
   onDelete?: (sport: SportDetail) => void;
   reordering?: boolean;

@@ -35,10 +35,18 @@ export function isXenditConfigured(): boolean {
   return Boolean(process.env.XENDIT_SECRET_KEY?.trim());
 }
 
+export function isXenditDevelopmentKey(key: string | undefined): boolean {
+  return Boolean(key?.trim().startsWith("xnd_development_"));
+}
+
+export function isXenditProductionKey(key: string | undefined): boolean {
+  return Boolean(key?.trim().startsWith("xnd_production_"));
+}
+
 type XenditErrorBody = {
   message?: string;
   error_code?: string;
-  errors?: { message?: string }[];
+  errors?: Array<string | { message?: string; path?: string }>;
 };
 
 export async function xenditRequest<T>(options: XenditRequestOptions): Promise<T> {
@@ -57,16 +65,21 @@ export async function xenditRequest<T>(options: XenditRequestOptions): Promise<T
   const json = (await res.json()) as T & XenditErrorBody;
 
   if (!res.ok) {
+    const errorDetails = Array.isArray(json.errors)
+      ? json.errors.map((e) => (typeof e === "string" ? e : e.message ?? JSON.stringify(e))).join("; ")
+      : undefined;
     const detail =
-      json.message ??
-      json.errors?.[0]?.message ??
-      json.error_code ??
+      errorDetails ||
+      json.message ||
+      (typeof json.errors?.[0] === "object" ? json.errors[0]?.message : undefined) ||
+      json.error_code ||
       `Xendit ${operation} failed`;
     log.error(`Xendit ${operation} failed`, {
       status: res.status,
       path,
       error: detail,
       errorCode: json.error_code,
+      errors: json.errors,
     });
     throw new AppError(detail, {
       code: "PAYMENT_GATEWAY_ERROR",

@@ -1,10 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { TournamentCreateWizard } from "@/components/admin/tournaments/tournament-create-wizard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
-import { dashboardRoutes } from "@/lib/constants/routes";
 import { assertTournamentEditable } from "@/lib/tournaments/manage-policy";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { tournamentListUrl } from "@/lib/tournaments/edit-routes";
@@ -16,8 +14,7 @@ type PageProps = {
 
 export default async function HostEditTournamentPage({ params }: PageProps) {
   const { userId, roles } = await requireHostDashboardAccess();
-  const tournamentId = Number((await params).id);
-  if (!Number.isFinite(tournamentId) || tournamentId <= 0) notFound();
+  const tournamentId = parseEntityIdParam((await params).id, "tournament id");
 
   const tournament = await getTournamentById(tournamentId);
   if (!tournament) notFound();
@@ -29,20 +26,13 @@ export default async function HostEditTournamentPage({ params }: PageProps) {
   try {
     assertTournamentEditable(tournament);
   } catch {
-    redirect(dashboardRoutes.hostTournaments);
+    redirect(tournamentListUrl("host"));
   }
 
   return (
     <PageShell showGridBackground={false}>
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-        <Link
-          href={dashboardRoutes.hostTournaments}
-          className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          My tournaments
-        </Link>
-        <h1 className="mt-4 text-2xl font-bold text-foreground">Edit tournament</h1>
+        <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Edit tournament</h1>
         <p className="mt-1 text-sm text-cp-muted">{tournament.name}</p>
         <div className="mt-6">
           <TournamentCreateWizard

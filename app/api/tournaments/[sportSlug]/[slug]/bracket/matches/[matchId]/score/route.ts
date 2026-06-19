@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
@@ -40,7 +41,7 @@ export async function POST(
 
     const match = await submitBracketMatchScore(
       tournament,
-      Number(matchId),
+      parseEntityIdParam(matchId, "match id"),
       userId,
       parsed.data.scoreA,
       parsed.data.scoreB,

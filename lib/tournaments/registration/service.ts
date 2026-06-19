@@ -23,7 +23,7 @@ import {
   confirmUrl,
   checkoutUrl,
   notifyAwaitingConfirmation,
-  notifyHostPlayerPaid,
+  notifyHostPaymentReceived,
   notifyPlayerRegistrationConfirmed,
   notifyTeamMemberInvitations,
 } from "@/lib/tournaments/registration/notify-flow";
@@ -31,8 +31,7 @@ import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 
 export type TournamentLobbyTeam = {
-  id: number;
-  name: string;
+  id: string; name: string;
   captainUserId: string | null;
   memberCount: number;
   members: { userId: string; slotIndex: number; role: string }[];
@@ -48,7 +47,7 @@ export type TournamentRegistrationSummary = {
 };
 
 export async function getRegistrationSummary(
-  tournamentId: number,
+  tournamentId: string,
   maxTeams: number | null,
   registrationClosesAt: Date | null,
   registrationOpensAt?: Date | null,
@@ -104,7 +103,7 @@ export async function getRegistrationSummary(
   };
 }
 
-export async function listLobbyTeams(tournamentId: number): Promise<TournamentLobbyTeam[]> {
+export async function listLobbyTeams(tournamentId: string): Promise<TournamentLobbyTeam[]> {
   const db = getDb();
   const teams = await db
     .select()
@@ -139,7 +138,7 @@ export async function listLobbyTeams(tournamentId: number): Promise<TournamentLo
 }
 
 /** Teams visible on the public tournament page — confirmed registration with paid fee only. */
-export async function listOfficialPublicRoster(tournamentId: number): Promise<LobbyTeamView[]> {
+export async function listOfficialPublicRoster(tournamentId: string): Promise<LobbyTeamView[]> {
   const db = getDb();
   const paidRows = await db
     .select({ teamId: tournamentRegistrations.teamId })
@@ -157,7 +156,7 @@ export async function listOfficialPublicRoster(tournamentId: number): Promise<Lo
     );
 
   const paidTeamIds = new Set(
-    paidRows.map((r) => r.teamId).filter((id): id is number => id != null),
+    paidRows.map((r) => r.teamId).filter((id): id is string => id != null),
   );
   if (!paidTeamIds.size) return [];
 
@@ -169,7 +168,7 @@ export async function joinReclubTournament(
   tournament: TournamentDetail,
   userId: string,
   teamName?: string,
-): Promise<{ teamId: number }> {
+): Promise<{ teamId: string }> {
   if (tournament.tournamentType !== "recreational") {
     throw new AppError("This tournament requires paid registration.", {
       code: "INVALID_TOURNAMENT_TYPE",
@@ -258,7 +257,7 @@ export async function joinReclubTournament(
   return { teamId: team.id };
 }
 
-async function findOpenTeam(tournamentId: number, playersPerTeam: number) {
+async function findOpenTeam(tournamentId: string, playersPerTeam: number) {
   const teams = await listLobbyTeams(tournamentId);
   return teams.find((t) => t.memberCount < playersPerTeam) ?? null;
 }
@@ -276,8 +275,8 @@ export type UserRegistrationStatus = {
     | "confirmed"
     | "cancelled"
     | "declined";
-  registrationId: number | null;
-  teamId: number | null;
+  registrationId: string | null;
+  teamId: string | null;
   teamName: string | null;
   paymentStatus: string | null;
   invoiceUrl: string | null;
@@ -309,7 +308,7 @@ function assertRegistrationWindow(tournament: TournamentDetail): void {
   }
 }
 
-async function countActiveRegistrations(tournamentId: number): Promise<number> {
+async function countActiveRegistrations(tournamentId: string): Promise<number> {
   const [row] = await getDb()
     .select({ count: count() })
     .from(tournamentRegistrations)
@@ -327,7 +326,7 @@ async function countActiveRegistrations(tournamentId: number): Promise<number> {
 }
 
 export async function getUserRegistrationStatus(
-  tournamentId: number,
+  tournamentId: string,
   userId: string,
 ): Promise<UserRegistrationStatus> {
   const db = getDb();
@@ -409,7 +408,7 @@ export async function getUserRegistrationStatus(
   };
 }
 
-export async function getRegistrationDetail(registrationId: number) {
+export async function getRegistrationDetail(registrationId: string) {
   const db = getDb();
   const [row] = await db
     .select({
@@ -426,6 +425,7 @@ export async function getRegistrationDetail(registrationId: number) {
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
       paymentStatus: tournamentPayments.status,
+      paymentId: tournamentPayments.id,
       invoiceUrl: tournamentPayments.invoiceUrl,
       amountIdr: tournamentPayments.amountIdr,
       platformFeeIdr: tournamentPayments.platformFeeIdr,
@@ -451,7 +451,7 @@ export async function getRegistrationDetail(registrationId: number) {
   return row ?? null;
 }
 
-export async function rollbackDraftRegistration(teamId: number, registrationId: number): Promise<void> {
+export async function rollbackDraftRegistration(teamId: string, registrationId: string): Promise<void> {
   const db = getDb();
   await db
     .delete(tournamentPayments)
@@ -470,12 +470,12 @@ export type IssueInvoiceOptions = {
 
 export async function issueRegistrationInvoice(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   payerUserId: string,
   payerEmail: string,
   fee: number,
   options?: IssueInvoiceOptions,
-): Promise<{ paymentId: number; invoiceUrl: string; amountIdr: number }> {
+): Promise<{ paymentId: string; invoiceUrl: string; amountIdr: number }> {
   const db = getDb();
   const settings = await getPlatformPaymentSettings();
   const split = calculateOfficialPaymentSplit(fee, settings);
@@ -581,8 +581,8 @@ async function resumePendingOfficialRegistration(
   tournament: TournamentDetail,
   payerUserId: string,
   payerEmail: string,
-  registrationId: number,
-): Promise<{ registrationId: number; paymentId: number; invoiceUrl: string; amountIdr: number }> {
+  registrationId: string,
+): Promise<{ registrationId: string; paymentId: string; invoiceUrl: string; amountIdr: number }> {
   const fee = tournament.registrationFeeIdr;
   if (!fee || fee <= 0) {
     throw new AppError("Registration fee is not configured.", {
@@ -603,11 +603,11 @@ async function resumePendingOfficialRegistration(
 }
 
 export type OfficialRegistrationResult = {
-  registrationId: number;
+  registrationId: string;
   status: "awaiting_confirmation" | "pending_payment";
   confirmUrl?: string;
   checkoutUrl?: string;
-  paymentId?: number;
+  paymentId?: string;
   invoiceUrl?: string;
   amountIdr?: number;
 };
@@ -693,8 +693,8 @@ export async function startOfficialRegistration(
   }
 
   const db = getDb();
-  let team: { id: number };
-  let registration: { id: number };
+  let team: { id: string };
+  let registration: { id: string };
   const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
 
   try {
@@ -797,10 +797,10 @@ export async function startOfficialRegistration(
 
 export async function updateOfficialRegistration(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   userId: string,
   input: OfficialRegistrationInput,
-): Promise<{ registrationId: number; confirmUrl: string }> {
+): Promise<{ registrationId: string; confirmUrl: string }> {
   if (tournament.tournamentType !== "official") {
     throw new AppError("Only official tournaments support this flow.", {
       code: "INVALID_TOURNAMENT_TYPE",
@@ -906,7 +906,7 @@ export async function updateOfficialRegistration(
   };
 }
 
-export async function confirmPaymentByRegistrationId(registrationId: number): Promise<void> {
+export async function confirmPaymentByRegistrationId(registrationId: string): Promise<void> {
   const db = getDb();
   const [payment] = await db
     .select()
@@ -938,15 +938,17 @@ async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSele
     void sendRegistrationConfirmedEmails(payment.registrationId, appOrigin.replace(/\/$/, ""));
   }
 
-  void notifyHostPlayerPaid(payment.registrationId);
+  void notifyHostPaymentReceived(payment.registrationId);
 
   const detail = await getRegistrationDetail(payment.registrationId);
   if (detail) {
+    const origin = appOrigin.replace(/\/$/, "");
+    const { dashboardRoutes } = await import("@/lib/constants/routes");
     void notifyPlayerRegistrationConfirmed(
       payment.registrationId,
       payment.payerUserId,
       detail.tournamentName,
-      `${appOrigin.replace(/\/$/, "")}/sports/${detail.sportSlug}/tournaments/${detail.tournamentSlug}`,
+      `${origin}${dashboardRoutes.paymentReceipt(payment.id)}`,
     );
   }
 }

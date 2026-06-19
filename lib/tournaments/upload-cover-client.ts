@@ -9,7 +9,7 @@ export type TournamentCoverUploadResult = {
 export async function uploadTournamentCoverClient(
   file: File,
   sportSlug: string,
-  tournamentId?: number,
+  tournamentId?: string,
 ): Promise<TournamentCoverUploadResult> {
   const form = new FormData();
   form.append("file", file);

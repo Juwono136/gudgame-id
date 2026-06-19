@@ -130,7 +130,7 @@ export function TournamentStatusPanel({
 }
 
 type HostTournamentIconActionsProps = {
-  tournamentId: number;
+  tournamentId: string;
   sportSlug: string;
   slug: string;
   canEdit?: boolean;

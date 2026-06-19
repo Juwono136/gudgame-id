@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { renameReclubTeam } from "@/lib/tournaments/reclub/teams";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
@@ -29,7 +30,7 @@ export async function PATCH(
       throw new AppError("Invalid team name", { code: "VALIDATION_ERROR", statusCode: 422 });
     }
 
-    await renameReclubTeam(tournament, userId, Number(teamId), parsed.data.name);
+    await renameReclubTeam(tournament, userId, parseEntityIdParam(teamId, "team id"), parsed.data.name);
     return jsonSuccess({ renamed: true });
   } catch (error) {
     return jsonError(error);

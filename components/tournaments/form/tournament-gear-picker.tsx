@@ -12,15 +12,15 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 
 type GearOption = {
-  id: number;
+  id: string;
   displayName: string;
   slug: string;
 };
 
 type TournamentGearPickerProps = {
   sportSlug: string;
-  selectedIds: number[];
-  onChange: (ids: number[]) => void;
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
   className?: string;
 };
 
@@ -31,7 +31,7 @@ export function TournamentGearPicker({
   className,
 }: TournamentGearPickerProps) {
   const [search, setSearch] = useState("");
-  const [selectedLabels, setSelectedLabels] = useState<Record<number, string>>({});
+  const [selectedLabels, setSelectedLabels] = useState<Record<string, string>>({});
   const debouncedSearch = useDebounce(search, 400);
 
   const { data, isFetching } = useQuery({
@@ -91,7 +91,7 @@ export function TournamentGearPicker({
             const label =
               selectedLabels[id] ??
               data?.find((g) => g.id === id)?.displayName ??
-              `Gear #${id}`;
+              `Gear ${id.slice(0, 8)}…`;
             return (
               <span
                 key={id}

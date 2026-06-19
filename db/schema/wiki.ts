@@ -3,7 +3,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -11,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { sports } from "./sports";
+import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 export const WIKI_ENTITY_TYPES = ["player", "team", "gear"] as const;
 export type WikiEntityType = (typeof WIKI_ENTITY_TYPES)[number];
@@ -25,8 +25,8 @@ export type WikiSourceType = (typeof WIKI_SOURCE_TYPES)[number];
 export const wikiEntities = pgTable(
   "wiki_entities",
   {
-    id: serial("id").primaryKey(),
-    sportId: integer("sport_id")
+    id: uuidPrimaryKey(),
+    sportId: uuidFk("sport_id")
       .notNull()
       .references(() => sports.id, { onDelete: "restrict" }),
     entityType: varchar("entity_type", { length: 20 }).notNull(),
@@ -80,11 +80,11 @@ export const wikiEntities = pgTable(
 export const wikiEntityRelations = pgTable(
   "wiki_entity_relations",
   {
-    id: serial("id").primaryKey(),
-    fromEntityId: integer("from_entity_id")
+    id: uuidPrimaryKey(),
+    fromEntityId: uuidFk("from_entity_id")
       .notNull()
       .references(() => wikiEntities.id, { onDelete: "cascade" }),
-    toEntityId: integer("to_entity_id")
+    toEntityId: uuidFk("to_entity_id")
       .notNull()
       .references(() => wikiEntities.id, { onDelete: "cascade" }),
     relationType: varchar("relation_type", { length: 40 }).notNull(),
@@ -106,8 +106,8 @@ export const wikiEntityRelations = pgTable(
 export const wikiEntityMedia = pgTable(
   "wiki_entity_media",
   {
-    id: serial("id").primaryKey(),
-    entityId: integer("entity_id")
+    id: uuidPrimaryKey(),
+    entityId: uuidFk("entity_id")
       .notNull()
       .references(() => wikiEntities.id, { onDelete: "cascade" }),
     url: text("url"),

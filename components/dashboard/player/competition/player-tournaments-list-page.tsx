@@ -47,18 +47,21 @@ function placementTone(placement: string) {
   return "text-foreground";
 }
 
+const TOURNAMENT_LIST_GRID =
+  "md:grid md:grid-cols-[3.25rem_minmax(0,1.5fr)_5.25rem_minmax(0,1fr)_6.5rem_minmax(6.5rem,auto)] md:items-center md:gap-x-3 md:gap-y-1";
+
 type TournamentListRowProps = {
   row: PlayerTournamentListItem;
   scope: PlayerTournamentsListQuery["scope"];
   deletePending: boolean;
   onEditRegistration: (payload: {
-    registrationId: number;
+    registrationId: string;
     sportSlug: string;
     slug: string;
     tournamentName: string;
   }) => void;
   onRefetch: () => void;
-  onDelete: (tournamentId: number) => void;
+  onDelete: (tournamentId: string) => void;
 };
 
 function TournamentListRow({
@@ -158,8 +161,8 @@ function TournamentListRow({
   );
 
   return (
-    <li className="px-4 py-4 sm:px-5 lg:px-6">
-      <div className="flex flex-col gap-3 lg:hidden">
+    <li className="px-4 py-4 sm:px-5 md:px-6">
+      <div className="flex flex-col gap-3 md:hidden">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             {tournamentTitle}
@@ -201,20 +204,20 @@ function TournamentListRow({
         ) : null}
       </div>
 
-      <div className="hidden lg:grid lg:grid-cols-[72px_minmax(0,1.2fr)_88px_minmax(0,1fr)_120px_88px] lg:items-center lg:gap-3">
-        <p className="text-sm font-semibold text-foreground">{row.year}</p>
+      <div className={cn("hidden min-w-[44rem]", TOURNAMENT_LIST_GRID)}>
+        <p className="text-sm font-semibold tabular-nums text-foreground">{row.year}</p>
         <div className="min-w-0">
           {tournamentTitle}
           {statusLabel ? (
-            <p className="text-xs capitalize text-cp-muted">{statusLabel}</p>
+            <p className="mt-0.5 text-xs capitalize text-cp-muted">{statusLabel}</p>
           ) : null}
         </div>
-        {typeBadge}
+        <div className="flex justify-start">{typeBadge}</div>
         <p className="min-w-0 truncate text-sm text-cp-muted">{row.category ?? "—"}</p>
         <p className={cn("text-right text-sm font-semibold", placementTone(row.placement))}>
           {row.placement}
         </p>
-        <div className="flex justify-end gap-1">
+        <div className="flex justify-end gap-0.5">
           {registrationActions}
           {hostActions}
         </div>
@@ -239,7 +242,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
   const [sortBy, setSortBy] = useState<PlayerTournamentsListQuery["sortBy"]>("year");
   const [sortDir, setSortDir] = useState<PlayerTournamentsListQuery["sortDir"]>("desc");
   const [editRegistration, setEditRegistration] = useState<{
-    registrationId: number;
+    registrationId: string;
     sportSlug: string;
     slug: string;
     tournamentName: string;
@@ -279,7 +282,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
 
   const activeTab = scopeTabs.find((t) => t.id === scope);
 
-  const handleDeleteTournament = async (tournamentId: number) => {
+  const handleDeleteTournament = async (tournamentId: string) => {
     const ok = await confirm({
       title: "Delete tournament?",
       description:
@@ -404,7 +407,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
           </div>
         </div>
 
-        <div className="relative overflow-hidden">
+        <div className="relative overflow-x-auto overflow-y-hidden">
           {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
 
           {error ? (
@@ -425,7 +428,12 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
             </div>
           ) : (
             <>
-              <div className="hidden border-b border-cp-border bg-cp-elevated/50 px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:grid-cols-[72px_minmax(0,1.2fr)_88px_minmax(0,1fr)_120px_88px] lg:gap-3">
+              <div
+                className={cn(
+                  "hidden min-w-[44rem] border-b border-cp-border bg-cp-elevated/50 px-6 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-cp-muted",
+                  TOURNAMENT_LIST_GRID,
+                )}
+              >
                 <span>Year</span>
                 <span>Tournament</span>
                 <span>Type</span>

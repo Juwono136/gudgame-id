@@ -1,5 +1,6 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { RegistrationSuccessContent } from "@/components/tournaments/registration-success-content";
+import { isUuid, parseEntityIdParam } from "@/lib/domain/uuid";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
@@ -16,10 +17,10 @@ export default async function RegistrationSuccessPage({ params, searchParams }: 
   const tournament = await getTournamentBySlug(sportSlug, slug);
   if (!tournament) notFound();
 
-  const regId = Number(registrationId);
-  if (!Number.isFinite(regId) || regId <= 0) {
+  if (!registrationId?.trim() || !isUuid(registrationId.trim())) {
     redirect(`/sports/${sportSlug}/tournaments/${slug}`);
   }
+  const regId = parseEntityIdParam(registrationId, "registration id");
 
   return (
     <PageShell>

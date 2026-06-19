@@ -68,6 +68,7 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       page: 1,
       pageSize: 3,
       result: "all",
+      type: "all",
       sortBy: "playedAt",
       sortDir: "desc",
     }),

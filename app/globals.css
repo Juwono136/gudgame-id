@@ -155,6 +155,7 @@
   }
   html {
     @apply font-sans scroll-smooth;
+    scrollbar-gutter: stable;
   }
   body {
     @apply bg-cp-bg text-foreground antialiased;
@@ -190,4 +191,11 @@ html.dashboard-mobile-nav-active body {
   overflow-x: clip;
   max-width: 100%;
   overscroll-behavior-x: none;
+}
+
+/* Lock background scroll while mobile nav drawer is open (header stays fixed via portal) */
+html.mobile-nav-menu-open,
+html.mobile-nav-menu-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }

@@ -143,7 +143,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
   const deleteEntity = useDeleteWikiEntity();
   const deleteTournament = useDeleteAdminTournament();
 
-  const handleDeleteEntity = async (id: number, name: string) => {
+  const handleDeleteEntity = async (id: string, name: string) => {
     const ok = await confirm({
       title: "Delete wiki entity?",
       description: `"${name}" will be permanently removed including media and relations.`,
@@ -154,7 +154,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
     if (ok) deleteEntity.mutate(id);
   };
 
-  const handleDeleteTournament = async (id: number, name: string) => {
+  const handleDeleteTournament = async (id: string, name: string) => {
     const ok = await confirm({
       title: "Delete tournament?",
       description: `"${name}" will be permanently removed. This cannot be undone if registrations exist.`,
@@ -363,7 +363,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                                 </DropdownMenuItem>
                               ) : item.recordKind === "tournament" ? (
                                 <DropdownMenuItem asChild>
-                                  <Link href={adminRoutes.tournamentEdit(item.id)}>
+                                  <Link href={adminRoutes.tournamentEdit(String(item.id))}>
                                     <Pencil className="mr-2 h-4 w-4" />
                                     Edit
                                   </Link>
@@ -394,7 +394,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                                 <DropdownMenuItem
                                   className="text-red-400"
                                   onClick={() =>
-                                    void handleDeleteTournament(item.id, item.displayName)
+                                    void handleDeleteTournament(item.id as string, item.displayName)
                                   }
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
@@ -466,7 +466,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                             size="sm"
                             className="h-8 border-cp-border"
                           >
-                            <Link href={adminRoutes.tournamentEdit(item.id)}>Edit</Link>
+                            <Link href={adminRoutes.tournamentEdit(String(item.id))}>Edit</Link>
                           </Button>
                         ) : null}
                         {canViewPublic(item) ? (
@@ -500,7 +500,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                             size="sm"
                             className="h-8 text-red-400"
                             onClick={() =>
-                              void handleDeleteTournament(item.id, item.displayName)
+                              void handleDeleteTournament(item.id as string, item.displayName)
                             }
                           >
                             Delete

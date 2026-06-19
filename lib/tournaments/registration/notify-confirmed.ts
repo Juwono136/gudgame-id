@@ -6,8 +6,9 @@ import { user } from "@/db/schema/auth";
 import { tournamentRegistrations, tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { sports } from "@/db/schema/sports";
+import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { sendTemplatedEmail } from "@/lib/email/send";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { siteConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
 
@@ -37,7 +38,7 @@ function formatIdr(amount: number | null | undefined): string | null {
 }
 
 export async function sendRegistrationConfirmedEmails(
-  registrationId: number,
+  registrationId: string,
   appOrigin: string,
 ): Promise<void> {
   const db = getDb();
@@ -82,6 +83,31 @@ export async function sendRegistrationConfirmedEmails(
   const feePaid = formatIdr(row.registrationFeeIdr);
   const teamMemberNames = members.map((m) => memberDisplayName(m));
 
+  const [payment] = await db
+    .select({
+      paymentId: tournamentPayments.id,
+      amountIdr: tournamentPayments.amountIdr,
+      xenditExternalId: tournamentPayments.xenditExternalId,
+      paidAt: tournamentPayments.paidAt,
+    })
+    .from(tournamentPayments)
+    .where(eq(tournamentPayments.registrationId, registrationId))
+    .limit(1);
+
+  const receiptUrl = payment
+    ? `${appOrigin}${dashboardRoutes.paymentReceipt(payment.paymentId)}`
+    : `${appOrigin}${dashboardRoutes.payments}`;
+  const paymentsUrl = `${appOrigin}${dashboardRoutes.payments}`;
+  const invoiceNumber =
+    payment?.xenditExternalId?.trim() ||
+    (payment ? `TB-PAY-${String(payment.paymentId).padStart(6, "0")}` : null);
+  const amountPaidFormatted = formatIdr(payment?.amountIdr ?? row.registrationFeeIdr);
+  const paidAtFormatted = payment?.paidAt
+    ? new Intl.DateTimeFormat("en", { dateStyle: "long", timeStyle: "short" }).format(
+        payment.paidAt,
+      )
+    : null;
+
   await Promise.all(
     members.map(async (member) => {
       if (!member.email) return;
@@ -99,6 +125,11 @@ export async function sendRegistrationConfirmedEmails(
           feePaid,
           teamMembers: teamMemberNames,
           tournamentUrl,
+          receiptUrl,
+          paymentsUrl,
+          invoiceNumber,
+          amountPaidFormatted,
+          paidAtFormatted,
         },
       });
       if (!result.ok) {

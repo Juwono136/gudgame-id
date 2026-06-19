@@ -1,5 +1,7 @@
 /** Client-safe sport domain types and constants. */
 
+export type SportId = string;
+
 export {
   SPORT_VISIBILITY,
   DEFAULT_SPORT_MODULES,

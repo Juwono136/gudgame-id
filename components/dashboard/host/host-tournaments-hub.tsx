@@ -97,7 +97,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
   const isEditableStatus = (status: string) =>
     status !== "completed" && status !== "cancelled";
 
-  const handleDelete = async (id: number, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     const ok = await confirm({
       title: `Delete "${name}"?`,
       description:
@@ -121,15 +121,27 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
         { label: "Tournaments" },
       ]}
       actions={
-        <Button
-          asChild
-          className="h-10 w-full bg-cp-primary hover:bg-cp-primary-light md:w-auto"
-        >
-          <Link href={`${dashboardRoutes.host}/tournaments/new`}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create tournament
-          </Link>
-        </Button>
+        <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
+          <Button
+            asChild
+            className="h-10 w-full bg-cp-primary hover:bg-cp-primary-light md:w-auto"
+          >
+            <Link href={`${dashboardRoutes.host}/tournaments/new`}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create official
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="h-10 w-full border-emerald-500/40 text-emerald-300 md:w-auto"
+          >
+            <Link href={dashboardRoutes.tournamentsNew}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create reclub
+            </Link>
+          </Button>
+        </div>
       }
     >
       <LoadingOverlay show={deleteTournament.isPending} label="Deleting tournament…" />
@@ -149,12 +161,24 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
           <p className="mt-1 text-sm text-cp-muted">
             Create an official ranked event or a free reclub session.
           </p>
-          <Button asChild className="mt-6 h-10 w-full max-w-xs sm:w-auto">
-            <Link href={`${dashboardRoutes.host}/tournaments/new`}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create your first tournament
-            </Link>
-          </Button>
+          <div className="mx-auto mt-6 grid w-full max-w-xs grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+            <Button asChild className="h-10 w-full bg-cp-primary">
+              <Link href={`${dashboardRoutes.host}/tournaments/new`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create official
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="h-10 w-full border-emerald-500/40 text-emerald-300"
+            >
+              <Link href={dashboardRoutes.tournamentsNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create reclub
+              </Link>
+            </Button>
+          </div>
         </div>
       ) : (
         <ul className="space-y-3 sm:space-y-4">

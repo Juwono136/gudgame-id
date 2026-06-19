@@ -20,7 +20,7 @@ export type PlayerCareerStats = {
 };
 
 export type PlayerCareerStatsSource = {
-  id: number;
+  id: string;
   attributes: Record<string, unknown>;
   performance: Record<string, unknown>;
 };

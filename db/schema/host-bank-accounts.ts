@@ -2,18 +2,18 @@ import {
   boolean,
   index,
   pgTable,
-  serial,
   text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
+import { uuidPrimaryKey } from "./uuid";
 
 /** Up to 3 bank accounts per host; one marked primary for payouts */
 export const hostBankAccounts = pgTable(
   "host_bank_accounts",
   {
-    id: serial("id").primaryKey(),
+    id: uuidPrimaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

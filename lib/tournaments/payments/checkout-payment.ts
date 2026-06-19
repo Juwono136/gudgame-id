@@ -23,7 +23,7 @@ const BANK_CODES: Record<string, string> = {
 
 export async function initiateCheckoutPayment(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   userId: string,
   method: CheckoutPaymentMethod,
   defaultBank = "BCA",

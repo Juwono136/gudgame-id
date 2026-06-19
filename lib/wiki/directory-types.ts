@@ -4,8 +4,8 @@ export type WikiDirectoryTypeFilter = WikiEntityType | "tournament";
 
 export type WikiDirectoryListItem = {
   recordKind: "wiki_entity" | "tournament";
-  id: number;
-  sportId: number;
+  id: string;
+  sportId: string;
   sportSlug: string;
   sportName: string;
   entityType: WikiDirectoryTypeFilter;

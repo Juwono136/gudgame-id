@@ -109,7 +109,7 @@ export default function SportsDirectory({ sports }: SportsDirectoryProps) {
               id="sports-databases-heading"
               className="mt-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
             >
-              Sports Databases
+              Sports List
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-cp-muted sm:text-base">
               Pick a discipline below to browse players, equipment, tournaments, and

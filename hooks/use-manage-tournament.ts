@@ -8,7 +8,7 @@ import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 
-export function useUpdateManageTournament(tournamentId: number) {
+export function useUpdateManageTournament(tournamentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: TournamentUpsertInput) => {
@@ -41,7 +41,7 @@ export function useDeleteManageTournament() {
   const qc = useQueryClient();
   const router = useRouter();
   return useMutation({
-    mutationFn: async (tournamentId: number) => {
+    mutationFn: async (tournamentId: string) => {
       const res = await fetch(`/api/tournaments/manage/${tournamentId}`, {
         method: "DELETE",
       });

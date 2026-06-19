@@ -172,7 +172,7 @@ export function GearCatalogImport({
       const bulkJson = await parseJsonResponse<{
         success: boolean;
         data: {
-          created: { id: number; displayName: string }[];
+          created: { id: string; displayName: string }[];
           failed: { displayName: string; error: string }[];
         };
       }>(bulkRes);

@@ -3,9 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import type { TournamentId } from "@/lib/domain/tournaments";
 import type { HostPaymentRecord } from "@/lib/tournaments/payments/host-history";
 
-export function useHostPayments(tournamentId?: number) {
+export function useHostPayments(tournamentId?: TournamentId) {
   return useQuery({
     queryKey: ["host", "payments", tournamentId ?? "all"],
     queryFn: async () => {

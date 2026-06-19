@@ -8,7 +8,7 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
-  teamId: z.coerce.number().int().positive(),
+  teamId: z.string().uuid(),
 });
 
 export async function POST(

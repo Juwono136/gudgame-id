@@ -31,7 +31,7 @@ export function canEditTournament(status: string): boolean {
 
 export function canShowManageActions(tournament: {
   status: string | null;
-  tournamentId: number | null;
+  tournamentId: string | null;
   canManage: boolean;
 }): boolean {
   if (!tournament.tournamentId || !tournament.canManage) return false;

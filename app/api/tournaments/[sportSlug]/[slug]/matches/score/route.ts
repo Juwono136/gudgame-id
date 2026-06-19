@@ -10,7 +10,7 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
-  matchId: z.coerce.number().int().positive(),
+  matchId: z.string().uuid(),
   scoreA: z.coerce.number().int().min(0).max(99),
   scoreB: z.coerce.number().int().min(0).max(99),
   action: z.enum(["set", "increment", "decrement"]).optional(),

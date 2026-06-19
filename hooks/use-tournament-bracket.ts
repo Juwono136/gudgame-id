@@ -47,7 +47,7 @@ export function useTournamentBracket(
 export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { matchId: number; scoreA: number; scoreB: number }) => {
+    mutationFn: async (input: { matchId: string; scoreA: number; scoreB: number }) => {
       const res = await fetch(
         `/api/tournaments/${sportSlug}/${slug}/bracket/matches/${input.matchId}/live`,
         {
@@ -87,7 +87,7 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
 export function useGenerateReclubBracket(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (_tournamentId: number) => {
+    mutationFn: async (_tournamentId: string) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/generate`, {
         method: "POST",
       });
@@ -113,7 +113,7 @@ export function useGenerateReclubBracket(sportSlug: string, slug: string) {
 export function useAssignBracketTeam(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { matchId: number; slot: "a" | "b"; teamId: number }) => {
+    mutationFn: async (input: { matchId: string; slot: "a" | "b"; teamId: string }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -146,7 +146,7 @@ export function useAssignBracketTeam(sportSlug: string, slug: string) {
   });
 }
 
-export function useGenerateBracket(tournamentId: number) {
+export function useGenerateBracket(tournamentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
@@ -175,7 +175,7 @@ export function useGenerateBracket(tournamentId: number) {
 export function useSubmitBracketScore(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { matchId: number; scoreA: number; scoreB: number }) => {
+    mutationFn: async (input: { matchId: string; scoreA: number; scoreB: number }) => {
       const res = await fetch(
         `/api/tournaments/${sportSlug}/${slug}/bracket/matches/${input.matchId}/score`,
         {

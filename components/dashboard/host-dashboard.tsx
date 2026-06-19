@@ -59,8 +59,7 @@ function TournamentStatusBadge({ status }: { status: string }) {
 }
 
 type HostOverviewTournament = {
-  id: number;
-  name: string;
+  id: string; name: string;
   sportName: string;
   sportSlug: string;
   slug: string;

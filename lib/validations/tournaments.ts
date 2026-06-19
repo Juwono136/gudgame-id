@@ -38,7 +38,7 @@ export const tournamentUpsertSchema = z
     eligibilityRules: z.string().trim().max(50000).optional().or(z.literal("")),
     matchFormatRules: z.string().trim().max(50000).optional().or(z.literal("")),
     equipmentStandardsRules: z.string().trim().max(50000).optional().or(z.literal("")),
-    gearEntityIds: z.array(z.coerce.number().int().positive()).max(24).optional(),
+    gearEntityIds: z.array(z.string().uuid()).max(24).optional(),
     maxRounds: z.coerce.number().int().min(1).max(99).optional(),
   })
   .superRefine((data, ctx) => {

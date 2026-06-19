@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { markNotificationRead } from "@/lib/notifications/service";
 
 export const runtime = "nodejs";
@@ -11,10 +12,7 @@ export async function PATCH(
   try {
     const { userId } = await requireApiRoleGuardContext();
     const { id } = await params;
-    const notificationId = Number(id);
-    if (!Number.isFinite(notificationId)) {
-      return jsonError(new Error("Invalid notification id"));
-    }
+    const notificationId = parseEntityIdParam(id, "notification id");
 
     const ok = await markNotificationRead(userId, notificationId);
     return jsonSuccess({ ok });

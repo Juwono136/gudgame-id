@@ -19,11 +19,11 @@ export const addBankAccountSchema = z.object(bankAccountFields);
 
 export const updateBankAccountSchema = z.object({
   ...bankAccountFields,
-  id: z.number().int().positive(),
+  id: z.string().uuid(),
 });
 
 export const setPrimaryBankSchema = z.object({
-  accountId: z.number().int().positive(),
+  accountId: z.string().uuid(),
 });
 
 export const payoutScheduleSchema = z.object({

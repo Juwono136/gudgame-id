@@ -95,7 +95,11 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
               <AlertDialogDescription className="text-sm leading-relaxed text-cp-muted">
                 {state.description}
               </AlertDialogDescription>
-            ) : null}
+            ) : (
+              <AlertDialogDescription className="sr-only">
+                Confirm this action to continue.
+              </AlertDialogDescription>
+            )}
           </AlertDialogHeader>
 
           <AlertDialogFooter>

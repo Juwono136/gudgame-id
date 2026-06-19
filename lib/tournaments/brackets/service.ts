@@ -8,21 +8,20 @@ import { AppError } from "@/lib/errors";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type BracketMatchView = {
-  id: number;
-  roundNumber: number;
+  id: string; roundNumber: number;
   matchNumber: number;
-  teamAId: number | null;
-  teamBId: number | null;
+  teamAId: string | null;
+  teamBId: string | null;
   teamAName: string | null;
   teamBName: string | null;
   scoreA: number | null;
   scoreB: number | null;
-  winnerTeamId: number | null;
+  winnerTeamId: string | null;
   status: string;
-  nextMatchId: number | null;
+  nextMatchId: string | null;
 };
 
-export async function listBracketMatches(tournamentId: number): Promise<BracketMatchView[]> {
+export async function listBracketMatches(tournamentId: string): Promise<BracketMatchView[]> {
   const rows = await getDb()
     .select()
     .from(tournamentBracketMatches)
@@ -50,7 +49,7 @@ export async function listBracketMatches(tournamentId: number): Promise<BracketM
 
 export async function submitBracketMatchScore(
   tournament: TournamentDetail,
-  matchId: number,
+  matchId: string,
   userId: string,
   scoreA: number,
   scoreB: number,
@@ -196,7 +195,7 @@ export async function submitBracketMatchScore(
 
 export async function updateBracketLiveScore(
   tournament: TournamentDetail,
-  matchId: number,
+  matchId: string,
   scoreA: number,
   scoreB: number,
 ): Promise<BracketMatchView> {
@@ -250,7 +249,7 @@ export async function updateBracketLiveScore(
   };
 }
 
-export async function hasBracket(tournamentId: number): Promise<boolean> {
+export async function hasBracket(tournamentId: string): Promise<boolean> {
   const [row] = await getDb()
     .select({ id: tournamentBracketMatches.id })
     .from(tournamentBracketMatches)

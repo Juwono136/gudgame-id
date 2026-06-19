@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -15,6 +14,12 @@ import { TournamentCountdown } from "@/components/tournaments/tournament-countdo
 import { TournamentOrganizer } from "@/components/tournaments/tournament-organizer";
 import { TournamentRulesAccordion } from "@/components/tournaments/tournament-rules-accordion";
 import { TournamentShareCard } from "@/components/tournaments/tournament-share-card";
+import {
+  TournamentDetailPageShell,
+  TournamentHeroBanner,
+  TournamentTabNav,
+  tournamentHeroStyles,
+} from "@/components/tournaments/tournament-detail-ui";
 import { VenueMapsPreview } from "@/components/tournaments/venue-maps-preview";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +81,7 @@ export function OfficialTournamentPage({
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
   const registerHref = `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}/register`;
+  const tournamentPublicHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
   const [publicUrl, setPublicUrl] = useState("");
   const [resumingPayment, setResumingPayment] = useState(false);
   const [editRegistrationOpen, setEditRegistrationOpen] = useState(false);
@@ -95,7 +101,9 @@ export function OfficialTournamentPage({
 
   const handleRegister = async () => {
     if (!isAuthenticated) {
-      router.push(`${authRoutes.register}?callbackUrl=${encodeURIComponent(registerHref)}`);
+      router.push(
+        `${authRoutes.register}?callbackUrl=${encodeURIComponent(tournamentPublicHref)}`,
+      );
       return;
     }
     if (regStatus?.status === "awaiting_confirmation" && regStatus.confirmUrl) {
@@ -142,103 +150,69 @@ export function OfficialTournamentPage({
   };
 
   return (
-    <div className="min-h-screen bg-cp-bg">
-      <div className="relative overflow-hidden border-b border-cp-border">
-        {tournament.coverImageUrl ? (
-          <div className="absolute inset-0">
-            <Image
-              src={tournament.coverImageUrl}
-              alt=""
-              fill
-              className="object-cover opacity-30"
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-linear-to-b from-cp-bg/40 via-cp-bg/80 to-cp-bg" />
-          </div>
-        ) : (
-          <div className="absolute inset-0 bg-linear-to-b from-cp-primary/20 via-cp-card/80 to-cp-bg" />
-        )}
+    <TournamentDetailPageShell>
+      <TournamentHeroBanner coverImageUrl={tournament.coverImageUrl} variant="official">
+        <Link
+          href={publicSportRoutes.tournaments(tournament.sportSlug)}
+          className={tournamentHeroStyles.backLink}
+        >
+          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
+          {tournament.sportName} tournaments
+        </Link>
 
-        <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-          <Link
-            href={publicSportRoutes.tournaments(tournament.sportSlug)}
-            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            {tournament.sportName} tournaments
-          </Link>
-
-          <FadeInView className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="flex flex-wrap gap-2">
-                {tournament.categoryLabel ? (
-                  <Badge className="border-0 bg-emerald-500/20 text-emerald-300">
-                    {tournament.categoryLabel}
-                  </Badge>
-                ) : null}
-                <Badge className="border-cp-border bg-cp-elevated uppercase text-cp-muted">
-                  {tournament.status}
+        <FadeInView className="mt-5 flex flex-col gap-6 sm:mt-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap gap-2">
+              {tournament.categoryLabel ? (
+                <Badge className="border-0 bg-emerald-500/20 text-emerald-300">
+                  {tournament.categoryLabel}
                 </Badge>
-                <Badge className="border-0 bg-cp-primary/20 text-cp-primary">Official — paid</Badge>
-              </div>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-                {tournament.name}
-              </h1>
-              {tournament.creatorName ? (
-                <div className="mt-4">
-                  <TournamentOrganizer
-                    name={tournament.creatorName}
-                    imageUrl={tournament.creatorImage}
-                  />
-                </div>
               ) : null}
-              {tournament.summary ? (
-                <div className="mt-3 max-w-2xl text-lg text-cp-muted">
-                  <RichHtmlContent html={tournament.summary} />
-                </div>
-              ) : null}
-              <div className="mt-5 flex flex-wrap gap-4 text-sm text-cp-muted">
-                <span className="inline-flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4" />
-                  {formatDateRange(tournament.startsAt, tournament.endsAt)}
-                </span>
-                {tournament.venue ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4" />
-                    {tournament.venue}
-                  </span>
-                ) : null}
-              </div>
+              <Badge className={tournamentHeroStyles.statusBadge}>{tournament.status}</Badge>
+              <Badge className="border-0 bg-cp-primary/20 text-cp-primary">Official — paid</Badge>
             </div>
-            {summary.registrationClosesAt ? (
+            <h1 className={tournamentHeroStyles.title}>{tournament.name}</h1>
+            {tournament.creatorName ? (
+              <div className="mt-3 sm:mt-4">
+                <TournamentOrganizer
+                  name={tournament.creatorName}
+                  imageUrl={tournament.creatorImage}
+                />
+              </div>
+            ) : null}
+            {tournament.summary ? (
+              <div className={tournamentHeroStyles.summaryWrap}>
+                <RichHtmlContent html={tournament.summary} variant="hero" />
+              </div>
+            ) : null}
+            <div className={tournamentHeroStyles.metaRow}>
+              <span className={tournamentHeroStyles.metaItem}>
+                <Calendar className="h-4 w-4 shrink-0 text-cp-primary" />
+                {formatDateRange(tournament.startsAt, tournament.endsAt)}
+              </span>
+              {tournament.venue ? (
+                <span className={tournamentHeroStyles.metaItem}>
+                  <MapPin className="h-4 w-4 shrink-0 text-cp-primary" />
+                  <span className="break-words">{tournament.venue}</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+          {summary.registrationClosesAt ? (
+            <div className="w-full shrink-0 lg:w-auto">
               <TournamentCountdown
                 targetDate={summary.registrationClosesAt}
                 label="Registration closes in"
+                tone="hero"
               />
-            ) : null}
-          </FadeInView>
-        </div>
-      </div>
+            </div>
+          ) : null}
+        </FadeInView>
+      </TournamentHeroBanner>
 
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_340px] lg:px-8">
-        <div className="space-y-6">
-          <div className="flex gap-2 border-b border-cp-border pb-2">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={cn(
-                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                  tab === t
-                    ? "bg-cp-primary/15 text-cp-primary"
-                    : "text-cp-muted hover:text-foreground",
-                )}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8 lg:px-8">
+        <div className="order-2 min-w-0 space-y-6 lg:order-1">
+          <TournamentTabNav tabs={TABS} active={tab} onChange={setTab} variant="official" />
 
           {tab === "Overview" ? (
             <>
@@ -260,7 +234,7 @@ export function OfficialTournamentPage({
                   }
                 />
               </div>
-              <section className="rounded-2xl border border-cp-border bg-cp-card p-6">
+              <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="font-semibold text-foreground">Who&apos;s playing</h2>
                   <span className="text-sm text-cp-muted">
@@ -303,7 +277,7 @@ export function OfficialTournamentPage({
                 )}
               </section>
               {tournament.description ? (
-                <section className="rounded-2xl border border-cp-border bg-cp-card p-6">
+                <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                   <h2 className="font-semibold text-foreground">About</h2>
                   <div className="mt-3 text-sm leading-relaxed text-cp-muted">
                     <RichHtmlContent html={tournament.description} variant="article" />
@@ -351,8 +325,8 @@ export function OfficialTournamentPage({
           ) : null}
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-6 shadow-[0_8px_32px_rgba(0,71,255,0.12)]">
+        <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-[0_8px_32px_rgba(0,71,255,0.12)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
               Registration fee
             </p>
@@ -468,7 +442,7 @@ export function OfficialTournamentPage({
 
         </aside>
       </div>
-    </div>
+    </TournamentDetailPageShell>
   );
 }
 
@@ -484,7 +458,7 @@ function InfoCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
+    <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
       <div className="flex items-center gap-2 text-cp-primary">
         <Icon className="h-4 w-4" />
         <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>

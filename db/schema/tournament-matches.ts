@@ -4,7 +4,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  serial,
   text,
   timestamp,
   varchar,
@@ -12,20 +11,21 @@ import {
 import { user } from "./auth";
 import { tournamentTeams } from "./tournament-registration";
 import { tournaments } from "./tournaments";
+import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 /** Reclub / unofficial match round — brief summary only, no ranking impact */
 export const tournamentReclubMatches = pgTable(
   "tournament_reclub_matches",
   {
-    id: serial("id").primaryKey(),
-    tournamentId: integer("tournament_id")
+    id: uuidPrimaryKey(),
+    tournamentId: uuidFk("tournament_id")
       .notNull()
       .references(() => tournaments.id, { onDelete: "cascade" }),
     roundNumber: integer("round_number").notNull(),
-    teamAId: integer("team_a_id").references(() => tournamentTeams.id, {
+    teamAId: uuidFk("team_a_id").references(() => tournamentTeams.id, {
       onDelete: "set null",
     }),
-    teamBId: integer("team_b_id").references(() => tournamentTeams.id, {
+    teamBId: uuidFk("team_b_id").references(() => tournamentTeams.id, {
       onDelete: "set null",
     }),
     teamAName: varchar("team_a_name", { length: 120 }),
@@ -61,25 +61,25 @@ export type BracketMatchStatus = (typeof BRACKET_MATCH_STATUSES)[number];
 export const tournamentBracketMatches = pgTable(
   "tournament_bracket_matches",
   {
-    id: serial("id").primaryKey(),
-    tournamentId: integer("tournament_id")
+    id: uuidPrimaryKey(),
+    tournamentId: uuidFk("tournament_id")
       .notNull()
       .references(() => tournaments.id, { onDelete: "cascade" }),
     roundNumber: integer("round_number").notNull(),
     matchNumber: integer("match_number").notNull(),
-    teamAId: integer("team_a_id").references(() => tournamentTeams.id, {
+    teamAId: uuidFk("team_a_id").references(() => tournamentTeams.id, {
       onDelete: "set null",
     }),
-    teamBId: integer("team_b_id").references(() => tournamentTeams.id, {
+    teamBId: uuidFk("team_b_id").references(() => tournamentTeams.id, {
       onDelete: "set null",
     }),
     teamAName: varchar("team_a_name", { length: 120 }),
     teamBName: varchar("team_b_name", { length: 120 }),
     scoreA: integer("score_a"),
     scoreB: integer("score_b"),
-    winnerTeamId: integer("winner_team_id"),
+    winnerTeamId: uuidFk("winner_team_id"),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
-    nextMatchId: integer("next_match_id"),
+    nextMatchId: uuidFk("next_match_id"),
     scheduledAt: timestamp("scheduled_at"),
     completedAt: timestamp("completed_at"),
     recordedByUserId: text("recorded_by_user_id").references(() => user.id, {
@@ -92,6 +92,11 @@ export const tournamentBracketMatches = pgTable(
       name: "tb_matches_winner_team_fk",
       columns: [table.winnerTeamId],
       foreignColumns: [tournamentTeams.id],
+    }).onDelete("set null"),
+    foreignKey({
+      name: "tb_matches_next_match_fk",
+      columns: [table.nextMatchId],
+      foreignColumns: [table.id],
     }).onDelete("set null"),
     index("tournament_bracket_matches_tournament_idx").on(table.tournamentId),
     index("tournament_bracket_matches_round_idx").on(

@@ -10,7 +10,7 @@ import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 
 export type LobbyPayload = {
   tournament: {
-    id: number;
+    id: string;
     sportSlug: string;
     slug: string;
     name: string;
@@ -22,7 +22,7 @@ export type LobbyPayload = {
   teams: LobbyTeamView[];
   matches: ReclubMatchView[];
   activeMatch: ReclubMatchView | null;
-  userTeamId: number | null;
+  userTeamId: string | null;
   canManage: boolean;
   isAuthenticated: boolean;
   userId: string | null;
@@ -58,7 +58,7 @@ export function useTournamentLobby(sportSlug: string, slug: string) {
 export function useSwitchTeam(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (teamId: number) => {
+    mutationFn: async (teamId: string) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/teams/switch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -107,7 +107,7 @@ export function useStartReclubRound(sportSlug: string, slug: string) {
 export function useRenameReclubTeam(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { teamId: number; name: string }) => {
+    mutationFn: async (input: { teamId: string; name: string }) => {
       const res = await fetch(
         `/api/tournaments/${sportSlug}/${slug}/teams/${input.teamId}`,
         {
@@ -155,7 +155,7 @@ export function useUpdateReclubLiveScore(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      matchId: number;
+      matchId: string;
       scoreA: number;
       scoreB: number;
       action?: "set" | "increment" | "decrement";
@@ -213,7 +213,7 @@ export function useCompleteReclubRound(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      matchId: number;
+      matchId: string;
       scoreA: number;
       scoreB: number;
       durationSeconds: number;

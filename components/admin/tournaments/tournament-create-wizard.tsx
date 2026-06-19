@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
-import { CurrencyInput, formatIdrDisplay } from "@/components/tournaments/form/currency-input";
-import { TournamentCoverPreview } from "@/components/tournaments/form/tournament-cover-preview";
+import { TournamentWizardFooter } from "@/components/admin/tournaments/tournament-wizard-footer";
+import { TournamentWizardReview } from "@/components/admin/tournaments/tournament-wizard-review";
+import { TournamentWizardStepHeader } from "@/components/admin/tournaments/tournament-wizard-step-header";
+import { CurrencyInput } from "@/components/tournaments/form/currency-input";
+import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
+import { TOURNAMENT_FIELD_LIMITS } from "@/lib/tournaments/form/field-limits";
 import {
   TournamentCoverUpload,
   type TournamentCoverValue,
@@ -18,7 +20,6 @@ import { revokeLocalPreviewUrl } from "@/lib/tournaments/cover-preview-url";
 import { TournamentGearPicker } from "@/components/tournaments/form/tournament-gear-picker";
 import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
 import { uploadTournamentCoverClient } from "@/lib/tournaments/upload-cover-client";
-import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,12 +50,11 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
-import { cn } from "@/lib/utils";
 
 const STEPS = [
-  { id: "basics", label: "Basics" },
-  { id: "schedule", label: "Schedule & rules" },
-  { id: "review", label: "Review" },
+  { id: "basics", label: "Basics", shortLabel: "Basics" },
+  { id: "schedule", label: "Schedule & rules", shortLabel: "Schedule" },
+  { id: "review", label: "Review", shortLabel: "Review" },
 ] as const;
 
 type StepId = (typeof STEPS)[number]["id"];
@@ -86,7 +86,7 @@ type TournamentCreateWizardProps = {
   mode?: "admin" | "host";
   workspace?: TournamentEditWorkspace;
   initial?: TournamentDetail;
-  tournamentId?: number;
+  tournamentId?: string;
 };
 
 export function TournamentCreateWizard({
@@ -100,8 +100,8 @@ export function TournamentCreateWizard({
   const isEdit = Boolean(initial && tournamentId);
   const adminCreate = useCreateTournament();
   const hostCreate = useCreateHostTournament();
-  const adminUpdate = useUpdateAdminTournament(tournamentId ?? 0);
-  const hostUpdate = useUpdateManageTournament(tournamentId ?? 0);
+  const adminUpdate = useUpdateAdminTournament(tournamentId ?? "");
+  const hostUpdate = useUpdateManageTournament(tournamentId ?? "");
   const updateMutation = mode === "admin" ? adminUpdate : hostUpdate;
   const createMutation = mode === "host" ? hostCreate : adminCreate;
   const router = useRouter();
@@ -144,7 +144,7 @@ export function TournamentCreateWizard({
   const [equipmentStandardsRules, setEquipmentStandardsRules] = useState(
     initialRules?.equipmentStandardsHtml ?? "",
   );
-  const [gearEntityIds, setGearEntityIds] = useState<number[]>(
+  const [gearEntityIds, setGearEntityIds] = useState<string[]>(
     initialRules?.gearEntityIds ?? [],
   );
   const [startsAt, setStartsAt] = useState(toLocalDatetime(initial?.startsAt));
@@ -240,10 +240,30 @@ export function TournamentCreateWizard({
     };
   };
 
-  const validateStep = (): boolean => {
-    if (currentStepId === "basics") {
+  const validateStepById = (stepId: StepId): boolean => {
+    const limitError = (field: string, max: number) => {
+      toast.error(`${field} must be at most ${max.toLocaleString()} characters`);
+    };
+
+    if (stepId === "basics") {
       if (!name.trim()) {
         toast.error("Tournament name is required");
+        return false;
+      }
+      if (name.length > TOURNAMENT_FIELD_LIMITS.name) {
+        limitError("Name", TOURNAMENT_FIELD_LIMITS.name);
+        return false;
+      }
+      if (categoryLabel.length > TOURNAMENT_FIELD_LIMITS.categoryLabel) {
+        limitError("Category label", TOURNAMENT_FIELD_LIMITS.categoryLabel);
+        return false;
+      }
+      if (summary.length > TOURNAMENT_FIELD_LIMITS.summary) {
+        limitError("Summary", TOURNAMENT_FIELD_LIMITS.summary);
+        return false;
+      }
+      if (description.length > TOURNAMENT_FIELD_LIMITS.description) {
+        limitError("Description", TOURNAMENT_FIELD_LIMITS.description);
         return false;
       }
       if (resolvedSlug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(resolvedSlug)) {
@@ -258,14 +278,68 @@ export function TournamentCreateWizard({
         return false;
       }
     }
-    if (currentStepId === "schedule") {
+    if (stepId === "schedule") {
+      if (venue.length > TOURNAMENT_FIELD_LIMITS.venue) {
+        limitError("Venue", TOURNAMENT_FIELD_LIMITS.venue);
+        return false;
+      }
       if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) {
         toast.error("End date must be after start date");
+        return false;
+      }
+      if (tournamentType === "official") {
+        if (eligibilityRules.length > TOURNAMENT_FIELD_LIMITS.eligibilityRules) {
+          limitError("Eligibility rules", TOURNAMENT_FIELD_LIMITS.eligibilityRules);
+          return false;
+        }
+        if (matchFormatRules.length > TOURNAMENT_FIELD_LIMITS.matchFormatRules) {
+          limitError("Match format rules", TOURNAMENT_FIELD_LIMITS.matchFormatRules);
+          return false;
+        }
+        if (equipmentStandardsRules.length > TOURNAMENT_FIELD_LIMITS.equipmentStandardsRules) {
+          limitError("Equipment standards", TOURNAMENT_FIELD_LIMITS.equipmentStandardsRules);
+          return false;
+        }
+      } else if (rules.length > TOURNAMENT_FIELD_LIMITS.rules) {
+        limitError("Tournament rules", TOURNAMENT_FIELD_LIMITS.rules);
         return false;
       }
     }
     return true;
   };
+
+  const validateStep = (): boolean => validateStepById(currentStepId);
+
+  const goToStep = (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= STEPS.length) return;
+    if (targetIndex === stepIndex) return;
+    if (targetIndex < stepIndex) {
+      setStepIndex(targetIndex);
+      return;
+    }
+    for (let i = stepIndex; i < targetIndex; i++) {
+      const stepId = STEPS[i]?.id;
+      if (!stepId || !validateStepById(stepId)) {
+        setStepIndex(i);
+        return;
+      }
+    }
+    setStepIndex(targetIndex);
+  };
+
+  const listBackHref = isEdit
+    ? mode === "admin"
+      ? adminRoutes.wikiEntities
+      : tournamentListUrl(workspace)
+    : mode === "host"
+      ? dashboardRoutes.hostTournaments
+      : adminRoutes.wikiEntities;
+
+  const listBackLabel =
+    mode === "host" || workspace === "host" ? "My tournaments" : "Back to tournaments";
+
+  const visibilityLabel =
+    status === "draft" ? "Draft — hidden until published" : "Published — auto status from dates";
 
   const resolveCoverStorageKey = async (): Promise<string | undefined> => {
     if (cover.removed && !cover.pendingFile) return undefined;
@@ -318,36 +392,47 @@ export function TournamentCreateWizard({
   const isLast = stepIndex >= STEPS.length - 1;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <WikiStepper steps={[...STEPS]} currentIndex={stepIndex} />
+    <div className="mx-auto w-full max-w-4xl">
+      <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
+        <div className="border-b border-cp-border bg-cp-elevated/50 px-3 py-3 sm:px-5 sm:py-5">
+          <WikiStepper
+            steps={[...STEPS]}
+            currentIndex={stepIndex}
+            onStepClick={goToStep}
+            layout="segmented"
+          />
+        </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStepId}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.2 }}
-          className="mt-6 space-y-6"
-        >
-          {currentStepId === "basics" ? (
-            <section className="space-y-6 rounded-xl border border-cp-border bg-cp-card/50 p-6">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Tournament basics</h2>
-                <p className="mt-1 text-sm text-cp-muted">
-                  {isEdit ? "Update" : "Create"} a tournament for{" "}
-                  <span className="font-medium capitalize text-cp-logo-accent">{sportSlug}</span>.
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
+        <div className="bg-cp-card/50 p-4 sm:p-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStepId}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-5"
+            >
+              {currentStepId === "basics" ? (
+                <>
+                  <TournamentWizardStepHeader
+                    eyebrow="Step 1"
+                    title="Tournament basics"
+                    description={`${isEdit ? "Update" : "Create"} a tournament for ${sportSlug}. Set the name, fees, capacity, and public description.`}
+                  />
+                  <div className="space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="t-name">Name</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="t-name">Name</Label>
+                    <FieldCharCounter current={name.length} max={TOURNAMENT_FIELD_LIMITS.name} />
+                  </div>
                   <Input
                     id="t-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => setName(e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.name))}
                     placeholder="Premier Padel Open 2026"
+                    maxLength={TOURNAMENT_FIELD_LIMITS.name}
                     className="border-cp-border bg-cp-elevated"
                   />
                 </div>
@@ -415,12 +500,23 @@ export function TournamentCreateWizard({
                       <CurrencyInput value={prizePoolIdr} onChange={setPrizePoolIdr} />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="t-category">Category label</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="t-category">Category label</Label>
+                        <FieldCharCounter
+                          current={categoryLabel.length}
+                          max={TOURNAMENT_FIELD_LIMITS.categoryLabel}
+                        />
+                      </div>
                       <Input
                         id="t-category"
                         value={categoryLabel}
-                        onChange={(e) => setCategoryLabel(e.target.value)}
+                        onChange={(e) =>
+                          setCategoryLabel(
+                            e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.categoryLabel),
+                          )
+                        }
                         placeholder="P1 · Men's doubles"
+                        maxLength={TOURNAMENT_FIELD_LIMITS.categoryLabel}
                         className="border-cp-border bg-cp-elevated"
                       />
                     </div>
@@ -459,26 +555,35 @@ export function TournamentCreateWizard({
                   onChange={setSummary}
                   placeholder="One-line pitch for this event"
                   minHeight={100}
+                  maxLength={TOURNAMENT_FIELD_LIMITS.summary}
                 />
               </div>
 
               <div>
                 <Label>Description</Label>
+                <p className="mb-2 text-xs text-cp-muted">Full overview shown on the tournament page.</p>
                 <RichTextEditor
                   value={description}
                   onChange={setDescription}
                   placeholder="Overview, format, prizes…"
                   minHeight={160}
+                  maxLength={TOURNAMENT_FIELD_LIMITS.description}
                 />
               </div>
 
               <TournamentCoverUpload value={cover} onChange={setCover} />
-            </section>
-          ) : null}
+                  </div>
+                </>
+              ) : null}
 
-          {currentStepId === "schedule" ? (
-            <section className="space-y-6 rounded-xl border border-cp-border bg-cp-card/50 p-6">
-              <h2 className="text-lg font-semibold text-foreground">Schedule & rules</h2>
+              {currentStepId === "schedule" ? (
+                <>
+                  <TournamentWizardStepHeader
+                    eyebrow="Step 2"
+                    title="Schedule & rules"
+                    description="Set dates, venue, and official rules players must follow."
+                  />
+                  <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <DateTimePicker label="Starts" value={startsAt} onChange={setStartsAt} />
                 <DateTimePicker label="Ends" value={endsAt} onChange={setEndsAt} min={startsAt} />
@@ -507,7 +612,7 @@ export function TournamentCreateWizard({
               <VenueAutocompleteField
                 venue={venue}
                 mapsUrl={venueMapsUrl}
-                onVenueChange={setVenue}
+                onVenueChange={(v) => setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue))}
                 onMapsUrlChange={setVenueMapsUrl}
               />
 
@@ -523,6 +628,7 @@ export function TournamentCreateWizard({
                       onChange={setEligibilityRules}
                       placeholder="Eligibility and category rules…"
                       minHeight={140}
+                      maxLength={TOURNAMENT_FIELD_LIMITS.eligibilityRules}
                     />
                   </div>
                   <div>
@@ -535,6 +641,7 @@ export function TournamentCreateWizard({
                       onChange={setMatchFormatRules}
                       placeholder="Match format and scoring rules…"
                       minHeight={160}
+                      maxLength={TOURNAMENT_FIELD_LIMITS.matchFormatRules}
                     />
                   </div>
                   <div>
@@ -547,6 +654,7 @@ export function TournamentCreateWizard({
                       onChange={setEquipmentStandardsRules}
                       placeholder="Equipment requirements…"
                       minHeight={140}
+                      maxLength={TOURNAMENT_FIELD_LIMITS.equipmentStandardsRules}
                     />
                   </div>
                   <TournamentGearPicker
@@ -563,134 +671,65 @@ export function TournamentCreateWizard({
                     onChange={setRules}
                     placeholder="Document the rules players must follow"
                     minHeight={200}
+                    maxLength={TOURNAMENT_FIELD_LIMITS.rules}
                   />
                 </div>
               )}
-            </section>
-          ) : null}
-
-          {currentStepId === "review" ? (
-            <section className="space-y-4 rounded-xl border border-cp-border bg-cp-card/50 p-6">
-              <h2 className="text-lg font-semibold text-foreground">Review</h2>
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <ReviewRow label="Name" value={name} />
-                <ReviewRow label="Slug" value={`/${resolvedSlug}`} />
-                <ReviewRow label="Type" value={TYPE_LABELS[tournamentType]} />
-                <ReviewRow label="Status" value={STATUS_LABELS[status]} />
-                <ReviewRow label="Venue" value={venue || "—"} />
-                <ReviewRow
-                  label="Fee"
-                  value={
-                    registrationFeeIdr
-                      ? `Rp ${formatIdrDisplay(Number(registrationFeeIdr))}`
-                      : "Free"
-                  }
-                />
-                <ReviewRow
-                  label="Schedule"
-                  value={
-                    startsAt
-                      ? `${startsAt}${endsAt ? ` → ${endsAt}` : ""}`
-                      : "Not scheduled"
-                  }
-                />
-              </dl>
-              {cover.previewUrl && !cover.removed ? (
-                <div className="relative mt-4 h-44 overflow-hidden rounded-xl border border-cp-border sm:h-52">
-                  <TournamentCoverPreview src={cover.previewUrl} fill />
-                  <div className="absolute inset-0 bg-gradient-to-t from-cp-bg via-cp-bg/40 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <p className="text-lg font-bold text-foreground drop-shadow-sm">{name}</p>
-                    <p className="text-sm text-cp-muted capitalize">{sportSlug}</p>
                   </div>
-                </div>
+                </>
               ) : null}
-            </section>
-          ) : null}
-        </motion.div>
-      </AnimatePresence>
 
-      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-cp-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Change classification
-          </button>
-        ) : isEdit ? (
-          <Link
-            href={mode === "admin" ? adminRoutes.wikiEntities : tournamentListUrl(workspace)}
-            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            {workspace === "host" ? "My tournaments" : "My tournaments"}
-          </Link>
-        ) : mode === "host" ? (
-          <Link
-            href={dashboardRoutes.hostTournaments}
-            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            All tournaments
-          </Link>
-        ) : (
-          <Link
-            href={adminRoutes.wikiEntities}
-            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to database
-          </Link>
-        )}
-
-        <div className="flex flex-wrap justify-end gap-2">
-          {stepIndex > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="border-cp-border"
-              onClick={() => setStepIndex((s) => Math.max(0, s - 1))}
-            >
-              Back
-            </Button>
-          ) : null}
-          {!isLast ? (
-            <Button
-              type="button"
-              className="bg-cp-primary hover:bg-cp-primary-light"
-              onClick={() => {
-                if (!validateStep()) return;
-                setStepIndex((s) => s + 1);
-              }}
-            >
-              Next
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              className="bg-cp-primary hover:bg-cp-primary-light"
-              disabled={isPending}
-              onClick={() => void handleSubmit()}
-            >
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isEdit ? "Save changes" : "Create tournament"}
-            </Button>
-          )}
+              {currentStepId === "review" ? (
+                <TournamentWizardReview
+              name={name}
+              slug={resolvedSlug}
+              sportSlug={sportSlug}
+              tournamentType={tournamentType}
+              typeLabel={TYPE_LABELS[tournamentType]}
+              statusLabel={STATUS_LABELS[status]}
+              visibilityLabel={visibilityLabel}
+              venue={venue}
+              venueMapsUrl={venueMapsUrl}
+              coverPreviewUrl={cover.previewUrl}
+              showCover={Boolean(cover.previewUrl && !cover.removed)}
+              registrationFeeIdr={registrationFeeIdr}
+              prizePoolIdr={prizePoolIdr}
+              categoryLabel={categoryLabel}
+              maxTeams={maxTeams}
+              playersPerTeam={playersPerTeam}
+              startsAt={startsAt}
+              endsAt={endsAt}
+              registrationClosesAt={registrationClosesAt}
+              summary={summary}
+              description={description}
+              eligibilityRules={eligibilityRules}
+              matchFormatRules={matchFormatRules}
+              equipmentStandardsRules={equipmentStandardsRules}
+              rules={rules}
+              gearCount={gearEntityIds.length}
+              onEditStep={goToStep}
+            />
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-cp-muted">{label}</dt>
-      <dd className="font-medium text-foreground">{value}</dd>
+        <TournamentWizardFooter
+          backHref={onBack ? undefined : listBackHref}
+          backLabel={onBack ? "Change classification" : listBackLabel}
+          onBackLink={onBack}
+          showStepBack={stepIndex > 0}
+          onStepBack={() => setStepIndex((s) => Math.max(0, s - 1))}
+          isLast={isLast}
+          onNext={() => {
+            if (!validateStep()) return;
+            setStepIndex((s) => s + 1);
+          }}
+          onSubmit={() => void handleSubmit()}
+          isPending={isPending}
+          isEdit={isEdit}
+        />
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
 import { GridBackground } from "@/components/ui/backgrounds/grid-background";
+import { siteHeaderOffsetClass } from "@/lib/constants/site-layout";
 import { cn } from "@/lib/utils";
 
 type PageShellProps = {
@@ -31,6 +32,7 @@ export function PageShell({
       <main
         className={cn(
           "relative z-10",
+          showNavbar && siteHeaderOffsetClass,
           !showNavbar && "min-h-0 flex-1",
           mainClassName,
         )}

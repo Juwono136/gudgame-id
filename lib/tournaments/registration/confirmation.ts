@@ -21,10 +21,10 @@ import {
 
 export async function confirmParticipation(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   userId: string,
   payerEmail: string,
-): Promise<{ registrationId: number; checkoutUrl: string; amountIdr: number }> {
+): Promise<{ registrationId: string; checkoutUrl: string; amountIdr: number }> {
   const db = getDb();
   const [registration] = await db
     .select()
@@ -140,7 +140,7 @@ export async function confirmParticipation(
 
 export async function declineParticipation(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   userId: string,
 ): Promise<void> {
   const db = getDb();

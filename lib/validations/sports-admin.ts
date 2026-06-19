@@ -44,5 +44,5 @@ export const sportsListQuerySchema = z.object({
 export type AdminSportsListQuery = z.infer<typeof sportsListQuerySchema>;
 
 export const sportsReorderSchema = z.object({
-  orderedIds: z.array(z.coerce.number().int().positive()).min(1),
+  orderedIds: z.array(z.string().uuid()).min(1),
 });

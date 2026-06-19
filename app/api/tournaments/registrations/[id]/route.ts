@@ -7,6 +7,7 @@ import {
 } from "@/db/schema/tournament-registration";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import {
@@ -25,13 +26,7 @@ export async function GET(
   try {
     const { userId } = await requireApiRoleGuardContext();
     const { id } = await params;
-    const registrationId = Number(id);
-    if (!Number.isFinite(registrationId) || registrationId <= 0) {
-      throw new AppError("Invalid registration id", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
-    }
+    const registrationId = parseEntityIdParam(id, "registration id");
 
     const detail = await getRegistrationDetail(registrationId);
     if (!detail) {
@@ -82,13 +77,7 @@ export async function PATCH(
   try {
     const { userId } = await requireApiRoleGuardContext();
     const { id } = await params;
-    const registrationId = Number(id);
-    if (!Number.isFinite(registrationId) || registrationId <= 0) {
-      throw new AppError("Invalid registration id", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
-    }
+    const registrationId = parseEntityIdParam(id, "registration id");
 
     const json = await request.json();
     const parsed = updateOfficialRegistrationSchema.safeParse(json);

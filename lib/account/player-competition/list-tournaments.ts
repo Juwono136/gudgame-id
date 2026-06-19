@@ -123,7 +123,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       and(eq(tournaments.createdBy, userId), eq(tournaments.tournamentType, "official")),
     );
 
-  const byTournamentId = new Map<number, UnifiedTournamentRow>();
+  const byTournamentId = new Map<string, UnifiedTournamentRow>();
 
   for (const row of [...memberRows, ...hostedRows]) {
     const date = row.startsAt ?? row.createdAt;
@@ -184,6 +184,28 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       ),
     );
 
+  const registrationRows = await db
+    .selectDistinct({
+      tournamentId: tournaments.id,
+      tournamentName: tournaments.name,
+      slug: tournaments.slug,
+      sportSlug: sports.slug,
+      status: tournaments.status,
+      startsAt: tournaments.startsAt,
+      createdAt: tournaments.createdAt,
+      createdBy: tournaments.createdBy,
+    })
+    .from(tournamentRegistrations)
+    .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(
+      and(
+        eq(tournamentRegistrations.registeredByUserId, userId),
+        eq(tournaments.tournamentType, "recreational"),
+        inArray(tournamentRegistrations.status, ["confirmed"]),
+      ),
+    );
+
   const hostedRows = await db
     .select({
       tournamentId: tournaments.id,
@@ -204,9 +226,33 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       ),
     );
 
-  const byTournamentId = new Map<number, UnifiedTournamentRow>();
+  const resultRows = await db
+    .select({
+      tournamentId: playerTournamentResults.tournamentId,
+      tournamentName: playerTournamentResults.tournamentName,
+      year: playerTournamentResults.year,
+      placement: playerTournamentResults.placement,
+      playedAt: playerTournamentResults.playedAt,
+      slug: tournaments.slug,
+      sportSlug: sports.slug,
+      status: tournaments.status,
+      startsAt: tournaments.startsAt,
+      createdAt: tournaments.createdAt,
+      createdBy: tournaments.createdBy,
+    })
+    .from(playerTournamentResults)
+    .leftJoin(tournaments, eq(playerTournamentResults.tournamentId, tournaments.id))
+    .leftJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(
+      and(
+        eq(playerTournamentResults.userId, userId),
+        eq(playerTournamentResults.isOfficial, false),
+      ),
+    );
 
-  for (const row of [...memberRows, ...hostedRows]) {
+  const byTournamentId = new Map<string, UnifiedTournamentRow>();
+
+  for (const row of [...memberRows, ...registrationRows, ...hostedRows]) {
     const date = row.startsAt ?? row.createdAt;
     const year = date ? new Date(date).getFullYear() : new Date().getFullYear();
     const isOrganizer = row.createdBy === userId;
@@ -220,6 +266,37 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       category: "Reclub",
       placement: isOrganizer ? "Organizer" : "Participant",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
+      sportSlug: row.sportSlug,
+      slug: row.slug,
+      status: row.status,
+      createdBy: row.createdBy,
+      canManage: false,
+      canEdit: false,
+      canDelete: false,
+    });
+  }
+
+  for (const row of resultRows) {
+    if (row.tournamentId == null) continue;
+    if (byTournamentId.has(row.tournamentId)) continue;
+
+    const date = row.playedAt ?? row.startsAt ?? row.createdAt;
+    const year = row.year ?? (date ? new Date(date).getFullYear() : new Date().getFullYear());
+    const isOrganizer = row.createdBy === userId;
+
+    byTournamentId.set(row.tournamentId, {
+      id: `reclub-${row.tournamentId}`,
+      source: "recreational",
+      tournamentId: row.tournamentId,
+      year,
+      tournamentName: row.tournamentName,
+      category: "Reclub",
+      placement: row.placement ?? (isOrganizer ? "Organizer" : "Participant"),
+      playedAt:
+        row.playedAt?.toISOString() ??
+        row.startsAt?.toISOString() ??
+        row.createdAt?.toISOString() ??
+        null,
       sportSlug: row.sportSlug,
       slug: row.slug,
       status: row.status,
@@ -316,7 +393,7 @@ async function listJoinedTournamentsByUser(userId: string): Promise<UnifiedTourn
   const officialParticipations = await listOfficialParticipations(userId);
   const reclubParticipations = await listReclubParticipations(userId);
   const officialIds = new Set(
-    officialParticipations.map((r) => r.tournamentId).filter((id): id is number => id != null),
+    officialParticipations.map((r) => r.tournamentId).filter((id): id is string => id != null),
   );
   const reclubFiltered = reclubParticipations.filter(
     (r) => !r.tournamentId || !officialIds.has(r.tournamentId),
@@ -381,11 +458,11 @@ export async function listPlayerTournaments(
     .where(and(...officialConditions));
 
   const tournamentIds = [
-    ...new Set(officialRows.map((r) => r.tournamentId).filter((id): id is number => id != null)),
+    ...new Set(officialRows.map((r) => r.tournamentId).filter((id): id is string => id != null)),
   ];
 
   const tournamentMeta = new Map<
-    number,
+    string,
     { sportSlug: string; slug: string; status: string; createdBy: string | null }
   >();
 
@@ -421,7 +498,7 @@ export async function listPlayerTournaments(
   } else {
     const created = await listCreatedTournamentsByUser(userId);
     const joined = await listJoinedTournamentsByUser(userId);
-    const byTournamentId = new Map<number, UnifiedTournamentRow>();
+    const byTournamentId = new Map<string, UnifiedTournamentRow>();
     for (const row of [...created, ...joined]) {
       if (row.tournamentId != null) {
         byTournamentId.set(row.tournamentId, row);

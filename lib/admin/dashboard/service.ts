@@ -16,7 +16,7 @@ import { getRoleLabel } from "@/lib/roles/constants";
 
 export type AdminDashboardStats = {
   sportSlug: string;
-  sportId: number;
+  sportId: string;
   range: AdminDashboardRange;
   summary: {
     totalUsers: number;
@@ -39,7 +39,7 @@ export type AdminDashboardStats = {
     createdAt: string;
   }[];
   recentWiki: {
-    id: number;
+    id: string;
     displayName: string;
     entityType: string;
     status: string;
@@ -48,7 +48,7 @@ export type AdminDashboardStats = {
 };
 
 export async function getAdminDashboardStats(
-  sportId: number,
+  sportId: string,
   sportSlug: string,
   range: AdminDashboardRange,
 ): Promise<AdminDashboardStats> {
@@ -57,7 +57,7 @@ export async function getAdminDashboardStats(
   const userStats = await getAdminUserStats();
 
   const wikiConditions =
-    sportId > 0 ? [eq(wikiEntities.sportId, sportId)] : [];
+    sportId ? [eq(wikiEntities.sportId, sportId)] : [];
 
   const [wikiTotalRow] = await db
     .select({ count: count() })

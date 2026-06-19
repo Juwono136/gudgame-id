@@ -64,7 +64,7 @@ import { PLAYER_GALLERY_MAX } from "@/lib/wiki/constants";
 type WikiEntityWizardProps = {
   sportSlug: string;
   mode: "create" | "edit";
-  entityId?: number;
+  entityId?: string;
   initial?: WikiEntityDetail;
   initialEntityType?: WikiEntityType;
   skipClassification?: boolean;
@@ -83,7 +83,7 @@ export function WikiEntityWizard({
   const router = useRouter();
   const { confirm } = useConfirmDialog();
   const createMutation = useCreateWikiEntity();
-  const updateMutation = useUpdateWikiEntity(entityId ?? 0);
+  const updateMutation = useUpdateWikiEntity(entityId ?? "");
 
   const [entityType, setEntityType] = useState<WikiEntityType>(
     initial?.entityType ?? initialEntityType ?? "player",

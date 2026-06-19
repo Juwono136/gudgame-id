@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const ctx = await requireWikiManagementAccess();
     const body = bodySchema.parse(await request.json());
 
-    const created: { id: number; displayName: string; slug: string }[] = [];
+    const created: { id: string; displayName: string; slug: string }[] = [];
     const failed: { displayName: string; error: string }[] = [];
 
     for (const item of body.items) {

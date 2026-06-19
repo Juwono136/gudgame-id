@@ -9,9 +9,9 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
-  matchId: z.coerce.number().int().positive(),
+  matchId: z.string().uuid(),
   slot: z.enum(["a", "b"]),
-  teamId: z.coerce.number().int().positive().nullable().optional(),
+  teamId: z.string().uuid().nullable().optional(),
 });
 
 export async function PATCH(

@@ -3,7 +3,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -11,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { sports } from "./sports";
+import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 export const TOURNAMENT_STATUSES = [
   "draft",
@@ -37,8 +37,8 @@ export type TournamentFormat = (typeof TOURNAMENT_FORMATS)[number];
 export const tournaments = pgTable(
   "tournaments",
   {
-    id: serial("id").primaryKey(),
-    sportId: integer("sport_id")
+    id: uuidPrimaryKey(),
+    sportId: uuidFk("sport_id")
       .notNull()
       .references(() => sports.id, { onDelete: "restrict" }),
     slug: varchar("slug", { length: 120 }).notNull(),

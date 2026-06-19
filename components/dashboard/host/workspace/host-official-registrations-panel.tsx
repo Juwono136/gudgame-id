@@ -4,8 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { WorkspaceSection } from "@/components/dashboard/host/host-tournament-ui";
 
 type RegistrationRow = {
-  id: number;
-  status: string;
+  id: string; status: string;
   teamName: string | null;
   registeredByName: string;
   paymentStatus: string | null;

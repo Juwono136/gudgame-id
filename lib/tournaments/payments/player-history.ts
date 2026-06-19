@@ -3,14 +3,18 @@ import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
-import { tournamentRegistrations } from "@/db/schema/tournament-registration";
+import {
+  tournamentRegistrations,
+  tournamentTeamMembers,
+  tournamentTeams,
+} from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { sports } from "@/db/schema/sports";
 
 export type PlayerPaymentHistoryItem = {
-  id: number;
-  registrationId: number;
-  tournamentId: number;
+  id: string;
+  registrationId: string;
+  tournamentId: string;
   tournamentName: string;
   sportSlug: string;
   tournamentSlug: string;
@@ -24,8 +28,8 @@ export type PlayerPaymentHistoryItem = {
 };
 
 export type PlayerRegistrationItem = {
-  registrationId: number;
-  tournamentId: number;
+  registrationId: string;
+  tournamentId: string;
   tournamentName: string;
   sportSlug: string;
   tournamentSlug: string;
@@ -35,6 +39,51 @@ export type PlayerRegistrationItem = {
   endsAt: string | null;
   paymentStatus: string | null;
 };
+
+const REGISTRATION_STATUS_RANK: Record<string, number> = {
+  confirmed: 100,
+  pending_payment: 80,
+  awaiting_confirmation: 60,
+  draft: 40,
+  declined: 20,
+  cancelled: 10,
+};
+
+function registrationItemRank(item: PlayerRegistrationItem): number {
+  let rank = REGISTRATION_STATUS_RANK[item.status] ?? 0;
+  if (item.paymentStatus === "paid") rank += 5;
+  return rank;
+}
+
+/** One card per tournament — players may have multiple team registrations in the same event. */
+export function dedupePlayerRegistrationsByTournament(
+  items: PlayerRegistrationItem[],
+): PlayerRegistrationItem[] {
+  const byTournament = new Map<string, PlayerRegistrationItem>();
+
+  for (const item of items) {
+    const existing = byTournament.get(item.tournamentId);
+    if (!existing) {
+      byTournament.set(item.tournamentId, item);
+      continue;
+    }
+
+    const itemRank = registrationItemRank(item);
+    const existingRank = registrationItemRank(existing);
+    if (
+      itemRank > existingRank ||
+      (itemRank === existingRank && item.registrationId > existing.registrationId)
+    ) {
+      byTournament.set(item.tournamentId, item);
+    }
+  }
+
+  return [...byTournament.values()].sort((a, b) => {
+    const aTime = a.startsAt ? Date.parse(a.startsAt) : 0;
+    const bTime = b.startsAt ? Date.parse(b.startsAt) : 0;
+    return bTime - aTime;
+  });
+}
 
 export async function listPlayerPayments(userId: string): Promise<PlayerPaymentHistoryItem[]> {
   const rows = await getDb()
@@ -77,30 +126,31 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
 }
 
 export async function listPlayerRegistrations(userId: string): Promise<PlayerRegistrationItem[]> {
-  const rows = await getDb()
-    .select({
-      registrationId: tournamentRegistrations.id,
-      tournamentId: tournamentRegistrations.tournamentId,
-      tournamentName: tournaments.name,
-      sportSlug: sports.slug,
-      tournamentSlug: tournaments.slug,
-      tournamentType: tournaments.tournamentType,
-      status: tournamentRegistrations.status,
-      startsAt: tournaments.startsAt,
-      endsAt: tournaments.endsAt,
-      paymentStatus: tournamentPayments.status,
-    })
-    .from(tournamentRegistrations)
-    .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
-    .innerJoin(sports, eq(tournaments.sportId, sports.id))
-    .leftJoin(
-      tournamentPayments,
-      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
-    )
-    .where(eq(tournamentRegistrations.registeredByUserId, userId))
-    .orderBy(desc(tournamentRegistrations.createdAt));
+  const registrationSelect = {
+    registrationId: tournamentRegistrations.id,
+    tournamentId: tournamentRegistrations.tournamentId,
+    tournamentName: tournaments.name,
+    sportSlug: sports.slug,
+    tournamentSlug: tournaments.slug,
+    tournamentType: tournaments.tournamentType,
+    status: tournamentRegistrations.status,
+    startsAt: tournaments.startsAt,
+    endsAt: tournaments.endsAt,
+    paymentStatus: tournamentPayments.status,
+  } as const;
 
-  return rows.map((r) => ({
+  const mapRow = (r: {
+    registrationId: string;
+    tournamentId: string;
+    tournamentName: string;
+    sportSlug: string;
+    tournamentSlug: string;
+    tournamentType: string;
+    status: string;
+    startsAt: Date | null;
+    endsAt: Date | null;
+    paymentStatus: string | null;
+  }): PlayerRegistrationItem => ({
     registrationId: r.registrationId,
     tournamentId: r.tournamentId,
     tournamentName: r.tournamentName,
@@ -111,5 +161,41 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     startsAt: r.startsAt?.toISOString() ?? null,
     endsAt: r.endsAt?.toISOString() ?? null,
     paymentStatus: r.paymentStatus,
-  }));
+  });
+
+  const directRows = await getDb()
+    .select(registrationSelect)
+    .from(tournamentRegistrations)
+    .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(
+      tournamentPayments,
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+    )
+    .where(eq(tournamentRegistrations.registeredByUserId, userId))
+    .orderBy(desc(tournamentRegistrations.createdAt));
+
+  const memberRows = await getDb()
+    .select(registrationSelect)
+    .from(tournamentTeamMembers)
+    .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+    .innerJoin(tournaments, eq(tournamentTeams.tournamentId, tournaments.id))
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .innerJoin(
+      tournamentRegistrations,
+      and(
+        eq(tournamentRegistrations.teamId, tournamentTeams.id),
+        eq(tournamentRegistrations.tournamentId, tournaments.id),
+      ),
+    )
+    .leftJoin(
+      tournamentPayments,
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+    )
+    .where(eq(tournamentTeamMembers.userId, userId))
+    .orderBy(desc(tournamentRegistrations.createdAt));
+
+  const merged = [...directRows, ...memberRows].map(mapRow);
+
+  return dedupePlayerRegistrationsByTournament(merged);
 }

@@ -22,14 +22,13 @@ export type LobbyMemberView = {
 };
 
 export type LobbyTeamView = {
-  id: number;
-  name: string;
+  id: string; name: string;
   captainUserId: string | null;
   memberCount: number;
   members: LobbyMemberView[];
 };
 
-export async function listLobbyTeamsDetailed(tournamentId: number): Promise<LobbyTeamView[]> {
+export async function listLobbyTeamsDetailed(tournamentId: string): Promise<LobbyTeamView[]> {
   const db = getDb();
   const teams = await db
     .select()
@@ -75,7 +74,7 @@ export async function createNamedTeam(
   tournament: TournamentDetail,
   userId: string,
   teamName: string,
-): Promise<{ teamId: number }> {
+): Promise<{ teamId: string }> {
   const db = getDb();
   if (tournament.maxTeams) {
     const [row] = await db
@@ -142,7 +141,7 @@ export async function createNamedTeam(
 export async function renameReclubTeam(
   tournament: TournamentDetail,
   userId: string,
-  teamId: number,
+  teamId: string,
   newName: string,
 ): Promise<void> {
   if (tournament.tournamentType !== "recreational") {
@@ -216,7 +215,7 @@ export async function renameReclubTeam(
 export async function switchTeam(
   tournament: TournamentDetail,
   userId: string,
-  targetTeamId: number,
+  targetTeamId: string,
 ): Promise<void> {
   const db = getDb();
 
@@ -282,7 +281,7 @@ export async function switchTeam(
   });
 }
 
-async function getUserTeamId(tournamentId: number, userId: string): Promise<number | null> {
+async function getUserTeamId(tournamentId: string, userId: string): Promise<string | null> {
   const db = getDb();
   const [row] = await db
     .select({ teamId: tournamentTeamMembers.teamId })
@@ -296,8 +295,8 @@ async function getUserTeamId(tournamentId: number, userId: string): Promise<numb
 }
 
 export async function getUserTeamInTournament(
-  tournamentId: number,
+  tournamentId: string,
   userId: string,
-): Promise<number | null> {
+): Promise<string | null> {
   return getUserTeamId(tournamentId, userId);
 }

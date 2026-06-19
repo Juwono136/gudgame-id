@@ -13,6 +13,8 @@ import {
   failPaymentByInvoiceId,
 } from "@/lib/tournaments/registration/service";
 import { logger } from "@/lib/logger";
+import { isUuid } from "@/lib/domain/uuid";
+import { readNotificationEntityId } from "@/lib/notifications/metadata";
 
 const log = logger.child({ module: "xendit-webhook" });
 
@@ -32,12 +34,13 @@ type XenditInvoiceWebhook = {
   };
 };
 
-function parseRegistrationIdFromReference(ref?: string | null): number | null {
+function parseRegistrationIdFromReference(ref?: string | null): string | null {
   if (!ref) return null;
-  const match = ref.match(/reg-(\d+)/);
-  if (!match?.[1]) return null;
-  const id = Number(match[1]);
-  return Number.isFinite(id) ? id : null;
+  const uuidMatch = ref.match(
+    /([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/i,
+  );
+  if (uuidMatch?.[1] && isUuid(uuidMatch[1])) return uuidMatch[1];
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
       qrStatus === "COMPLETED"
     ) {
       const regId =
-        Number(body.data?.metadata?.registrationId) ||
+        readNotificationEntityId(body.data?.metadata?.registrationId) ||
         parseRegistrationIdFromReference(qrRef);
       if (regId) await confirmPaymentByRegistrationId(regId);
       return jsonSuccess({ received: true });

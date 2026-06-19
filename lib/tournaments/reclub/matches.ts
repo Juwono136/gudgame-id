@@ -14,7 +14,7 @@ export type { ReclubMatchView, ReclubMatchesListQuery } from "@/lib/tournaments/
 export { getReclubMatchHistoryKey } from "@/lib/tournaments/reclub/types";
 import type { ReclubMatchView, ReclubMatchesListQuery } from "@/lib/tournaments/reclub/types";
 
-export async function listReclubMatches(tournamentId: number): Promise<ReclubMatchView[]> {
+export async function listReclubMatches(tournamentId: string): Promise<ReclubMatchView[]> {
   const { mergeReclubSessionHistory } = await import(
     "@/lib/tournaments/reclub/session-history"
   );
@@ -29,7 +29,7 @@ export async function listReclubMatches(tournamentId: number): Promise<ReclubMat
 }
 
 export async function listReclubMatchesPaginated(
-  tournamentId: number,
+  tournamentId: string,
   query: ReclubMatchesListQuery,
 ): Promise<{ items: ReclubMatchView[]; total: number; page: number; pageSize: number; totalPages: number }> {
   const { listMergedReclubSessionHistory } = await import(
@@ -39,7 +39,7 @@ export async function listReclubMatchesPaginated(
 }
 
 export async function getActiveReclubMatch(
-  tournamentId: number,
+  tournamentId: string,
 ): Promise<ReclubMatchView | null> {
   const [row] = await getDb()
     .select()
@@ -56,7 +56,7 @@ export async function getActiveReclubMatch(
   return mapReclubMatchRow(row);
 }
 
-async function getTeamPlayerNames(teamId: number): Promise<string[]> {
+async function getTeamPlayerNames(teamId: string): Promise<string[]> {
   const rows = await getDb()
     .select({ name: user.name })
     .from(tournamentTeamMembers)
@@ -70,8 +70,8 @@ async function getTeamPlayerNames(teamId: number): Promise<string[]> {
 export async function startReclubRound(
   tournament: TournamentDetail,
   userId: string,
-  teamAId: number,
-  teamBId: number,
+  teamAId: string,
+  teamBId: string,
 ): Promise<ReclubMatchView> {
   const db = getDb();
   const active = await getActiveReclubMatch(tournament.id);
@@ -147,7 +147,7 @@ export async function startReclubRound(
 
 export async function completeReclubRound(
   tournament: TournamentDetail,
-  matchId: number,
+  matchId: string,
   userId: string,
   input: { scoreA: number; scoreB: number; durationSeconds: number; summary?: string },
 ): Promise<ReclubMatchView> {
@@ -204,10 +204,10 @@ export async function completeReclubRound(
 }
 
 async function getMatchParticipantUserIds(
-  teamAId: number | null,
-  teamBId: number | null,
+  teamAId: string | null,
+  teamBId: string | null,
 ): Promise<string[]> {
-  const teamIds = [teamAId, teamBId].filter((id): id is number => id != null);
+  const teamIds = [teamAId, teamBId].filter((id): id is string => id != null);
   if (!teamIds.length) return [];
 
   const rows = await getDb()

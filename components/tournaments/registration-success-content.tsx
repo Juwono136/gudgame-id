@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Loader2, Receipt } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PaymentReceiptActions } from "@/components/payments/payment-receipt-actions";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 
 type RegistrationDetail = {
-  registrationId: number;
+  registrationId: string;
   status: string;
   teamName: string | null;
   tournamentName: string;
@@ -20,6 +21,7 @@ type RegistrationDetail = {
   startsAt: string | null;
   endsAt: string | null;
   paymentStatus: string | null;
+  paymentId: string | null;
   invoiceUrl: string | null;
   amountIdr: number | null;
   paidAt: string | null;
@@ -36,7 +38,7 @@ function formatIdr(amount: number | null) {
 }
 
 type RegistrationSuccessContentProps = {
-  registrationId: number;
+  registrationId: string;
   sportSlug: string;
   slug: string;
 };
@@ -106,7 +108,7 @@ export function RegistrationSuccessContent({
       <p className="mt-2 text-center text-sm text-cp-muted">
         {processing
           ? "We're confirming your payment. This page will update automatically."
-          : "You are officially registered. Prepare for the court."}
+          : "You are officially registered. Your payment receipt is ready below."}
       </p>
 
       {loading ? (
@@ -144,13 +146,13 @@ export function RegistrationSuccessContent({
               <Row label="Amount paid" value={formatIdr(detail.amountIdr)} />
             ) : null}
           </dl>
-          {detail.invoiceUrl && processing ? (
-            <Button asChild className="mt-4 w-full" variant="outline">
-              <a href={detail.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                <Receipt className="mr-2 h-4 w-4" />
-                Open invoice
-              </a>
-            </Button>
+          {!processing && detail.paymentId ? (
+            <div className="mt-6 border-t border-cp-border/60 pt-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-cp-primary">
+                Official receipt
+              </p>
+              <PaymentReceiptActions paymentId={detail.paymentId} layout="stack" />
+            </div>
           ) : null}
         </motion.div>
       ) : null}
@@ -160,7 +162,7 @@ export function RegistrationSuccessContent({
           <Link href={hubHref}>View bracket</Link>
         </Button>
         <Button asChild variant="outline" className="border-cp-border">
-          <Link href={dashboardRoutes.tournaments}>Go to dashboard</Link>
+          <Link href={dashboardRoutes.payments}>Payment history</Link>
         </Button>
       </div>
     </div>

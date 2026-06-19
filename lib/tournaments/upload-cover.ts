@@ -11,7 +11,7 @@ const log = logger.child({ module: "tournament-cover" });
 export async function uploadTournamentCoverImage(
   file: File,
   sportSlug: string,
-  tournamentId?: number,
+  tournamentId?: string,
 ): Promise<{ ok: true; url: string; storageKey: string } | { ok: false; error: string }> {
   const validation = validateWikiImageFile(file);
   if (!validation.ok) {

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { WikiEntityWizard } from "@/components/admin/wiki/wiki-entity-wizard";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { getWikiEntityById } from "@/lib/wiki/service";
 import { adminRoutes } from "@/lib/constants/routes";
 
@@ -18,8 +19,12 @@ type PageProps = {
 export default async function EditWikiEntityPage({ params }: PageProps) {
   const context = await requireWikiManagementAccess();
   const { id } = await params;
-  const entityId = Number(id);
-  if (!Number.isFinite(entityId)) notFound();
+  let entityId: string;
+  try {
+    entityId = parseEntityIdParam(id, "entity id");
+  } catch {
+    notFound();
+  }
 
   const entity = await getWikiEntityById(entityId);
   if (!entity || entity.sportId !== context.sportId) notFound();

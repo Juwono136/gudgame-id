@@ -27,7 +27,7 @@ import type { AdminSessionContext } from "@/lib/admin/types";
 
 export type { AdminSessionContext };
 
-async function resolveSportContext(): Promise<{ sportSlug: string; sportId: number }> {
+async function resolveSportContext(): Promise<{ sportSlug: string; sportId: string }> {
   const db = getDb();
   const cookieStore = await cookies();
   const slugFromCookie = cookieStore.get(ADMIN_SPORT_COOKIE)?.value;
@@ -48,7 +48,7 @@ async function resolveSportContext(): Promise<{ sportSlug: string; sportId: numb
   }
 
   if (allSports.length === 0) {
-    return { sportSlug: "padel", sportId: 0 };
+    return { sportSlug: "padel", sportId: "" };
   }
 
   const matched = slugFromCookie

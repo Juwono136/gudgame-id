@@ -77,12 +77,12 @@ export function SportsManagementPage({ context }: SportsManagementPageProps) {
 
   const { data, isLoading, isFetching, error } = useAdminSportsList(queryParams);
   const createSport = useCreateAdminSport();
-  const updateSport = useUpdateAdminSport(editingSport?.id ?? 0);
+  const updateSport = useUpdateAdminSport(editingSport?.id ?? "");
   const reorderSports = useReorderAdminSports();
   const deleteSport = useDeleteAdminSport();
   const reorderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistedOrderRef = useRef<string>("");
-  const pendingReorderRef = useRef<number[] | null>(null);
+  const pendingReorderRef = useRef<string[] | null>(null);
 
   useEffect(() => {
     if (data?.orderSnapshot?.length) {
@@ -145,7 +145,7 @@ export function SportsManagementPage({ context }: SportsManagementPageProps) {
   }, [reorderSports]);
 
   const handlePageReorder = useCallback(
-    (newPageIds: number[]) => {
+    (newPageIds: string[]) => {
       if (!data?.orderSnapshot.length || !data.items.length) return;
       const global = data.orderSnapshot.map((s) => s.id);
       const start = global.indexOf(data.items[0]!.id);

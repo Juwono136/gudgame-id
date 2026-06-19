@@ -14,8 +14,8 @@ export function ReclubRulesPanel({ rulesHtml, className }: ReclubRulesPanelProps
 
   return (
     <section className={className}>
-      <div className="rounded-2xl border border-cp-border bg-cp-card p-6">
-        <h2 className="flex items-center gap-2 font-semibold text-foreground">
+      <div className="min-w-0 rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground sm:text-lg">
           <ScrollText className="h-5 w-5 text-emerald-400" />
           Session rules
         </h2>

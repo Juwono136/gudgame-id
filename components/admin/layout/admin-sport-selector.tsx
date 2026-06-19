@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type SportRow = {
-  id: number;
+  id: string;
   name: string;
   slug: string;
 };

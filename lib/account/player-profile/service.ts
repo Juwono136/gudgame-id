@@ -41,7 +41,7 @@ import { requirePlayerDisplayNameForUser } from "@/lib/account/player-profile/re
 import { getUserPhotoForWiki } from "@/lib/account/player-profile/sync-primary-photo";
 
 export type PlayerWikiProfileView = {
-  id: number;
+  id: string;
   sportSlug: string;
   sportName: string;
   slug: string;
@@ -61,7 +61,7 @@ export type PlayerWikiProfileView = {
   performance: Record<string, unknown>;
   equipment: PlayerEquipmentItem[];
   gallery: {
-    id?: number;
+    id?: string;
     url: string | null;
     storageKey?: string | null;
     caption: string | null;
@@ -127,7 +127,7 @@ function buildPlayerAttributes(
   });
 }
 
-export async function getPlayerWikiEntityIdForUser(userId: string): Promise<number | null> {
+export async function getPlayerWikiEntityIdForUser(userId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({ id: wikiEntities.id })
     .from(wikiEntities)
@@ -198,7 +198,7 @@ async function syncEquipmentStorage(
 }
 
 async function syncPlayerGallery(
-  entityId: number,
+  entityId: string,
   gallery: PlayerProfileUpsertInput["gallery"],
 ) {
   const db = getDb();

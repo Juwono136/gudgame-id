@@ -8,7 +8,8 @@ export type EmailTemplateId =
   | "registration-confirm-participation"
   | "registration-payment-reminder"
   | "registration-team-invite"
-  | "registration-cancelled";
+  | "registration-cancelled"
+  | "host-payment-received";
 
 export type VerifyEmailTemplateData = {
   userName: string;
@@ -54,6 +55,11 @@ export type RegistrationConfirmedTemplateData = {
   feePaid: string | null;
   teamMembers: string[];
   tournamentUrl: string;
+  receiptUrl: string;
+  paymentsUrl: string;
+  invoiceNumber: string | null;
+  amountPaidFormatted: string | null;
+  paidAtFormatted: string | null;
 };
 
 export type RegistrationConfirmParticipationTemplateData = {
@@ -100,6 +106,24 @@ export type RegistrationCancelledTemplateData = {
   canReRegister: boolean;
 };
 
+export type HostPaymentReceivedTemplateData = {
+  appName: string;
+  hostName: string;
+  playerName: string;
+  playerEmail: string | null;
+  tournamentName: string;
+  teamName: string;
+  sportName: string;
+  amountCollectedFormatted: string;
+  platformFeeFormatted: string;
+  hostPayoutFormatted: string;
+  invoiceNumber: string | null;
+  paidAtFormatted: string | null;
+  receiptUrl: string;
+  ledgerUrl: string;
+  tournamentWorkspaceUrl: string;
+};
+
 export type EmailTemplateDataMap = {
   "verify-email": VerifyEmailTemplateData;
   "reset-password": ResetPasswordTemplateData;
@@ -111,6 +135,7 @@ export type EmailTemplateDataMap = {
   "registration-payment-reminder": RegistrationPaymentReminderTemplateData;
   "registration-team-invite": RegistrationTeamInviteTemplateData;
   "registration-cancelled": RegistrationCancelledTemplateData;
+  "host-payment-received": HostPaymentReceivedTemplateData;
 };
 
 export type SendTemplatedEmailInput<T extends EmailTemplateId> = {

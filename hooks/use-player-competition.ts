@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import type {
   PaginatedListResult,
+  PlayerMatchDetail,
   PlayerMatchListItem,
   PlayerTournamentListItem,
 } from "@/lib/account/player-competition/types";
+import type { PlayerMatchListSummary } from "@/lib/account/player-competition/list-matches";
 import type {
   PlayerMatchesListQuery,
   PlayerTournamentsListQuery,
@@ -36,10 +38,14 @@ export function playerMatchesQueryKey(params: Partial<PlayerMatchesListQuery>) {
 
 export function usePlayerMatchesList(
   params: PlayerMatchesListQuery,
-  options?: { includeYears?: boolean },
+  options?: { includeYears?: boolean; includeSummary?: boolean },
 ) {
   return useQuery({
-    queryKey: [...playerMatchesQueryKey(params), options?.includeYears ?? false],
+    queryKey: [
+      ...playerMatchesQueryKey(params),
+      options?.includeYears ?? false,
+      options?.includeSummary ?? false,
+    ],
     queryFn: async () => {
       const qs = buildQueryString(
         {
@@ -47,16 +53,25 @@ export function usePlayerMatchesList(
           pageSize: params.pageSize,
           search: params.search,
           result: params.result,
+          type: params.type,
           year: params.year,
           sortBy: params.sortBy,
           sortDir: params.sortDir,
         },
-        options?.includeYears ? { includeYears: "1" } : undefined,
+        {
+          ...(options?.includeYears ? { includeYears: "1" } : {}),
+          ...(options?.includeSummary ? { includeSummary: "1" } : {}),
+        },
       );
 
       const res = await fetch(`/api/account/player/matches?${qs}`);
       const json = await parseJsonResponse<
-        ApiSuccess<PaginatedListResult<PlayerMatchListItem> & { years?: number[] }>
+        ApiSuccess<
+          PaginatedListResult<PlayerMatchListItem> & {
+            years?: number[];
+            summary?: PlayerMatchListSummary;
+          }
+        >
       >(res);
       if (!res.ok) {
         const err = json as { error?: { message?: string } };
@@ -65,6 +80,23 @@ export function usePlayerMatchesList(
       return json.data;
     },
     placeholderData: (prev) => prev,
+  });
+}
+
+export function usePlayerMatchDetail(matchId: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["account", "player", "matches", "detail", matchId],
+    queryFn: async () => {
+      const res = await fetch(`/api/account/player/matches/${matchId}`);
+      const json = await parseJsonResponse<ApiSuccess<{ match: PlayerMatchDetail }>>(res);
+      if (!res.ok) {
+        const err = json as { error?: { message?: string } };
+        throw new Error(err.error?.message ?? "Failed to load match details");
+      }
+      return json.data.match;
+    },
+    enabled: enabled && matchId != null,
+    staleTime: 60_000,
   });
 }
 

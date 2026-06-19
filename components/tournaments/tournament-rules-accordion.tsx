@@ -80,7 +80,7 @@ export function TournamentRulesAccordion({
   const [openId, setOpenId] = useState<string>("eligibility");
 
   return (
-    <section className="rounded-2xl border border-cp-border bg-cp-card p-6">
+    <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
       <h2 className="font-semibold text-foreground">Tournament rules</h2>
       <ul className="mt-4 space-y-2">
         {items.map((item) => {
@@ -106,8 +106,8 @@ export function TournamentRulesAccordion({
                     transition={{ duration: 0.2 }}
                     className="border-t border-cp-border"
                   >
-                    <div className="px-4 py-3">
-                      <RichHtmlContent html={item.html} />
+                    <div className="bg-cp-elevated/20 px-4 py-3">
+                      <RichHtmlContent html={item.html} variant="article" />
                       {item.gearItems?.length ? (
                         <ul className="mt-4 space-y-2 border-t border-cp-border pt-4">
                           <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">

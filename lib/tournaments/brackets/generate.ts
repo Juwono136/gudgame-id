@@ -116,11 +116,11 @@ export async function generateTournamentBracket(
     matchCountPerRound.push(bracketSize / Math.pow(2, r));
   }
 
-  const allMatchIds: number[][] = [];
+  const allMatchIds: string[][] = [];
 
   for (let round = 1; round <= totalRounds; round++) {
     const count = matchCountPerRound[round - 1]!;
-    const roundIds: number[] = [];
+    const roundIds: string[] = [];
     for (let m = 1; m <= count; m++) {
       const [created] = await db
         .insert(tournamentBracketMatches)
@@ -149,9 +149,9 @@ export async function generateTournamentBracket(
   }
 
   const round1 = allMatchIds[0]!;
-  const seeded = [...teams];
+  const seeded: { id: string | null; name: string }[] = [...teams];
   while (seeded.length < bracketSize) {
-    seeded.push({ id: -1, name: "BYE" });
+    seeded.push({ id: null, name: "BYE" });
   }
 
   for (let i = 0; i < round1.length; i++) {
@@ -159,9 +159,9 @@ export async function generateTournamentBracket(
     const teamB = seeded[i * 2 + 1];
     const matchId = round1[i]!;
 
-    if (teamA?.id === -1 || teamB?.id === -1) {
-      const winner = teamA?.id !== -1 ? teamA : teamB;
-      if (winner && winner.id !== -1) {
+    if (teamA?.id == null || teamB?.id == null) {
+      const winner = teamA?.id != null ? teamA : teamB;
+      if (winner?.id != null) {
         await db
           .update(tournamentBracketMatches)
           .set({
@@ -196,9 +196,9 @@ export async function generateTournamentBracket(
 }
 
 async function advanceWinnerToNextMatch(
-  tournamentId: number,
-  matchId: number,
-  winnerTeamId: number,
+  tournamentId: string,
+  matchId: string,
+  winnerTeamId: string,
   winnerName: string,
 ) {
   const db = getDb();

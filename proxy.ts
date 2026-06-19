@@ -12,7 +12,7 @@ import {
 import type { AppRole } from "@/lib/roles/constants";
 import {
   getAccessDeniedRedirect,
-  getDefaultDashboardUrl,
+  getPostLoginLandingUrl,
   isPathAllowedForRoles,
   isRoleProtectedPath,
   resolveSafeCallbackUrl,
@@ -134,7 +134,7 @@ export async function proxy(request: NextRequest) {
       const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
       const target = sessionCtx
         ? resolveSafeCallbackUrl(callbackUrl, sessionCtx.roles)
-        : dashboardRoutes.home;
+        : getPostLoginLandingUrl();
       return NextResponse.redirect(new URL(target, request.url));
     }
   }

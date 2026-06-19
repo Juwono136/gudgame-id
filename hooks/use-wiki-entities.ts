@@ -8,6 +8,7 @@ import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { adminRoutes } from "@/lib/constants/routes";
 import type { WikiDirectoryListItem } from "@/lib/wiki/directory-types";
 import type { WikiEntityDetail } from "@/lib/wiki/service";
+import type { WikiEntityId } from "@/lib/domain/wiki";
 import type {
   WikiEntitiesListQuery,
   WikiEntityUpsertInput,
@@ -109,10 +110,10 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery) {
   });
 }
 
-export function useWikiEntity(id: number | null) {
+export function useWikiEntity(id: WikiEntityId | null) {
   return useQuery({
     queryKey: ["admin", "wiki-entity", id],
-    enabled: id != null && id > 0,
+    enabled: id != null && id.length > 0,
     queryFn: async () => {
       const res = await fetch(`/api/admin/wiki-entities/${id}`);
       const json = await parseJsonResponse<{ success: boolean; data: WikiEntityDetail; error?: unknown }>(
@@ -203,7 +204,7 @@ export function useCreateWikiEntity() {
   });
 }
 
-export function useUpdateWikiEntity(id: number) {
+export function useUpdateWikiEntity(id: WikiEntityId) {
   const qc = useQueryClient();
 
   return useMutation({
@@ -253,7 +254,7 @@ export function useDeleteWikiEntity() {
   const router = useRouter();
 
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: WikiEntityId) => {
       const res = await fetch(`/api/admin/wiki-entities/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const json = await parseJsonResponse<{ error?: unknown }>(res);

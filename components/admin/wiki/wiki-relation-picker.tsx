@@ -13,7 +13,7 @@ import type { WikiEntityType } from "@/lib/domain/wiki";
 import { cn } from "@/lib/utils";
 
 export type RelationDraft = {
-  toEntityId: number;
+  toEntityId: string;
   relationType: string;
   displayName: string;
   entityType: WikiEntityType;
@@ -28,7 +28,7 @@ type WikiRelationPickerProps = {
   targetTypes: WikiEntityType[];
   relations: RelationDraft[];
   onChange: (relations: RelationDraft[]) => void;
-  excludeEntityId?: number;
+  excludeEntityId?: string;
 };
 
 export function WikiRelationPicker({
@@ -56,7 +56,7 @@ export function WikiRelationPicker({
         success: boolean;
         data: {
           items: {
-            id: number;
+            id: string;
             entityType: WikiEntityType;
             displayName: string;
             primaryImageUrl: string | null;
@@ -72,7 +72,7 @@ export function WikiRelationPicker({
   });
 
   const add = (item: {
-    id: number;
+    id: string;
     entityType: WikiEntityType;
     displayName: string;
     primaryImageUrl: string | null;
@@ -93,7 +93,7 @@ export function WikiRelationPicker({
     setQuery("");
   };
 
-  const remove = (id: number) => {
+  const remove = (id: string) => {
     onChange(
       relations
         .filter((r) => r.toEntityId !== id)

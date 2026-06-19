@@ -3,7 +3,6 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { tournaments } from "@/db/schema/tournaments";
 import { sendTemplatedEmail } from "@/lib/email/send";
 import { siteConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
@@ -27,11 +26,11 @@ export function tournamentPublicUrl(tournament: Pick<TournamentDetail, "sportSlu
   return `${appBaseUrl()}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}`;
 }
 
-export function confirmUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">, registrationId: number): string {
+export function confirmUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">, registrationId: string): string {
   return `${tournamentPublicUrl(tournament)}/register/confirm?registrationId=${registrationId}`;
 }
 
-export function checkoutUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">, registrationId: number): string {
+export function checkoutUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">, registrationId: string): string {
   return `${tournamentPublicUrl(tournament)}/register/checkout?registrationId=${registrationId}`;
 }
 
@@ -49,7 +48,7 @@ async function loadUserDisplay(userId: string) {
 
 export async function notifyAwaitingConfirmation(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   payerUserId: string,
   teamName: string,
 ): Promise<void> {
@@ -100,7 +99,7 @@ export async function notifyAwaitingConfirmation(
 
 export async function notifyPaymentReminder(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   payerUserId: string,
   teamName: string,
   amountIdr: number,
@@ -147,7 +146,7 @@ export async function notifyPaymentReminder(
 
 export async function notifyHostPlayerConfirmedParticipation(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   playerUserId: string,
   teamName: string,
 ): Promise<void> {
@@ -164,40 +163,8 @@ export async function notifyHostPlayerConfirmedParticipation(
   });
 }
 
-export async function notifyHostPlayerPaid(registrationId: number): Promise<void> {
-  const detail = await getRegistrationDetail(registrationId);
-  if (!detail) return;
-
-  const [tournamentRow] = await getDb()
-    .select({ createdBy: tournaments.createdBy })
-    .from(tournaments)
-    .where(eq(tournaments.id, detail.tournamentId))
-    .limit(1);
-
-  const hostUserId = tournamentRow?.createdBy;
-  if (!hostUserId || hostUserId === detail.registeredByUserId) return;
-
-  const { displayName } = await loadUserDisplay(detail.registeredByUserId);
-  const fee = detail.amountIdr
-    ? new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        maximumFractionDigits: 0,
-      }).format(detail.amountIdr)
-    : "Payment";
-
-  await createNotification({
-    userId: hostUserId,
-    type: "tournament_host_player_paid",
-    title: `Payment received — ${detail.tournamentName}`,
-    body: `${displayName} paid ${fee} for team "${detail.teamName ?? "Team"}".`,
-    actionUrl: `${appBaseUrl()}/dashboard/host/payments?registrationId=${registrationId}`,
-    metadata: { tournamentId: detail.tournamentId, registrationId },
-  });
-}
-
 export async function notifyPlayerRegistrationConfirmed(
-  registrationId: number,
+  registrationId: string,
   payerUserId: string,
   tournamentName: string,
   actionUrl: string,
@@ -206,13 +173,13 @@ export async function notifyPlayerRegistrationConfirmed(
     userId: payerUserId,
     type: "tournament_registration_confirmed",
     title: `You're in — ${tournamentName}`,
-    body: "Payment received. Your team is officially registered for the tournament.",
+    body: "Payment received. Your official receipt is ready — tap to view or download.",
     actionUrl,
     metadata: { registrationId },
   });
 }
 
-export async function notifyPaymentFailed(registrationId: number): Promise<void> {
+export async function notifyPaymentFailed(registrationId: string): Promise<void> {
   const detail = await getRegistrationDetail(registrationId);
   if (!detail) return;
 
@@ -228,7 +195,7 @@ export async function notifyPaymentFailed(registrationId: number): Promise<void>
   });
 }
 
-export async function notifyPaymentExpired(registrationId: number): Promise<void> {
+export async function notifyPaymentExpired(registrationId: string): Promise<void> {
   const detail = await getRegistrationDetail(registrationId);
   if (!detail) return;
 
@@ -269,7 +236,7 @@ export async function notifyPaymentExpired(registrationId: number): Promise<void
 
 export async function notifyTeamMemberInvitations(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   captainUserId: string,
   teamName: string,
   memberUserIds: string[],
@@ -315,7 +282,7 @@ export async function notifyTeamMemberInvitations(
 
 export async function notifyRegistrationCancelled(
   tournament: TournamentDetail,
-  registrationId: number,
+  registrationId: string,
   userId: string,
   teamName: string,
   reason: string,
@@ -354,3 +321,5 @@ export async function notifyRegistrationCancelled(
     });
   }
 }
+
+export { notifyHostPaymentReceived, notifyHostPlayerPaid } from "./notify-host-payment-received";

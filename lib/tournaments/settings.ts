@@ -1,10 +1,11 @@
+import { isUuid } from "@/lib/domain/uuid";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type TournamentRuleSections = {
   eligibilityHtml?: string;
   matchFormatHtml?: string;
   equipmentStandardsHtml?: string;
-  gearEntityIds?: number[];
+  gearEntityIds?: string[];
 };
 
 export type TournamentSettings = TournamentRuleSections & {
@@ -27,8 +28,8 @@ export function parseTournamentSettings(
 
   const parsedGearIds = Array.isArray(gearEntityIds)
     ? gearEntityIds
-        .map((id) => (typeof id === "number" ? id : Number(id)))
-        .filter((id) => Number.isFinite(id) && id > 0)
+        .map((id) => (typeof id === "string" ? id.trim() : String(id)))
+        .filter((id) => isUuid(id))
     : undefined;
 
   return {
@@ -79,7 +80,7 @@ export type TournamentSettingsInput = {
   eligibilityHtml?: string;
   matchFormatHtml?: string;
   equipmentStandardsHtml?: string;
-  gearEntityIds?: number[];
+  gearEntityIds?: string[];
   maxRounds?: number;
 };
 
@@ -88,7 +89,7 @@ export type TournamentSettingsUpsertFields = {
   eligibilityRules?: string;
   matchFormatRules?: string;
   equipmentStandardsRules?: string;
-  gearEntityIds?: number[];
+  gearEntityIds?: string[];
   rules?: string;
   maxRounds?: number;
 };

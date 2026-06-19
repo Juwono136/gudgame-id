@@ -1,5 +1,6 @@
-import { index, integer, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { user } from "./auth";
+import { uuidPrimaryKey } from "./uuid";
 
 export const NOTIFICATION_TYPES = [
   "tournament_confirm_participation",
@@ -18,7 +19,7 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const notifications = pgTable(
   "notifications",
   {
-    id: serial("id").primaryKey(),
+    id: uuidPrimaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

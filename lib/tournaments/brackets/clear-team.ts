@@ -5,8 +5,8 @@ import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 
 export async function clearTeamFromBracketSlots(
-  tournamentId: number,
-  teamId: number,
+  tournamentId: string,
+  teamId: string,
 ): Promise<void> {
   const db = getDb();
   const slots = await db

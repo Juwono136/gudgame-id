@@ -6,10 +6,10 @@ import {
   boolean,
   jsonb,
   timestamp,
-  integer,
   index,
 } from "drizzle-orm/pg-core";
 import { user } from "./schema/auth";
+import { uuidFk } from "./schema/uuid";
 
 export * from "./schema/auth";
 export * from "./schema/roles";
@@ -35,7 +35,7 @@ export const playerProfiles = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    sportId: integer("sport_id")
+    sportId: uuidFk("sport_id")
       .notNull()
       .references(() => sports.id, { onDelete: "restrict" }),
     fullName: varchar("full_name", { length: 100 }).notNull(),
@@ -56,7 +56,7 @@ export const equipments = pgTable(
   "equipments",
   {
     id: serial("id").primaryKey(),
-    sportId: integer("sport_id")
+    sportId: uuidFk("sport_id")
       .notNull()
       .references(() => sports.id, { onDelete: "restrict" }),
     brand: varchar("brand", { length: 50 }).notNull(),

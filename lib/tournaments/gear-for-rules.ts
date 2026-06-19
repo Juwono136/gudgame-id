@@ -5,15 +5,15 @@ import { getDb } from "@/db/client";
 import { wikiEntities } from "@/db/schema/wiki";
 
 export type TournamentGearRuleItem = {
-  id: number;
+  id: string;
   slug: string;
   displayName: string;
   summary: string | null;
 };
 
 export async function getGearEntitiesForTournamentRules(
-  sportId: number,
-  gearEntityIds: number[] | undefined,
+  sportId: string,
+  gearEntityIds: string[] | undefined,
 ): Promise<TournamentGearRuleItem[]> {
   if (!gearEntityIds?.length) return [];
 

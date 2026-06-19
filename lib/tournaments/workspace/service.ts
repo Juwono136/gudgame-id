@@ -29,8 +29,7 @@ export type HostTournamentWorkspace = {
   teams: LobbyTeamView[];
   matches: ReclubMatchView[];
   registrations: {
-    id: number;
-    status: string;
+    id: string; status: string;
     teamName: string | null;
     registeredByName: string;
     registeredByUserId: string;
@@ -49,7 +48,7 @@ export type HostTournamentWorkspace = {
 
 export async function listHostTournaments(
   userId: string,
-  sportId?: number,
+  sportId?: string,
 ): Promise<TournamentListItem[]> {
   const db = getDb();
   const conditions = [eq(tournaments.createdBy, userId)];
@@ -97,7 +96,7 @@ export async function listHostTournaments(
   }));
 }
 
-export async function getTournamentById(id: number): Promise<TournamentDetail | null> {
+export async function getTournamentById(id: string): Promise<TournamentDetail | null> {
   const [row] = await getDb()
     .select({ sportSlug: sports.slug, slug: tournaments.slug })
     .from(tournaments)
@@ -110,7 +109,7 @@ export async function getTournamentById(id: number): Promise<TournamentDetail | 
 }
 
 export async function getHostTournamentWorkspace(
-  tournamentId: number,
+  tournamentId: string,
   userId: string,
   roles: AppRole[],
 ): Promise<HostTournamentWorkspace> {
@@ -159,7 +158,7 @@ export async function getHostTournamentWorkspace(
 
   const teamIds = regRows
     .map((r) => r.teamId)
-    .filter((id): id is number => id != null);
+    .filter((id): id is string => id != null);
 
   const memberRows = teamIds.length
     ? await getDb()
@@ -225,7 +224,7 @@ export async function getHostTournamentWorkspace(
 }
 
 export async function updateTournamentStatus(
-  tournamentId: number,
+  tournamentId: string,
   userId: string,
   roles: AppRole[],
   status: TournamentDetail["status"],

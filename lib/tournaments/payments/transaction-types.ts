@@ -1,7 +1,7 @@
 export type PaymentTransactionRow = {
-  paymentId: number;
-  registrationId: number;
-  tournamentId: number;
+  paymentId: string;
+  registrationId: string;
+  tournamentId: string;
   tournamentName: string;
   sportSlug: string;
   tournamentSlug: string;
@@ -32,5 +32,7 @@ export type TransactionQueryResult = {
     totalHostPayoutIdr: number;
     paidCount: number;
     pendingCount: number;
+    expiredCount: number;
+    failedCount: number;
   };
 };

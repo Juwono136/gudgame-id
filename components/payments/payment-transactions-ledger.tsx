@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Receipt, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Receipt, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { PaymentTransactionRow, TransactionQueryResult } from "@/lib/tournaments/payments/transaction-types";
+import { PaymentInvoiceDialog } from "@/components/payments/payment-invoice-dialog";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -51,25 +52,26 @@ function useDebouncedValue<T>(value: T, ms: number): T {
 function SummaryCard({
   label,
   value,
-  highlight,
+  tone = "default",
 }: {
   label: string;
   value: string;
-  highlight?: boolean;
+  tone?: "default" | "paid" | "pending" | "expired" | "failed";
 }) {
+  const valueClass = {
+    default: "text-foreground",
+    paid: "text-emerald-600 dark:text-emerald-400",
+    pending: "text-amber-600 dark:text-amber-400",
+    expired: "text-slate-600 dark:text-slate-400",
+    failed: "text-red-600 dark:text-red-400",
+  }[tone];
+
   return (
     <div className="min-w-0 rounded-xl border border-cp-border bg-cp-card p-3 sm:p-4">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:text-xs">
         {label}
       </p>
-      <p
-        className={cn(
-          "mt-1 truncate text-lg font-bold sm:text-xl",
-          highlight ? "text-amber-400" : "text-foreground",
-        )}
-      >
-        {value}
-      </p>
+      <p className={cn("mt-1 truncate text-lg font-bold sm:text-xl", valueClass)}>{value}</p>
     </div>
   );
 }
@@ -78,10 +80,12 @@ function TransactionRowActions({
   row,
   scope,
   onPayPending,
+  onViewReceipt,
 }: {
   row: PaymentTransactionRow;
   scope: PaymentTransactionsLedgerProps["scope"];
   onPayPending?: (row: PaymentTransactionRow) => void;
+  onViewReceipt?: (row: PaymentTransactionRow) => void;
 }) {
   if (row.status === "pending" && scope === "player" && onPayPending) {
     return (
@@ -93,9 +97,23 @@ function TransactionRowActions({
   }
 
   return (
-    <Button asChild variant="ghost" size="sm" className="h-9 w-full sm:w-auto">
-      <Link href={publicSportRoutes.tournament(row.sportSlug, row.tournamentSlug)}>View</Link>
-    </Button>
+    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+      {row.status === "paid" && onViewReceipt ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-9 w-full border-cp-border sm:w-auto"
+          onClick={() => onViewReceipt(row)}
+        >
+          <FileText className="mr-1 h-3.5 w-3.5" />
+          Receipt
+        </Button>
+      ) : null}
+      <Button asChild variant="ghost" size="sm" className="h-9 w-full sm:w-auto">
+        <Link href={publicSportRoutes.tournament(row.sportSlug, row.tournamentSlug)}>View</Link>
+      </Button>
+    </div>
   );
 }
 
@@ -105,12 +123,14 @@ function TransactionLedgerCard({
   showHostColumn,
   showPlatformFees,
   onPayPending,
+  onViewReceipt,
 }: {
   row: PaymentTransactionRow;
   scope: PaymentTransactionsLedgerProps["scope"];
   showHostColumn: boolean;
   showPlatformFees: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
+  onViewReceipt?: (row: PaymentTransactionRow) => void;
 }) {
   const dateStr = new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
@@ -198,7 +218,12 @@ function TransactionLedgerCard({
         </dl>
 
         <div className="border-t border-cp-border/60 pt-3">
-          <TransactionRowActions row={row} scope={scope} onPayPending={onPayPending} />
+          <TransactionRowActions
+            row={row}
+            scope={scope}
+            onPayPending={onPayPending}
+            onViewReceipt={onViewReceipt}
+          />
         </div>
       </div>
     </li>
@@ -216,6 +241,7 @@ export function PaymentTransactionsLedger({
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
+  const [invoicePaymentId, setInvoicePaymentId] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search, 350);
 
   useEffect(() => {
@@ -245,25 +271,52 @@ export function PaymentTransactionsLedger({
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0;
 
+  const handleViewReceipt = (row: PaymentTransactionRow) => {
+    setInvoicePaymentId(row.paymentId);
+  };
+
   return (
     <div className="space-y-4">
+      <PaymentInvoiceDialog
+        paymentId={invoicePaymentId}
+        open={invoicePaymentId != null}
+        onOpenChange={(open) => {
+          if (!open) setInvoicePaymentId(null);
+        }}
+      />
       {data?.summary ? (
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-          <SummaryCard label="Collected (paid)" value={formatIdrDisplay(data.summary.totalCollectedIdr)} />
-          {showPlatformFees ? (
+        scope === "player" ? (
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <SummaryCard label="Paid" value={String(data.summary.paidCount)} tone="paid" />
+            <SummaryCard label="Pending" value={String(data.summary.pendingCount)} tone="pending" />
+            <SummaryCard label="Expired" value={String(data.summary.expiredCount)} tone="expired" />
+            <SummaryCard label="Failed" value={String(data.summary.failedCount)} tone="failed" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             <SummaryCard
-              label="Platform fees"
-              value={formatIdrDisplay(data.summary.totalPlatformFeesIdr)}
+              label="Collected (paid)"
+              value={formatIdrDisplay(data.summary.totalCollectedIdr)}
             />
-          ) : (
+            {showPlatformFees ? (
+              <SummaryCard
+                label="Platform fees"
+                value={formatIdrDisplay(data.summary.totalPlatformFeesIdr)}
+              />
+            ) : (
+              <SummaryCard
+                label="Your earnings"
+                value={formatIdrDisplay(data.summary.totalHostPayoutIdr)}
+              />
+            )}
+            <SummaryCard label="Paid transactions" value={String(data.summary.paidCount)} tone="paid" />
             <SummaryCard
-              label="Your earnings"
-              value={formatIdrDisplay(data.summary.totalHostPayoutIdr)}
+              label="Pending"
+              value={String(data.summary.pendingCount)}
+              tone="pending"
             />
-          )}
-          <SummaryCard label="Paid transactions" value={String(data.summary.paidCount)} />
-          <SummaryCard label="Pending" value={String(data.summary.pendingCount)} highlight />
-        </div>
+          </div>
+        )
       ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
@@ -310,6 +363,7 @@ export function PaymentTransactionsLedger({
                   showHostColumn={showHostColumn}
                   showPlatformFees={showPlatformFees}
                   onPayPending={onPayPending}
+                  onViewReceipt={handleViewReceipt}
                 />
               ))}
             </ul>
@@ -384,6 +438,7 @@ export function PaymentTransactionsLedger({
                           row={row}
                           scope={scope}
                           onPayPending={onPayPending}
+                          onViewReceipt={handleViewReceipt}
                         />
                       </td>
                     </tr>

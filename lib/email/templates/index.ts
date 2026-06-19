@@ -9,6 +9,7 @@ import { renderRegistrationConfirmParticipationTemplate } from "./registration-c
 import { renderRegistrationPaymentReminderTemplate } from "./registration-payment-reminder";
 import { renderRegistrationTeamInviteTemplate } from "./registration-team-invite";
 import { renderRegistrationCancelledTemplate } from "./registration-cancelled";
+import { renderHostPaymentReceivedTemplate } from "./host-payment-received";
 import { renderVerifyEmailTemplate } from "./verify-email";
 import { renderResetPasswordTemplate } from "./reset-password";
 import { renderPasswordChangedTemplate } from "./password-changed";
@@ -52,6 +53,10 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "registration-cancelled":
       return renderRegistrationCancelledTemplate(
         input.data as EmailTemplateDataMap["registration-cancelled"],
+      );
+    case "host-payment-received":
+      return renderHostPaymentReceivedTemplate(
+        input.data as EmailTemplateDataMap["host-payment-received"],
       );
     case "welcome":
       throw new Error("Welcome email template is not implemented yet");

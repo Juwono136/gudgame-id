@@ -4,6 +4,7 @@ import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournamentRegistrations } from "@/db/schema/tournament-registration";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { expireRegistrationIfOverdue } from "@/lib/tournaments/registration/payment-expiry";
 
@@ -16,10 +17,7 @@ export async function GET(
   try {
     const { userId } = await requireApiRoleGuardContext();
     const { id } = await params;
-    const registrationId = Number(id);
-    if (!Number.isFinite(registrationId)) {
-      throw new AppError("Invalid registration id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const registrationId = parseEntityIdParam(id, "registration id");
 
     const [reg] = await getDb()
       .select({
@@ -58,6 +56,7 @@ export async function GET(
 
     const [payment] = await getDb()
       .select({
+        id: tournamentPayments.id,
         status: tournamentPayments.status,
         metadata: tournamentPayments.metadata,
       })
@@ -68,6 +67,7 @@ export async function GET(
     return jsonSuccess({
       registrationStatus: freshReg?.status ?? reg.status,
       paymentStatus: payment?.status ?? null,
+      paymentId: payment?.id ?? null,
       paid: payment?.status === "paid" || freshReg?.status === "confirmed",
       failed: payment?.status === "failed",
       expired: payment?.status === "expired",

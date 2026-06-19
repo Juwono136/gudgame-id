@@ -1,5 +1,9 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
-import { listDistinctMatchYears, listPlayerMatches } from "@/lib/account/player-competition/list-matches";
+import {
+  getPlayerMatchListSummary,
+  listDistinctMatchYears,
+  listPlayerMatches,
+} from "@/lib/account/player-competition/list-matches";
 import { requirePlayerDashboardAccess } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
 import { playerMatchesListQuerySchema } from "@/lib/validations/player-competition";
@@ -26,8 +30,11 @@ export async function GET(request: Request) {
     const years = url.searchParams.get("includeYears") === "1"
       ? await listDistinctMatchYears(userId)
       : undefined;
+    const summary = url.searchParams.get("includeSummary") === "1"
+      ? await getPlayerMatchListSummary(userId, parsed.data)
+      : undefined;
 
-    return jsonSuccess({ ...list, years });
+    return jsonSuccess({ ...list, years, summary });
   } catch (error) {
     return jsonError(error);
   }

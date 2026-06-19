@@ -97,7 +97,12 @@ export function isPathAllowedForRoles(pathname: string, roles: AppRole[]): boole
   }
 }
 
-/** Primary landing page after sign-in (highest-privilege dashboard first) */
+/** Landing page after a successful sign-in when no explicit callback URL is provided */
+export function getPostLoginLandingUrl(): string {
+  return "/";
+}
+
+/** Primary landing page for role-based dashboard routing (access control fallbacks) */
 export function getDefaultDashboardUrl(roles: AppRole[]): string {
   if (canAccessAdminConsole(roles)) return adminRoutes.home;
   if (canAccessHostDashboard(roles)) return dashboardRoutes.host;
@@ -126,14 +131,14 @@ export function resolveSafeCallbackUrl(
     return authRoutes.changePasswordRequired;
   }
 
-  if (!callbackUrl?.trim()) return getDefaultDashboardUrl(roles);
+  if (!callbackUrl?.trim()) return getPostLoginLandingUrl();
 
   let path = callbackUrl.trim();
   if (path.startsWith("http://") || path.startsWith("https://")) {
     try {
       path = new URL(path).pathname;
     } catch {
-      return getDefaultDashboardUrl(roles);
+      return getPostLoginLandingUrl();
     }
   }
 
@@ -142,5 +147,5 @@ export function resolveSafeCallbackUrl(
   path = normalizeLegacyDashboardPath(path);
 
   if (isPathAllowedForRoles(path, roles)) return path;
-  return getDefaultDashboardUrl(roles);
+  return getPostLoginLandingUrl();
 }

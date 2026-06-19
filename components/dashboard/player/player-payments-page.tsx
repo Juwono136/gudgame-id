@@ -98,7 +98,7 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
               })
               .map((r) => (
                 <li
-                  key={r.registrationId}
+                  key={r.tournamentId}
                   className="min-w-0 rounded-2xl border border-cp-border bg-cp-card/70 p-4 sm:p-5"
                 >
                   <div className="flex flex-wrap gap-2">

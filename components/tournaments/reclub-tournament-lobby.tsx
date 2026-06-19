@@ -41,7 +41,7 @@ type ReclubTournamentLobbyProps = {
   tournament: TournamentDetail;
   summary: TournamentRegistrationSummary;
   isAuthenticated: boolean;
-  initialUserTeamId?: number | null;
+  initialUserTeamId?: string | null;
 };
 
 function formatDuration(seconds: number): string {
@@ -87,8 +87,8 @@ export function ReclubTournamentLobby({
   const completeRound = useCompleteReclubRound(tournament.sportSlug, tournament.slug);
 
   const [joining, setJoining] = useState(false);
-  const [teamAId, setTeamAId] = useState<number | "">("");
-  const [teamBId, setTeamBId] = useState<number | "">("");
+  const [teamAId, setTeamAId] = useState<string | "">("");
+  const [teamBId, setTeamBId] = useState<string | "">("");
   const [scoreA, setScoreA] = useState("0");
   const [scoreB, setScoreB] = useState("0");
 
@@ -142,7 +142,7 @@ export function ReclubTournamentLobby({
     }
   };
 
-  const handleSwitch = async (teamId: number) => {
+  const handleSwitch = async (teamId: string) => {
     if (activeMatch) {
       toast.error("Cannot switch teams during an active round");
       return;
@@ -371,7 +371,7 @@ export function ReclubTournamentLobby({
                 <select
                   value={teamAId}
                   onChange={(e) =>
-                    setTeamAId(e.target.value ? Number(e.target.value) : "")
+                    setTeamAId(e.target.value || "")
                   }
                   className="mt-1 w-full rounded-lg border border-cp-border bg-cp-bg-input px-3 py-2 text-sm"
                 >
@@ -388,7 +388,7 @@ export function ReclubTournamentLobby({
                 <select
                   value={teamBId}
                   onChange={(e) =>
-                    setTeamBId(e.target.value ? Number(e.target.value) : "")
+                    setTeamBId(e.target.value || "")
                   }
                   className="mt-1 w-full rounded-lg border border-cp-border bg-cp-bg-input px-3 py-2 text-sm"
                 >

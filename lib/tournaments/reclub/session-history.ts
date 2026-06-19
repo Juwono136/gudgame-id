@@ -16,7 +16,7 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 
 type BracketRow = typeof tournamentBracketMatches.$inferSelect;
 
-async function getTeamPlayerNames(teamId: number): Promise<string[]> {
+async function getTeamPlayerNames(teamId: string): Promise<string[]> {
   const rows = await getDb()
     .select({ name: user.name })
     .from(tournamentTeamMembers)
@@ -35,7 +35,7 @@ function bracketRowToHistoryView(
 ): ReclubMatchView {
   const completedAt = row.completedAt?.toISOString() ?? null;
   return {
-    id: -row.id,
+    id: row.id,
     roundNumber: row.roundNumber,
     teamAId: row.teamAId,
     teamBId: row.teamBId,
@@ -57,7 +57,7 @@ function bracketRowToHistoryView(
   };
 }
 
-async function listBracketHistoryViews(tournamentId: number): Promise<ReclubMatchView[]> {
+async function listBracketHistoryViews(tournamentId: string): Promise<ReclubMatchView[]> {
   const rows = await getDb()
     .select()
     .from(tournamentBracketMatches)
@@ -87,12 +87,12 @@ async function listBracketHistoryViews(tournamentId: number): Promise<ReclubMatc
   return views;
 }
 
-function getRecordedBracketIds(reclubRows: { metadata: unknown }[]): Set<number> {
-  const ids = new Set<number>();
+function getRecordedBracketIds(reclubRows: { metadata: unknown }[]): Set<string> {
+  const ids = new Set<string>();
   for (const row of reclubRows) {
     const meta = row.metadata as Record<string, unknown> | null;
     const id = meta?.bracketMatchId;
-    if (typeof id === "number") ids.add(id);
+    if (typeof id === "string") ids.add(id);
   }
   return ids;
 }
@@ -131,7 +131,7 @@ function filterHistoryItems(
 }
 
 export async function mergeReclubSessionHistory(
-  tournamentId: number,
+  tournamentId: string,
   reclubItems: ReclubMatchView[],
 ): Promise<ReclubMatchView[]> {
   const reclubRows = await getDb()
@@ -149,7 +149,7 @@ export async function mergeReclubSessionHistory(
 }
 
 export async function listMergedReclubSessionHistory(
-  tournamentId: number,
+  tournamentId: string,
   query: ReclubMatchesListQuery,
 ): Promise<{
   items: ReclubMatchView[];
@@ -174,11 +174,11 @@ export async function listMergedReclubSessionHistory(
       teamAPlayers: meta.teamAPlayers ?? view.teamAPlayers,
       teamBPlayers: meta.teamBPlayers ?? view.teamBPlayers,
       sourceKind:
-        typeof raw?.bracketMatchId === "number"
+        typeof raw?.bracketMatchId === "string"
           ? ("bracket" as const)
           : ("round" as const),
       bracketMatchId:
-        typeof raw?.bracketMatchId === "number" ? raw.bracketMatchId : null,
+        typeof raw?.bracketMatchId === "string" ? raw.bracketMatchId : null,
       roundLabel: typeof raw?.roundLabel === "string" ? raw.roundLabel : null,
     };
   });

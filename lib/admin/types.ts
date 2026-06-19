@@ -11,5 +11,5 @@ export type AdminSessionContext = {
   activeRole: AppRole;
   permissions: Set<Permission>;
   sportSlug: string;
-  sportId: number;
+  sportId: string;
 };

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import type { SportId } from "@/lib/domain/sports";
 import type { AdminSportsListResult, SportDetail } from "@/lib/sports/service";
 import type { AdminSportsListQuery } from "@/lib/validations/sports-admin";
 
@@ -36,10 +37,10 @@ export function useAdminSportsList(query: AdminSportsListQuery) {
   });
 }
 
-export function useAdminSport(id: number | null) {
+export function useAdminSport(id: SportId | null) {
   return useQuery({
     queryKey: ["admin", "sport", id],
-    enabled: id != null && id > 0,
+    enabled: id != null && id.length > 0,
     queryFn: async () => {
       const res = await fetch(`/api/admin/sports/${id}`);
       const json = await parseJsonResponse<{
@@ -81,7 +82,7 @@ export function useCreateAdminSport() {
   });
 }
 
-export function useUpdateAdminSport(id: number) {
+export function useUpdateAdminSport(id: SportId) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (formData: SportFormPayload) => {
@@ -111,7 +112,7 @@ export function useUpdateAdminSport(id: number) {
 export function useDeleteAdminSport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: SportId) => {
       const res = await fetch(`/api/admin/sports/${id}`, { method: "DELETE" });
       const json = await parseJsonResponse<{ success: boolean; error?: unknown }>(res);
       if (!res.ok) {
@@ -129,7 +130,7 @@ export function useDeleteAdminSport() {
 export function useReorderAdminSports() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (orderedIds: number[]) => {
+    mutationFn: async (orderedIds: SportId[]) => {
       const res = await fetch("/api/admin/sports/reorder", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

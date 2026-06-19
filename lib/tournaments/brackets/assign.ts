@@ -10,9 +10,9 @@ import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 
 export async function assignTeamToBracketSlot(
   tournament: TournamentDetail,
-  matchId: number,
+  matchId: string,
   slot: "a" | "b",
-  teamId: number | null,
+  teamId: string | null,
 ): Promise<BracketMatchView> {
   const db = getDb();
 

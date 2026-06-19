@@ -1,10 +1,9 @@
 import type { ReclubScoreEvent } from "@/lib/tournaments/reclub/score-events";
 
 export type ReclubMatchView = {
-  id: number;
-  roundNumber: number;
-  teamAId?: number | null;
-  teamBId?: number | null;
+  id: string; roundNumber: number;
+  teamAId?: string | null;
+  teamBId?: string | null;
   teamAName: string | null;
   teamBName: string | null;
   scoreA: number | null;
@@ -18,7 +17,7 @@ export type ReclubMatchView = {
   teamBPlayers: string[];
   scoreEvents: ReclubScoreEvent[];
   sourceKind?: "round" | "bracket";
-  bracketMatchId?: number | null;
+  bracketMatchId?: string | null;
   roundLabel?: string | null;
 };
 

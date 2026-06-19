@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,6 +33,13 @@ import { ReclubLobbyDnd } from "@/components/tournaments/reclub-lobby-dnd";
 import { ReclubRulesPanel } from "@/components/tournaments/reclub-rules-panel";
 import { TournamentOrganizer } from "@/components/tournaments/tournament-organizer";
 import { TournamentShareCard } from "@/components/tournaments/tournament-share-card";
+import {
+  TournamentDetailPageShell,
+  TournamentDetailSection,
+  TournamentHeroBanner,
+  TournamentStatCard,
+  tournamentHeroStyles,
+} from "@/components/tournaments/tournament-detail-ui";
 import { VenueMapsPreview } from "@/components/tournaments/venue-maps-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,7 +71,7 @@ type ReclubTournamentPageProps = {
   tournament: TournamentDetail;
   summary: TournamentRegistrationSummary;
   isAuthenticated: boolean;
-  initialUserTeamId?: number | null;
+  initialUserTeamId?: string | null;
 };
 
 function formatDuration(seconds: number): string {
@@ -250,7 +256,7 @@ export function ReclubTournamentPage({
     });
   };
 
-  const handleSwitch = async (teamId: number) => {
+  const handleSwitch = async (teamId: string) => {
     if (activeMatch) {
       toast.error("Cannot switch squads during an active round");
       return;
@@ -301,115 +307,96 @@ export function ReclubTournamentPage({
   const canRenameTeams = !activeMatch && tournament.status !== "live" && tournament.status !== "completed";
 
   return (
-    <div className="min-h-screen bg-cp-bg">
+    <TournamentDetailPageShell>
       <LoadingOverlay show={busy} label="Updating…" />
 
-      {/* Hero */}
-      <div className="relative overflow-hidden border-b border-cp-border">
-        {tournament.coverImageUrl ? (
-          <div className="absolute inset-0">
-            <Image
-              src={tournament.coverImageUrl}
-              alt=""
-              fill
-              className="object-cover opacity-35"
-              priority
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-linear-to-b from-emerald-950/40 via-cp-bg/85 to-cp-bg" />
+      <TournamentHeroBanner coverImageUrl={tournament.coverImageUrl} variant="reclub">
+        <Link
+          href={publicSportRoutes.tournaments(tournament.sportSlug)}
+          className={tournamentHeroStyles.backLink}
+        >
+          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
+          {tournament.sportName} tournaments
+        </Link>
+
+        <FadeInView className="mt-5 sm:mt-6">
+          <div className="flex flex-wrap gap-2">
+            <Badge className="border-0 bg-emerald-500/25 text-emerald-200">
+              <Gamepad2 className="mr-1 h-3 w-3" />
+              Reclub — free play
+            </Badge>
+            <Badge className={tournamentHeroStyles.statusBadge}>{tournament.status}</Badge>
+            {isFetching && !isLoading ? <Badge variant="muted">Syncing…</Badge> : null}
           </div>
-        ) : (
-          <div className="absolute inset-0 bg-linear-to-b from-emerald-950/50 via-cp-card/80 to-cp-bg" />
-        )}
 
-        <div className="relative mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-14">
-          <Link
-            href={publicSportRoutes.tournaments(tournament.sportSlug)}
-            className="inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            {tournament.sportName} tournaments
-          </Link>
+          <h1 className={tournamentHeroStyles.title}>{tournament.name}</h1>
 
-          <FadeInView className="mt-6">
-            <div className="flex flex-wrap gap-2">
-              <Badge className="border-0 bg-emerald-500/25 text-emerald-200">
-                <Gamepad2 className="mr-1 h-3 w-3" />
-                Reclub — free play
-              </Badge>
-              <Badge className="border-cp-border bg-cp-elevated uppercase">{tournament.status}</Badge>
-              {isFetching && !isLoading ? <Badge variant="muted">Syncing…</Badge> : null}
-            </div>
-
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-              {tournament.name}
-            </h1>
-
-            {tournament.creatorName ? (
-              <div className="mt-4">
-                <TournamentOrganizer
-                  name={tournament.creatorName}
-                  imageUrl={tournament.creatorImage}
-                />
-              </div>
-            ) : null}
-
-            {tournament.summary ? (
-              <div className="mt-3 max-w-3xl">
-                <RichHtmlContent html={tournament.summary} variant="article" />
-              </div>
-            ) : null}
-
-            <div className="mt-6 flex flex-wrap gap-4 text-sm text-cp-muted">
-              {tournament.venue ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="h-4 w-4 shrink-0 text-emerald-400" />
-                  {mapsUrl ? (
-                    <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-foreground hover:text-emerald-300"
-                    >
-                      {tournament.venue}
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  ) : (
-                    tournament.venue
-                  )}
-                </span>
-              ) : null}
-              {tournament.startsAt ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4 shrink-0 text-emerald-400" />
-                  {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
-                    new Date(tournament.startsAt),
-                  )}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard icon={Users} label="Players" value={String(summary.registeredPlayers)} />
-              <StatCard icon={Swords} label="Squads" value={String(teams.length)} />
-              <StatCard
-                icon={Trophy}
-                label="Rounds"
-                value={
-                  maxRounds != null
-                    ? `${stats.totalRounds} / ${maxRounds}`
-                    : String(stats.totalRounds)
-                }
-              />
-              <StatCard
-                icon={Users}
-                label="Per squad"
-                value={`${tournament.playersPerTeam} max`}
+          {tournament.creatorName ? (
+            <div className="mt-3 sm:mt-4">
+              <TournamentOrganizer
+                name={tournament.creatorName}
+                imageUrl={tournament.creatorImage}
               />
             </div>
-          </FadeInView>
-        </div>
-      </div>
+          ) : null}
+
+          {tournament.summary ? (
+            <div className={cn(tournamentHeroStyles.summaryWrap, "max-w-3xl")}>
+              <RichHtmlContent html={tournament.summary} variant="hero" />
+            </div>
+          ) : null}
+
+          <div className={tournamentHeroStyles.metaRow}>
+            {tournament.venue ? (
+              <span className={tournamentHeroStyles.metaItem}>
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300 sm:mt-0" />
+                {mapsUrl ? (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-w-0 items-center gap-1 break-words text-foreground hover:text-emerald-200"
+                  >
+                    {tournament.venue}
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  </a>
+                ) : (
+                  <span className="break-words">{tournament.venue}</span>
+                )}
+              </span>
+            ) : null}
+            {tournament.startsAt ? (
+              <span className={tournamentHeroStyles.metaItem}>
+                <Calendar className="h-4 w-4 shrink-0 text-emerald-300" />
+                {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
+                  new Date(tournament.startsAt),
+                )}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            <TournamentStatCard icon={Users} label="Players" value={String(summary.registeredPlayers)} tone="hero" />
+            <TournamentStatCard icon={Swords} label="Squads" value={String(teams.length)} tone="hero" />
+            <TournamentStatCard
+              icon={Trophy}
+              label="Rounds"
+              value={
+                maxRounds != null
+                  ? `${stats.totalRounds} / ${maxRounds}`
+                  : String(stats.totalRounds)
+              }
+              tone="hero"
+            />
+            <TournamentStatCard
+              icon={Users}
+              label="Per squad"
+              value={`${tournament.playersPerTeam} max`}
+              tone="hero"
+            />
+          </div>
+        </FadeInView>
+      </TournamentHeroBanner>
 
       {/* Live round banner */}
       {activeMatch ? (
@@ -479,7 +466,7 @@ export function ReclubTournamentPage({
 
       {/* Tabs */}
       <div className="sticky top-0 z-20 border-b border-cp-border bg-cp-bg/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden">
           {TABS.map((t) => (
             <button
               key={t}
@@ -498,7 +485,7 @@ export function ReclubTournamentPage({
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:py-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -508,22 +495,19 @@ export function ReclubTournamentPage({
             transition={{ duration: 0.15 }}
           >
             {tab === "Overview" ? (
-              <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-                <div className="space-y-6">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] lg:gap-8">
+                <div className="order-2 min-w-0 space-y-6 lg:order-1">
                   {tournament.description ? (
-                    <section className="rounded-2xl border border-cp-border bg-cp-card p-6">
-                      <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                        <Info className="h-5 w-5 text-emerald-400" />
-                        About this session
-                      </h2>
-                      <RichHtmlContent html={tournament.description} variant="article" className="mt-4" />
-                    </section>
+                    <TournamentDetailSection
+                      title="About this session"
+                      icon={Info}
+                      iconClassName="text-emerald-400"
+                    >
+                      <RichHtmlContent html={tournament.description} variant="article" />
+                    </TournamentDetailSection>
                   ) : null}
                   {tournament.venue ? (
-                    <VenueMapsPreview
-                      venue={tournament.venue}
-                      mapsUrl={mapsUrl}
-                    />
+                    <VenueMapsPreview venue={tournament.venue} mapsUrl={mapsUrl} />
                   ) : null}
                   <ReclubMatchOverviewPreview
                     matches={matches}
@@ -537,8 +521,8 @@ export function ReclubTournamentPage({
                     history.
                   </p>
                 </div>
-                <aside className="space-y-4">
-                  <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
+                <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
+                  <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
                     <h3 className="font-semibold text-foreground">Join session</h3>
                     <p className="mt-1 text-sm text-cp-muted">
                       {summary.registeredPlayers} players · {teams.length} squads
@@ -683,10 +667,10 @@ export function ReclubTournamentPage({
                   <BarChart3 className="h-5 w-5 text-emerald-400" />
                   Session stats
                 </h2>
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <StatCard icon={Trophy} label="Completed rounds" value={String(stats.totalRounds)} />
-                  <StatCard icon={Users} label="Active squads" value={String(stats.activeSquads)} />
-                  <StatCard icon={Users} label="Total players" value={String(summary.registeredPlayers)} />
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <TournamentStatCard icon={Trophy} label="Completed rounds" value={String(stats.totalRounds)} />
+                  <TournamentStatCard icon={Users} label="Active squads" value={String(stats.activeSquads)} />
+                  <TournamentStatCard icon={Users} label="Total players" value={String(summary.registeredPlayers)} />
                 </div>
                 {stats.leaderboard.length > 0 ? (
                   <div className="mt-6 rounded-2xl border border-cp-border bg-cp-card p-5">
@@ -711,25 +695,7 @@ export function ReclubTournamentPage({
           </motion.div>
         </AnimatePresence>
       </div>
-    </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-cp-border/80 bg-cp-card/60 px-4 py-3">
-      <Icon className="h-4 w-4 text-emerald-400" />
-      <p className="mt-2 text-xs text-cp-muted">{label}</p>
-      <p className="text-lg font-bold text-foreground">{value}</p>
-    </div>
+    </TournamentDetailPageShell>
   );
 }
 
@@ -766,7 +732,7 @@ function TeamSelect({
   label: string;
   value: number | "";
   onChange: (v: number | "") => void;
-  teams: { id: number; name: string; memberCount: number }[];
+  teams: { id: string; name: string; memberCount: number }[];
   exclude: number | "";
 }) {
   return (

@@ -15,7 +15,7 @@ export type TournamentPlayerSearchResult = {
 };
 
 export async function searchTournamentPlayers(
-  sportId: number,
+  sportId: string,
   query: string,
   limit = 12,
 ): Promise<TournamentPlayerSearchResult[]> {

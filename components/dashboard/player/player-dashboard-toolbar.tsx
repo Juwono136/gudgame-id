@@ -24,17 +24,6 @@ export function PlayerDashboardToolbar({ publicPageUrl, className }: PlayerDashb
           </Link>
         </Button>
       ) : null}
-
-      <Button
-        size="sm"
-        variant="outline"
-        className="border-cp-border text-foreground hover:bg-cp-elevated"
-        disabled={isLoggingOut}
-        onClick={() => void requestLogout()}
-      >
-        <LogOut className="mr-2 h-4 w-4" />
-        Sign out
-      </Button>
     </div>
   );
 }

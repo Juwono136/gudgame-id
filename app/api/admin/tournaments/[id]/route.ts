@@ -3,6 +3,7 @@ import { getDb } from "@/db/client";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { hasBracket } from "@/lib/tournaments/brackets/service";
 import {
@@ -15,7 +16,7 @@ import { tournamentUpsertSchema } from "@/lib/validations/tournaments";
 
 export const runtime = "nodejs";
 
-async function requireOwnedTournament(id: number, sportId: number, userId: string) {
+async function requireOwnedTournament(id: string, sportId: string, userId: string) {
   const tournament = await getTournamentById(id);
   if (!tournament || tournament.sportId !== sportId) {
     throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
@@ -35,10 +36,7 @@ export async function PATCH(
 ) {
   try {
     const ctx = await requireWikiManagementAccess();
-    const id = Number((await params).id);
-    if (!Number.isFinite(id)) {
-      throw new AppError("Invalid tournament id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const id = parseEntityIdParam((await params).id, "tournament id");
 
     const existing = await requireOwnedTournament(id, ctx.sportId, ctx.userId);
     assertTournamentEditable(existing);
@@ -66,10 +64,7 @@ export async function DELETE(
 ) {
   try {
     const ctx = await requireWikiManagementAccess();
-    const id = Number((await params).id);
-    if (!Number.isFinite(id)) {
-      throw new AppError("Invalid tournament id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const id = parseEntityIdParam((await params).id, "tournament id");
 
     const existing = await requireOwnedTournament(id, ctx.sportId, ctx.userId);
     assertTournamentDeletable(existing);

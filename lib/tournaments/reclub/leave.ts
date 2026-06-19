@@ -15,7 +15,7 @@ import { AppError } from "@/lib/errors";
 import { clearTeamFromBracketSlots } from "@/lib/tournaments/brackets/clear-team";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
-async function getUserTeamId(tournamentId: number, userId: string): Promise<number | null> {
+async function getUserTeamId(tournamentId: string, userId: string): Promise<string | null> {
   const db = getDb();
   const [row] = await db
     .select({ teamId: tournamentTeamMembers.teamId })

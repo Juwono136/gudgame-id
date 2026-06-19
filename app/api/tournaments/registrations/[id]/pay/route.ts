@@ -1,6 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import {
   initiateCheckoutPayment,
@@ -25,10 +26,7 @@ export async function POST(
   try {
     const { userId } = await requireApiRoleGuardContext();
     const { id } = await params;
-    const registrationId = Number(id);
-    if (!Number.isFinite(registrationId)) {
-      throw new AppError("Invalid registration id", { code: "VALIDATION_ERROR", statusCode: 400 });
-    }
+    const registrationId = parseEntityIdParam(id, "registration id");
 
     await enforceRateLimit({
       key: `checkout-pay:${userId}`,

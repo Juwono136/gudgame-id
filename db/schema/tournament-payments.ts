@@ -4,7 +4,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  serial,
   text,
   timestamp,
   varchar,
@@ -12,6 +11,7 @@ import {
 import { user } from "./auth";
 import { tournamentRegistrations } from "./tournament-registration";
 import { tournaments } from "./tournaments";
+import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 export const PAYMENT_STATUSES = [
   "pending",
@@ -25,11 +25,11 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const tournamentPayments = pgTable(
   "tournament_payments",
   {
-    id: serial("id").primaryKey(),
-    tournamentId: integer("tournament_id")
+    id: uuidPrimaryKey(),
+    tournamentId: uuidFk("tournament_id")
       .notNull()
       .references(() => tournaments.id, { onDelete: "restrict" }),
-    registrationId: integer("registration_id").notNull(),
+    registrationId: uuidFk("registration_id").notNull(),
     payerUserId: text("payer_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),

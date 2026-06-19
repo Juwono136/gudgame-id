@@ -39,7 +39,7 @@ export function ThemeToggle({ className, align = "end" }: ThemeToggleProps) {
         : Sun;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"

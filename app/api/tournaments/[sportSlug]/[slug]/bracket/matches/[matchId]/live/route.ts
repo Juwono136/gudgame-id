@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { updateBracketLiveScore } from "@/lib/tournaments/brackets/service";
 import { canManageTournament } from "@/lib/tournaments/permissions";
@@ -40,7 +41,7 @@ export async function PATCH(
 
     const match = await updateBracketLiveScore(
       tournament,
-      Number(matchId),
+      parseEntityIdParam(matchId, "match id"),
       parsed.data.scoreA,
       parsed.data.scoreB,
     );

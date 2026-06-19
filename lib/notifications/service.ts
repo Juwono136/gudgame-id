@@ -113,7 +113,7 @@ export async function countUnreadNotifications(userId: string): Promise<number> 
 
 export async function markNotificationRead(
   userId: string,
-  notificationId: number,
+  notificationId: string,
 ): Promise<boolean> {
   const result = await getDb()
     .update(notifications)

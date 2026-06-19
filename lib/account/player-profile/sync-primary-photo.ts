@@ -28,7 +28,7 @@ export async function getUserPhotoForWiki(userId: string): Promise<{
   };
 }
 
-async function getOwnedPlayerEntityId(userId: string): Promise<number | null> {
+async function getOwnedPlayerEntityId(userId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({ id: wikiEntities.id })
     .from(wikiEntities)

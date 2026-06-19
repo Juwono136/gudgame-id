@@ -41,7 +41,7 @@ function formatIdr(amount: number) {
 }
 
 type HostTournamentWorkspaceProps = {
-  tournamentId: number;
+  tournamentId: string;
 };
 
 export function HostTournamentWorkspace({ tournamentId }: HostTournamentWorkspaceProps) {

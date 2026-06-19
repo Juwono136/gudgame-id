@@ -46,7 +46,7 @@ export function computeRegistrationOpen(
 }
 
 type TournamentRow = {
-  id: number;
+  id: string;
   sportSlug: string;
   slug: string;
   status: string;

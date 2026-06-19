@@ -31,10 +31,10 @@ import { cn } from "@/lib/utils";
 type ReclubBracketPanelProps = {
   sportSlug: string;
   slug: string;
-  tournamentId: number;
+  tournamentId: string;
   teams: LobbyTeamView[];
   canManage: boolean;
-  userTeamId: number | null;
+  userTeamId: string | null;
   tournamentStatus: string;
 };
 
@@ -59,7 +59,7 @@ export function ReclubBracketPanel({
   const canSeed = canManage && generated && !seedingLocked && tournamentStatus !== "completed";
 
   const placedTeamIds = useMemo(() => {
-    const ids = new Set<number>();
+    const ids = new Set<string>();
     for (const m of matches) {
       if (m.roundNumber === 1) {
         if (m.teamAId) ids.add(m.teamAId);
@@ -178,7 +178,7 @@ function BracketSeedingPool({
 }: {
   squads: LobbyTeamView[];
   matches: BracketMatchView[];
-  onAssign: (matchId: number, slot: "a" | "b", teamId: number) => void;
+  onAssign: (matchId: string, slot: "a" | "b", teamId: string) => void;
   assigning?: boolean;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -193,9 +193,9 @@ function BracketSeedingPool({
     const overId = e.over?.id;
     if (!overId || !String(overId).startsWith("slot-")) return;
     const [, matchId, slot] = String(overId).split("-");
-    const teamId = Number(String(e.active.id).replace("squad-", ""));
-    if (!matchId || (slot !== "a" && slot !== "b") || !Number.isFinite(teamId)) return;
-    onAssign(Number(matchId), slot, teamId);
+    const teamId = String(e.active.id).replace("squad-", "");
+    if (!matchId || (slot !== "a" && slot !== "b") || !teamId) return;
+    onAssign(matchId, slot, teamId);
   };
 
   const activeSquad = squads.find((s) => `squad-${s.id}` === activeId);
@@ -275,7 +275,7 @@ function SlotDropZone({
   slot,
   label,
 }: {
-  matchId: number;
+  matchId: string;
   slot: "a" | "b";
   label: string | null;
 }) {

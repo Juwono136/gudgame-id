@@ -21,7 +21,7 @@ import type { TournamentPlayerSearchResult } from "@/lib/tournaments/players/sea
 type OfficialRegistrationEditDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  registrationId: number;
+  registrationId: string;
   sportSlug: string;
   tournamentSlug: string;
   tournamentName: string;
@@ -128,17 +128,22 @@ export function OfficialRegistrationEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-cp-border bg-cp-card">
+      <DialogContent className="flex max-h-[min(90dvh,40rem)] w-[calc(100%-1.5rem)] max-w-lg flex-col gap-0 border-cp-border bg-cp-card p-0 sm:w-full">
         <LoadingOverlay show={loading || saving} label={saving ? "Saving…" : "Loading…"} />
-        <DialogHeader>
-          <DialogTitle>Edit team registration</DialogTitle>
-          <DialogDescription>
-            Update your team for {tournamentName}. You can edit until you confirm participation.
-          </DialogDescription>
-        </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
+        <div className="border-b border-cp-border px-4 py-4 sm:px-6">
+          <DialogHeader className="space-y-1.5 text-left">
+            <DialogTitle>Edit team registration</DialogTitle>
+            <DialogDescription>
+              Update your team for{" "}
+              <span className="font-medium text-foreground">{tournamentName}</span>. You can edit
+              until you confirm participation.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="space-y-2 rounded-xl border border-cp-border bg-cp-elevated/30 p-4">
             <Label htmlFor="edit-team-name">Team name</Label>
             <Input
               id="edit-team-name"
@@ -146,14 +151,18 @@ export function OfficialRegistrationEditDialog({
               onChange={(e) => setTeamName(e.target.value)}
               className="border-cp-border bg-cp-elevated"
               disabled={loading}
+              placeholder="Your team name"
             />
           </div>
-          <div className="space-y-2">
-            <Label>Partners</Label>
-            <p className="text-xs text-cp-muted">
-              Up to {Math.max(0, playersPerTeam - 1)} partner
-              {playersPerTeam - 1 === 1 ? "" : "s"} besides you.
-            </p>
+
+          <div className="space-y-3 rounded-xl border border-cp-border bg-cp-elevated/30 p-4">
+            <div>
+              <Label>Partners</Label>
+              <p className="mt-1 text-xs text-cp-muted">
+                Up to {Math.max(0, playersPerTeam - 1)} partner
+                {playersPerTeam - 1 === 1 ? "" : "s"} besides you.
+              </p>
+            </div>
             <PlayerSearchPicker
               sportSlug={sportSlug}
               selected={partners}
@@ -163,11 +172,19 @@ export function OfficialRegistrationEditDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" className="border-cp-border" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-col gap-2 border-t border-cp-border px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <Button
+            variant="outline"
+            className="h-10 w-full border-cp-border sm:w-auto"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button className="bg-cp-primary" disabled={loading || saving} onClick={() => void handleSave()}>
+          <Button
+            className="h-10 w-full bg-cp-primary sm:w-auto"
+            disabled={loading || saving}
+            onClick={() => void handleSave()}
+          >
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Save changes
           </Button>

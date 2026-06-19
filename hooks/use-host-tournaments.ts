@@ -27,7 +27,7 @@ export function useHostTournamentsList() {
   });
 }
 
-export function useHostTournamentWorkspace(tournamentId: number) {
+export function useHostTournamentWorkspace(tournamentId: string) {
   return useQuery({
     queryKey: ["host", "tournaments", tournamentId, "workspace"],
     queryFn: async () => {
@@ -42,12 +42,12 @@ export function useHostTournamentWorkspace(tournamentId: number) {
       }
       return json.data.workspace;
     },
-    enabled: tournamentId > 0,
+    enabled: Boolean(tournamentId),
     refetchInterval: 10000,
   });
 }
 
-export function useUpdateTournamentStatus(tournamentId: number) {
+export function useUpdateTournamentStatus(tournamentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (status: TournamentStatus) => {
@@ -104,7 +104,7 @@ export function useCreateHostTournament() {
   });
 }
 
-export function useUpdateHostTournament(tournamentId: number) {
+export function useUpdateHostTournament(tournamentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: TournamentUpsertInput) => {
@@ -137,7 +137,7 @@ export function useUpdateHostTournament(tournamentId: number) {
 export function useDeleteHostTournament() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (tournamentId: number) => {
+    mutationFn: async (tournamentId: string) => {
       const res = await fetch(`/api/host/tournaments/${tournamentId}`, {
         method: "DELETE",
       });

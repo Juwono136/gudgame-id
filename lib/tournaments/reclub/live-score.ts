@@ -15,7 +15,7 @@ import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
 
 export async function updateReclubLiveScore(
   tournament: TournamentDetail,
-  matchId: number,
+  matchId: string,
   userId: string,
   userName: string | null,
   input: {

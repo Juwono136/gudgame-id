@@ -4,11 +4,11 @@ import {
   integer,
   jsonb,
   pgTable,
-  serial,
   text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import { uuidPrimaryKey } from "./uuid";
 
 export const SPORT_VISIBILITY = ["live", "coming_soon", "hidden"] as const;
 export type SportVisibility = (typeof SPORT_VISIBILITY)[number];
@@ -21,18 +21,19 @@ export type SportModules = {
   rules: boolean;
 };
 
+/** Key order matches PostgreSQL jsonb default normalization (drizzle-kit push diff). */
 export const DEFAULT_SPORT_MODULES: SportModules = {
-  tournaments: true,
-  players: true,
   gear: true,
-  rankings: true,
   rules: true,
+  players: true,
+  rankings: true,
+  tournaments: true,
 };
 
 export const sports = pgTable(
   "sports",
   {
-    id: serial("id").primaryKey(),
+    id: uuidPrimaryKey(),
     name: varchar("name", { length: 50 }).notNull().unique(),
     slug: varchar("slug", { length: 50 }).notNull().unique(),
     tagline: varchar("tagline", { length: 160 }),

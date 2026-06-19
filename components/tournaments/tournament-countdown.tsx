@@ -9,6 +9,8 @@ type TournamentCountdownProps = {
   label?: string;
   className?: string;
   onComplete?: () => void;
+  /** Brighter labels for use on hero banners over cover images */
+  tone?: "default" | "hero";
 };
 
 function getTimeLeft(target: number) {
@@ -27,6 +29,7 @@ export function TournamentCountdown({
   label = "Registration closes in",
   className,
   onComplete,
+  tone = "default",
 }: TournamentCountdownProps) {
   const target = targetDate ? new Date(targetDate).getTime() : null;
   const [mounted, setMounted] = useState(false);
@@ -63,21 +66,42 @@ export function TournamentCountdown({
     { value: left.seconds, label: "Sec" },
   ];
 
+  const isHero = tone === "hero";
+
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">{label}</p>
+      <p
+        className={cn(
+          "text-[10px] font-semibold uppercase tracking-wider",
+          isHero ? "text-foreground/85 drop-shadow-sm" : "text-cp-muted",
+        )}
+      >
+        {label}
+      </p>
       <div className="flex gap-2">
         {units.map((u) => (
           <motion.div
             key={u.label}
-            className="flex min-w-[52px] flex-col items-center rounded-lg border border-cp-border bg-cp-elevated/80 px-2 py-2"
+            className={cn(
+              "flex min-w-[52px] flex-col items-center rounded-lg border px-2 py-2",
+              isHero
+                ? "border-white/15 bg-cp-bg/55 backdrop-blur-sm"
+                : "border-cp-border bg-cp-elevated/80",
+            )}
             animate={mounted && u.label === "Sec" ? { scale: [1, 1.02, 1] } : undefined}
             transition={{ duration: 0.3 }}
           >
             <span className="text-xl font-bold tabular-nums text-foreground" suppressHydrationWarning>
               {mounted ? String(u.value).padStart(2, "0") : "--"}
             </span>
-            <span className="text-[9px] uppercase text-cp-muted">{u.label}</span>
+            <span
+              className={cn(
+                "text-[9px] uppercase",
+                isHero ? "text-foreground/75" : "text-cp-muted",
+              )}
+            >
+              {u.label}
+            </span>
           </motion.div>
         ))}
       </div>

@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 type BracketTreeViewProps = {
   matches: BracketMatchView[];
   emptyMessage?: string;
-  highlightTeamIds?: number[];
-  onSlotClick?: (matchId: number, slot: "a" | "b") => void;
+  highlightTeamIds?: string[];
+  onSlotClick?: (matchId: string, slot: "a" | "b") => void;
   seedingMode?: boolean;
 };
 

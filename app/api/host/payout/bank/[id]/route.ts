@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import {
   deleteHostBankAccount,
   updateHostBankAccount,
@@ -14,10 +15,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const ctx = await requireHostDashboardAccess();
-    const accountId = Number((await params).id);
-    if (!Number.isFinite(accountId)) {
-      throw new AppError("Invalid account id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const accountId = parseEntityIdParam((await params).id, "account id");
 
     const body = await request.json();
     const parsed = updateBankAccountSchema.safeParse({ ...body, id: accountId });
@@ -39,10 +37,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   try {
     const ctx = await requireHostDashboardAccess();
-    const accountId = Number((await params).id);
-    if (!Number.isFinite(accountId)) {
-      throw new AppError("Invalid account id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const accountId = parseEntityIdParam((await params).id, "account id");
 
     const profile = await deleteHostBankAccount(ctx.userId, accountId);
     return jsonSuccess({ profile });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { usePathname } from "next/navigation";
@@ -16,20 +17,45 @@ import {
   isNavActive,
   mainNavItems,
 } from "@/lib/constants/navigation";
+import { useSessionContext } from "@/hooks/use-session-context";
+import { useDashboardMobileNavActive } from "@/hooks/use-dashboard-mobile-nav-active";
+import { DASHBOARD_MOBILE_BOTTOM_NAV_HEIGHT } from "@/lib/constants/dashboard-layout";
+import { SITE_HEADER_HEIGHT_CSS_VAR } from "@/lib/constants/site-layout";
 import { cn } from "@/lib/utils";
 
-/** Header height tokens — keep overlay/dropdown aligned */
+/** Header bar height tokens */
 const HEADER_H = "h-14 sm:h-16";
-const MENU_TOP = "top-14 sm:top-16";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const isAuthenticated = Boolean(session?.user);
+  const headerRef = useRef<HTMLElement>(null);
+  const scrollYRef = useRef(0);
+  const { data: session, isPending: sessionPending } = useSession();
+  const { data: sessionCtx, isPending: ctxPending } = useSessionContext();
+  const hasBottomDashboardNav = useDashboardMobileNavActive();
+  const [hydrated, setHydrated] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [menuTop, setMenuTop] = useState(56);
+
+  const isAuthenticated =
+    hydrated && (Boolean(session?.user) || sessionCtx?.authenticated === true);
+  const isAuthLoading =
+    hydrated && (sessionPending || ctxPending) && !isAuthenticated;
 
   const closeMobile = () => setMobileOpen(false);
+
+  const syncHeaderMetrics = useCallback(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const height = header.offsetHeight;
+    document.documentElement.style.setProperty(SITE_HEADER_HEIGHT_CSS_VAR, `${height}px`);
+    setMenuTop(height);
+  }, []);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -37,83 +63,126 @@ export default function Navbar() {
   }, [pathname]);
 
   useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    if (!hydrated || !headerRef.current) return;
+    syncHeaderMetrics();
+    const header = headerRef.current;
+    const observer = new ResizeObserver(() => syncHeaderMetrics());
+    observer.observe(header);
+    window.addEventListener("resize", syncHeaderMetrics);
     return () => {
-      document.body.style.overflow = "";
+      observer.disconnect();
+      window.removeEventListener("resize", syncHeaderMetrics);
+      document.documentElement.style.removeProperty(SITE_HEADER_HEIGHT_CSS_VAR);
+    };
+  }, [hydrated, syncHeaderMetrics]);
+
+  useLayoutEffect(() => {
+    if (!mobileOpen) return;
+    syncHeaderMetrics();
+  }, [mobileOpen, mobileSearchOpen, syncHeaderMetrics]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!mobileOpen) return;
+
+    scrollYRef.current = window.scrollY;
+    root.classList.add("mobile-nav-menu-open");
+
+    return () => {
+      root.classList.remove("mobile-nav-menu-open");
+      window.scrollTo(0, scrollYRef.current);
     };
   }, [mobileOpen]);
 
-  return (
-    <header className="sticky top-0 z-50 w-full border-b border-cp-border/70 bg-cp-bg/95 backdrop-blur-md">
-      <div
-        className={cn(
-          "relative z-[60] mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:gap-4 lg:px-8",
-          HEADER_H,
-        )}
+  const mobileMenuMaxHeight = `calc(100dvh - ${menuTop}px - ${
+    hasBottomDashboardNav
+      ? `calc(${DASHBOARD_MOBILE_BOTTOM_NAV_HEIGHT} + env(safe-area-inset-bottom, 0px))`
+      : "env(safe-area-inset-bottom, 0px)"
+  })`;
+
+  if (!hydrated) return null;
+
+  return createPortal(
+    <>
+      <header
+        ref={headerRef}
+        className="fixed inset-x-0 top-0 z-[120] w-full border-b border-cp-border/70 bg-cp-bg/95 backdrop-blur-md"
       >
-        <BrandLogo size="sm" className="shrink-0" />
-
-        <nav
+        <div
           className={cn(
-            "hidden min-w-0 flex-1 items-center justify-center gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:flex lg:justify-start lg:gap-1 [&::-webkit-scrollbar]:hidden",
-            "md:max-lg:px-1",
+            "relative mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:gap-4 lg:px-8",
+            HEADER_H,
           )}
-          aria-label="Main"
         >
-          {mainNavItems.map(({ href, label, icon: Icon }) => {
-            const active = isNavActive(pathname, href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-lg px-2 py-2 transition-colors duration-200 md:text-xs lg:gap-1.5 lg:px-3 lg:text-sm",
-                  active
-                    ? "nav-link-active bg-cp-primary/10 text-foreground"
-                    : "font-medium text-cp-muted hover:bg-cp-elevated/80 hover:text-foreground",
-                )}
-              >
-                <Icon className={cn("h-3.5 w-3.5 lg:h-4 lg:w-4", active && "text-cp-primary")} />
-                <span className="whitespace-nowrap">{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+          <BrandLogo size="sm" className="shrink-0" />
 
-        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 lg:gap-3">
-          <div className="relative hidden lg:block">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-            <input
-              type="search"
-              placeholder="Search wiki..."
-              className="h-9 w-36 rounded-lg border border-cp-border bg-cp-bg-input py-2 pr-3 pl-9 text-sm text-foreground placeholder:text-cp-muted transition-colors focus:border-cp-primary focus:outline-none focus:ring-1 focus:ring-cp-primary/40 xl:w-52"
-            />
-          </div>
-
-          <ThemeToggle />
-
-          {isAuthenticated ? <NotificationBell className="hidden md:inline-flex" /> : null}
-
-          <button
-            type="button"
+          <nav
             className={cn(
-              "inline-flex h-9 w-9 items-center justify-center rounded-lg text-cp-muted transition-colors md:hidden",
-              mobileSearchOpen
-                ? "bg-cp-primary/15 text-cp-primary"
-                : "hover:bg-cp-elevated hover:text-foreground",
+              "hidden min-w-0 flex-1 items-center justify-center gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:flex lg:justify-start lg:gap-1 [&::-webkit-scrollbar]:hidden",
+              "md:max-lg:px-1",
             )}
-            onClick={() => setMobileSearchOpen((o) => !o)}
-            aria-label="Toggle search"
-            aria-expanded={mobileSearchOpen}
+            aria-label="Main"
           >
-            <Search className="h-4 w-4" />
-          </button>
+            {mainNavItems.map(({ href, label, icon: Icon }) => {
+              const active = isNavActive(pathname, href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-lg px-2 py-2 transition-colors duration-200 md:text-xs lg:gap-1.5 lg:px-3 lg:text-sm",
+                    active
+                      ? "nav-link-active bg-cp-primary/10 text-foreground"
+                      : "font-medium text-cp-muted hover:bg-cp-elevated/80 hover:text-foreground",
+                  )}
+                >
+                  <Icon className={cn("h-3.5 w-3.5 lg:h-4 lg:w-4", active && "text-cp-primary")} />
+                  <span className="whitespace-nowrap">{label}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-          <div className="hidden items-center gap-1.5 md:flex lg:gap-3">
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5 lg:gap-3">
+            <div className="relative hidden lg:block">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
+              <input
+                type="search"
+                placeholder="Search wiki..."
+                className="h-9 w-36 rounded-lg border border-cp-border bg-cp-bg-input py-2 pr-3 pl-9 text-sm text-foreground placeholder:text-cp-muted transition-colors focus:border-cp-primary focus:outline-none focus:ring-1 focus:ring-cp-primary/40 xl:w-52"
+              />
+            </div>
+
+            <ThemeToggle />
+
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-lg text-cp-muted transition-colors md:hidden",
+                mobileSearchOpen
+                  ? "bg-cp-primary/15 text-cp-primary"
+                  : "hover:bg-cp-elevated hover:text-foreground",
+              )}
+              onClick={() => setMobileSearchOpen((o) => !o)}
+              aria-label="Toggle search"
+              aria-expanded={mobileSearchOpen}
+            >
+              <Search className="h-4 w-4" />
+            </button>
+
             {isAuthenticated ? (
-              <UserMenu className="inline-flex" />
+              <NotificationBell className="inline-flex h-9 w-9 shrink-0" />
+            ) : null}
+
+            {isAuthenticated ? (
+              <UserMenu className="hidden md:inline-flex" />
+            ) : isAuthLoading ? (
+              <div
+                className="hidden h-10 w-10 animate-pulse rounded-full border border-cp-border bg-cp-elevated md:block"
+                aria-hidden
+              />
             ) : (
-              <>
+              <div className="hidden items-center gap-1.5 md:flex lg:gap-3">
                 <Button
                   variant="outline"
                   size="sm"
@@ -130,65 +199,65 @@ export default function Navbar() {
                 >
                   <Link href={authRoutes.login}>LOGIN</Link>
                 </Button>
-              </>
+              </div>
             )}
+
+            <button
+              type="button"
+              className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-cp-muted transition-colors hover:bg-cp-elevated hover:text-foreground md:hidden"
+              onClick={() => setMobileOpen((o) => !o)}
+              aria-expanded={mobileOpen}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileOpen ? (
+                  <motion.span
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0, scale: 0.85 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <X className="h-5 w-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="menu"
+                    initial={{ rotate: 90, opacity: 0, scale: 0.85 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: -90, opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
           </div>
-
-          <button
-            type="button"
-            className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-cp-muted transition-colors hover:bg-cp-elevated hover:text-foreground md:hidden"
-            onClick={() => setMobileOpen((o) => !o)}
-            aria-expanded={mobileOpen}
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          >
-            <AnimatePresence mode="wait" initial={false}>
-              {mobileOpen ? (
-                <motion.span
-                  key="close"
-                  initial={{ rotate: -90, opacity: 0, scale: 0.85 }}
-                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                  exit={{ rotate: 90, opacity: 0, scale: 0.85 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute inset-0 flex items-center justify-center"
-                >
-                  <X className="h-5 w-5" />
-                </motion.span>
-              ) : (
-                <motion.span
-                  key="menu"
-                  initial={{ rotate: 90, opacity: 0, scale: 0.85 }}
-                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                  exit={{ rotate: -90, opacity: 0, scale: 0.85 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute inset-0 flex items-center justify-center"
-                >
-                  <Menu className="h-5 w-5" />
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </button>
         </div>
-      </div>
 
-      <AnimatePresence>
-        {mobileSearchOpen ? (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-b border-cp-border bg-cp-bg md:hidden"
-          >
-            <div className="relative mx-auto max-w-7xl px-4 py-3 sm:px-6">
-              <Search className="absolute top-1/2 left-7 h-4 w-4 -translate-y-1/2 text-cp-muted sm:left-9" />
-              <input
-                type="search"
-                placeholder="Search wiki..."
-                className="h-10 w-full rounded-lg border border-cp-border bg-cp-bg-input py-2 pr-3 pl-10 text-sm text-foreground placeholder:text-cp-muted focus:border-cp-primary focus:outline-none"
-              />
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+        <AnimatePresence>
+          {mobileSearchOpen ? (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden border-b border-cp-border bg-cp-bg md:hidden"
+            >
+              <div className="relative mx-auto max-w-7xl px-4 py-3 sm:px-6">
+                <Search className="absolute top-1/2 left-7 h-4 w-4 -translate-y-1/2 text-cp-muted sm:left-9" />
+                <input
+                  type="search"
+                  placeholder="Search wiki..."
+                  className="h-10 w-full rounded-lg border border-cp-border bg-cp-bg-input py-2 pr-3 pl-10 text-sm text-foreground placeholder:text-cp-muted focus:border-cp-primary focus:outline-none"
+                />
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </header>
 
       <AnimatePresence>
         {mobileOpen ? (
@@ -196,10 +265,8 @@ export default function Navbar() {
             <motion.button
               type="button"
               aria-label="Close menu overlay"
-              className={cn(
-                "fixed inset-x-0 bottom-0 z-40 bg-black/50 backdrop-blur-sm md:hidden",
-                mobileSearchOpen ? "top-[7.25rem]" : MENU_TOP,
-              )}
+              className="fixed inset-x-0 bottom-0 z-[115] bg-black/50 backdrop-blur-sm md:hidden"
+              style={{ top: menuTop }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -208,16 +275,17 @@ export default function Navbar() {
             />
 
             <motion.div
-              className={cn(
-                "fixed inset-x-0 z-50 border-b border-cp-border bg-cp-bg shadow-lg md:hidden",
-                mobileSearchOpen ? "top-[7.25rem]" : MENU_TOP,
-              )}
+              className="fixed inset-x-0 z-[118] border-b border-cp-border bg-cp-bg shadow-lg md:hidden"
+              style={{ top: menuTop, maxHeight: mobileMenuMaxHeight }}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              <nav className="mx-auto max-h-[min(70vh,calc(100dvh-4rem))] max-w-7xl overflow-y-auto px-4 py-4 sm:px-6">
+              <nav
+                className="mx-auto max-h-[inherit] max-w-7xl overflow-y-auto overscroll-contain px-4 py-4 sm:px-6"
+                aria-label="Mobile navigation"
+              >
                 <div className="flex flex-col gap-1">
                   {mainNavItems.map(({ href, label, icon: Icon }, i) => {
                     const active = isNavActive(pathname, href);
@@ -249,7 +317,7 @@ export default function Navbar() {
 
                 {isAuthenticated ? (
                   <UserMenuMobileLinks onNavigate={closeMobile} />
-                ) : (
+                ) : isAuthLoading ? null : (
                   <motion.div
                     className="mt-4 flex flex-col gap-2"
                     initial={{ opacity: 0, y: 6 }}
@@ -282,6 +350,7 @@ export default function Navbar() {
           </>
         ) : null}
       </AnimatePresence>
-    </header>
+    </>,
+    document.body,
   );
 }

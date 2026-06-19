@@ -26,14 +26,14 @@ type ReclubLobbyDndProps = {
   teams: LobbyTeamView[];
   playersPerTeam: number;
   maxTeams?: number | null;
-  userTeamId: number | null;
+  userTeamId: string | null;
   currentUserId: string | null;
   activeMatch: boolean;
   canRenameTeams?: boolean;
   canManage?: boolean;
-  onSwitchTeam: (teamId: number) => void;
+  onSwitchTeam: (teamId: string) => void;
   onCreateTeam: (name: string) => void;
-  onRenameTeam?: (teamId: number, name: string) => void;
+  onRenameTeam?: (teamId: string, name: string) => void;
   onLeave?: () => void;
   canLeave?: boolean;
   creating?: boolean;
@@ -74,7 +74,7 @@ export function ReclubLobbyDnd({
     if (activeMatch) return;
     const overId = e.over?.id;
     if (!overId || !String(overId).startsWith("team-")) return;
-    const teamId = Number(String(overId).replace("team-", ""));
+    const teamId = String(overId).replace("team-", "");
     const draggedUser = String(e.active.id).replace("player-", "");
     if (currentUserId && draggedUser === currentUserId) {
       onSwitchTeam(teamId);
@@ -195,10 +195,10 @@ function TeamLane({
   isUserTeam: boolean;
   canDrop: boolean;
   currentUserId: string | null;
-  onSwitchTeam: (teamId: number) => void;
+  onSwitchTeam: (teamId: string) => void;
   activeMatch: boolean;
   canRename?: boolean;
-  onRenameTeam?: (teamId: number, name: string) => void;
+  onRenameTeam?: (teamId: string, name: string) => void;
   renaming?: boolean;
   canLeave?: boolean;
   onLeave?: () => void;

@@ -17,7 +17,7 @@ import { slugifyWikiName } from "@/lib/wiki/slug";
 import type { AdminSportsListQuery, SportUpsertInput } from "@/lib/validations/sports-admin";
 
 export type SportPublicCard = {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   tagline: string | null;
@@ -39,7 +39,7 @@ export type AdminSportsListResult = {
   page: number;
   pageSize: number;
   totalPages: number;
-  orderSnapshot: { id: number; displayOrder: number; name: string }[];
+  orderSnapshot: { id: string; displayOrder: number; name: string }[];
 };
 
 function mapSportRow(row: Sport): SportDetail {
@@ -163,12 +163,12 @@ export async function listAdminSportsPaginated(
   };
 }
 
-export async function getAdminSportById(id: number): Promise<SportDetail | null> {
+export async function getAdminSportById(id: string): Promise<SportDetail | null> {
   const [row] = await getDb().select().from(sports).where(eq(sports.id, id)).limit(1);
   return row ? mapSportRow(row) : null;
 }
 
-async function ensureUniqueSlug(baseSlug: string, excludeId?: number) {
+async function ensureUniqueSlug(baseSlug: string, excludeId?: string) {
   let slug = baseSlug;
   let n = 0;
   while (true) {
@@ -238,7 +238,7 @@ export async function createSport(
 }
 
 export async function updateSport(
-  id: number,
+  id: string,
   input: SportUpsertInput,
   media?: { heroImageUrl?: string | null; heroImageStorageKey?: string | null },
 ): Promise<SportDetail> {
@@ -294,7 +294,7 @@ export async function updateSport(
   return mapSportRow(updated);
 }
 
-export async function reorderSports(orderedIds: number[]): Promise<void> {
+export async function reorderSports(orderedIds: string[]): Promise<void> {
   const db = getDb();
   const unique = [...new Set(orderedIds)];
   if (unique.length !== orderedIds.length) {
@@ -332,7 +332,7 @@ export type SportDeleteBlockers = {
   tournaments: number;
 };
 
-export async function getSportDeleteBlockers(sportId: number): Promise<SportDeleteBlockers> {
+export async function getSportDeleteBlockers(sportId: string): Promise<SportDeleteBlockers> {
   const db = getDb();
   const [wikiRow] = await db
     .select({ count: count() })
@@ -349,7 +349,7 @@ export async function getSportDeleteBlockers(sportId: number): Promise<SportDele
   };
 }
 
-export async function deleteSport(id: number): Promise<void> {
+export async function deleteSport(id: string): Promise<void> {
   const db = getDb();
   const existing = await getAdminSportById(id);
   if (!existing) {

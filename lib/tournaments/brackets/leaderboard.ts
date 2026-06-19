@@ -11,7 +11,7 @@ import {
 
 export type LeaderboardEntry = {
   rank: number;
-  teamId: number;
+  teamId: string;
   teamName: string;
   points: number;
   wins: number;
@@ -20,7 +20,7 @@ export type LeaderboardEntry = {
   form: ("W" | "L")[];
 };
 
-async function listLeaderboardTeams(tournamentId: number) {
+async function listLeaderboardTeams(tournamentId: string) {
   const db = getDb();
   const registered = await db
     .select({ id: tournamentTeams.id, name: tournamentTeams.name })
@@ -53,7 +53,7 @@ async function listLeaderboardTeams(tournamentId: number) {
     .innerJoin(tournamentTeams, eq(tournamentBracketMatches.teamBId, tournamentTeams.id))
     .where(eq(tournamentBracketMatches.tournamentId, tournamentId));
 
-  const merged = new Map<number, string>();
+  const merged = new Map<string, string>();
   for (const t of [...bracketTeams, ...bracketTeamsB]) {
     merged.set(t.id, t.name);
   }
@@ -61,7 +61,7 @@ async function listLeaderboardTeams(tournamentId: number) {
 }
 
 export async function buildTournamentLeaderboard(
-  tournamentId: number,
+  tournamentId: string,
 ): Promise<LeaderboardEntry[]> {
   const db = getDb();
   const teams = await listLeaderboardTeams(tournamentId);
@@ -77,7 +77,7 @@ export async function buildTournamentLeaderboard(
     );
 
   const stats = new Map<
-    number,
+    string,
     { wins: number; losses: number; form: ("W" | "L")[]; name: string }
   >();
 
@@ -125,7 +125,7 @@ export async function buildTournamentLeaderboard(
   return entries.map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
-export async function getTeamMemberUserIds(teamId: number): Promise<string[]> {
+export async function getTeamMemberUserIds(teamId: string): Promise<string[]> {
   const rows = await getDb()
     .select({ userId: tournamentTeamMembers.userId })
     .from(tournamentTeamMembers)

@@ -1,6 +1,6 @@
 import type { WikiEntityType } from "@/db/schema/wiki";
 
-export type WikiWizardStep = { id: string; label: string };
+export type WikiWizardStep = { id: string; label: string; shortLabel?: string };
 
 export type WikiWizardStepId =
   | "classification"

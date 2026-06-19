@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 
 type CancelRegistrationParams = {
-  registrationId: number;
+  registrationId: string;
   sportSlug: string;
   slug: string;
   teamName?: string | null;

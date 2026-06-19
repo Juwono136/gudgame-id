@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { uploadTournamentCoverImage } from "@/lib/tournaments/upload-cover";
 import { deleteStoredObject } from "@/lib/storage/object-lifecycle";
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     const tournamentIdRaw = form.get("tournamentId");
     const tournamentId =
       tournamentIdRaw != null && String(tournamentIdRaw).trim()
-        ? Number(tournamentIdRaw)
+        ? parseEntityIdParam(String(tournamentIdRaw), "tournament id")
         : undefined;
 
     if (!sportSlug) {

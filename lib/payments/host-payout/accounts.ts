@@ -150,7 +150,7 @@ export async function getHostBankPayoutProfile(userId: string): Promise<HostBank
     const legacyViews: HostBankAccountView[] = legacyConfigured
       ? [
           {
-            id: 0,
+            id: "legacy",
             bankCode: profile!.bankCode ?? "",
             bankAccountNumber: profile!.bankAccountNumber ?? "",
             bankAccountHolder: profile!.bankAccountHolder ?? "",
@@ -346,7 +346,7 @@ export async function updateHostBankAccount(
 
 export async function deleteHostBankAccount(
   userId: string,
-  accountId: number,
+  accountId: string,
 ): Promise<HostBankPayoutProfileView> {
   const db = getDb();
   let account: typeof hostBankAccounts.$inferSelect | undefined;
@@ -393,7 +393,7 @@ export async function deleteHostBankAccount(
 
 export async function setPrimaryHostBankAccount(
   userId: string,
-  accountId: number,
+  accountId: string,
 ): Promise<HostBankPayoutProfileView> {
   const db = getDb();
   let account: typeof hostBankAccounts.$inferSelect | undefined;

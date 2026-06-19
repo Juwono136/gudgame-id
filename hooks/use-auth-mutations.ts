@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth/client";
@@ -15,6 +15,7 @@ import {
 import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import { resolveSafeCallbackUrl } from "@/lib/roles/route-access";
+import { invalidateSessionContext } from "@/lib/session/invalidate-session-context";
 import type {
   ForgotPasswordFormValues,
   LoginFormValues,
@@ -24,6 +25,7 @@ import { useAuthUiStore } from "@/stores/auth-ui-store";
 
 export function useLoginMutation() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const setSubmitting = useAuthUiStore((s) => s.setSubmitting);
 
   return useMutation({
@@ -111,12 +113,13 @@ export function useLoginMutation() {
       }
 
       toast.success("Welcome back!", {
-        description: "Redirecting to your dashboard…",
+        description: "Redirecting you to the homepage…",
       });
 
       if (mustChangePassword) {
         router.push(authRoutes.changePasswordRequired);
       } else {
+        invalidateSessionContext(queryClient);
         router.push(resolveSafeCallbackUrl(callbackUrl, roles));
       }
       router.refresh();
@@ -138,6 +141,7 @@ type GoogleSignInResponse = {
 
 async function finishAuthRedirect(
   router: ReturnType<typeof useRouter>,
+  queryClient: ReturnType<typeof useQueryClient>,
   options?: { isNewUser?: boolean; profileComplete?: boolean },
 ) {
   const callbackUrl =
@@ -171,7 +175,7 @@ async function finishAuthRedirect(
       });
     } else {
       toast.success("Signed in with Google", {
-        description: "Redirecting to your dashboard…",
+        description: "Redirecting you to the homepage…",
       });
     }
 
@@ -192,6 +196,7 @@ async function finishAuthRedirect(
   } else if (options?.profileComplete === false) {
     router.push(dashboardRoutes.completeProfile);
   } else {
+    invalidateSessionContext(queryClient);
     router.push(resolveSafeCallbackUrl(callbackUrl, roles));
   }
   router.refresh();
@@ -199,6 +204,7 @@ async function finishAuthRedirect(
 
 export function useGoogleSignInMutation() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const setSubmitting = useAuthUiStore((s) => s.setSubmitting);
 
   return useMutation({
@@ -228,7 +234,7 @@ export function useGoogleSignInMutation() {
     onSettled: () => setSubmitting(false),
     onSuccess: async (data) => {
       try {
-        await finishAuthRedirect(router, {
+        await finishAuthRedirect(router, queryClient, {
           isNewUser: data.isNewUser,
           profileComplete: data.profileComplete,
         });

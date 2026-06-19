@@ -1,5 +1,4 @@
 import { requireSession } from "@/lib/auth/session";
-import { DashboardLayoutClient } from "@/components/dashboard/dashboard-layout-client";
 
 export default async function DashboardLayout({
   children,
@@ -7,5 +6,5 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   await requireSession();
-  return <DashboardLayoutClient>{children}</DashboardLayoutClient>;
+  return children;
 }

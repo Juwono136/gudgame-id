@@ -9,19 +9,49 @@ export type PaginatedListResult<T> = {
 };
 
 export type PlayerMatchListItem = {
-  id: number;
+  id: number; tournamentId: string | null;
   tournamentName: string;
   opponents: string;
   resultType: MatchResultType;
   score: string | null;
   round: string | null;
   playedAt: string;
+  isOfficial: boolean;
+  tournamentType: "official" | "recreational";
+  sportName: string | null;
+  sportSlug: string | null;
+  tournamentSlug: string | null;
+  venue: string | null;
+};
+
+export type PlayerMatchSourceDetail = {
+  kind: "reclub" | "bracket";
+  roundNumber: number | null;
+  matchNumber: number | null;
+  teamAName: string | null;
+  teamBName: string | null;
+  scoreA: number | null;
+  scoreB: number | null;
+  durationSeconds: number | null;
+  summary: string | null;
+  status: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+};
+
+export type PlayerMatchDetail = PlayerMatchListItem & {
+  userTeamName: string | null;
+  tournamentStatus: string | null;
+  tournamentStartsAt: string | null;
+  tournamentEndsAt: string | null;
+  recordedAt: string;
+  source: PlayerMatchSourceDetail | null;
 };
 
 export type PlayerTournamentListItem = {
   id: string;
   source: "official" | "recreational";
-  tournamentId: number | null;
+  tournamentId: string | null;
   year: number;
   tournamentName: string;
   category: string | null;
@@ -33,7 +63,7 @@ export type PlayerTournamentListItem = {
   canManage: boolean;
   canEdit: boolean;
   canDelete: boolean;
-  registrationId?: number | null;
+  registrationId?: string | null;
   registrationStatus?: string | null;
   registrationTeamName?: string | null;
   canEditRegistration?: boolean;

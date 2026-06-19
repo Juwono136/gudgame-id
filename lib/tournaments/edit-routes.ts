@@ -14,7 +14,7 @@ export function resolveTournamentEditWorkspace(
 }
 
 export function tournamentEditUrl(
-  id: number | string,
+  id: string,
   workspace: TournamentEditWorkspace = "player",
 ): string {
   return workspace === "host"
@@ -33,7 +33,7 @@ export function tournamentDeniedRedirect(roles: AppRole[]): string {
 
 export function tournamentAfterSaveUrl(
   workspace: TournamentEditWorkspace,
-  tournamentId?: number,
+  tournamentId?: string,
 ): string {
   if (workspace === "host") {
     // After editing, returning to the list is less confusing than jumping into workspace.

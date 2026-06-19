@@ -3,7 +3,7 @@
 export function registrationConfirmUrl(
   sportSlug: string,
   slug: string,
-  registrationId: number,
+  registrationId: string,
 ): string {
   return `/sports/${sportSlug}/tournaments/${slug}/register/confirm?registrationId=${registrationId}`;
 }
@@ -11,7 +11,7 @@ export function registrationConfirmUrl(
 export function registrationCheckoutUrl(
   sportSlug: string,
   slug: string,
-  registrationId: number,
+  registrationId: string,
 ): string {
   return `/sports/${sportSlug}/tournaments/${slug}/register/checkout?registrationId=${registrationId}`;
 }

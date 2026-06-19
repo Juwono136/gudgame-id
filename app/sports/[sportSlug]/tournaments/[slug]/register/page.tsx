@@ -15,7 +15,7 @@ export default async function TournamentRegisterPage({ params }: PageProps) {
   const session = await getServerSession();
   if (!session?.user) {
     redirect(
-      `${authRoutes.register}?callbackUrl=${encodeURIComponent(publicSportRoutes.tournament(sportSlug, slug) + "/register")}`,
+      `${authRoutes.register}?callbackUrl=${encodeURIComponent(publicSportRoutes.tournament(sportSlug, slug))}`,
     );
   }
 

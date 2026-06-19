@@ -9,9 +9,9 @@ import { sports } from "@/db/schema/sports";
 import { user } from "@/db/schema/auth";
 
 export type HostPaymentRecord = {
-  paymentId: number;
-  registrationId: number;
-  tournamentId: number;
+  paymentId: string;
+  registrationId: string;
+  tournamentId: string;
   tournamentName: string;
   sportSlug: string;
   tournamentSlug: string;
@@ -30,7 +30,7 @@ export type HostPaymentRecord = {
 
 export async function listHostTournamentPayments(
   hostUserId: string,
-  options?: { tournamentId?: number },
+  options?: { tournamentId?: string },
 ): Promise<HostPaymentRecord[]> {
   const db = getDb();
   const hostTournaments = await db

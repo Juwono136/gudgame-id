@@ -3,6 +3,7 @@ import { getDb } from "@/db/client";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { hasBracket } from "@/lib/tournaments/brackets/service";
 import {
@@ -22,10 +23,7 @@ export async function PATCH(
 ) {
   try {
     const { userId, roles } = await requireApiRoleGuardContext();
-    const tournamentId = Number((await params).id);
-    if (!Number.isFinite(tournamentId) || tournamentId <= 0) {
-      throw new AppError("Invalid tournament id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const tournamentId = parseEntityIdParam((await params).id, "tournament id");
 
     const existing = await getTournamentById(tournamentId);
     if (!existing) {
@@ -59,10 +57,7 @@ export async function DELETE(
 ) {
   try {
     const { userId, roles } = await requireApiRoleGuardContext();
-    const tournamentId = Number((await params).id);
-    if (!Number.isFinite(tournamentId) || tournamentId <= 0) {
-      throw new AppError("Invalid tournament id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const tournamentId = parseEntityIdParam((await params).id, "tournament id");
 
     const existing = await getTournamentById(tournamentId);
     if (!existing) {

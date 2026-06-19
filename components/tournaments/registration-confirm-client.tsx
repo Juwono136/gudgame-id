@@ -12,6 +12,7 @@ import { useCancelRegistration } from "@/hooks/use-cancel-registration";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { cn } from "@/lib/utils";
 
 function formatIdr(amount: number | null) {
   if (amount == null) return "—";
@@ -24,7 +25,7 @@ function formatIdr(amount: number | null) {
 
 type RegistrationConfirmClientProps = {
   tournament: TournamentDetail;
-  registrationId: number;
+  registrationId: string;
   teamName: string;
 };
 
@@ -84,70 +85,95 @@ export function RegistrationConfirmClient({
     });
   };
 
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
-      <LoadingOverlay show={submitting || cancelling} label="Processing…" />
+  const busy = submitting || cancelling;
 
-      <Link href={hubHref} className="inline-flex items-center text-sm text-cp-muted hover:text-foreground">
-        <ArrowLeft className="mr-1 h-4 w-4" />
+  return (
+    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <LoadingOverlay show={busy} label="Processing…" />
+
+      <Link
+        href={hubHref}
+        className="inline-flex items-center gap-1.5 text-sm text-cp-muted transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4 shrink-0" />
         Back to tournament
       </Link>
 
-      <div className="mt-8 rounded-2xl border border-cp-border bg-cp-card p-6 sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-widest text-cp-primary">
-          Step 1 of 2 — Confirm participation
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-foreground sm:text-3xl">
-          Confirm your team for {tournament.name}
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-cp-muted">
-          Payment is only processed after you confirm. Partners on your team are notified by email
-          and in-app — only you need to confirm and pay.
-        </p>
-
-        <div className="mt-6 rounded-xl border border-cp-border bg-cp-elevated/40 p-4">
-          <p className="text-sm text-cp-muted">Team name</p>
-          <p className="mt-1 text-lg font-semibold text-foreground">{teamName}</p>
-          <p className="mt-3 text-sm text-cp-muted">Registration fee (after confirm)</p>
-          <p className="mt-1 text-xl font-bold text-cp-primary">
-            {formatIdr(tournament.registrationFeeIdr)}
+      <div className="mt-6 overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card sm:mt-8">
+        <div className="border-b border-cp-border bg-cp-elevated/30 px-5 py-6 sm:px-8 sm:py-7">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-cp-primary">
+            Step 1 of 2 — Confirm participation
+          </p>
+          <h1 className="mt-2 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Confirm your team for {tournament.name}
+          </h1>
+          <p className="mt-3 max-w-prose text-sm leading-relaxed text-cp-muted">
+            Payment is only processed after you confirm. Partners on your team are notified by email
+            and in-app — only you need to confirm and pay.
           </p>
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Button
-            className="flex-1 bg-cp-primary hover:bg-cp-primary-light"
-            disabled={submitting || cancelling}
-            onClick={() => void confirmParticipation()}
-          >
-            {submitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-            )}
-            Confirm & continue to payment
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1 border-cp-border"
-            disabled={submitting || cancelling}
-            onClick={() => setEditOpen(true)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit team
-          </Button>
-        </div>
+        <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-7">
+          <div className="grid gap-4 rounded-xl border border-cp-border bg-cp-elevated/40 p-4 sm:grid-cols-2 sm:p-5">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">Team name</p>
+              <p className="mt-1.5 truncate text-lg font-semibold text-foreground">{teamName}</p>
+            </div>
+            <div className="min-w-0 sm:text-right">
+              <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">
+                Registration fee (after confirm)
+              </p>
+              <p className="mt-1.5 text-xl font-bold text-cp-primary sm:text-2xl">
+                {formatIdr(tournament.registrationFeeIdr)}
+              </p>
+            </div>
+          </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          className="mt-3 w-full text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          disabled={submitting || cancelling}
-          onClick={() => void handleCancel()}
-        >
-          <XCircle className="mr-2 h-4 w-4" />
-          Cancel registration
-        </Button>
+          <div className="space-y-3">
+            <Button
+              className={cn(
+                "h-11 w-full bg-cp-primary text-sm font-semibold hover:bg-cp-primary-light",
+                "sm:h-12 sm:text-base",
+              )}
+              disabled={busy}
+              onClick={() => void confirmParticipation()}
+            >
+              {submitting ? (
+                <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4 shrink-0" />
+              )}
+              Confirm & continue to payment
+            </Button>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+              <Button
+                variant="outline"
+                className="h-11 w-full border-cp-border bg-cp-elevated/30 text-sm font-medium sm:h-12"
+                disabled={busy}
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil className="mr-2 h-4 w-4 shrink-0" />
+                Edit team
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full border-red-500/30 text-sm font-medium text-red-400 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300 sm:h-12"
+                disabled={busy}
+                onClick={() => void handleCancel()}
+              >
+                {cancelling ? (
+                  <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
+                ) : (
+                  <XCircle className="mr-2 h-4 w-4 shrink-0" />
+                )}
+                Cancel registration
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <OfficialRegistrationEditDialog

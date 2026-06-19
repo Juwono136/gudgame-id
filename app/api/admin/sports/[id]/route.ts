@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireAdminSession } from "@/lib/admin/session";
+import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { hasPermission } from "@/lib/roles/permissions";
 import { parseSportAdminForm } from "@/lib/sports/parse-sport-form";
 import { deleteSport, getAdminSportById, updateSport } from "@/lib/sports/service";
@@ -17,10 +18,7 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const sportId = Number(id);
-    if (!Number.isFinite(sportId)) {
-      throw new AppError("Invalid sport id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const sportId = parseEntityIdParam(id, "sport id");
 
     const sport = await getAdminSportById(sportId);
     if (!sport) {
@@ -41,10 +39,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const sportId = Number(id);
-    if (!Number.isFinite(sportId)) {
-      throw new AppError("Invalid sport id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const sportId = parseEntityIdParam(id, "sport id");
 
     const existing = await getAdminSportById(sportId);
     if (!existing) {
@@ -76,10 +71,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     const { id } = await context.params;
-    const sportId = Number(id);
-    if (!Number.isFinite(sportId)) {
-      throw new AppError("Invalid sport id", { code: "VALIDATION_ERROR", statusCode: 422 });
-    }
+    const sportId = parseEntityIdParam(id, "sport id");
 
     await deleteSport(sportId);
     return jsonSuccess({ deleted: true });

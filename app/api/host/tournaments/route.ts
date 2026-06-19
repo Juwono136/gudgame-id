@@ -12,7 +12,7 @@ import { ADMIN_SPORT_COOKIE } from "@/lib/roles/constants";
 
 export const runtime = "nodejs";
 
-async function resolveHostSportId(): Promise<number> {
+async function resolveHostSportId(): Promise<string> {
   const cookieStore = await cookies();
   const slug = cookieStore.get(ADMIN_SPORT_COOKIE)?.value ?? "padel";
   const [sport] = await getDb()

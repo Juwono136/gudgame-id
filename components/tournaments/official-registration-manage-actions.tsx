@@ -1,13 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import {
-  CheckCircle2,
-  CreditCard,
-  Loader2,
-  Pencil,
-  XCircle,
-} from "lucide-react";
+import { CheckCircle2, CreditCard, Loader2, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCancelRegistration } from "@/hooks/use-cancel-registration";
 import {
@@ -15,10 +8,11 @@ import {
   registrationCheckoutUrl,
   registrationConfirmUrl,
 } from "@/lib/tournaments/registration/urls";
+import { RegistrationActionIconButton } from "@/components/tournaments/registration-action-icon-button";
 import { cn } from "@/lib/utils";
 
 type OfficialRegistrationManageActionsProps = {
-  registrationId: number;
+  registrationId: string;
   sportSlug: string;
   slug: string;
   teamName?: string | null;
@@ -98,57 +92,40 @@ export function OfficialRegistrationManageActions({
   }
 
   return (
-    <div className={cn("flex flex-wrap justify-end gap-1", className)}>
+    <div
+      className={cn("inline-flex flex-wrap items-center justify-end gap-1", className)}
+      role="group"
+      aria-label="Registration actions"
+    >
       {isAwaiting ? (
         <>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 border-cp-border px-2 text-xs"
-            title="Edit team"
+          <RegistrationActionIconButton
+            icon={Pencil}
+            label="Edit team"
             onClick={onEditTeam}
-          >
-            <Pencil className="mr-1 h-3.5 w-3.5" />
-            Edit
-          </Button>
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="h-8 border-cp-border px-2 text-xs"
-          >
-            <Link href={confirmHref} title="Confirm participation">
-              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-              Confirm
-            </Link>
-          </Button>
+          />
+          <RegistrationActionIconButton
+            icon={CheckCircle2}
+            label="Confirm participation"
+            href={confirmHref}
+          />
         </>
       ) : null}
       {isPendingPayment ? (
-        <Button asChild size="sm" className="h-8 bg-cp-primary px-2 text-xs">
-          <Link href={checkoutHref} title="Continue to checkout">
-            <CreditCard className="mr-1 h-3.5 w-3.5" />
-            Pay
-          </Link>
-        </Button>
+        <RegistrationActionIconButton
+          icon={CreditCard}
+          label="Continue to checkout"
+          href={checkoutHref}
+          variant="default"
+        />
       ) : null}
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="h-8 px-2 text-xs text-red-400 hover:text-red-300"
-        title="Cancel registration"
-        disabled={isPending}
+      <RegistrationActionIconButton
+        icon={XCircle}
+        label="Cancel registration"
         onClick={() => void handleCancel()}
-      >
-        {isPending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <XCircle className="h-3.5 w-3.5" />
-        )}
-        <span className="ml-1 hidden sm:inline">Cancel</span>
-      </Button>
+        loading={isPending}
+        variant="danger"
+      />
     </div>
   );
 }

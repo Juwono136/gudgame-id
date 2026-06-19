@@ -11,6 +11,7 @@ import {
 import { user } from "./auth";
 import { sports } from "./sports";
 import { tournaments } from "./tournaments";
+import { uuidFk } from "./uuid";
 import { wikiEntities } from "./wiki";
 
 export const MATCH_RESULT_TYPES = ["win", "loss"] as const;
@@ -24,11 +25,11 @@ export const playerMatches = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    wikiEntityId: integer("wiki_entity_id").references(() => wikiEntities.id, {
+    wikiEntityId: uuidFk("wiki_entity_id").references(() => wikiEntities.id, {
       onDelete: "set null",
     }),
-    sportId: integer("sport_id").references(() => sports.id, { onDelete: "set null" }),
-    tournamentId: integer("tournament_id").references(() => tournaments.id, {
+    sportId: uuidFk("sport_id").references(() => sports.id, { onDelete: "set null" }),
+    tournamentId: uuidFk("tournament_id").references(() => tournaments.id, {
       onDelete: "set null",
     }),
     isOfficial: boolean("is_official").default(true).notNull(),
@@ -55,11 +56,11 @@ export const playerTournamentResults = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    wikiEntityId: integer("wiki_entity_id").references(() => wikiEntities.id, {
+    wikiEntityId: uuidFk("wiki_entity_id").references(() => wikiEntities.id, {
       onDelete: "set null",
     }),
-    sportId: integer("sport_id").references(() => sports.id, { onDelete: "set null" }),
-    tournamentId: integer("tournament_id").references(() => tournaments.id, {
+    sportId: uuidFk("sport_id").references(() => sports.id, { onDelete: "set null" }),
+    tournamentId: uuidFk("tournament_id").references(() => tournaments.id, {
       onDelete: "set null",
     }),
     isOfficial: boolean("is_official").default(true).notNull(),
