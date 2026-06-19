@@ -189,7 +189,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
             <div className="mt-5">
               <Button asChild variant="outline" className="w-full border-cp-border">
                 <Link href={`${dashboardRoutes.settings}#player-profile`}>
-                  Edit player page in My Settings
+                  Edit player page
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>

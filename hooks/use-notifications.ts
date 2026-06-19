@@ -4,7 +4,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useEffect, useState } from "react";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
-import type { Notification } from "@/db/schema/notifications";
+import type { NotificationItem } from "@/lib/notifications/types";
 
 export function useUnreadNotificationCount(enabled = true) {
   return useQuery({
@@ -31,7 +31,7 @@ export function useRecentNotifications(enabled = true) {
       const res = await fetch("/api/notifications?limit=5&offset=0");
       const json = await parseJsonResponse<{
         success: boolean;
-        data: { items: Notification[]; total: number };
+        data: { items: NotificationItem[]; total: number };
         error?: unknown;
       }>(res);
       if (!res.ok) throw new Error(extractApiErrorMessage(json as never, "Failed to load notifications"));
@@ -56,7 +56,7 @@ export function useNotificationsSearch(search: string, enabled: boolean) {
       const res = await fetch(`/api/notifications?${params}`);
       const json = await parseJsonResponse<{
         success: boolean;
-        data: { items: Notification[]; total: number };
+        data: { items: NotificationItem[]; total: number };
         error?: unknown;
       }>(res);
       if (!res.ok) throw new Error(extractApiErrorMessage(json as never, "Failed to load notifications"));

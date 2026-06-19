@@ -25,7 +25,6 @@ import {
   notifyAwaitingConfirmation,
   notifyHostPlayerPaid,
   notifyPlayerRegistrationConfirmed,
-  notifyRegistrationCancelled,
   notifyTeamMemberInvitations,
 } from "@/lib/tournaments/registration/notify-flow";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";

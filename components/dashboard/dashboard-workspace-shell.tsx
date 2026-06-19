@@ -1,10 +1,15 @@
 "use client";
 
-import { Suspense, type ReactNode } from "react";
+import { Suspense, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { DashboardNav } from "@/components/dashboard/dashboard-nav";
+import {
+  DashboardMobileBottomNav,
+  DashboardNav,
+} from "@/components/dashboard/dashboard-nav";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { setDashboardMobileNavActive } from "@/hooks/use-dashboard-mobile-nav-active";
+import { dashboardMobileBottomNavPaddingClass } from "@/lib/constants/dashboard-layout";
 import type { AppRole } from "@/lib/roles/constants";
 import { cn } from "@/lib/utils";
 
@@ -34,21 +39,19 @@ export function DashboardWorkspaceShell({
   children,
   className,
 }: DashboardWorkspaceShellProps) {
-  return (
-    <div className={cn("min-h-[calc(100dvh-4rem)] bg-cp-bg", className)}>
-      {/* Mobile navigation — full width, sticky below site navbar */}
-      <div className="sticky top-0 z-30 border-b border-cp-border/80 bg-cp-bg/95 px-4 py-3 backdrop-blur-md lg:hidden">
-        <Suspense
-          fallback={
-            <div className="flex justify-center py-6">
-              <LoadingSpinner size="sm" />
-            </div>
-          }
-        >
-          <DashboardNav roles={roles} variant={variant} />
-        </Suspense>
-      </div>
+  useEffect(() => {
+    setDashboardMobileNavActive(true);
+    return () => setDashboardMobileNavActive(false);
+  }, []);
 
+  return (
+    <div
+      className={cn(
+        "min-h-[calc(100dvh-4rem)] bg-cp-bg",
+        dashboardMobileBottomNavPaddingClass,
+        className,
+      )}
+    >
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:py-10">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <nav
@@ -72,7 +75,7 @@ export function DashboardWorkspaceShell({
 
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
           {/* Desktop sidebar */}
-          <aside className="hidden w-60 shrink-0 xl:w-64 lg:block">
+          <aside className="hidden w-60 shrink-0 lg:block xl:w-64">
             <div className="sticky top-24">
               <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-cp-card/50" />}>
                 <DashboardNav roles={roles} variant={variant} />
@@ -108,6 +111,11 @@ export function DashboardWorkspaceShell({
           </main>
         </div>
       </div>
+
+      {/* Mobile bottom tab bar */}
+      <Suspense fallback={null}>
+        <DashboardMobileBottomNav roles={roles} variant={variant} />
+      </Suspense>
     </div>
   );
 }

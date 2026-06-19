@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { Share2, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { useDashboardMobileNavActive } from "@/hooks/use-dashboard-mobile-nav-active";
+import { dashboardMobileBottomNavPaddingClass } from "@/lib/constants/dashboard-layout";
 import { siteConfig } from "@/lib/config";
+import { cn } from "@/lib/utils";
 
 const wikiLinks = [
   { href: "/about", label: "About" },
@@ -15,8 +20,16 @@ const legalLinks = [
 ] as const;
 
 export default function Footer() {
+  const hasMobileDashboardNav = useDashboardMobileNavActive();
+
   return (
-    <footer className="relative z-10 border-t border-cp-border bg-cp-bg/95 text-sm text-cp-text-dim backdrop-blur-sm">
+    <footer
+      className={cn(
+        /* z-0 so fixed dashboard bottom nav (portaled to body, z-60) stays above when scrolling */
+        "relative z-0 border-t border-cp-border bg-cp-bg/95 text-sm text-cp-text-dim backdrop-blur-sm",
+        hasMobileDashboardNav && dashboardMobileBottomNavPaddingClass,
+      )}
+    >
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 md:gap-8 lg:grid-cols-4 lg:gap-10">
           <div className="space-y-4 sm:col-span-2 md:col-span-2 lg:col-span-1">

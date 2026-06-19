@@ -27,7 +27,7 @@ import {
   useRecentNotifications,
   useUnreadNotificationCount,
 } from "@/hooks/use-notifications";
-import type { Notification } from "@/db/schema/notifications";
+import type { NotificationItem } from "@/lib/notifications/types";
 import { cn } from "@/lib/utils";
 
 function formatRelativeTime(iso: string): string {
@@ -46,7 +46,7 @@ function NotificationRow({
   onRead,
   compact = false,
 }: {
-  item: Notification;
+  item: NotificationItem;
   onRead: (id: number, url?: string | null) => void;
   compact?: boolean;
 }) {
@@ -71,7 +71,7 @@ function NotificationRow({
         {item.body}
       </p>
       <p className="mt-2 text-[10px] uppercase tracking-wide text-cp-muted">
-        {formatRelativeTime(item.createdAt.toString())}
+        {formatRelativeTime(item.createdAt)}
       </p>
     </button>
   );
