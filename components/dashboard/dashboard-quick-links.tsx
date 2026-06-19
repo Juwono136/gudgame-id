@@ -50,7 +50,12 @@ const ACCENT = {
 
 export function DashboardQuickLinks({ items, className }: DashboardQuickLinksProps) {
   return (
-    <div className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-2 lg:grid-cols-4",
+        className,
+      )}
+    >
       {items.map((item) => {
         const Icon = ICONS[item.icon];
         const accent = item.accent ?? "default";
@@ -59,13 +64,13 @@ export function DashboardQuickLinks({ items, className }: DashboardQuickLinksPro
             key={item.href}
             href={item.href}
             className={cn(
-              "group flex flex-col rounded-xl border p-4 transition-colors",
+              "group flex min-h-[5.5rem] min-w-0 flex-col rounded-xl border p-3 transition-colors sm:min-h-[6.25rem] sm:p-4",
               ACCENT[accent],
             )}
           >
             <Icon
               className={cn(
-                "h-5 w-5",
+                "h-5 w-5 shrink-0",
                 accent === "emerald"
                   ? "text-emerald-400"
                   : accent === "primary"
@@ -73,8 +78,8 @@ export function DashboardQuickLinks({ items, className }: DashboardQuickLinksPro
                     : "text-cp-muted group-hover:text-foreground",
               )}
             />
-            <span className="mt-3 text-sm font-semibold text-foreground">{item.label}</span>
-            <span className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-cp-muted">
+            <span className="mt-2 text-sm font-semibold text-foreground sm:mt-3">{item.label}</span>
+            <span className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-cp-muted sm:text-xs">
               {item.description}
             </span>
           </Link>

@@ -1,15 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import {
-  DashboardMobileBottomNav,
-  DashboardNav,
-} from "@/components/dashboard/dashboard-nav";
+import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { setDashboardMobileNavActive } from "@/hooks/use-dashboard-mobile-nav-active";
-import { dashboardMobileBottomNavPaddingClass } from "@/lib/constants/dashboard-layout";
 import type { AppRole } from "@/lib/roles/constants";
 import { cn } from "@/lib/utils";
 
@@ -39,20 +34,9 @@ export function DashboardWorkspaceShell({
   children,
   className,
 }: DashboardWorkspaceShellProps) {
-  useEffect(() => {
-    setDashboardMobileNavActive(true);
-    return () => setDashboardMobileNavActive(false);
-  }, []);
-
   return (
-    <div
-      className={cn(
-        "min-h-[calc(100dvh-4rem)] bg-cp-bg",
-        dashboardMobileBottomNavPaddingClass,
-        className,
-      )}
-    >
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:py-10">
+    <div className={cn("min-h-[calc(100dvh-4rem)] overflow-x-clip bg-cp-bg", className)}>
+      <div className="mx-auto w-full max-w-7xl min-w-0 px-4 py-5 sm:px-6 sm:py-8 lg:py-10">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <nav
             aria-label="Breadcrumb"
@@ -100,7 +84,7 @@ export function DashboardWorkspaceShell({
                   ) : null}
                 </div>
                 {actions ? (
-                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap md:w-auto md:justify-end">
+                  <div className="flex w-full shrink-0 flex-col gap-2 md:ml-auto md:w-auto md:items-end [&_a]:w-full [&_button]:w-full md:[&_a]:w-auto md:[&_button]:w-auto">
                     {actions}
                   </div>
                 ) : null}
@@ -111,11 +95,6 @@ export function DashboardWorkspaceShell({
           </main>
         </div>
       </div>
-
-      {/* Mobile bottom tab bar */}
-      <Suspense fallback={null}>
-        <DashboardMobileBottomNav roles={roles} variant={variant} />
-      </Suspense>
     </div>
   );
 }

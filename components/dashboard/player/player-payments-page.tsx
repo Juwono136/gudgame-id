@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { CreditCard } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { PaymentTransactionsLedger } from "@/components/payments/payment-transactions-ledger";
@@ -9,8 +11,7 @@ import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PaymentTransactionRow } from "@/lib/tournaments/payments/transaction-types";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 type PlayerPaymentsPageProps = {
   roles: AppRole[];
@@ -40,12 +41,12 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
         { label: "Payments" },
       ]}
     >
-      <section>
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <CreditCard className="h-5 w-5 text-cp-primary" />
+      <section className="min-w-0">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground sm:text-lg">
+          <CreditCard className="h-5 w-5 shrink-0 text-cp-primary" />
           Payment history
         </h2>
-        <div className="mt-4">
+        <div className="mt-3 sm:mt-4">
           <PaymentTransactionsLedger
             apiPath="/api/account/player/payments"
             scope="player"
@@ -54,20 +55,21 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
         </div>
       </section>
 
-      <section className="mt-12">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-foreground">My registrations</h2>
-          <div className="flex gap-1 rounded-lg border border-cp-border p-1">
+      <section className="mt-8 min-w-0 sm:mt-12">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-semibold text-foreground sm:text-lg">My registrations</h2>
+          <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-cp-border p-1 sm:w-auto sm:grid-cols-4">
             {REG_FILTERS.map((f) => (
               <button
                 key={f}
                 type="button"
                 onClick={() => setRegFilter(f)}
-                className={`rounded-md px-3 py-1 text-xs capitalize ${
+                className={cn(
+                  "h-9 rounded-md px-2 text-xs capitalize sm:px-3",
                   regFilter === f
-                    ? "bg-cp-primary/15 text-cp-primary"
-                    : "text-cp-muted hover:text-foreground"
-                }`}
+                    ? "bg-cp-primary/15 font-medium text-cp-primary"
+                    : "text-cp-muted hover:text-foreground",
+                )}
               >
                 {f}
               </button>
@@ -77,11 +79,11 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
         {registrations.isLoading ? (
           <p className="mt-4 text-sm text-cp-muted">Loading registrations…</p>
         ) : registrations.data?.length === 0 ? (
-          <p className="mt-4 rounded-2xl border border-dashed border-cp-border py-12 text-center text-sm text-cp-muted">
+          <p className="mt-4 rounded-2xl border border-dashed border-cp-border px-4 py-10 text-center text-sm text-cp-muted sm:py-12">
             No registrations yet.
           </p>
         ) : (
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {registrations.data
               ?.filter((r) => {
                 if (regFilter === "all") return true;
@@ -97,7 +99,7 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
               .map((r) => (
                 <li
                   key={r.registrationId}
-                  className="rounded-2xl border border-cp-border bg-cp-card/70 p-5"
+                  className="min-w-0 rounded-2xl border border-cp-border bg-cp-card/70 p-4 sm:p-5"
                 >
                   <div className="flex flex-wrap gap-2">
                     <Badge

@@ -33,27 +33,32 @@ export function DashboardWelcomeCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-2xl border border-cp-border bg-cp-card/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5",
+        "flex flex-col gap-4 rounded-2xl border border-cp-border bg-cp-card/80 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:p-5",
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-4">
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16">
           {avatarSrc ? (
             <Image src={avatarSrc} alt="" fill className="object-cover" unoptimized />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-cp-primary">
-              <UserCircle className="h-8 w-8" />
+              <UserCircle className="h-7 w-7 sm:h-8 sm:w-8" />
             </div>
           )}
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-lg font-semibold text-foreground sm:text-xl">
-            Welcome back, {displayName}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-cp-muted sm:text-base">Welcome back,</p>
+          <p className="break-words text-base font-semibold leading-snug text-foreground sm:text-lg md:text-xl">
+            {displayName}
           </p>
-          <p className="truncate text-sm text-cp-muted">{email}</p>
-          {subtitle ? <p className="mt-1 line-clamp-2 text-sm text-cp-muted">{subtitle}</p> : null}
-          <ProfileRoleBadges roles={roles} className="mt-2" />
+          <p className="mt-0.5 truncate text-xs text-cp-muted sm:text-sm">{email}</p>
+          {subtitle ? (
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-cp-muted sm:text-sm">
+              {subtitle}
+            </p>
+          ) : null}
+          <ProfileRoleBadges roles={roles} className="mt-2 flex-wrap" />
         </div>
       </div>
       {action ? (

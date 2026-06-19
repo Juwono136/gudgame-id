@@ -212,12 +212,12 @@ export function DashboardMobileBottomNav({
 
   const bar = (
     <nav
-      className="fixed inset-x-0 bottom-0 z-[60] border-t border-cp-border/80 bg-cp-bg/95 shadow-[0_-8px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-[60] box-border overflow-hidden border-t border-cp-border/80 bg-cp-bg/95 shadow-[0_-4px_24px_rgba(0,0,0,0.25)] backdrop-blur-xl lg:hidden"
       aria-label={variant === "host" ? "Host navigation" : "Player navigation"}
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0px)" }}
     >
       <div
-        className="mx-auto grid max-w-lg items-stretch px-1 pt-1"
+        className="mx-auto box-border grid w-full max-w-full items-stretch gap-0 px-0 pt-0.5 sm:px-0.5 sm:pt-1"
         style={{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }}
       >
         {items.map((item) => {
@@ -229,27 +229,27 @@ export function DashboardMobileBottomNav({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 transition-colors",
+                "relative flex min-w-0 flex-col items-center justify-center gap-0 px-0 py-1.5 transition-colors sm:gap-0.5 sm:py-2",
                 active ? "text-cp-primary" : "text-cp-muted hover:text-foreground",
               )}
             >
               {active ? (
                 <span
-                  className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-cp-primary"
+                  className="absolute inset-x-1 top-0 h-0.5 rounded-full bg-cp-primary sm:inset-x-2"
                   aria-hidden
                 />
               ) : null}
               <span
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-xl transition-colors",
+                  "flex h-7 w-7 items-center justify-center rounded-lg transition-colors sm:h-8 sm:w-8 sm:rounded-xl",
                   active ? "bg-cp-primary/15" : "bg-transparent",
                 )}
               >
-                <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 2} />
+                <Icon className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px]" strokeWidth={active ? 2.25 : 2} />
               </span>
               <span
                 className={cn(
-                  "w-full truncate text-center text-[10px] font-medium leading-tight",
+                  "w-full max-w-full truncate px-0 text-center text-[9px] font-medium leading-tight sm:text-[10px]",
                   active && "font-semibold",
                 )}
               >
@@ -262,12 +262,12 @@ export function DashboardMobileBottomNav({
         {switchItem ? (
           <Link
             href={switchItem.href}
-            className="relative flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-cp-muted transition-colors hover:text-foreground"
+            className="relative flex min-w-0 flex-col items-center justify-center gap-0 px-0 py-1.5 text-cp-muted transition-colors hover:text-foreground sm:gap-0.5 sm:py-2"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl">
-              <switchItem.icon className="h-[18px] w-[18px] shrink-0" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg sm:h-8 sm:w-8 sm:rounded-xl">
+              <switchItem.icon className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px]" />
             </span>
-            <span className="w-full truncate text-center text-[10px] font-medium leading-tight">
+            <span className="w-full max-w-full truncate px-0 text-center text-[9px] font-medium leading-tight sm:text-[10px]">
               {switchItem.mobileLabel}
             </span>
           </Link>

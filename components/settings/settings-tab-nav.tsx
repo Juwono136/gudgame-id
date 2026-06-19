@@ -22,11 +22,11 @@ export function SettingsTabNav({ tabs, active, onChange, className }: SettingsTa
     <nav
       aria-label="Settings sections"
       className={cn(
-        "sticky top-0 z-20 -mx-1 rounded-xl border border-cp-border bg-cp-card/90 p-1 backdrop-blur-md",
+        "sticky top-0 z-20 -mx-1 w-full max-w-full rounded-xl border border-cp-border bg-cp-card/90 p-1 backdrop-blur-md lg:w-max",
         className,
       )}
     >
-      <div className="flex gap-1 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex w-full gap-1 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] lg:w-max lg:overflow-visible [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab) => {
           const isActive = active === tab.id;
           return (

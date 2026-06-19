@@ -183,3 +183,11 @@
     box-shadow: var(--cp-shadow-card);
   }
 }
+
+/* Prevent horizontal scroll when fixed dashboard bottom nav is active */
+html.dashboard-mobile-nav-active,
+html.dashboard-mobile-nav-active body {
+  overflow-x: clip;
+  max-width: 100%;
+  overscroll-behavior-x: none;
+}

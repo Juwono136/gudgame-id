@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerTournamentsListQuery } from "@/lib/validations/player-competition";
+import type { PlayerTournamentListItem } from "@/lib/account/player-competition/types";
 import { cn } from "@/lib/utils";
 
 type PlayerTournamentsListPageProps = {
@@ -44,6 +45,182 @@ function placementTone(placement: string) {
     return "text-amber-400";
   }
   return "text-foreground";
+}
+
+type TournamentListRowProps = {
+  row: PlayerTournamentListItem;
+  scope: PlayerTournamentsListQuery["scope"];
+  deletePending: boolean;
+  onEditRegistration: (payload: {
+    registrationId: number;
+    sportSlug: string;
+    slug: string;
+    tournamentName: string;
+  }) => void;
+  onRefetch: () => void;
+  onDelete: (tournamentId: number) => void;
+};
+
+function TournamentListRow({
+  row,
+  scope,
+  deletePending,
+  onEditRegistration,
+  onRefetch,
+  onDelete,
+}: TournamentListRowProps) {
+  const href =
+    row.sportSlug && row.slug ? publicSportRoutes.tournament(row.sportSlug, row.slug) : null;
+
+  const statusLabel = row.registrationStatus
+    ? row.registrationStatus.replace(/_/g, " ")
+    : row.status;
+
+  const registrationActions =
+    scope === "joined" &&
+    row.source === "official" &&
+    row.canManageRegistration &&
+    row.registrationId &&
+    row.registrationStatus &&
+    row.sportSlug &&
+    row.slug ? (
+      <OfficialRegistrationManageActions
+        registrationId={row.registrationId}
+        sportSlug={row.sportSlug}
+        slug={row.slug}
+        teamName={row.registrationTeamName}
+        registrationStatus={row.registrationStatus}
+        layout="compact"
+        onEditTeam={() => {
+          onEditRegistration({
+            registrationId: row.registrationId!,
+            sportSlug: row.sportSlug!,
+            slug: row.slug!,
+            tournamentName: row.tournamentName,
+          });
+        }}
+        onCancelled={() => void onRefetch()}
+        redirectOnCancel={undefined}
+      />
+    ) : null;
+
+  const hostActions = (
+    <>
+      {row.canEdit && row.tournamentId ? (
+        <Button
+          asChild
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-cp-muted hover:text-foreground"
+        >
+          <Link href={dashboardRoutes.tournamentEdit(row.tournamentId)} title="Edit tournament">
+            <Pencil className="h-4 w-4" />
+          </Link>
+        </Button>
+      ) : null}
+      {row.canDelete && row.tournamentId ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-red-400 hover:text-red-300"
+          disabled={deletePending}
+          title="Delete tournament"
+          onClick={() => onDelete(row.tournamentId!)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ) : null}
+    </>
+  );
+
+  const typeBadge = (
+    <Badge
+      className={cn(
+        "w-fit shrink-0 border-0 text-[10px] uppercase",
+        row.source === "recreational"
+          ? "bg-emerald-500/15 text-emerald-300"
+          : "bg-cp-primary/15 text-cp-primary",
+      )}
+    >
+      {row.source === "recreational" ? "Reclub" : "Official"}
+    </Badge>
+  );
+
+  const tournamentTitle = href ? (
+    <Link
+      href={href}
+      className="text-sm font-medium text-foreground hover:text-emerald-400 hover:underline"
+    >
+      {row.tournamentName}
+    </Link>
+  ) : (
+    <p className="text-sm font-medium text-foreground">{row.tournamentName}</p>
+  );
+
+  return (
+    <li className="px-4 py-4 sm:px-5 lg:px-6">
+      <div className="flex flex-col gap-3 lg:hidden">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {tournamentTitle}
+            {statusLabel ? (
+              <p className="mt-0.5 text-xs capitalize text-cp-muted">{statusLabel}</p>
+            ) : null}
+          </div>
+          {typeBadge}
+        </div>
+
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+          <div>
+            <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+              Year
+            </dt>
+            <dd className="mt-0.5 text-sm font-semibold text-foreground">{row.year}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+              Category
+            </dt>
+            <dd className="mt-0.5 text-sm text-cp-muted">{row.category ?? "—"}</dd>
+          </div>
+          <div className="col-span-2">
+            <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+              Role / placement
+            </dt>
+            <dd className={cn("mt-0.5 text-sm font-semibold", placementTone(row.placement))}>
+              {row.placement}
+            </dd>
+          </div>
+        </dl>
+
+        {registrationActions || row.canEdit || row.canDelete ? (
+          <div className="flex flex-wrap items-center justify-end gap-1 border-t border-cp-border/60 pt-3">
+            {registrationActions}
+            {hostActions}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="hidden lg:grid lg:grid-cols-[72px_minmax(0,1.2fr)_88px_minmax(0,1fr)_120px_88px] lg:items-center lg:gap-3">
+        <p className="text-sm font-semibold text-foreground">{row.year}</p>
+        <div className="min-w-0">
+          {tournamentTitle}
+          {statusLabel ? (
+            <p className="text-xs capitalize text-cp-muted">{statusLabel}</p>
+          ) : null}
+        </div>
+        {typeBadge}
+        <p className="min-w-0 truncate text-sm text-cp-muted">{row.category ?? "—"}</p>
+        <p className={cn("text-right text-sm font-semibold", placementTone(row.placement))}>
+          {row.placement}
+        </p>
+        <div className="flex justify-end gap-1">
+          {registrationActions}
+          {hostActions}
+        </div>
+      </div>
+    </li>
+  );
 }
 
 export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPageProps) {
@@ -102,6 +279,20 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
 
   const activeTab = scopeTabs.find((t) => t.id === scope);
 
+  const handleDeleteTournament = async (tournamentId: number) => {
+    const ok = await confirm({
+      title: "Delete tournament?",
+      description:
+        "This cannot be undone. Tournaments with paid registrations or active brackets cannot be deleted.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (ok) {
+      deleteTournament.mutate(tournamentId);
+    }
+  };
+
   return (
     <DashboardWorkspaceShell
       roles={roles}
@@ -114,7 +305,11 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
       ]}
       actions={
         scope === "created" ? (
-          <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-500">
+          <Button
+            asChild
+            size="sm"
+            className="h-10 w-full bg-emerald-600 hover:bg-emerald-500 md:w-auto"
+          >
             <Link href={dashboardRoutes.tournamentsNew}>
               <Plus className="mr-2 h-4 w-4" />
               Create reclub
@@ -123,7 +318,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
         ) : null
       }
     >
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {scopeTabs.map((tab) => (
           <Button
             key={tab.id}
@@ -131,6 +326,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
             size="sm"
             variant={scope === tab.id ? "default" : "outline"}
             className={cn(
+              "h-10 w-full sm:w-auto",
               scope === tab.id
                 ? "bg-cp-primary hover:bg-cp-primary-light"
                 : "border-cp-border",
@@ -145,9 +341,9 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
         ))}
       </div>
 
-      <div className="rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
-        <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:p-5 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
+      <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+        <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:p-5 md:flex-row md:items-stretch md:gap-4">
+          <div className="relative min-w-0 w-full flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
             <Input
               value={search}
@@ -155,12 +351,12 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search tournament, category, or placement…"
-              className="h-10 border-cp-border bg-cp-elevated/50 pl-9"
+              placeholder="Search tournaments…"
+              className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50 pl-9"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:w-auto sm:grid-cols-2">
+          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:min-w-[17rem] md:shrink-0">
             <Select
               value={year}
               onValueChange={(v) => {
@@ -168,7 +364,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-10 border-cp-border bg-cp-elevated/50">
+              <SelectTrigger className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -193,7 +389,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-10 border-cp-border bg-cp-elevated/50">
+              <SelectTrigger className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
@@ -229,7 +425,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
             </div>
           ) : (
             <>
-              <div className="hidden border-b border-cp-border bg-cp-elevated/50 px-6 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:grid sm:grid-cols-[72px_1.2fr_88px_1fr_120px_88px] sm:gap-3 sm:text-xs">
+              <div className="hidden border-b border-cp-border bg-cp-elevated/50 px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:grid-cols-[72px_minmax(0,1.2fr)_88px_minmax(0,1fr)_120px_88px] lg:gap-3">
                 <span>Year</span>
                 <span>Tournament</span>
                 <span>Type</span>
@@ -239,125 +435,17 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
               </div>
 
               <ul className="divide-y divide-cp-border">
-                {data?.items.map((row) => {
-                  const href =
-                    row.sportSlug && row.slug
-                      ? publicSportRoutes.tournament(row.sportSlug, row.slug)
-                      : null;
-                  return (
-                    <li
-                      key={row.id}
-                      className="grid gap-2 px-4 py-4 sm:grid-cols-[72px_1.2fr_88px_1fr_120px_88px] sm:items-center sm:gap-3 sm:px-6"
-                    >
-                      <p className="text-sm font-semibold text-foreground">{row.year}</p>
-                      <div className="min-w-0">
-                        {href ? (
-                          <Link
-                            href={href}
-                            className="text-sm font-medium text-foreground hover:text-emerald-400 hover:underline"
-                          >
-                            {row.tournamentName}
-                          </Link>
-                        ) : (
-                          <p className="text-sm font-medium text-foreground">{row.tournamentName}</p>
-                        )}
-                        {row.status ? (
-                          <p className="text-xs capitalize text-cp-muted">
-                            {row.registrationStatus
-                              ? row.registrationStatus.replace(/_/g, " ")
-                              : row.status}
-                          </p>
-                        ) : null}
-                      </div>
-                      <Badge
-                        className={cn(
-                          "w-fit border-0 text-[10px] uppercase",
-                          row.source === "recreational"
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : "bg-cp-primary/15 text-cp-primary",
-                        )}
-                      >
-                        {row.source === "recreational" ? "Reclub" : "Official"}
-                      </Badge>
-                      <p className="text-sm text-cp-muted">{row.category ?? "—"}</p>
-                      <p
-                        className={cn(
-                          "text-sm font-semibold sm:text-right",
-                          placementTone(row.placement),
-                        )}
-                      >
-                        {row.placement}
-                      </p>
-                      <div className="flex justify-end gap-1 sm:col-start-6">
-                        {scope === "joined" &&
-                        row.source === "official" &&
-                        row.canManageRegistration &&
-                        row.registrationId &&
-                        row.registrationStatus &&
-                        row.sportSlug &&
-                        row.slug ? (
-                          <OfficialRegistrationManageActions
-                            registrationId={row.registrationId}
-                            sportSlug={row.sportSlug}
-                            slug={row.slug}
-                            teamName={row.registrationTeamName}
-                            registrationStatus={row.registrationStatus}
-                            layout="compact"
-                            onEditTeam={() => {
-                              setEditRegistration({
-                                registrationId: row.registrationId!,
-                                sportSlug: row.sportSlug!,
-                                slug: row.slug!,
-                                tournamentName: row.tournamentName,
-                              });
-                            }}
-                            onCancelled={() => void refetch()}
-                            redirectOnCancel={undefined}
-                          />
-                        ) : null}
-                        {row.canEdit && row.tournamentId ? (
-                          <Button
-                            asChild
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-cp-muted hover:text-foreground"
-                          >
-                            <Link
-                              href={dashboardRoutes.tournamentEdit(row.tournamentId)}
-                              title="Edit tournament"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        ) : null}
-                        {row.canDelete && row.tournamentId ? (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-red-400 hover:text-red-300"
-                            disabled={deleteTournament.isPending}
-                            title="Delete tournament"
-                            onClick={async () => {
-                              const ok = await confirm({
-                                title: "Delete tournament?",
-                                description:
-                                  "This cannot be undone. Tournaments with paid registrations or active brackets cannot be deleted.",
-                                confirmLabel: "Delete",
-                                cancelLabel: "Cancel",
-                                variant: "destructive",
-                              });
-                              if (ok && row.tournamentId) {
-                                deleteTournament.mutate(row.tournamentId);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        ) : null}
-                      </div>
-                    </li>
-                  );
-                })}
+                {data?.items.map((row) => (
+                  <TournamentListRow
+                    key={row.id}
+                    row={row}
+                    scope={scope}
+                    deletePending={deleteTournament.isPending}
+                    onEditRegistration={setEditRegistration}
+                    onRefetch={() => void refetch()}
+                    onDelete={handleDeleteTournament}
+                  />
+                ))}
               </ul>
             </>
           )}

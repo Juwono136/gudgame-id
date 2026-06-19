@@ -26,9 +26,12 @@ export function useDashboardMobileNavActive(): boolean {
 }
 
 export function setDashboardMobileNavActive(active: boolean): void {
+  const root = document.documentElement;
   if (active) {
     document.body.setAttribute(DASHBOARD_MOBILE_NAV_BODY_ATTR, "");
+    root.classList.add("dashboard-mobile-nav-active");
   } else {
     document.body.removeAttribute(DASHBOARD_MOBILE_NAV_BODY_ATTR);
+    root.classList.remove("dashboard-mobile-nav-active");
   }
 }
