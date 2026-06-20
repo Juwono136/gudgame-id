@@ -5,11 +5,12 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   Check,
+  ChevronDown,
   ExternalLink,
   Loader2,
+  Package,
   Search,
   Sparkles,
-  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,8 @@ import type {
   WikiScrapePreview,
 } from "@/lib/wiki/scrapers/types";
 import { cn } from "@/lib/utils";
+import { ScrapeHostsManager } from "@/components/admin/wiki/scrape-hosts-manager";
+import { normalizeScrapeInputUrl } from "@/lib/wiki/scrapers/normalize-url";
 
 type GearCatalogImportProps = {
   sportSlug: string;
@@ -42,6 +45,7 @@ export function GearCatalogImport({
   const [discovering, setDiscovering] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [hostsOpen, setHostsOpen] = useState(false);
 
   const filteredItems = useMemo(() => {
     if (!discovery) return [];
@@ -69,7 +73,8 @@ export function GearCatalogImport({
   const clearSelection = () => setSelected(new Set());
 
   const runDiscover = async () => {
-    if (!catalogUrl.trim()) return;
+    const url = normalizeScrapeInputUrl(catalogUrl);
+    if (!url.trim()) return;
     setDiscovering(true);
     setDiscovery(null);
     setSelected(new Set());
@@ -77,7 +82,7 @@ export function GearCatalogImport({
       const res = await fetch("/api/admin/wiki-entities/scrape/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: catalogUrl.trim(), sportSlug }),
+        body: JSON.stringify({ url, sportSlug }),
       });
       const json = await parseJsonResponse<{
         success: boolean;
@@ -99,7 +104,8 @@ export function GearCatalogImport({
     }
   };
 
-  const importOne = async (url: string) => {
+  const importOne = async (rawUrl: string) => {
+    const url = normalizeScrapeInputUrl(rawUrl);
     setScraping(true);
     try {
       const res = await fetch("/api/admin/wiki-entities/scrape", {
@@ -134,7 +140,10 @@ export function GearCatalogImport({
       const batchRes = await fetch("/api/admin/wiki-entities/scrape/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ urls, sportSlug }),
+        body: JSON.stringify({
+          urls: urls.map((u) => normalizeScrapeInputUrl(u)),
+          sportSlug,
+        }),
       });
       const batchJson = await parseJsonResponse<{
         success: boolean;
@@ -191,60 +200,88 @@ export function GearCatalogImport({
     }
   };
 
-  return (
-    <div className="space-y-5 rounded-xl border border-cp-primary/30 bg-cp-card p-5">
-      <div>
-        <h3 className="flex items-center gap-2 font-semibold text-foreground">
-          <Sparkles className="h-4 w-4 text-cp-primary" />
-          Import from website catalog
-        </h3>
-        <p className="mt-1 text-xs leading-relaxed text-cp-muted">
-          Paste a <strong className="text-slate-300">category, collection, or shop page</strong>{" "}
-          URL. Supported hosts include padeltop.id, padelful.com, padelracket.id, and
-          decathlon.co.id (HTTPS only). Batch import: up to <strong className="text-slate-300">30</strong>{" "}
-          products per run. Extend the allowlist via{" "}
-          <code className="text-cp-logo-accent">WIKI_SCRAPE_ALLOWED_HOSTS</code> in .env.
-        </p>
-      </div>
+  const busy = discovering || scraping || importing;
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          value={catalogUrl}
-          onChange={(e) => setCatalogUrl(e.target.value)}
-          placeholder="https://padeltop.id/collections/..."
-          className="border-cp-border bg-cp-elevated"
-          disabled={discovering}
-        />
+  return (
+    <div className="space-y-4 rounded-xl border border-cp-primary/25 bg-cp-card p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="flex items-center gap-2 font-semibold text-foreground">
+            <Sparkles className="h-4 w-4 text-cp-primary" />
+            Import from website
+          </h3>
+          <p className="mt-1 max-w-xl text-xs leading-relaxed text-cp-muted">
+            Paste a shop or collection URL. Select products, then import as drafts or open one to
+            edit before publishing.
+          </p>
+        </div>
         <Button
           type="button"
-          onClick={() => void runDiscover()}
-          disabled={discovering || !catalogUrl.trim()}
-          className="shrink-0 bg-cp-primary hover:bg-cp-primary-light"
+          variant="outline"
+          size="sm"
+          className="shrink-0 border-cp-border text-xs"
+          onClick={() => setHostsOpen((o) => !o)}
         >
-          {discovering ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="mr-2 h-4 w-4" />
-          )}
-          Scan page
+          <ChevronDown
+            className={cn("mr-1.5 h-3.5 w-3.5 transition-transform", hostsOpen && "rotate-180")}
+          />
+          Allowed hosts
         </Button>
+      </div>
+
+      {hostsOpen ? (
+        <div className="rounded-lg border border-cp-border bg-cp-elevated/40 p-3">
+          <ScrapeHostsManager />
+        </div>
+      ) : null}
+
+      <div className="rounded-lg border border-cp-border bg-cp-elevated/30 p-3 sm:p-4">
+        <label className="text-xs font-medium text-cp-muted">Catalog or collection URL</label>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={catalogUrl}
+            onChange={(e) => setCatalogUrl(e.target.value)}
+            placeholder="https://padeltop.id/collections/rackets"
+            className="border-cp-border bg-cp-elevated"
+            disabled={busy}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void runDiscover();
+            }}
+          />
+          <Button
+            type="button"
+            onClick={() => void runDiscover()}
+            disabled={busy || !catalogUrl.trim()}
+            className="shrink-0 bg-cp-primary hover:bg-cp-primary-light"
+          >
+            {discovering ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="mr-2 h-4 w-4" />
+            )}
+            Scan
+          </Button>
+        </div>
       </div>
 
       {discovery ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="space-y-4 border-t border-cp-border pt-4"
+          className="space-y-4"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-cp-muted">
-              Showing {filteredItems.length} of {discovery.totalFound}
-              {discovery.truncated ? " (list capped for performance)" : ""}
-              · {selected.size} selected
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              <span className="font-medium">{filteredItems.length}</span>
+              <span className="text-cp-muted">
+                {" "}
+                of {discovery.totalFound} products
+                {discovery.truncated ? " (capped)" : ""} · {selected.size} selected
+              </span>
             </p>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>
-                Select visible
+                Select all
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={clearSelection}>
                 Clear
@@ -255,54 +292,64 @@ export function GearCatalogImport({
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by name…"
+            placeholder="Search products…"
             className="border-cp-border bg-cp-elevated"
           />
 
-          <div className="max-h-[min(420px,50vh)] overflow-y-auto rounded-lg border border-cp-border">
-            <ul className="divide-y divide-cp-border">
-              {filteredItems.map((item) => (
-                <CatalogRow
-                  key={item.url}
-                  item={item}
-                  checked={selected.has(item.url)}
-                  onToggle={() => toggle(item.url)}
-                  onImportOne={() => void importOne(item.url)}
-                  disabled={scraping || importing}
-                />
-              ))}
-            </ul>
+          <div className="max-h-[min(440px,55vh)] overflow-y-auto rounded-lg border border-cp-border p-2 sm:p-3">
             {filteredItems.length === 0 ? (
-              <p className="p-6 text-center text-sm text-cp-muted">No matches.</p>
-            ) : null}
+              <p className="p-8 text-center text-sm text-cp-muted">No matches.</p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredItems.map((item) => (
+                  <CatalogCard
+                    key={item.url}
+                    item={item}
+                    checked={selected.has(item.url)}
+                    onToggle={() => toggle(item.url)}
+                    onImportOne={() => void importOne(item.url)}
+                    disabled={busy}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={importing || selected.size !== 1 || scraping}
-              onClick={() => {
-                const url = [...selected][0];
-                if (url) void importOne(url);
-              }}
-              className="border-cp-border"
-            >
-              Edit one before save
-            </Button>
-            <Button
-              type="button"
-              disabled={importing || selected.size === 0}
-              onClick={() => void importSelectedAsDrafts()}
-              className="bg-cp-primary hover:bg-cp-primary-light"
-            >
-              {importing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Package className="mr-2 h-4 w-4" />
-              )}
-              Import {selected.size} as draft{selected.size === 1 ? "" : "s"}
-            </Button>
+          <div className="flex flex-col gap-2 rounded-lg border border-cp-border bg-cp-elevated/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-cp-muted">
+              {selected.size === 1
+                ? "One product selected — open it to review details before saving."
+                : selected.size > 1
+                  ? `${selected.size} products will be saved as drafts.`
+                  : "Select products to import."}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || selected.size !== 1}
+                onClick={() => {
+                  const url = [...selected][0];
+                  if (url) void importOne(url);
+                }}
+                className="border-cp-border"
+              >
+                Import & edit
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || selected.size === 0}
+                onClick={() => void importSelectedAsDrafts()}
+                className="bg-cp-primary hover:bg-cp-primary-light"
+              >
+                {importing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Package className="mr-2 h-4 w-4" />
+                )}
+                Save {selected.size} as draft{selected.size === 1 ? "" : "s"}
+              </Button>
+            </div>
           </div>
         </motion.div>
       ) : null}
@@ -310,7 +357,7 @@ export function GearCatalogImport({
   );
 }
 
-function CatalogRow({
+function CatalogCard({
   item,
   checked,
   onToggle,
@@ -324,49 +371,57 @@ function CatalogRow({
   disabled: boolean;
 }) {
   return (
-    <li className="flex items-center gap-3 p-3 hover:bg-cp-elevated/40">
+    <div
+      className={cn(
+        "flex gap-3 rounded-lg border p-2.5 transition-colors",
+        checked ? "border-cp-primary/60 bg-cp-primary/5" : "border-cp-border bg-cp-card",
+      )}
+    >
       <button
         type="button"
         onClick={onToggle}
         className={cn(
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border",
           checked ? "border-cp-primary bg-cp-primary text-white" : "border-cp-border",
         )}
+        aria-label={checked ? "Deselect" : "Select"}
       >
         {checked ? <Check className="h-3 w-3" /> : null}
       </button>
       {item.imageUrl ? (
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-cp-elevated">
+        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-cp-elevated">
           <Image src={item.imageUrl} alt="" fill className="object-cover" unoptimized />
         </div>
       ) : (
-        <div className="h-12 w-12 shrink-0 rounded bg-cp-elevated" />
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-cp-elevated text-[10px] text-cp-muted">
+          No img
+        </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+        <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
+          {item.title}
+        </p>
         {item.priceHint ? (
-          <p className="text-xs text-cp-logo-accent">{item.priceHint}</p>
+          <p className="mt-0.5 text-xs text-cp-logo-accent">{item.priceHint}</p>
         ) : null}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onImportOne}
+          className="mt-1.5 text-xs font-medium text-cp-primary hover:underline disabled:opacity-50"
+        >
+          Import & edit
+        </button>
         <a
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-cp-muted hover:text-cp-primary"
+          className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-cp-muted hover:text-cp-primary"
         >
           <ExternalLink className="h-3 w-3 shrink-0" />
-          {item.url.replace(/^https?:\/\//, "").slice(0, 48)}…
+          Source
         </a>
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        disabled={disabled}
-        onClick={onImportOne}
-        className="shrink-0 text-xs"
-      >
-        Preview
-      </Button>
-    </li>
+    </div>
   );
 }

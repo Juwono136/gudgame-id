@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { LeaderboardEntry } from "@/lib/tournaments/brackets/leaderboard";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type OfficialLeaderboardProps = {
@@ -53,9 +54,7 @@ export function OfficialLeaderboard({ entries }: OfficialLeaderboardProps) {
                       key={j}
                       className={cn(
                         "flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold",
-                        f === "W"
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : "bg-red-500/20 text-red-300",
+                        f === "W" ? statusBadgeClass.success : statusBadgeClass.danger,
                       )}
                     >
                       {f}

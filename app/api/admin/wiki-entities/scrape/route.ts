@@ -18,7 +18,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const preview = await scrapeGearFromUrl(body.url, ctx.sportSlug);
+    const preview = await scrapeGearFromUrl(body.url, ctx.sportSlug, {
+      sportId: ctx.sportId,
+    });
     return jsonSuccess(preview);
   } catch (error) {
     return jsonError(error);

@@ -24,6 +24,7 @@ export * from "./schema/host-xendit";
 export * from "./schema/host-bank-accounts";
 export * from "./schema/host-payout-disbursements";
 export * from "./schema/notifications";
+export * from "./schema/wiki-scrape-hosts";
 
 export { sports, type Sport, type NewSport } from "./schema/sports";
 import { sports } from "./schema/sports";

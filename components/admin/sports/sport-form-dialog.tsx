@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { LimitedTextarea } from "@/components/admin/form/limited-textarea";
 import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { SportHeroImageField } from "@/components/admin/sports/sport-hero-image-field";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { DEFAULT_SPORT_MODULES, SPORT_VISIBILITY } from "@/lib/domain/sports";
+import { SPORT_FIELD_LIMITS } from "@/lib/sports/field-limits";
+import {
+  validateSportFormInput,
+  type SportFormFieldErrors,
+} from "@/lib/sports/validate-sport-form";
 import type { SportDetail } from "@/lib/sports/service";
+import { coerceRichHtmlField } from "@/lib/wiki/sanitize-rich-text";
 import {
   cpSelectContentClass,
   cpSelectItemClass,
@@ -32,6 +40,7 @@ import {
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { slugifyWikiName } from "@/lib/wiki/slug";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type SportFormDialogProps = {
   open: boolean;
@@ -79,18 +88,22 @@ export function SportFormDialog({
   const [modules, setModules] = useState(DEFAULT_SPORT_MODULES);
   const [heroFile, setHeroFile] = useState<File | null>(null);
   const [clearHero, setClearHero] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<SportFormFieldErrors>({});
+
+  const editorKey = `${sport?.id ?? "new"}-${open ? "open" : "closed"}`;
 
   useEffect(() => {
     if (!open) return;
     setHeroFile(null);
     setClearHero(false);
+    setFieldErrors({});
     if (sport) {
       setName(sport.name);
       setTagline(sport.tagline ?? "");
       setDescription(sport.description ?? "");
       setVisibility(sport.visibility as (typeof SPORT_VISIBILITY)[number]);
       setIsActive(sport.isActive);
-      setRulesSummary(sport.rulesSummary ?? "");
+      setRulesSummary(coerceRichHtmlField(sport.rulesSummary) ?? "");
       setModules(sport.modules ?? DEFAULT_SPORT_MODULES);
     } else {
       setName("");
@@ -112,8 +125,8 @@ export function SportFormDialog({
     const fd = new FormData();
     fd.set("name", name.trim());
     fd.set("slug", autoSlug);
-    fd.set("tagline", tagline);
-    fd.set("description", description);
+    fd.set("tagline", tagline.trim());
+    fd.set("description", description.trim());
     fd.set("visibility", visibility);
     fd.set("isActive", String(isActive));
     fd.set("rulesSummary", rulesSummary);
@@ -125,7 +138,22 @@ export function SportFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+
+    const validation = validateSportFormInput({
+      name,
+      tagline,
+      description,
+      rulesSummary,
+    });
+    setFieldErrors(validation.errors);
+
+    if (!validation.ok) {
+      const firstError = Object.values(validation.errors)[0];
+      toast.error("Please fix the form", {
+        description: firstError ?? "Some fields are invalid.",
+      });
+      return;
+    }
 
     const ok = await confirm({
       title: isEdit ? "Save sport changes?" : "Create sport?",
@@ -176,21 +204,36 @@ export function SportFormDialog({
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
-              {/* Left column — identity */}
               <div className="space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
                   Identity
                 </p>
                 <div className="space-y-2">
-                  <Label htmlFor="sport-name">Name</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="sport-name">Name</Label>
+                    <FieldCharCounter
+                      current={name.length}
+                      max={SPORT_FIELD_LIMITS.name}
+                    />
+                  </div>
                   <Input
                     id="sport-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    maxLength={SPORT_FIELD_LIMITS.name}
+                    onChange={(e) => {
+                      setName(e.target.value.slice(0, SPORT_FIELD_LIMITS.name));
+                      if (fieldErrors.name) {
+                        setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                      }
+                    }}
                     required
                     placeholder="e.g. Padel"
+                    aria-invalid={Boolean(fieldErrors.name) || undefined}
                     className="h-11 w-full border-cp-border bg-cp-bg-input text-foreground"
                   />
+                  {fieldErrors.name ? (
+                    <p className="text-xs text-red-400">{fieldErrors.name}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sport-slug">URL slug</Label>
@@ -230,29 +273,51 @@ export function SportFormDialog({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sport-tagline">Tagline</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="sport-tagline">Tagline</Label>
+                    <FieldCharCounter
+                      current={tagline.length}
+                      max={SPORT_FIELD_LIMITS.tagline}
+                    />
+                  </div>
                   <Input
                     id="sport-tagline"
                     value={tagline}
-                    onChange={(e) => setTagline(e.target.value)}
+                    maxLength={SPORT_FIELD_LIMITS.tagline}
+                    onChange={(e) => {
+                      setTagline(e.target.value.slice(0, SPORT_FIELD_LIMITS.tagline));
+                      if (fieldErrors.tagline) {
+                        setFieldErrors((prev) => ({ ...prev, tagline: undefined }));
+                      }
+                    }}
                     placeholder="Short line for cards and hero"
+                    aria-invalid={Boolean(fieldErrors.tagline) || undefined}
                     className="h-11 w-full border-cp-border bg-cp-bg-input text-foreground"
                   />
+                  {fieldErrors.tagline ? (
+                    <p className="text-xs text-red-400">{fieldErrors.tagline}</p>
+                  ) : (
+                    <p className="text-xs text-cp-muted">
+                      Shown on homepage cards and the sport hub hero.
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sport-desc">Description</Label>
-                  <textarea
-                    id="sport-desc"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={4}
-                    placeholder="Overview shown on homepage and sport hub"
-                    className={cn(
-                      "flex w-full rounded-lg border border-cp-border bg-cp-bg-input px-3 py-2.5 text-sm text-foreground",
-                      "placeholder:text-cp-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary/40",
-                    )}
-                  />
-                </div>
+                <LimitedTextarea
+                  id="sport-desc"
+                  label="Description"
+                  value={description}
+                  onChange={(next) => {
+                    setDescription(next);
+                    if (fieldErrors.description) {
+                      setFieldErrors((prev) => ({ ...prev, description: undefined }));
+                    }
+                  }}
+                  maxLength={SPORT_FIELD_LIMITS.description}
+                  rows={5}
+                  placeholder="Overview shown on homepage and sport hub"
+                  hint="Plain text summary for discovery pages."
+                  error={fieldErrors.description}
+                />
                 <SportHeroImageField
                   existingUrl={sport?.heroImageUrl}
                   onFileChange={setHeroFile}
@@ -261,7 +326,6 @@ export function SportFormDialog({
                 />
               </div>
 
-              {/* Right column — modules & rules */}
               <div className="space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
                   Public modules & rules
@@ -293,15 +357,26 @@ export function SportFormDialog({
                 <div className="space-y-2">
                   <Label>General rules</Label>
                   <p className="text-xs text-cp-muted">
-                    Sport-wide rules shown on the public rules page.
+                    Sport-wide rules shown on the public rules page. Use lists, bold, and links
+                    for clarity.
                   </p>
                   <RichTextEditor
+                    key={editorKey}
                     value={rulesSummary}
-                    onChange={setRulesSummary}
+                    onChange={(next) => {
+                      setRulesSummary(next);
+                      if (fieldErrors.rulesSummary) {
+                        setFieldErrors((prev) => ({ ...prev, rulesSummary: undefined }));
+                      }
+                    }}
                     placeholder="Describe scoring, court dimensions, equipment standards…"
-                    minHeight={200}
+                    minHeight={220}
+                    maxLength={SPORT_FIELD_LIMITS.rulesSummary}
                     className="border-cp-border bg-cp-bg-input"
                   />
+                  {fieldErrors.rulesSummary ? (
+                    <p className="text-xs text-red-400">{fieldErrors.rulesSummary}</p>
+                  ) : null}
                 </div>
 
                 <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3">

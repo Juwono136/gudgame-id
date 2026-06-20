@@ -40,6 +40,13 @@ export type AdminSportsListResult = {
   pageSize: number;
   totalPages: number;
   orderSnapshot: { id: string; displayOrder: number; name: string }[];
+  stats: {
+    total: number;
+    live: number;
+    comingSoon: number;
+    hidden: number;
+    active: number;
+  };
 };
 
 function mapSportRow(row: Sport): SportDetail {
@@ -153,6 +160,21 @@ export async function listAdminSportsPaginated(
     .from(sports)
     .orderBy(asc(sports.displayOrder), asc(sports.name));
 
+  const allSports = await db
+    .select({
+      visibility: sports.visibility,
+      isActive: sports.isActive,
+    })
+    .from(sports);
+
+  const stats = {
+    total: allSports.length,
+    live: allSports.filter((s) => s.visibility === "live").length,
+    comingSoon: allSports.filter((s) => s.visibility === "coming_soon").length,
+    hidden: allSports.filter((s) => s.visibility === "hidden").length,
+    active: allSports.filter((s) => s.isActive).length,
+  };
+
   return {
     items: rows.map(mapSportRow),
     total,
@@ -160,6 +182,7 @@ export async function listAdminSportsPaginated(
     pageSize,
     totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
     orderSnapshot,
+    stats,
   };
 }
 

@@ -177,6 +177,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
 
           <div className="order-1 lg:order-2">
             <PlayerSidebar
+              sportSlug={playerProfile.sportSlug}
               displayName={playerProfile.displayName}
               nationality={playerProfile.nationality}
               age={playerProfile.age}

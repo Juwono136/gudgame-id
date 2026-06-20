@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { TournamentCreateWizard } from "@/components/admin/tournaments/tournament-create-wizard";
+import { ReclubTournamentWizard } from "@/components/tournaments/reclub/reclub-tournament-wizard";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { adminRoutes } from "@/lib/constants/routes";
@@ -24,6 +25,8 @@ export default async function AdminEditTournamentPage({ params }: PageProps) {
     redirect(adminRoutes.wikiEntities);
   }
 
+  const isReclub = tournament.tournamentType === "recreational";
+
   return (
     <AdminShell
       context={ctx}
@@ -35,12 +38,22 @@ export default async function AdminEditTournamentPage({ params }: PageProps) {
     >
       <p className="text-sm text-cp-muted">{tournament.name}</p>
       <div className="mt-6">
-        <TournamentCreateWizard
-          sportSlug={ctx.sportSlug}
-          initial={tournament}
-          tournamentId={tournamentId}
-          mode="admin"
-        />
+        {isReclub ? (
+          <ReclubTournamentWizard
+            sports={[{ slug: ctx.sportSlug, name: tournament.sportName }]}
+            defaultSportSlug={ctx.sportSlug}
+            initial={tournament}
+            tournamentId={tournamentId}
+            workspace="admin"
+          />
+        ) : (
+          <TournamentCreateWizard
+            sportSlug={ctx.sportSlug}
+            initial={tournament}
+            tournamentId={tournamentId}
+            mode="admin"
+          />
+        )}
       </div>
     </AdminShell>
   );

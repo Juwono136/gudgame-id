@@ -7,6 +7,10 @@ import {
   getWikiEntityById,
   updateWikiEntity,
 } from "@/lib/wiki/service";
+import {
+  assertAdminCanManageWikiEntity,
+  getWikiEntityAdminAccessRow,
+} from "@/lib/wiki/admin-entity-access";
 import { parseAndUploadWikiForm } from "@/lib/wiki/parse-wiki-form";
 import { AppError } from "@/lib/errors";
 
@@ -19,6 +23,12 @@ export async function GET(_request: Request, context: RouteContext) {
     const ctx = await requireWikiManagementAccess();
     const { id } = await context.params;
     const entityId = parseEntityIdParam(id, "entity id");
+    const access = await getWikiEntityAdminAccessRow(entityId);
+    if (!access) {
+      throw new AppError("Wiki entity not found", { code: "NOT_FOUND", statusCode: 404 });
+    }
+    assertAdminCanManageWikiEntity(access, ctx.userId, ctx.sportId);
+
     const entity = await getWikiEntityById(entityId);
     if (!entity || entity.sportId !== ctx.sportId) {
       throw new AppError("Wiki entity not found", { code: "NOT_FOUND", statusCode: 404 });
@@ -61,7 +71,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const ctx = await requireWikiManagementAccess();
     const { id } = await context.params;
     const entityId = parseEntityIdParam(id, "entity id");
-    await deleteWikiEntity(entityId, ctx.sportId);
+    await deleteWikiEntity(entityId, ctx.sportId, ctx.userId);
     return jsonSuccess({ deleted: true });
   } catch (error) {
     return jsonError(error);

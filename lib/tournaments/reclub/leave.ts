@@ -13,6 +13,7 @@ import {
 } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { clearTeamFromBracketSlots } from "@/lib/tournaments/brackets/clear-team";
+import { assertReclubSessionJoinable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 async function getUserTeamId(tournamentId: string, userId: string): Promise<string | null> {
@@ -39,12 +40,7 @@ export async function leaveReclubTournament(
     });
   }
 
-  if (tournament.status === "completed" || tournament.status === "cancelled") {
-    throw new AppError("This session has ended — you can no longer leave", {
-      code: "VALIDATION_ERROR",
-      statusCode: 400,
-    });
-  }
+  assertReclubSessionJoinable(tournament);
 
   const db = getDb();
   const teamId = await getUserTeamId(tournament.id, userId);

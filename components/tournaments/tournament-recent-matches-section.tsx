@@ -4,6 +4,7 @@ import { ArrowRight, Clock, Swords } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { RecentMatchRow } from "@/lib/tournaments/recent-matches";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type TournamentRecentMatchesSectionProps = {
@@ -144,7 +145,7 @@ export function TournamentRecentMatchesSection({
               <span
                 className={cn(
                   "inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider",
-                  isOfficial ? "bg-cp-primary/15 text-cp-primary" : "bg-emerald-500/15 text-emerald-300",
+                  isOfficial ? statusBadgeClass.accent : statusBadgeClass.reclub,
                 )}
               >
                 {row.roundLabel}

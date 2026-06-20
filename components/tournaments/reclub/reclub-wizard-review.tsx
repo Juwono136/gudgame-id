@@ -155,13 +155,15 @@ export function ReclubWizardReview({
             <ReviewField label="Schedule" value={formatWizardDateRange(startsAt, endsAt)} />
           </div>
         </dl>
-        {startsAt ? (
+        {startsAt && endsAt ? (
           <p className="mt-2 text-xs text-cp-muted">
             Starts: {formatWizardDateTime(startsAt) ?? startsAt}
-            {endsAt ? ` · Ends: ${formatWizardDateTime(endsAt) ?? endsAt}` : ""}
+            {` · Ends: ${formatWizardDateTime(endsAt) ?? endsAt}`}
           </p>
         ) : (
-          <p className="mt-2 text-xs text-amber-500/90">No start time set — you can add one later.</p>
+          <p className="mt-2 text-xs text-amber-500/90">
+            Start and end times are required — they control when players can join and play.
+          </p>
         )}
       </ReviewSection>
 

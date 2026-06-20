@@ -1,6 +1,7 @@
-import Image from "next/image";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
+import { WikiImage } from "@/components/wiki/wiki-image";
 
 type PlayerHeroBadge = {
   label: string;
@@ -16,15 +17,24 @@ type PlayerHeroProps = {
 };
 
 const tierStyles: Record<string, string> = {
-  gold: "border-amber-400/50 bg-amber-500/20 text-amber-100",
-  silver: "border-slate-300/40 bg-slate-400/20 text-slate-100",
-  bronze: "border-orange-400/40 bg-orange-500/20 text-orange-100",
-  pro: "border-cp-primary/40 bg-cp-primary/25 text-blue-100",
+  gold: statusBadgeClass.warning,
+  silver: cn(
+    "border-slate-600/25 bg-slate-500/12 text-slate-800",
+    "dark:border-slate-400/40 dark:bg-slate-400/20 dark:text-slate-100",
+  ),
+  bronze: cn(
+    "border-orange-600/25 bg-orange-500/12 text-orange-900",
+    "dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-100",
+  ),
+  pro: statusBadgeClass.accent,
 };
 
 function badgeClass(variant: PlayerHeroBadge["variant"], label: string) {
   if (variant === "nationality") {
-    return "border-white/25 bg-white/15 text-white";
+    return cn(
+      "border-cp-border/80 bg-cp-elevated/80 text-foreground",
+      "dark:border-white/25 dark:bg-white/15 dark:text-white",
+    );
   }
   if (variant === "tier") {
     const key = label.toLowerCase().replace(/\s+tier$/, "");
@@ -57,14 +67,13 @@ export function PlayerHero({
       <div className="relative grid gap-5 p-5 sm:gap-6 sm:p-8 md:grid-cols-[auto_1fr] md:items-center md:gap-8 lg:gap-10">
         <div className="relative mx-auto h-36 w-36 shrink-0 overflow-hidden rounded-2xl border-2 border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.35)] sm:h-44 sm:w-44 md:mx-0 md:h-48 md:w-48 lg:h-52 lg:w-52">
           {imageUrl ? (
-            <Image
+            <WikiImage
               src={imageUrl}
               alt={displayName}
               fill
               className="object-cover"
               sizes="(max-width: 1024px) 208px, 208px"
               priority
-              unoptimized
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-white/10 text-sm text-white/60">

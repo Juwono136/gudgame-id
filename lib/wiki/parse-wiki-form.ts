@@ -33,6 +33,8 @@ export type ParsedWikiFormResult = {
     heroUrl?: string;
     primaryStorageKey?: string;
     primaryUrl?: string;
+    clearPrimary?: boolean;
+    clearHero?: boolean;
   };
 };
 
@@ -140,6 +142,18 @@ export async function parseAndUploadWikiForm(
       storageKey: up.storageKey,
       sortOrder: keptExisting.length + i,
     });
+  }
+
+  const clearPrimary = formData.get("clearPrimaryImage") === "true";
+  const clearHero = formData.get("clearHeroImage") === "true";
+  const hasNewPrimary = primaryFile instanceof File && primaryFile.size > 0;
+  const hasNewHero = heroFile instanceof File && heroFile.size > 0;
+
+  if (clearPrimary && !hasNewPrimary) {
+    imagePatch = { ...imagePatch, clearPrimary: true };
+  }
+  if (clearHero && !hasNewHero) {
+    imagePatch = { ...imagePatch, clearHero: true };
   }
 
   const totalGallery = [...keptExisting, ...uploaded].slice(0, MAX_GALLERY_UPLOADS);

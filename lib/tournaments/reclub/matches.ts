@@ -7,6 +7,7 @@ import { tournamentReclubMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertTeamsNotInActiveBracket } from "@/lib/tournaments/brackets/active-teams";
+import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import { getMaxRounds } from "@/lib/tournaments/settings";
 import { syncReclubMatchToPlayerHistory } from "@/lib/tournaments/stats/sync";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -74,6 +75,8 @@ export async function startReclubRound(
   teamAId: string,
   teamBId: string,
 ): Promise<ReclubMatchView> {
+  assertReclubSessionPlayable(tournament);
+
   const db = getDb();
   const active = await getActiveReclubMatch(tournament.id);
   if (active) {

@@ -58,6 +58,33 @@ export const tournamentUpsertSchema = z
         path: ["registrationFeeIdr"],
       });
     }
+    if (data.tournamentType === "recreational") {
+      if (!data.startsAt?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Reclub sessions require a start date & time.",
+          path: ["startsAt"],
+        });
+      }
+      if (!data.endsAt?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Reclub sessions require an end date & time.",
+          path: ["endsAt"],
+        });
+      }
+      if (data.startsAt?.trim() && data.endsAt?.trim()) {
+        const start = new Date(data.startsAt).getTime();
+        const end = new Date(data.endsAt).getTime();
+        if (!Number.isNaN(start) && !Number.isNaN(end) && end <= start) {
+          ctx.addIssue({
+            code: "custom",
+            message: "End time must be after start time.",
+            path: ["endsAt"],
+          });
+        }
+      }
+    }
   });
 
 export type TournamentUpsertInput = z.infer<typeof tournamentUpsertSchema>;

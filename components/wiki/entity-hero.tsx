@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type EntityHeroProps = {
@@ -40,25 +41,23 @@ export function EntityHero({
             <Badge
               key={b.label}
               className={cn(
-                b.variant === "green" &&
-                  "border-emerald-500/40 bg-emerald-950/60 text-emerald-200",
-                b.variant === "blue" &&
-                  "border-cp-primary/40 bg-cp-primary/20 text-cp-logo-accent",
-                !b.variant && "border-cp-border bg-cp-elevated",
+                b.variant === "green" && statusBadgeClass.success,
+                b.variant === "blue" && statusBadgeClass.accent,
+                !b.variant && "border-cp-border bg-cp-elevated text-cp-muted",
               )}
             >
               {b.label}
             </Badge>
           ))}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
           {displayName}
         </h1>
         {nickname ? (
           <p className="mt-1 text-lg text-cp-logo-accent">@{nickname}</p>
         ) : null}
         {summary ? (
-          <div className="mt-4 max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
+          <div className="mt-4 max-w-xl text-sm leading-relaxed text-cp-muted sm:text-base">
             {/<[a-z]/i.test(summary) ? (
               <RichHtmlContent html={summary} />
             ) : (

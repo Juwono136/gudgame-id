@@ -11,6 +11,10 @@ import {
 import { tournamentReclubMatches } from "@/db/schema/tournament-matches";
 import { AppError } from "@/lib/errors";
 import { syncReclubParticipation } from "@/lib/tournaments/stats/sync";
+import {
+  assertReclubSessionJoinable,
+  assertReclubSessionPlayable,
+} from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type LobbyMemberView = {
@@ -75,6 +79,8 @@ export async function createNamedTeam(
   userId: string,
   teamName: string,
 ): Promise<{ teamId: string }> {
+  assertReclubSessionJoinable(tournament);
+
   const db = getDb();
   if (tournament.maxTeams) {
     const [row] = await db
@@ -151,12 +157,7 @@ export async function renameReclubTeam(
     });
   }
 
-  if (tournament.status === "completed" || tournament.status === "cancelled") {
-    throw new AppError("Cannot rename teams after the session has ended", {
-      code: "VALIDATION_ERROR",
-      statusCode: 400,
-    });
-  }
+  assertReclubSessionJoinable(tournament);
 
   const db = getDb();
   const [active] = await db
@@ -228,6 +229,8 @@ export async function switchTeam(
   userId: string,
   targetTeamId: string,
 ): Promise<void> {
+  assertReclubSessionJoinable(tournament);
+
   const db = getDb();
 
   const [active] = await db

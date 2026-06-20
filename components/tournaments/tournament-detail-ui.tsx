@@ -3,6 +3,11 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
 import type { LucideIcon } from "lucide-react";
+import {
+  officialTabActiveClass,
+  reclubTabActiveClass,
+  statusBadgeClass,
+} from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type TournamentHeroBannerProps = {
@@ -17,12 +22,22 @@ export function TournamentHeroBanner({
   children,
 }: TournamentHeroBannerProps) {
   const isReclub = variant === "reclub";
-  const coverGradient = isReclub
-    ? "from-cp-bg/70 via-cp-bg/25 to-cp-bg"
-    : "from-cp-bg/65 via-cp-bg/20 to-cp-bg";
-  const sideScrim = isReclub
-    ? "from-cp-bg/70 via-cp-bg/30 to-transparent"
-    : "from-cp-bg/65 via-cp-bg/25 to-transparent";
+  const coverGradient = cn(
+    isReclub
+      ? "from-cp-bg/90 via-cp-bg/55 to-cp-bg"
+      : "from-cp-bg/88 via-cp-bg/50 to-cp-bg",
+    isReclub
+      ? "dark:from-cp-bg/70 dark:via-cp-bg/25 dark:to-cp-bg"
+      : "dark:from-cp-bg/65 dark:via-cp-bg/20 dark:to-cp-bg",
+  );
+  const sideScrim = cn(
+    isReclub
+      ? "from-slate-900/35 via-cp-bg/78 to-transparent"
+      : "from-slate-900/30 via-cp-bg/75 to-transparent",
+    isReclub
+      ? "dark:from-cp-bg/70 dark:via-cp-bg/30 dark:to-transparent"
+      : "dark:from-cp-bg/65 dark:via-cp-bg/25 dark:to-transparent",
+  );
   const fallbackGradient = isReclub
     ? "from-emerald-950/40 via-cp-card/70 to-cp-bg"
     : "from-cp-primary/25 via-cp-card/75 to-cp-bg";
@@ -41,6 +56,7 @@ export function TournamentHeroBanner({
               className="object-cover object-center"
               unoptimized
             />
+            <div className="absolute inset-0 bg-black/25 dark:bg-black/40" />
             <div className={cn("absolute inset-0 bg-linear-to-b", coverGradient)} />
             <div className={cn("absolute inset-0 bg-linear-to-r", sideScrim)} />
           </>
@@ -107,8 +123,8 @@ export function TournamentTabNav<T extends string>({
               "shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4",
               isActive
                 ? isReclub
-                  ? "bg-emerald-500/15 text-emerald-300"
-                  : "bg-cp-primary/15 text-cp-primary"
+                  ? reclubTabActiveClass
+                  : officialTabActiveClass
                 : "text-cp-muted hover:bg-cp-elevated/60 hover:text-foreground",
             )}
           >
@@ -174,7 +190,7 @@ export function TournamentStatCard({
       className={cn(
         "min-w-0 rounded-xl border px-3 py-3 sm:px-4 sm:py-3.5",
         isHero
-          ? "border-white/10 bg-cp-bg/55 backdrop-blur-sm"
+          ? "border-cp-border/60 bg-cp-bg/80 backdrop-blur-sm dark:border-white/10 dark:bg-cp-bg/55"
           : "border-cp-border/80 bg-cp-card/70",
       )}
     >

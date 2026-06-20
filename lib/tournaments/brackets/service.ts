@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
+import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type BracketMatchView = {
@@ -68,6 +69,13 @@ export async function submitBracketMatchScore(
 
   if (!match) {
     throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  if (
+    tournament.tournamentType === "recreational" &&
+    match.status !== "in_progress"
+  ) {
+    assertReclubSessionPlayable(tournament);
   }
 
   if (match.status === "completed" || match.status === "bye") {
@@ -213,6 +221,13 @@ export async function updateBracketLiveScore(
 
   if (!match) {
     throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  if (
+    tournament.tournamentType === "recreational" &&
+    match.status !== "in_progress"
+  ) {
+    assertReclubSessionPlayable(tournament);
   }
 
   if (match.status === "completed" || match.status === "bye") {

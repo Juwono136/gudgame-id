@@ -30,6 +30,7 @@ import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerTournamentsListQuery } from "@/lib/validations/player-competition";
 import type { PlayerTournamentListItem } from "@/lib/account/player-competition/types";
+import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type PlayerTournamentsListPageProps = {
@@ -163,9 +164,7 @@ function TournamentListRow({
     <Badge
       className={cn(
         "w-fit shrink-0 border-0 text-[10px] uppercase",
-        row.source === "recreational"
-          ? "bg-emerald-500/15 text-emerald-300"
-          : "bg-cp-primary/15 text-cp-primary",
+        getTournamentTypeBadgeClass(row.source === "recreational" ? "recreational" : "official"),
       )}
     >
       {row.source === "recreational" ? "Reclub" : "Official"}

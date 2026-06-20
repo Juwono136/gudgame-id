@@ -12,17 +12,20 @@ export function validateReclubSquadName(name: string): string | null {
   return null;
 }
 
+import {
+  canJoinReclubSession,
+  type ReclubSessionSchedule,
+} from "@/lib/tournaments/reclub/session-lifecycle";
+
 export function canRenameReclubSquad(input: {
-  tournamentStatus: string;
+  session: ReclubSessionSchedule;
   hasActiveMatch: boolean;
   canManage: boolean;
   captainUserId: string | null;
   currentUserId: string | null;
 }): boolean {
+  if (!canJoinReclubSession(input.session)) return false;
   if (input.hasActiveMatch) return false;
-  if (input.tournamentStatus === "completed" || input.tournamentStatus === "cancelled") {
-    return false;
-  }
   if (input.canManage) return true;
   return Boolean(
     input.currentUserId &&
@@ -32,13 +35,11 @@ export function canRenameReclubSquad(input: {
 }
 
 export function canCreateReclubSquad(input: {
-  tournamentStatus: string;
+  session: ReclubSessionSchedule;
   hasActiveMatch: boolean;
   teamsAtCapacity: boolean;
 }): boolean {
+  if (!canJoinReclubSession(input.session)) return false;
   if (input.hasActiveMatch) return false;
-  if (input.tournamentStatus === "completed" || input.tournamentStatus === "cancelled") {
-    return false;
-  }
   return !input.teamsAtCapacity;
 }

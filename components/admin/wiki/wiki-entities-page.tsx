@@ -2,8 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,6 +16,7 @@ import {
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { StatCard } from "@/components/admin/ui/stat-card";
 import { AdminLoadingOverlay } from "@/components/admin/ui/admin-loading-overlay";
+import { WikiEntityThumbnail } from "@/components/admin/wiki/wiki-entity-thumbnail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +56,12 @@ import type { TournamentStatus } from "@/lib/domain/tournaments";
 import { TOURNAMENT_STATUS_LABELS } from "@/lib/tournaments/constants";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { WikiEntitiesListQuery } from "@/lib/validations/wiki-entities";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
+import { getDirectoryStatusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type WikiEntitiesPageProps = {
@@ -84,14 +89,7 @@ function getDirectoryStatusLabel(item: WikiDirectoryListItem) {
 }
 
 function getDirectoryStatusClass(item: WikiDirectoryListItem) {
-  if (item.recordKind === "tournament") {
-    if (item.status === "live") return "bg-emerald-900/40 text-emerald-200";
-    if (item.status === "upcoming") return "bg-cp-primary/15 text-cp-primary";
-    return "bg-cp-elevated text-cp-muted";
-  }
-  return item.status === "published"
-    ? "bg-emerald-900/40 text-emerald-200"
-    : "bg-cp-elevated text-cp-muted";
+  return getDirectoryStatusBadgeClass(item);
 }
 
 function canViewPublic(item: WikiDirectoryListItem) {
@@ -109,6 +107,135 @@ function getPublicHref(item: WikiDirectoryListItem) {
     item.sportSlug,
     item.entityType as WikiEntityType,
     item.slug,
+  );
+}
+
+function getEditHref(item: WikiDirectoryListItem) {
+  if (item.recordKind === "tournament") {
+    return adminRoutes.tournamentEdit(String(item.id));
+  }
+  return `${adminRoutes.wikiEntities}/${item.id}/edit`;
+}
+
+function canDeleteItem(item: WikiDirectoryListItem) {
+  if (item.recordKind === "wiki_entity") return true;
+  return item.recordKind === "tournament" && item.status !== "live";
+}
+
+type DirectoryRowActionsProps = {
+  item: WikiDirectoryListItem;
+  onDeleteEntity: (id: string, name: string) => void;
+  onDeleteTournament: (id: string, name: string) => void;
+  variant: "desktop" | "mobile";
+};
+
+function DirectoryRowActions({
+  item,
+  onDeleteEntity,
+  onDeleteTournament,
+  variant,
+}: DirectoryRowActionsProps) {
+  const editHref = getEditHref(item);
+  const publicHref = canViewPublic(item) ? getPublicHref(item) : null;
+  const showDelete = canDeleteItem(item);
+
+  const handleDelete = () => {
+    if (item.recordKind === "wiki_entity") {
+      onDeleteEntity(item.id, item.displayName);
+    } else {
+      onDeleteTournament(item.id as string, item.displayName);
+    }
+  };
+
+  if (variant === "desktop") {
+    return (
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-9 w-9">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={editHref}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Link>
+          </DropdownMenuItem>
+          {publicHref ? (
+            <DropdownMenuItem asChild>
+              <a href={publicHref} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View public page
+              </a>
+            </DropdownMenuItem>
+          ) : null}
+          {showDelete ? (
+            <DropdownMenuItem className="text-red-400" onClick={() => void handleDelete()}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 pt-0.5">
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className="h-10 min-h-10 min-w-[5.5rem] flex-1 border-cp-border px-2 text-xs"
+      >
+        <Link href={editHref}>
+          <Pencil className="mr-1.5 h-4 w-4 shrink-0" />
+          Edit
+        </Link>
+      </Button>
+      {publicHref ? (
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="h-10 min-h-10 min-w-[5.5rem] flex-1 border-cp-border px-2 text-xs"
+        >
+          <a href={publicHref} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="mr-1.5 h-4 w-4 shrink-0" />
+            View
+          </a>
+        </Button>
+      ) : null}
+      {showDelete ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10 min-h-10 min-w-[5.5rem] flex-1 border-red-500/30 px-2 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-600"
+          onClick={() => void handleDelete()}
+        >
+          <Trash2 className="mr-1.5 h-4 w-4 shrink-0" />
+          Delete
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function DirectoryEntityIdentity({ item }: { item: WikiDirectoryListItem }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <WikiEntityThumbnail
+        imageUrl={item.primaryImageUrl}
+        entityType={item.entityType}
+        displayName={item.displayName}
+        size="sm"
+      />
+      <div className="min-w-0">
+        <p className="truncate font-medium text-foreground">{item.displayName}</p>
+        <p className="truncate text-xs text-cp-muted">/{item.slug}</p>
+      </div>
+    </div>
   );
 }
 
@@ -169,18 +296,28 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
 
   return (
     <AdminShell context={context} title="Wiki Entities">
-      <div className="relative space-y-6">
+      <div className="relative space-y-4 sm:space-y-6">
         <AdminLoadingOverlay show={isFetching && !isLoading} />
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-cp-muted">
-            Manage players, gear, and tournaments for{" "}
-            <span className="font-semibold capitalize text-cp-logo-accent">
-              {context.sportSlug}
-            </span>
-            . Field schemas adapt per sport.
-          </p>
-          <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <p className="hidden text-sm text-cp-muted sm:block">
+              Manage tournaments, gear, and{" "}
+              <span className="font-medium text-foreground">editorial player profiles</span> you
+              created for{" "}
+              <span className="font-semibold capitalize text-cp-logo-accent">
+                {context.sportSlug}
+              </span>
+              . Players who registered through the app are not listed here.
+            </p>
+            <p className="rounded-lg border border-cp-border/80 bg-cp-elevated/30 px-3 py-2 text-[11px] leading-relaxed text-cp-muted sm:hidden">
+              Only entities you created appear here. App sign-up players manage their own profiles.
+            </p>
+          </div>
+          <Button
+            asChild
+            className="h-10 w-full shrink-0 bg-cp-primary hover:bg-cp-primary-light sm:h-11 sm:w-auto"
+          >
             <Link href={adminRoutes.wikiEntitiesNew}>
               <Plus className="mr-2 h-4 w-4" />
               Create entity
@@ -189,7 +326,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
         </div>
 
         {data?.stats ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5">
             <StatCard label="Players" value={String(data.stats.player)} />
             <StatCard label="Tournaments" value={String(data.stats.tournaments)} />
             <StatCard label="Gear" value={String(data.stats.gear)} />
@@ -198,81 +335,117 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search wiki database…"
-              className="border-cp-border bg-cp-card pl-9"
-            />
+        <div className="overflow-hidden rounded-xl border border-cp-border bg-cp-card cp-shadow-card sm:rounded-2xl">
+          <div className="border-b border-cp-border p-3 sm:p-4 lg:p-5">
+            <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
+                <Input
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search wiki database…"
+                  className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-10 text-foreground sm:h-11"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:max-w-2xl">
+                <Select
+                  value={typeFilter}
+                  onValueChange={(v) => {
+                    setTypeFilter(v as WikiDirectoryTypeFilterValue);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
+                    {WIKI_DIRECTORY_TYPE_FILTER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value} className={cpSelectItemClass}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v as WikiEntitiesListQuery["status"]);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
+                    <SelectItem value="all" className={cpSelectItemClass}>
+                      All status
+                    </SelectItem>
+                    <SelectItem value="draft" className={cpSelectItemClass}>
+                      Draft
+                    </SelectItem>
+                    <SelectItem value="published" className={cpSelectItemClass}>
+                      Published
+                    </SelectItem>
+                    <SelectItem value="archived" className={cpSelectItemClass}>
+                      Archived
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={`${sortBy}-${sortDir}`}
+                  onValueChange={(v) => {
+                    const [by, dir] = v.split("-") as [
+                      WikiEntitiesListQuery["sortBy"],
+                      WikiEntitiesListQuery["sortDir"],
+                    ];
+                    setSortBy(by);
+                    setSortDir(dir);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      cpSelectTriggerClass,
+                      "col-span-2 h-10 w-full sm:col-span-1 sm:h-11",
+                    )}
+                  >
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
+                    <SelectItem value="updated-desc" className={cpSelectItemClass}>
+                      Recently updated
+                    </SelectItem>
+                    <SelectItem value="updated-asc" className={cpSelectItemClass}>
+                      Oldest updated
+                    </SelectItem>
+                    <SelectItem value="name-asc" className={cpSelectItemClass}>
+                      Name A–Z
+                    </SelectItem>
+                    <SelectItem value="name-desc" className={cpSelectItemClass}>
+                      Name Z–A
+                    </SelectItem>
+                    <SelectItem value="created-desc" className={cpSelectItemClass}>
+                      Newest created
+                    </SelectItem>
+                    <SelectItem value="created-asc" className={cpSelectItemClass}>
+                      Oldest created
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-          <Select
-            value={typeFilter}
-            onValueChange={(v) => {
-              setTypeFilter(v as WikiDirectoryTypeFilterValue);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full border-cp-border bg-cp-card sm:w-[160px]">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {WIKI_DIRECTORY_TYPE_FILTER_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => {
-              setStatusFilter(v as WikiEntitiesListQuery["status"]);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full border-cp-border bg-cp-card sm:w-[160px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All status</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="published">Published</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={`${sortBy}-${sortDir}`}
-            onValueChange={(v) => {
-              const [by, dir] = v.split("-") as [
-                WikiEntitiesListQuery["sortBy"],
-                WikiEntitiesListQuery["sortDir"],
-              ];
-              setSortBy(by);
-              setSortDir(dir);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full border-cp-border bg-cp-card sm:w-[200px]">
-              <SelectValue placeholder="Sort" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="updated-desc">Recently updated</SelectItem>
-              <SelectItem value="updated-asc">Oldest updated</SelectItem>
-              <SelectItem value="name-asc">Name A–Z</SelectItem>
-              <SelectItem value="name-desc">Name Z–A</SelectItem>
-              <SelectItem value="created-desc">Newest created</SelectItem>
-              <SelectItem value="created-asc">Oldest created</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
 
-        <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card/50 shadow-sm">
+          {isFetching && !isLoading ? (
+            <div className="flex items-center justify-center gap-2 border-b border-cp-border py-2 text-xs text-cp-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Updating…
+            </div>
+          ) : null}
+
           {error ? (
             <p className="p-10 text-center text-sm text-red-400">
               Failed to load entities. Try again.
@@ -280,55 +453,41 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
           ) : isLoading ? (
             <div className="space-y-2 p-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full rounded-xl bg-cp-elevated" />
+                <Skeleton key={i} className="h-16 w-full rounded-xl bg-cp-elevated" />
               ))}
+            </div>
+          ) : !data?.items.length ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <p className="text-sm text-cp-muted">
+                {typeFilter === "tournament"
+                  ? "No tournaments yet. Create your first tournament."
+                  : "No entities yet. Create your first wiki entry."}
+              </p>
+              <Button asChild size="sm" className="bg-cp-primary">
+                <Link href={adminRoutes.wikiEntitiesNew}>Create entity</Link>
+              </Button>
             </div>
           ) : (
             <>
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full min-w-[720px] text-left text-sm">
+              <div className="hidden lg:block">
+                <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-cp-border/80 bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
                       <th className="px-4 py-3 font-semibold">Entity</th>
                       <th className="px-4 py-3 font-semibold">Type</th>
                       <th className="px-4 py-3 font-semibold">Status</th>
-                      <th className="px-4 py-3 font-semibold">Updated</th>
+                      <th className="hidden px-4 py-3 font-semibold xl:table-cell">Updated</th>
                       <th className="px-4 py-3 text-right font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-cp-border/50">
-                    {data?.items.map((item, i) => (
-                      <motion.tr
+                    {data.items.map((item) => (
+                      <tr
                         key={getWikiDirectoryItemKey(item)}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.02 }}
                         className="transition-colors hover:bg-cp-elevated/30"
                       >
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-cp-border bg-cp-elevated">
-                              {item.primaryImageUrl ? (
-                                <Image
-                                  src={item.primaryImageUrl}
-                                  alt=""
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
-                                />
-                              ) : (
-                                <div className="flex h-full items-center justify-center text-[10px] text-cp-muted">
-                                  —
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate font-medium text-foreground">
-                                {item.displayName}
-                              </p>
-                              <p className="truncate text-xs text-cp-muted">/{item.slug}</p>
-                            </div>
-                          </div>
+                          <DirectoryEntityIdentity item={item} />
                         </td>
                         <td className="px-4 py-3 text-cp-muted">
                           {getDirectoryTypeLabel(item)}
@@ -343,182 +502,66 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                             {getDirectoryStatusLabel(item)}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-cp-muted">
+                        <td className="hidden px-4 py-3 text-xs text-cp-muted xl:table-cell">
                           {formatDate(item.updatedAt)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {item.recordKind === "wiki_entity" ? (
-                                <DropdownMenuItem asChild>
-                                  <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </Link>
-                                </DropdownMenuItem>
-                              ) : item.recordKind === "tournament" ? (
-                                <DropdownMenuItem asChild>
-                                  <Link href={adminRoutes.tournamentEdit(String(item.id))}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </Link>
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canViewPublic(item) ? (
-                                <DropdownMenuItem asChild>
-                                  <a
-                                    href={getPublicHref(item)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    View public page
-                                  </a>
-                                </DropdownMenuItem>
-                              ) : null}
-                              {item.recordKind === "wiki_entity" ? (
-                                <DropdownMenuItem
-                                  className="text-red-400"
-                                  onClick={() => void handleDeleteEntity(item.id, item.displayName)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              ) : item.recordKind === "tournament" &&
-                                item.status !== "live" ? (
-                                <DropdownMenuItem
-                                  className="text-red-400"
-                                  onClick={() =>
-                                    void handleDeleteTournament(item.id as string, item.displayName)
-                                  }
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <DirectoryRowActions
+                            item={item}
+                            variant="desktop"
+                            onDeleteEntity={(id, name) => void handleDeleteEntity(id, name)}
+                            onDeleteTournament={(id, name) => void handleDeleteTournament(id, name)}
+                          />
                         </td>
-                      </motion.tr>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
               <div className="divide-y divide-cp-border/50 lg:hidden">
-                {data?.items.map((item, i) => (
-                  <motion.article
-                    key={getWikiDirectoryItemKey(item)}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="flex gap-3 p-4"
-                  >
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-cp-border bg-cp-elevated">
-                      {item.primaryImageUrl ? (
-                        <Image
-                          src={item.primaryImageUrl}
-                          alt=""
-                          fill
-                          className="object-cover"
-                          unoptimized
-                        />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-foreground">{item.displayName}</p>
-                          <p className="text-xs text-cp-muted">
-                            {getDirectoryTypeLabel(item)} · /{item.slug}
-                          </p>
+                {data.items.map((item) => (
+                  <article key={getWikiDirectoryItemKey(item)} className="p-3 sm:p-4">
+                    <div className="flex gap-3">
+                      <WikiEntityThumbnail
+                        imageUrl={item.primaryImageUrl}
+                        entityType={item.entityType}
+                        displayName={item.displayName}
+                        size="md"
+                      />
+                      <div className="min-w-0 flex-1 space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">
+                              {item.displayName}
+                            </p>
+                            <p className="truncate text-xs text-cp-muted">
+                              {getDirectoryTypeLabel(item)} · /{item.slug}
+                            </p>
+                          </div>
+                          <Badge
+                            className={cn(
+                              "shrink-0 border-0 text-[10px] font-semibold uppercase",
+                              getDirectoryStatusClass(item),
+                            )}
+                          >
+                            {getDirectoryStatusLabel(item)}
+                          </Badge>
                         </div>
-                        <Badge
-                          className={cn(
-                            "shrink-0 border-0 text-[10px]",
-                            getDirectoryStatusClass(item),
-                          )}
-                        >
-                          {getDirectoryStatusLabel(item)}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {item.recordKind === "wiki_entity" ? (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className="h-8 border-cp-border"
-                          >
-                            <Link href={`${adminRoutes.wikiEntities}/${item.id}/edit`}>
-                              Edit
-                            </Link>
-                          </Button>
-                        ) : item.recordKind === "tournament" ? (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className="h-8 border-cp-border"
-                          >
-                            <Link href={adminRoutes.tournamentEdit(String(item.id))}>Edit</Link>
-                          </Button>
-                        ) : null}
-                        {canViewPublic(item) ? (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className="h-8 border-cp-border"
-                          >
-                            <a
-                              href={getPublicHref(item)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              View
-                            </a>
-                          </Button>
-                        ) : null}
-                        {item.recordKind === "wiki_entity" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-red-400"
-                            onClick={() => void handleDeleteEntity(item.id, item.displayName)}
-                          >
-                            Delete
-                          </Button>
-                        ) : item.recordKind === "tournament" && item.status !== "live" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-red-400"
-                            onClick={() =>
-                              void handleDeleteTournament(item.id as string, item.displayName)
-                            }
-                          >
-                            Delete
-                          </Button>
-                        ) : null}
+                        <p className="text-[11px] text-cp-muted sm:text-xs">
+                          Updated {formatDate(item.updatedAt)}
+                        </p>
+                        <DirectoryRowActions
+                          item={item}
+                          variant="mobile"
+                          onDeleteEntity={(id, name) => void handleDeleteEntity(id, name)}
+                          onDeleteTournament={(id, name) => void handleDeleteTournament(id, name)}
+                        />
                       </div>
                     </div>
-                  </motion.article>
+                  </article>
                 ))}
               </div>
-
-              {data && data.items.length === 0 ? (
-                <p className="py-16 text-center text-sm text-cp-muted">
-                  {typeFilter === "tournament"
-                    ? "No tournaments yet. Create your first tournament."
-                    : "No entities yet. Create your first wiki entry."}
-                </p>
-              ) : null}
             </>
           )}
         </div>

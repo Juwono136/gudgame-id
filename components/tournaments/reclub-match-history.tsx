@@ -19,6 +19,7 @@ import {
   getReclubMatchHistoryKey,
   type ReclubMatchView,
 } from "@/lib/tournaments/reclub/types";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 function formatDuration(seconds: number | null): string {
@@ -98,7 +99,7 @@ export function ReclubMatchCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cp-border/80 bg-cp-elevated/40 px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-emerald-500/15 px-1.5 text-xs font-bold text-emerald-300">
+          <span className={cn("inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5 text-xs font-bold", statusBadgeClass.reclub)}>
             {match.roundLabel ?? `R${match.roundNumber}`}
           </span>
           <div>

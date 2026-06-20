@@ -27,15 +27,10 @@ import {
   toOffset,
   toTotalPages,
 } from "@/lib/pagination/constants";
+import { paymentStatusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLES: Record<string, string> = {
-  paid: "bg-emerald-500/20 text-emerald-300",
-  pending: "bg-amber-500/20 text-amber-300",
-  expired: "bg-slate-500/20 text-slate-400",
-  failed: "bg-red-500/20 text-red-300",
-  refunded: "bg-blue-500/20 text-blue-300",
-};
+const STATUS_STYLES = paymentStatusBadgeClass;
 
 type PaymentTransactionsLedgerProps = {
   apiPath: string;

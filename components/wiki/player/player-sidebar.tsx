@@ -9,6 +9,7 @@ import { resolveWikiImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
 type PlayerSidebarProps = {
+  sportSlug: string;
   displayName: string;
   nationality?: string | null;
   age?: number | null;
@@ -29,6 +30,7 @@ function BiodataRow({ label, value }: { label: string; value: string }) {
 }
 
 export function PlayerSidebar({
+  sportSlug,
   displayName,
   nationality,
   age,
@@ -63,11 +65,25 @@ export function PlayerSidebar({
                   fill
                   className="object-contain p-1"
                   sizes="64px"
+                  unoptimized={
+                    (resolveWikiImageUrl(signatureGear.imageUrl) ?? signatureGear.imageUrl).startsWith(
+                      "http",
+                    )
+                  }
                 />
               </div>
             ) : null}
             <div className="min-w-0">
-              <p className="font-semibold text-foreground">{signatureGear.name}</p>
+              {signatureGear.gearEntityId && signatureGear.gearPublicUrl ? (
+                <Link
+                  href={signatureGear.gearPublicUrl}
+                  className="font-semibold text-cp-primary hover:underline"
+                >
+                  {signatureGear.name}
+                </Link>
+              ) : (
+                <p className="font-semibold text-foreground">{signatureGear.name}</p>
+              )}
               {signatureGear.brand ? (
                 <p className="text-sm text-cp-muted">{signatureGear.brand}</p>
               ) : null}
@@ -133,7 +149,16 @@ export function PlayerSidebar({
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                    {item.gearEntityId && item.gearPublicUrl ? (
+                      <Link
+                        href={item.gearPublicUrl}
+                        className="text-sm font-semibold text-cp-primary hover:underline"
+                      >
+                        {item.name}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                    )}
                     <p className="text-xs capitalize text-cp-muted">{item.category}</p>
                     {item.brand ? (
                       <p className="mt-0.5 text-xs text-cp-text-dim">{item.brand}</p>

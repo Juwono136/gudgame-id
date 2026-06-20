@@ -144,28 +144,6 @@ const DEFAULT_TEAM_FIELDS: WikiFieldDefinition[] = [
 
 const PADEL_GEAR_FIELDS: WikiFieldDefinition[] = [
   {
-    key: "brand",
-    label: "Brand",
-    type: "text",
-    group: "specs",
-    storeIn: "attributes",
-    required: true,
-  },
-  {
-    key: "model",
-    label: "Model",
-    type: "text",
-    group: "specs",
-    storeIn: "attributes",
-  },
-  {
-    key: "price",
-    label: "Price (IDR)",
-    type: "text",
-    group: "specs",
-    storeIn: "attributes",
-  },
-  {
     key: "shape",
     label: "Shape",
     type: "select",
@@ -207,21 +185,6 @@ const PADEL_GEAR_FIELDS: WikiFieldDefinition[] = [
     storeIn: "specs",
   },
   {
-    key: "gearCategory",
-    label: "Category",
-    type: "select",
-    group: "gear",
-    storeIn: "attributes",
-    options: [
-      { value: "racket", label: "Racket" },
-      { value: "shoes", label: "Shoes" },
-      { value: "bag", label: "Bag" },
-      { value: "balls", label: "Balls" },
-      { value: "accessory", label: "Accessory" },
-      { value: "other", label: "Other" },
-    ],
-  },
-  {
     key: "power",
     label: "Power",
     type: "rating",
@@ -248,22 +211,6 @@ const PADEL_GEAR_FIELDS: WikiFieldDefinition[] = [
 ];
 
 const GENERIC_GEAR_FIELDS: WikiFieldDefinition[] = [
-  {
-    key: "brand",
-    label: "Brand",
-    type: "text",
-    group: "specs",
-    storeIn: "attributes",
-    required: true,
-  },
-  {
-    key: "gearCategory",
-    label: "Category",
-    type: "text",
-    group: "gear",
-    storeIn: "attributes",
-    placeholder: "e.g. gloves, racket, shoes",
-  },
   {
     key: "material",
     label: "Material",
@@ -323,6 +270,7 @@ export function partitionFieldValues(
     const v = values[field.key];
     if (v === undefined || v === null || v === "") continue;
     const bucket = field.storeIn ?? "attributes";
+    if (bucket === "performance" && typeof v === "number" && v <= 0) continue;
     if (bucket === "performance") performance[field.key] = v;
     else if (bucket === "specs") specs[field.key] = v;
     else attributes[field.key] = v;

@@ -14,6 +14,7 @@ import {
   toTotalPages,
 } from "@/lib/pagination/constants";
 import type { PlayerRegistrationItem } from "@/lib/tournaments/payments/player-history";
+import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 const REG_FILTERS = ["all", "upcoming", "live", "completed"] as const;
@@ -53,20 +54,14 @@ function RegistrationCard({ item }: { item: PlayerRegistrationItem }) {
   return (
     <li className="flex min-w-0 flex-col rounded-2xl border border-cp-border bg-cp-card/70 p-4 transition-colors hover:border-cp-primary/30 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge
-          className={
-            isOfficial
-              ? "border-0 bg-cp-primary/20 text-cp-primary"
-              : "border-0 bg-emerald-500/20 text-emerald-300"
-          }
-        >
+        <Badge className={cn("border-0", getTournamentTypeBadgeClass(isOfficial ? "official" : "recreational"))}>
           {isOfficial ? "Official" : "Reclub"}
         </Badge>
         <Badge variant="muted" className="capitalize">
           {item.status.replace(/_/g, " ")}
         </Badge>
         {needsPayment ? (
-          <Badge className="border-0 bg-amber-500/20 text-amber-300">Payment due</Badge>
+          <Badge variant="warning" className="border-0">Payment due</Badge>
         ) : null}
       </div>
 

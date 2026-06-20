@@ -20,7 +20,13 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePublicTournamentsList } from "@/hooks/use-public-tournaments";
 import { publicSportRoutes } from "@/lib/constants/routes";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
 import type { PublicTournamentsListQuery } from "@/lib/validations/tournaments";
+import { cn } from "@/lib/utils";
 
 type PublicTournamentsDirectoryProps = {
   sportSlug: string;
@@ -71,76 +77,102 @@ export function PublicTournamentsDirectory({
         Official paid events and free reclub sessions for {sportName}.
       </p>
 
-      <div className="mt-8 rounded-2xl border border-cp-border bg-cp-card">
-        <div className="flex flex-col gap-3 border-b border-cp-border p-4 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search tournament, venue, category…"
-              className="h-10 border-cp-border bg-cp-elevated/50 pl-9"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Select
-              value={bucket}
-              onValueChange={(v) => {
-                setBucket(v as PublicTournamentsListQuery["bucket"]);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 border-cp-border bg-cp-elevated/50">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="live">Live</SelectItem>
-                <SelectItem value="upcoming">Upcoming</SelectItem>
-                <SelectItem value="past">Past</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={type}
-              onValueChange={(v) => {
-                setType(v as PublicTournamentsListQuery["type"]);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 border-cp-border bg-cp-elevated/50">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="official">Official</SelectItem>
-                <SelectItem value="recreational">Reclub</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={`${sortBy}-${sortDir}`}
-              onValueChange={(v) => {
-                const [sb, sd] = v.split("-") as [
-                  PublicTournamentsListQuery["sortBy"],
-                  PublicTournamentsListQuery["sortDir"],
-                ];
-                setSortBy(sb);
-                setSortDir(sd);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="col-span-2 h-10 border-cp-border bg-cp-elevated/50 sm:col-span-1">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="startsAt-desc">Date (newest)</SelectItem>
-                <SelectItem value="startsAt-asc">Date (oldest)</SelectItem>
-                <SelectItem value="name-asc">Name (A–Z)</SelectItem>
-                <SelectItem value="updated-desc">Recently updated</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="mt-8 overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+        <div className="border-b border-cp-border p-3 sm:p-4 lg:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search tournament, venue, category…"
+                className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9 text-foreground sm:h-11"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:shrink-0 lg:grid-cols-3">
+              <Select
+                value={bucket}
+                onValueChange={(v) => {
+                  setBucket(v as PublicTournamentsListQuery["bucket"]);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All statuses
+                  </SelectItem>
+                  <SelectItem value="live" className={cpSelectItemClass}>
+                    Live
+                  </SelectItem>
+                  <SelectItem value="upcoming" className={cpSelectItemClass}>
+                    Upcoming
+                  </SelectItem>
+                  <SelectItem value="past" className={cpSelectItemClass}>
+                    Past
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={type}
+                onValueChange={(v) => {
+                  setType(v as PublicTournamentsListQuery["type"]);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All types
+                  </SelectItem>
+                  <SelectItem value="official" className={cpSelectItemClass}>
+                    Official
+                  </SelectItem>
+                  <SelectItem value="recreational" className={cpSelectItemClass}>
+                    Reclub
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={`${sortBy}-${sortDir}`}
+                onValueChange={(v) => {
+                  const [sb, sd] = v.split("-") as [
+                    PublicTournamentsListQuery["sortBy"],
+                    PublicTournamentsListQuery["sortDir"],
+                  ];
+                  setSortBy(sb);
+                  setSortDir(sd);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger
+                  className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11 sm:col-span-2 lg:col-span-1")}
+                >
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="startsAt-desc" className={cpSelectItemClass}>
+                    Date (newest)
+                  </SelectItem>
+                  <SelectItem value="startsAt-asc" className={cpSelectItemClass}>
+                    Date (oldest)
+                  </SelectItem>
+                  <SelectItem value="name-asc" className={cpSelectItemClass}>
+                    Name (A–Z)
+                  </SelectItem>
+                  <SelectItem value="updated-desc" className={cpSelectItemClass}>
+                    Recently updated
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 

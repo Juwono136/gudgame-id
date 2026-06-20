@@ -49,8 +49,9 @@ import {
   useCreatePlayerReclubTournament,
   useUpdateHostTournament,
 } from "@/hooks/use-host-tournaments";
+import { useCreateTournament, useUpdateAdminTournament } from "@/hooks/use-tournaments";
 import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
-import { dashboardRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, adminRoutes } from "@/lib/constants/routes";
 import { tournamentAfterCreateUrl, tournamentAfterSaveUrl } from "@/lib/tournaments/edit-routes";
 import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -73,9 +74,10 @@ export type ReclubTournamentWizardProps = {
   /** Edit mode — existing tournament */
   initial?: TournamentDetail;
   tournamentId?: string;
-  workspace?: "host" | "player";
+  workspace?: "host" | "player" | "admin";
   backHref?: string;
   backLabel?: string;
+  onBack?: () => void;
 };
 
 function buildInitialCover(initial?: TournamentDetail): TournamentCoverValue {
@@ -117,14 +119,24 @@ export function ReclubTournamentWizard({
   workspace = "player",
   backHref,
   backLabel,
+  onBack,
 }: ReclubTournamentWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
   const router = useRouter();
   const { confirm } = useConfirmDialog();
-  const createMutation = useCreatePlayerReclubTournament();
+  const playerReclubCreate = useCreatePlayerReclubTournament();
+  const adminReclubCreate = useCreateTournament();
   const hostUpdate = useUpdateHostTournament(tournamentId ?? "");
   const playerUpdate = useUpdateManageTournament(tournamentId ?? "");
-  const updateMutation = workspace === "host" ? hostUpdate : playerUpdate;
+  const adminUpdate = useUpdateAdminTournament(tournamentId ?? "");
+  const createMutation =
+    workspace === "admin" ? adminReclubCreate : playerReclubCreate;
+  const updateMutation =
+    workspace === "admin"
+      ? adminUpdate
+      : workspace === "host"
+        ? hostUpdate
+        : playerUpdate;
   const isPending = isEdit ? updateMutation.isPending : createMutation.isPending;
 
   const hydrated = initial ? hydrateFromInitial(initial) : null;
@@ -183,8 +195,18 @@ export function ReclubTournamentWizard({
 
   const resolvedBackHref =
     backHref ??
-    (workspace === "host" ? dashboardRoutes.hostTournaments : dashboardRoutes.tournaments);
-  const resolvedBackLabel = backLabel ?? (workspace === "host" ? "My tournaments" : "Tournament history");
+    (workspace === "admin"
+      ? adminRoutes.wikiEntities
+      : workspace === "host"
+        ? dashboardRoutes.hostTournaments
+        : dashboardRoutes.tournaments);
+  const resolvedBackLabel =
+    backLabel ??
+    (workspace === "admin"
+      ? "Wiki database"
+      : workspace === "host"
+        ? "My tournaments"
+        : "Tournament history");
 
   const goNext = () => {
     const err = validateReclubWizardStep(step, formState);
@@ -273,6 +295,10 @@ export function ReclubTournamentWizard({
       if (isEdit && tournamentId) {
         updateMutation.mutate(payload, {
           onSuccess: () => {
+            if (workspace === "admin") {
+              router.push(adminRoutes.wikiEntities);
+              return;
+            }
             if (isEdit && tournamentId) {
               router.push(tournamentAfterCreateUrl(workspace, { id: tournamentId, sportSlug, slug }));
             } else {
@@ -280,8 +306,14 @@ export function ReclubTournamentWizard({
             }
           },
         });
+      } else if (workspace === "admin") {
+        adminReclubCreate.mutate(payload, {
+          onSuccess: () => {
+            router.push(adminRoutes.wikiEntities);
+          },
+        });
       } else {
-        createMutation.mutate(
+        playerReclubCreate.mutate(
           { sportSlug, ...payload },
           {
             onSuccess: (tournament) => {
@@ -302,13 +334,24 @@ export function ReclubTournamentWizard({
         label={isEdit ? "Saving changes…" : "Creating session…"}
       />
 
-      <Link
-        href={resolvedBackHref}
-        className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        {resolvedBackLabel}
-      </Link>
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          {resolvedBackLabel}
+        </button>
+      ) : (
+        <Link
+          href={resolvedBackHref}
+          className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          {resolvedBackLabel}
+        </Link>
+      )}
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-emerald-500/20 bg-linear-to-br from-emerald-950/30 via-cp-card to-cp-bg p-6 sm:p-8">
         <div className="flex items-start gap-4">
@@ -349,8 +392,8 @@ export function ReclubTournamentWizard({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Sport</Label>
-                  {isEdit ? (
-                    <p className="mt-1.5 rounded-lg border border-cp-border bg-cp-elevated/30 px-3 py-2.5 text-sm text-foreground">
+                  {isEdit || workspace === "admin" ? (
+                    <p className="mt-1.5 rounded-lg border border-cp-border bg-cp-elevated/30 px-3 py-2.5 text-sm capitalize text-foreground">
                       {sportName}
                     </p>
                   ) : (
@@ -458,9 +501,14 @@ export function ReclubTournamentWizard({
                   />
                 </div>
               </div>
-              <DateTimePicker label="Starts at" value={startsAt} onChange={setStartsAt} />
+              <DateTimePicker label="Starts at *" value={startsAt} onChange={setStartsAt} />
+              <p className="text-xs text-cp-muted">
+                Session status becomes <span className="text-foreground">live</span> at start time
+                and <span className="text-foreground">ended</span> after the end time — players
+                cannot join or play once the session has ended.
+              </p>
               <DateTimePicker
-                label="Ends at (optional)"
+                label="Ends at *"
                 value={endsAt}
                 onChange={setEndsAt}
                 min={startsAt}

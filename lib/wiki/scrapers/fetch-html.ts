@@ -6,8 +6,11 @@ import { assertScrapeUrlAllowed } from "@/lib/wiki/scrapers/security";
 export const SCRAPE_FETCH_TIMEOUT_MS = 15_000;
 export const SCRAPE_MAX_HTML_BYTES = 2_000_000;
 
-export async function fetchHtmlForScrape(url: string): Promise<{ html: string; finalUrl: URL }> {
-  const parsed = assertScrapeUrlAllowed(url);
+export async function fetchHtmlForScrape(
+  url: string,
+  options?: { sportId?: string | null },
+): Promise<{ html: string; finalUrl: URL }> {
+  const parsed = await assertScrapeUrlAllowed(url, options);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SCRAPE_FETCH_TIMEOUT_MS);
 
@@ -38,6 +41,7 @@ export async function fetchHtmlForScrape(url: string): Promise<{ html: string; f
 
     const html = new TextDecoder("utf-8").decode(buf);
     const finalUrl = new URL(res.url || parsed.toString());
+    await assertScrapeUrlAllowed(finalUrl.toString(), options);
     return { html, finalUrl };
   } catch (err) {
     if (err instanceof AppError) throw err;

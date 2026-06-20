@@ -35,8 +35,11 @@ import { DynamicFieldGrid } from "@/components/admin/wiki/dynamic-field-grid";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
 import { GearCatalogImport } from "@/components/admin/wiki/gear-catalog-import";
 import { PlayerProfileStep } from "@/components/admin/wiki/steps/player-profile-step";
+import { PlayerWizardReview } from "@/components/admin/wiki/steps/player-wizard-review";
 import { TeamProfileStep } from "@/components/admin/wiki/steps/team-profile-step";
 import { GearProductStep } from "@/components/admin/wiki/steps/gear-product-step";
+import { GearSpecsStep } from "@/components/admin/wiki/steps/gear-specs-step";
+import { GearWizardReview } from "@/components/admin/wiki/steps/gear-wizard-review";
 import { MediaStatusPanel } from "@/components/admin/wiki/steps/media-status-panel";
 import {
   GalleryUploadField,
@@ -60,6 +63,16 @@ import {
   type PlayerSocialLink,
 } from "@/lib/wiki/player-profile-fields";
 import { PLAYER_GALLERY_MAX } from "@/lib/wiki/constants";
+import { validatePlayerWizardFields } from "@/lib/wiki/validate-player-wizard";
+import { validateGearProductStep } from "@/lib/wiki/validate-gear-wizard";
+import { gearProductToAttributes } from "@/lib/wiki/gear/mapper";
+import {
+  defaultGearProductValues,
+  type GearProductValues,
+} from "@/lib/wiki/gear-form";
+import { formatIdrInput } from "@/lib/format/currency";
+import { getGearSpecsFields } from "@/lib/wiki/gear/spec-fields";
+import { normalizeGearCategory } from "@/lib/wiki/gear/validation";
 
 type WikiEntityWizardProps = {
   sportSlug: string;
@@ -147,37 +160,49 @@ export function WikiEntityWizard({
     String(initial?.attributes?.teamFormat ?? ""),
   );
 
-  const [gearProduct, setGearProduct] = useState(() =>
-    initial?.entityType === "gear"
-      ? {
-          displayName: initial.displayName,
-          slug: initial.slug,
-          summary: initial.summary ?? "",
-          brand: String(initial.attributes.brand ?? ""),
-          model: String(initial.attributes.model ?? ""),
-          gearCategory: String(initial.attributes.gearCategory ?? ""),
-          price: String(initial.attributes.price ?? ""),
-        }
-      : {
-          displayName: "",
-          slug: "",
-          summary: "",
-          brand: "",
-          model: "",
-          gearCategory: "racket",
-          price: "",
-        },
-  );
+  const [gearProduct, setGearProduct] = useState<GearProductValues>(() => {
+    if (initial?.entityType === "gear") {
+      const attrs = initial.attributes ?? {};
+      const rawPrice = attrs.priceIdr ?? attrs.price;
+      let priceIdr = "";
+      if (typeof rawPrice === "number" && Number.isFinite(rawPrice)) {
+        priceIdr = formatIdrInput(rawPrice);
+      } else if (typeof rawPrice === "string" && rawPrice.trim()) {
+        const digits = rawPrice.replace(/[^\d]/g, "");
+        if (digits) priceIdr = formatIdrInput(Number(digits));
+      }
+      return {
+        displayName: initial.displayName,
+        slug: initial.slug,
+        summary: initial.summary ?? "",
+        brand: String(attrs.brand ?? ""),
+        model: String(attrs.model ?? ""),
+        gearCategory: String(attrs.gearCategory ?? "racket"),
+        priceIdr,
+      };
+    }
+    return defaultGearProductValues();
+  });
 
-  const [fieldValues, setFieldValues] = useState<Record<string, unknown>>(() =>
-    initial
-      ? mergeFieldValues(getWikiFieldDefinitions(sportSlug, initial.entityType as WikiEntityType), {
-          attributes: initial.attributes,
-          performance: initial.performance,
-          specs: initial.specs,
-        })
-      : {},
-  );
+  const [fieldValues, setFieldValues] = useState<Record<string, unknown>>(() => {
+    if (!initial) return {};
+    if (initial.entityType === "gear") {
+      const category = normalizeGearCategory(String(initial.attributes?.gearCategory ?? "racket"));
+      return mergeFieldValues(getGearSpecsFields(sportSlug, category), {
+        attributes: initial.attributes,
+        performance: initial.performance,
+        specs: initial.specs,
+      });
+    }
+    return mergeFieldValues(
+      getWikiFieldDefinitions(sportSlug, initial.entityType as WikiEntityType),
+      {
+        attributes: initial.attributes,
+        performance: initial.performance,
+        specs: initial.specs,
+      },
+    );
+  });
 
   const [status, setStatus] = useState<WikiEntityUpsertInput["status"]>(
     initial?.status ?? "draft",
@@ -191,6 +216,8 @@ export function WikiEntityWizard({
   const [primaryPreview, setPrimaryPreview] = useState(initial?.primaryImageUrl ?? "");
   const [heroFile, setHeroFile] = useState<File | null>(null);
   const [primaryFile, setPrimaryFile] = useState<File | null>(null);
+  const [primaryRemoved, setPrimaryRemoved] = useState(false);
+  const [heroRemoved, setHeroRemoved] = useState(false);
   const [gallerySlots, setGallerySlots] = useState<GallerySlot[]>(() =>
     (initial?.gallery ?? []).map((g) => ({
       id: `existing-${g.id}`,
@@ -221,6 +248,8 @@ export function WikiEntityWizard({
       setGearProduct(scrapePreviewToGearProduct(preview));
       setFieldValues(scrapePreviewToFieldValues(sportSlug, preview));
       setPrimaryPreview(preview.primaryImageUrl ?? "");
+      setPrimaryFile(null);
+      setPrimaryRemoved(false);
       setSourceUrl(preview.sourceUrl);
       setSourceType("scraped");
       setGearMode("manual");
@@ -230,9 +259,48 @@ export function WikiEntityWizard({
     [sportSlug],
   );
 
+  const handlePrimaryFile = useCallback(
+    (f: File) => {
+      setPrimaryFile(f);
+      if (primaryPreview.startsWith("blob:")) URL.revokeObjectURL(primaryPreview);
+      setPrimaryPreview(URL.createObjectURL(f));
+      setPrimaryRemoved(false);
+    },
+    [primaryPreview],
+  );
+
+  const handlePrimaryRemove = useCallback(() => {
+    if (primaryPreview.startsWith("blob:")) URL.revokeObjectURL(primaryPreview);
+    setPrimaryPreview("");
+    setPrimaryFile(null);
+    setPrimaryRemoved(true);
+  }, [primaryPreview]);
+
+  const handleHeroFile = useCallback(
+    (f: File) => {
+      setHeroFile(f);
+      if (heroPreview.startsWith("blob:")) URL.revokeObjectURL(heroPreview);
+      setHeroPreview(URL.createObjectURL(f));
+      setHeroRemoved(false);
+    },
+    [heroPreview],
+  );
+
+  const handleHeroRemove = useCallback(() => {
+    if (heroPreview.startsWith("blob:")) URL.revokeObjectURL(heroPreview);
+    setHeroPreview("");
+    setHeroFile(null);
+    setHeroRemoved(true);
+  }, [heroPreview]);
+
   const buildPayload = (): WikiEntityUpsertInput => {
     if (entityType === "gear") {
-      const extra = partitionFieldValues(fieldDefs, fieldValues);
+      const gearFields = getGearSpecsFields(
+        sportSlug,
+        normalizeGearCategory(gearProduct.gearCategory),
+      );
+      const extra = partitionFieldValues(gearFields, fieldValues);
+      const productAttrs = gearProductToAttributes(gearProduct);
       return {
         entityType: "gear",
         displayName: gearProduct.displayName.trim(),
@@ -242,10 +310,7 @@ export function WikiEntityWizard({
         status,
         attributes: {
           ...extra.attributes,
-          brand: gearProduct.brand,
-          model: gearProduct.model,
-          gearCategory: gearProduct.gearCategory,
-          price: gearProduct.price,
+          ...productAttrs,
         },
         performance: extra.performance,
         specs: extra.specs,
@@ -260,8 +325,8 @@ export function WikiEntityWizard({
         gallery: gallerySlots
           .filter((s) => s.existingUrl && !s.file)
           .map((s, i) => ({ url: s.existingUrl, sortOrder: i })),
-        heroImageUrl: heroPreview || undefined,
-        primaryImageUrl: primaryPreview || undefined,
+        heroImageUrl: heroRemoved ? undefined : heroPreview || undefined,
+        primaryImageUrl: primaryRemoved ? undefined : primaryPreview || undefined,
       };
     }
 
@@ -305,20 +370,38 @@ export function WikiEntityWizard({
       gallery: gallerySlots
         .filter((s) => s.existingUrl && !s.file)
         .map((s, i) => ({ url: s.existingUrl, sortOrder: i })),
-      heroImageUrl: heroPreview || undefined,
-      primaryImageUrl: primaryPreview || undefined,
+      heroImageUrl: heroRemoved ? undefined : heroPreview || undefined,
+      primaryImageUrl: primaryRemoved ? undefined : primaryPreview || undefined,
     };
   };
+
+  const profileStepIndex = visibleStepIds.indexOf("profile");
+
+  const productStepIndex = visibleStepIds.indexOf("product");
+  const specsStepIndex = visibleStepIds.indexOf("specs");
 
   const validateStep = (): boolean => {
     setFieldErrors({});
     if (currentStepId === "profile" || currentStepId === "product") {
       if (entityType === "gear") {
-        const errs: Record<string, string> = {};
-        if (!gearProduct.displayName.trim()) errs.displayName = "Product name is required";
-        if (!gearProduct.brand.trim()) errs.brand = "Brand is required";
+        const message = validateGearProductStep(gearProduct);
+        if (message) {
+          toast.error(message);
+          return false;
+        }
+      } else if (entityType === "player") {
+        const errs = validatePlayerWizardFields({
+          displayName,
+          nickname,
+          slug,
+          summary,
+          biography,
+          nationality: playerNationality,
+          age: playerAge,
+        });
         if (Object.keys(errs).length) {
-          toast.error("Please complete required product fields");
+          setFieldErrors(errs);
+          toast.error("Please fix the highlighted fields");
           return false;
         }
       } else {
@@ -346,6 +429,24 @@ export function WikiEntityWizard({
   };
 
   const save = async (publish?: boolean) => {
+    if (entityType === "player") {
+      const errs = validatePlayerWizardFields({
+        displayName,
+        nickname,
+        slug,
+        summary,
+        biography,
+        nationality: playerNationality,
+        age: playerAge,
+      });
+      if (Object.keys(errs).length) {
+        setFieldErrors(errs);
+        toast.error("Please fix the highlighted fields before saving");
+        if (profileStepIndex >= 0) setStepIndex(profileStepIndex);
+        return;
+      }
+    }
+
     const payload = buildPayload();
     if (publish) payload.status = "published";
 
@@ -364,6 +465,8 @@ export function WikiEntityWizard({
       primaryImage: primaryFile,
       gallerySlots,
       equipmentFiles: entityType === "player" ? playerEquipmentFiles : undefined,
+      clearPrimaryImage: mode === "edit" && primaryRemoved && !primaryFile,
+      clearHeroImage: mode === "edit" && heroRemoved && !heroFile,
     };
     if (mode === "create") {
       createMutation.mutate({ data: payload, files });
@@ -377,13 +480,19 @@ export function WikiEntityWizard({
   const performanceFields = fieldDefs.filter((f) =>
     ["performance", "biodata", "attributes"].includes(f.group),
   );
-  const specsFields = fieldDefs.filter((f) =>
-    ["specs", "performance", "gear"].includes(f.group),
-  );
 
   return (
     <div className="mx-auto max-w-6xl">
-      <WikiStepper steps={visibleSteps} currentIndex={stepIndex} />
+      <div className="mb-5 rounded-xl border border-cp-border bg-cp-card/50 p-3 sm:mb-6 sm:p-4">
+        <WikiStepper
+          steps={visibleSteps}
+          currentIndex={stepIndex}
+          layout="segmented"
+          onStepClick={(i) => {
+            if (i < stepIndex) setStepIndex(i);
+          }}
+        />
+      </div>
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -445,10 +554,13 @@ export function WikiEntityWizard({
           ) : null}
 
           {currentStepId === "profile" && entityType === "player" ? (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <h2 className="mb-4 text-lg font-semibold text-foreground">Player profile</h2>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+              <section className="rounded-xl border border-cp-border bg-cp-card p-4 sm:p-5 lg:col-span-2 lg:p-6">
+                <h2 className="mb-4 text-base font-semibold text-foreground sm:text-lg">
+                  Player profile
+                </h2>
                 <PlayerProfileStep
+                  sportSlug={sportSlug}
                   values={{
                     displayName,
                     nickname,
@@ -499,7 +611,7 @@ export function WikiEntityWizard({
                     if (p.signatureGearId !== undefined) setSignatureGearId(p.signatureGearId);
                   }}
                 />
-                <div className="mt-6">
+                <div className="mt-6 border-t border-cp-border pt-6">
                   <GalleryUploadField
                     slots={gallerySlots}
                     onChange={setGallerySlots}
@@ -508,25 +620,29 @@ export function WikiEntityWizard({
                     maxImages={PLAYER_GALLERY_MAX}
                   />
                 </div>
-              </div>
-              <MediaStatusPanel
+              </section>
+              <div className="lg:sticky lg:top-4 lg:self-start">
+                <MediaStatusPanel
                 status={status}
                 onStatusChange={setStatus}
                 primaryPreview={primaryPreview}
                 heroPreview={heroPreview}
-                onPrimaryFile={(f) => {
-                  setPrimaryFile(f);
-                  setPrimaryPreview(URL.createObjectURL(f));
+                onPrimaryFile={handlePrimaryFile}
+                onPrimaryUrl={(url) => {
+                  setPrimaryPreview(url);
+                  setPrimaryRemoved(false);
                 }}
-                onPrimaryUrl={setPrimaryPreview}
-                onHeroFile={(f) => {
-                  setHeroFile(f);
-                  setHeroPreview(URL.createObjectURL(f));
+                onPrimaryRemove={handlePrimaryRemove}
+                onHeroFile={handleHeroFile}
+                onHeroUrl={(url) => {
+                  setHeroPreview(url);
+                  setHeroRemoved(false);
                 }}
-                onHeroUrl={setHeroPreview}
+                onHeroRemove={handleHeroRemove}
                 primaryLabel="Profile photo"
                 showHero={false}
               />
+              </div>
             </div>
           ) : null}
 
@@ -567,16 +683,18 @@ export function WikiEntityWizard({
                 onStatusChange={setStatus}
                 primaryPreview={primaryPreview}
                 heroPreview={heroPreview}
-                onPrimaryFile={(f) => {
-                  setPrimaryFile(f);
-                  setPrimaryPreview(URL.createObjectURL(f));
+                onPrimaryFile={handlePrimaryFile}
+                onPrimaryUrl={(url) => {
+                  setPrimaryPreview(url);
+                  setPrimaryRemoved(false);
                 }}
-                onPrimaryUrl={setPrimaryPreview}
-                onHeroFile={(f) => {
-                  setHeroFile(f);
-                  setHeroPreview(URL.createObjectURL(f));
+                onPrimaryRemove={handlePrimaryRemove}
+                onHeroFile={handleHeroFile}
+                onHeroUrl={(url) => {
+                  setHeroPreview(url);
+                  setHeroRemoved(false);
                 }}
-                onHeroUrl={setHeroPreview}
+                onHeroRemove={handleHeroRemove}
                 primaryLabel="Team logo / photo"
                 heroLabel="Hero banner"
               />
@@ -598,16 +716,18 @@ export function WikiEntityWizard({
                 onStatusChange={setStatus}
                 primaryPreview={primaryPreview}
                 heroPreview={heroPreview}
-                onPrimaryFile={(f) => {
-                  setPrimaryFile(f);
-                  setPrimaryPreview(URL.createObjectURL(f));
+                onPrimaryFile={handlePrimaryFile}
+                onPrimaryUrl={(url) => {
+                  setPrimaryPreview(url);
+                  setPrimaryRemoved(false);
                 }}
-                onPrimaryUrl={setPrimaryPreview}
-                onHeroFile={(f) => {
-                  setHeroFile(f);
-                  setHeroPreview(URL.createObjectURL(f));
+                onPrimaryRemove={handlePrimaryRemove}
+                onHeroFile={handleHeroFile}
+                onHeroUrl={(url) => {
+                  setHeroPreview(url);
+                  setHeroRemoved(false);
                 }}
-                onHeroUrl={setHeroPreview}
+                onHeroRemove={handleHeroRemove}
                 primaryLabel="Product image"
                 showHero={false}
               />
@@ -633,21 +753,14 @@ export function WikiEntityWizard({
           ) : null}
 
           {currentStepId === "specs" && entityType === "gear" ? (
-            <section className="rounded-xl border border-cp-border bg-cp-card p-5">
-              <h2 className="text-lg font-semibold text-foreground">Technical specs & ratings</h2>
-              <p className="mt-1 text-sm text-cp-muted">
-                Shape, weight, balance, and performance bars (power / control).
-              </p>
-              <div className="mt-6">
-                <DynamicFieldGrid
-                  fields={specsFields}
-                  values={fieldValues}
-                  onChange={(key, v) =>
-                    setFieldValues((prev) => ({ ...prev, [key]: v }))
-                  }
-                />
-              </div>
-            </section>
+            <GearSpecsStep
+              sportSlug={sportSlug}
+              gearCategory={gearProduct.gearCategory}
+              values={fieldValues}
+              onChange={(key, v) =>
+                setFieldValues((prev) => ({ ...prev, [key]: v }))
+              }
+            />
           ) : null}
 
           {currentStepId === "roster" && entityType === "team" ? (
@@ -665,28 +778,56 @@ export function WikiEntityWizard({
           ) : null}
 
           {currentStepId === "review" ? (
-            <section className="rounded-xl border border-cp-primary/30 bg-cp-primary/5 p-6">
-              <h2 className="text-lg font-semibold text-foreground">Review & save</h2>
-              <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                <Row label="Type" value={entityType} />
-                <Row
-                  label="Name"
-                  value={
-                    entityType === "gear" ? gearProduct.displayName : displayName
-                  }
-                />
-                <Row
-                  label="Slug"
-                  value={
-                    entityType === "gear"
-                      ? gearProduct.slug || slugifyWikiName(gearProduct.displayName)
-                      : slug || slugifyWikiName(displayName)
-                  }
-                />
-                <Row label="Status" value={status} />
-                <Row label="Source" value={sourceType} />
-              </dl>
-            </section>
+            entityType === "player" ? (
+              <PlayerWizardReview
+                sportSlug={sportSlug}
+                displayName={displayName}
+                nickname={nickname}
+                slug={slug}
+                nationality={playerNationality}
+                age={playerAge}
+                summary={summary}
+                biography={biography}
+                status={status}
+                sourceType={sourceType}
+                socialLinks={playerSocialLinks}
+                equipment={playerEquipment}
+                equipmentPreviews={playerEquipmentPreviews}
+                signatureGearId={signatureGearId}
+                primaryPreview={primaryPreview}
+                gallerySlots={gallerySlots}
+                mode={mode}
+                onEditProfile={
+                  profileStepIndex >= 0 ? () => setStepIndex(profileStepIndex) : undefined
+                }
+              />
+            ) : entityType === "gear" ? (
+              <GearWizardReview
+                sportSlug={sportSlug}
+                product={gearProduct}
+                fieldValues={fieldValues}
+                status={status}
+                sourceType={sourceType}
+                primaryPreview={primaryPreview}
+                onEditProduct={
+                  productStepIndex >= 0 ? () => setStepIndex(productStepIndex) : undefined
+                }
+                onEditSpecs={
+                  specsStepIndex >= 0 ? () => setStepIndex(specsStepIndex) : undefined
+                }
+              />
+            ) : (
+              <section className="rounded-xl border border-cp-primary/30 bg-cp-primary/5 p-4 sm:p-6">
+                <h2 className="text-lg font-semibold text-foreground">Review & save</h2>
+                <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <Row label="Type" value={entityType} />
+                  <Row label="Name" value={displayName} />
+                  <Row label="Slug" value={slug || slugifyWikiName(displayName)} />
+                  <Row label="Status" value={status} />
+                  <Row label="Source" value={sourceType} />
+                </dl>
+              </section>
+            )
           ) : null}
         </motion.div>
       </AnimatePresence>

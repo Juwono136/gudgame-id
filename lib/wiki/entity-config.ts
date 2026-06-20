@@ -22,9 +22,9 @@ export type EntityWizardConfig = {
 const PLAYER_CONFIG: EntityWizardConfig = {
   entityType: "player",
   steps: [
-    { id: "classification", label: "Classification" },
-    { id: "profile", label: "Player profile" },
-    { id: "review", label: "Review" },
+    { id: "classification", label: "Classification", shortLabel: "Type" },
+    { id: "profile", label: "Player profile", shortLabel: "Profile" },
+    { id: "review", label: "Review & publish", shortLabel: "Review" },
   ],
   stepIds: ["classification", "profile", "review"],
 };
@@ -47,7 +47,7 @@ const GEAR_CONFIG: EntityWizardConfig = {
     { id: "classification", label: "Classification" },
     { id: "source", label: "Data source" },
     { id: "product", label: "Product" },
-    { id: "specs", label: "Specs & ratings" },
+    { id: "specs", label: "Technical details", shortLabel: "Details" },
     { id: "review", label: "Review" },
   ],
   stepIds: ["classification", "source", "product", "specs", "review"],

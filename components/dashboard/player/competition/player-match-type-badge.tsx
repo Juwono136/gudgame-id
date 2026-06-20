@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type PlayerMatchTypeBadgeProps = {
@@ -14,7 +15,7 @@ export function PlayerMatchTypeBadge({ tournamentType, className }: PlayerMatchT
     <Badge
       className={cn(
         "w-fit shrink-0 border-0 text-[10px] font-semibold uppercase tracking-wide",
-        isOfficial ? "bg-cp-primary/15 text-cp-primary" : "bg-emerald-500/15 text-emerald-300",
+        getTournamentTypeBadgeClass(isOfficial ? "official" : "recreational"),
         className,
       )}
     >

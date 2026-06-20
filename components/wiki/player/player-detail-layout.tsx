@@ -79,7 +79,7 @@ export function PlayerDetailLayout({ entity, sportName }: PlayerDetailLayoutProp
         badges={badges}
       />
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:mt-10 lg:grid-cols-3 lg:gap-8">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:mt-8 lg:grid-cols-3 lg:gap-8">
         <div className="order-2 space-y-6 lg:order-1 lg:col-span-2">
           <PlayerCareerStatsSection stats={playerCareer} />
 
@@ -93,8 +93,9 @@ export function PlayerDetailLayout({ entity, sportName }: PlayerDetailLayoutProp
           <PlayerTournamentHistorySection />
         </div>
 
-        <div className="order-1 lg:order-2">
+        <div className="order-1 lg:sticky lg:top-6 lg:order-2 lg:self-start">
           <PlayerSidebar
+            sportSlug={entity.sportSlug}
             displayName={entity.displayName}
             nationality={playerEditable.nationality}
             age={playerEditable.age}

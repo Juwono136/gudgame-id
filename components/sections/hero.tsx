@@ -36,10 +36,10 @@ export default function Hero() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
             <div className="max-w-xl text-center lg:text-left">
               <FadeIn mountKey={`hero-badge-${pathname}`} delay={0}>
-                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--cp-badge-border)] bg-[#1C352A]/80 px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-[var(--cp-badge-green)] backdrop-blur-sm sm:px-4 sm:text-[11px]">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-widest backdrop-blur-sm sm:px-4 sm:text-[11px] border-emerald-600/30 bg-emerald-500/12 text-emerald-800 dark:border-[var(--cp-badge-border)] dark:bg-[#1C352A]/80 dark:text-[var(--cp-badge-green)]">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--cp-badge-green)] opacity-60" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--cp-badge-green)]" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-600 opacity-60 dark:bg-[var(--cp-badge-green)]" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-[var(--cp-badge-green)]" />
                   </span>
                   The Official Community Hub
                 </div>

@@ -10,6 +10,7 @@ import {
 } from "@/components/tournaments/tournament-detail-ui";
 import { formatStatDuration } from "@/lib/tournaments/stats/compute";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type TournamentSessionStatsPanelProps = {
@@ -108,8 +109,8 @@ function TeamStandingsTable({
   const winColor = variant === "reclub" ? "text-emerald-400" : "text-cp-primary";
   const badgeClass =
     variant === "reclub"
-      ? "border-0 bg-emerald-500/15 text-emerald-300"
-      : "border-0 bg-cp-primary/15 text-cp-primary";
+      ? cn("border-0", statusBadgeClass.reclub)
+      : cn("border-0", statusBadgeClass.accent);
 
   return (
     <div className="space-y-3">
@@ -310,8 +311,8 @@ export function TournamentSessionStatsPanel({
   const iconClass = variant === "reclub" ? "text-emerald-400" : "text-cp-primary";
   const leaderBadgeClass =
     variant === "reclub"
-      ? "border-0 bg-emerald-500/15 text-emerald-300"
-      : "border-0 bg-cp-primary/15 text-cp-primary";
+      ? cn("border-0", statusBadgeClass.reclub)
+      : cn("border-0", statusBadgeClass.accent);
 
   return (
     <div className="space-y-6">

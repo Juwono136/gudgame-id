@@ -10,6 +10,7 @@ import {
 } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
+import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 function nextPowerOfTwo(n: number): number {
@@ -21,6 +22,10 @@ function nextPowerOfTwo(n: number): number {
 export async function generateTournamentBracket(
   tournament: TournamentDetail,
 ): Promise<{ matchCount: number }> {
+  if (tournament.tournamentType === "recreational") {
+    assertReclubSessionPlayable(tournament);
+  }
+
   const db = getDb();
 
   const existing = await db

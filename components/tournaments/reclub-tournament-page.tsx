@@ -31,6 +31,7 @@ import { mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
 import { ReclubBracketPanel } from "@/components/tournaments/reclub-bracket-panel";
 import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
 import { ReclubLobbyDnd } from "@/components/tournaments/reclub-lobby-dnd";
+import { ReclubSessionStatusBanner } from "@/components/tournaments/reclub/reclub-session-status-banner";
 import { ReclubRulesPanel } from "@/components/tournaments/reclub-rules-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
 import { TournamentOrganizer } from "@/components/tournaments/tournament-organizer";
@@ -44,6 +45,11 @@ import {
 } from "@/components/tournaments/tournament-detail-ui";
 import { VenueMapsPreview } from "@/components/tournaments/venue-maps-preview";
 import { Badge } from "@/components/ui/badge";
+import {
+  getTournamentStatusBadgeClass,
+  getTournamentTypeBadgeClass,
+  tournamentHeroStatusBadgeBase,
+} from "@/lib/styles/status-badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,9 +67,14 @@ import {
   useUpdateReclubLiveScore,
 } from "@/hooks/use-tournament-lobby";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
+import { useReclubSessionPhase } from "@/hooks/use-reclub-session-phase";
 import { authRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
 import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
+import {
+  getReclubSessionEndedMessage,
+  getReclubSessionNotLiveMessage,
+} from "@/lib/tournaments/reclub/session-lifecycle";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 import {
@@ -192,10 +203,10 @@ export function ReclubTournamentPage({
     [activeMatch, canUseHostControls, updateLiveScore],
   );
 
-  const canLeaveSession =
-    Boolean(userTeamId) &&
-    tournament.status !== "completed" &&
-    tournament.status !== "cancelled";
+  const sessionPhase = useReclubSessionPhase(tournament);
+  const canJoinSession = sessionPhase !== "ended";
+  const canPlaySession = sessionPhase === "live";
+  const canLeaveSession = Boolean(userTeamId) && sessionPhase !== "ended";
 
   const busy =
     joining ||
@@ -292,6 +303,14 @@ export function ReclubTournamentPage({
   };
 
   const handleStartRound = async () => {
+    if (!canPlaySession) {
+      toast.error(
+        sessionPhase === "ended"
+          ? getReclubSessionEndedMessage()
+          : getReclubSessionNotLiveMessage(),
+      );
+      return;
+    }
     if (teamAId === "" || teamBId === "") {
       toast.error("Select two squads");
       return;
@@ -341,11 +360,18 @@ export function ReclubTournamentPage({
 
         <FadeInView className="mt-5 sm:mt-6">
           <div className="flex flex-wrap gap-2">
-            <Badge className="border-0 bg-emerald-500/25 text-emerald-200">
+            <Badge className={cn("border-0", getTournamentTypeBadgeClass("recreational"))}>
               <Gamepad2 className="mr-1 h-3 w-3" />
               Reclub — free play
             </Badge>
-            <Badge className={tournamentHeroStyles.statusBadge}>{tournament.status}</Badge>
+            <Badge
+              className={cn(
+                tournamentHeroStatusBadgeBase,
+                getTournamentStatusBadgeClass(tournament.status),
+              )}
+            >
+              {tournament.status}
+            </Badge>
             {isFetching && !isLoading ? <Badge variant="muted">Syncing…</Badge> : null}
           </div>
 
@@ -418,6 +444,10 @@ export function ReclubTournamentPage({
         </FadeInView>
       </TournamentHeroBanner>
 
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <ReclubSessionStatusBanner session={tournament} className="mt-4" />
+      </div>
+
       {/* Live round banner */}
       {activeMatch ? (
         <motion.div
@@ -478,7 +508,7 @@ export function ReclubTournamentPage({
                 <p className="mt-1 text-xs text-cp-muted">Live score</p>
               </div>
             ) : (
-              <Badge className="border-amber-500/50 bg-amber-500/10 text-amber-300">Match in progress</Badge>
+              <Badge variant="warning">Match in progress</Badge>
             )}
           </div>
         </motion.div>
@@ -548,7 +578,7 @@ export function ReclubTournamentPage({
                     <p className="mt-1 text-sm text-cp-muted">
                       {summary.registeredPlayers} players · {teams.length} squads
                     </p>
-                    {!userTeamId && tournament.status !== "completed" ? (
+                    {!userTeamId && canJoinSession ? (
                       <Button
                         className="mt-4 w-full bg-emerald-600 hover:bg-emerald-500"
                         disabled={joining}
@@ -561,6 +591,10 @@ export function ReclubTournamentPage({
                         )}
                         {isAuthenticated ? "Join lobby" : "Sign up to join"}
                       </Button>
+                    ) : !userTeamId && sessionPhase === "ended" ? (
+                      <p className="mt-4 rounded-lg border border-cp-border bg-cp-elevated/40 px-3 py-2.5 text-xs leading-relaxed text-cp-muted">
+                        {getReclubSessionEndedMessage()}
+                      </p>
                     ) : userTeamId ? (
                       <Button
                         variant="outline"
@@ -589,7 +623,7 @@ export function ReclubTournamentPage({
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {userTeamId ? (
-                      <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
+                      <Badge variant="success">
                         You&apos;re on a squad
                       </Badge>
                     ) : null}
@@ -617,7 +651,7 @@ export function ReclubTournamentPage({
                     teams={teams}
                     playersPerTeam={tournament.playersPerTeam}
                     maxTeams={data?.tournament.maxTeams ?? tournament.maxTeams}
-                    tournamentStatus={tournament.status}
+                    session={tournament}
                     userTeamId={userTeamId}
                     currentUserId={currentUserId}
                     activeMatch={Boolean(activeMatch)}
@@ -637,7 +671,7 @@ export function ReclubTournamentPage({
                   />
                 )}
 
-                {canUseHostControls && !activeMatch && teamOptions.length >= 2 ? (
+                {canUseHostControls && canPlaySession && !activeMatch && teamOptions.length >= 2 ? (
                   <section className="mt-10 rounded-2xl border border-cp-border bg-cp-card p-6">
                     <h3 className="font-semibold text-foreground">Host controls</h3>
                     <p className="mt-1 text-sm text-cp-muted">
@@ -683,6 +717,14 @@ export function ReclubTournamentPage({
                       </Button>
                     </div>
                   </section>
+                ) : canUseHostControls && sessionPhase === "upcoming" ? (
+                  <p className="mt-10 rounded-xl border border-sky-500/25 bg-sky-500/5 px-4 py-3 text-sm text-sky-200/90">
+                    {getReclubSessionNotLiveMessage()}
+                  </p>
+                ) : canUseHostControls && sessionPhase === "ended" ? (
+                  <p className="mt-10 rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
+                    {getReclubSessionEndedMessage()}
+                  </p>
                 ) : null}
               </div>
             ) : null}
@@ -706,6 +748,7 @@ export function ReclubTournamentPage({
                 participant={participant}
                 userTeamId={userTeamId}
                 tournamentStatus={tournament.status}
+                session={tournament}
               />
             ) : null}
 

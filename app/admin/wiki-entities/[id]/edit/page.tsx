@@ -6,6 +6,10 @@ import { WikiEntityWizard } from "@/components/admin/wiki/wiki-entity-wizard";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { getWikiEntityById } from "@/lib/wiki/service";
+import {
+  assertAdminCanManageWikiEntity,
+  getWikiEntityAdminAccessRow,
+} from "@/lib/wiki/admin-entity-access";
 import { adminRoutes } from "@/lib/constants/routes";
 
 export const metadata = {
@@ -28,6 +32,14 @@ export default async function EditWikiEntityPage({ params }: PageProps) {
 
   const entity = await getWikiEntityById(entityId);
   if (!entity || entity.sportId !== context.sportId) notFound();
+
+  const access = await getWikiEntityAdminAccessRow(entityId);
+  if (!access) notFound();
+  try {
+    assertAdminCanManageWikiEntity(access, context.userId, context.sportId);
+  } catch {
+    notFound();
+  }
 
   return (
     <AdminShell context={context} title={`Edit — ${entity.displayName}`}>

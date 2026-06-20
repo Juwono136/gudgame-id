@@ -25,6 +25,12 @@ import {
 import { VenueMapsPreview } from "@/components/tournaments/venue-maps-preview";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { Badge } from "@/components/ui/badge";
+import {
+  getTournamentStatusBadgeClass,
+  getTournamentTypeBadgeClass,
+  statusBadgeClass,
+  tournamentHeroStatusBadgeBase,
+} from "@/lib/styles/status-badges";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
@@ -199,12 +205,21 @@ export function OfficialTournamentPage({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap gap-2">
               {tournament.categoryLabel ? (
-                <Badge className="border-0 bg-emerald-500/20 text-emerald-300">
+                <Badge variant="accent" className="border-0">
                   {tournament.categoryLabel}
                 </Badge>
               ) : null}
-              <Badge className={tournamentHeroStyles.statusBadge}>{tournament.status}</Badge>
-              <Badge className="border-0 bg-cp-primary/20 text-cp-primary">Official — paid</Badge>
+              <Badge
+                className={cn(
+                  tournamentHeroStatusBadgeBase,
+                  getTournamentStatusBadgeClass(tournament.status),
+                )}
+              >
+                {tournament.status}
+              </Badge>
+              <Badge className={cn("border-0", getTournamentTypeBadgeClass("official"))}>
+                Official — paid
+              </Badge>
             </div>
             <h1 className={tournamentHeroStyles.title}>{tournament.name}</h1>
             {tournament.creatorName ? (
@@ -404,16 +419,16 @@ export function OfficialTournamentPage({
             ) : null}
 
             {regStatus?.status === "confirmed" ? (
-              <Badge className="mt-4 border-0 bg-emerald-500/20 text-emerald-300">
+              <Badge variant="success" className="mt-4 border-0">
                 You&apos;re registered
                 {regStatus.teamName ? ` · ${regStatus.teamName}` : ""}
               </Badge>
             ) : regStatus?.status === "awaiting_confirmation" ? (
-              <Badge className="mt-4 border-0 bg-blue-500/20 text-blue-300">
+              <Badge variant="accent" className="mt-4 border-0">
                 Confirm participation
               </Badge>
             ) : regStatus?.status === "pending_payment" ? (
-              <Badge className="mt-4 border-0 bg-amber-500/20 text-amber-300">
+              <Badge variant="warning" className="mt-4 border-0">
                 Payment pending
               </Badge>
             ) : null}

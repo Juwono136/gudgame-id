@@ -85,7 +85,7 @@ export function WikiStepper({
                     </span>
                     <span
                       className={cn(
-                        "mt-1.5 max-w-[5.5rem] text-center text-[10px] leading-tight",
+                        "mt-1.5 max-w-[6.5rem] text-center text-[10px] leading-tight sm:max-w-none",
                         active && "font-semibold text-foreground",
                         done && !active && "text-cp-muted",
                         !done && !active && "text-cp-muted/80",

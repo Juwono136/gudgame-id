@@ -24,7 +24,7 @@ function mapTournamentRow(row: TournamentListItem): WikiDirectoryListItem {
     nickname: null,
     summary: row.summary,
     status: row.status,
-    primaryImageUrl: null,
+    primaryImageUrl: row.coverImageUrl ?? null,
     sourceType: "manual",
     updatedAt: row.updatedAt,
     createdAt: row.updatedAt,
@@ -41,6 +41,8 @@ function mapWikiRow(row: WikiEntityListItem): WikiDirectoryListItem {
 export type WikiDirectoryOptions = {
   /** Admin wiki: only tournaments created by this user. */
   tournamentCreatedBy?: string;
+  /** Admin wiki: exclude signup/self-managed player profiles from listings. */
+  adminUserId?: string;
 };
 
 function toTournamentListQuery(
@@ -119,7 +121,7 @@ async function listMergedWikiDirectory(
   };
 
   const [wikiResult, tournamentResult] = await Promise.all([
-    listWikiEntities(sportId, wikiQuery),
+    listWikiEntities(sportId, wikiQuery, { adminUserId: options?.adminUserId }),
     listTournaments(sportId, toTournamentListQuery(query, options)),
   ]);
 
@@ -184,7 +186,7 @@ export async function listWikiDirectory(
     ...query,
     entityType: wikiEntityType,
   };
-  const result = await listWikiEntities(sportId, wikiQuery);
+  const result = await listWikiEntities(sportId, wikiQuery, { adminUserId: options?.adminUserId });
   return {
     ...result,
     items: result.items.map(mapWikiRow),

@@ -12,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { alertPanelClass } from "@/lib/styles/status-badges";
 import { Button } from "@/components/ui/button";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -274,14 +275,14 @@ export function HostPayoutDisbursementsCard({
             </p>
           </div>
           {summary.isDue ? (
-            <Badge className="w-fit border-emerald-500/30 bg-emerald-500/15 text-emerald-300">
+            <Badge variant="success" className="w-fit">
               Transfer due
             </Badge>
           ) : null}
         </div>
       ) : summary.isDue ? (
         <div className="flex justify-end">
-          <Badge className="w-fit border-emerald-500/30 bg-emerald-500/15 text-emerald-300">
+          <Badge variant="success" className="w-fit">
             Transfer due
           </Badge>
         </div>
@@ -338,7 +339,7 @@ export function HostPayoutDisbursementsCard({
       </div>
 
       {!summary.xenPlatformLinked ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-100">
+        <div className={alertPanelClass.warning}>
           Complete payout setup in your host dashboard to enable automatic bank transfers.
         </div>
       ) : null}

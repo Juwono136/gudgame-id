@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
-import type { PublicPlayerListItem } from "@/lib/wiki/public";
+import type { PublicPlayerListItem } from "@/lib/wiki/public-players";
 import type { PublicPlayersListQuery } from "@/lib/validations/public-wiki";
 
 type PlayersListResult = {

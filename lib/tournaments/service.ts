@@ -185,6 +185,8 @@ export async function listTournaments(
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
       registrationFeeIdr: tournaments.registrationFeeIdr,
+      coverImageUrl: tournaments.coverImageUrl,
+      coverImageStorageKey: tournaments.coverImageStorageKey,
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
       updatedAt: tournaments.updatedAt,
@@ -197,7 +199,10 @@ export async function listTournaments(
     .offset(offset);
 
   return {
-    items: rows.map(mapListRow),
+    items: rows.map((row) => ({
+      ...mapListRow(row),
+      coverImageUrl: resolveTournamentCoverUrl(row.coverImageUrl, row.coverImageStorageKey),
+    })),
     total,
     page,
     pageSize,

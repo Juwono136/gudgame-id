@@ -93,6 +93,10 @@ type TournamentCreateWizardProps = {
   tournamentId?: string;
   /** When false, hides the top “back to list” link (e.g. page provides its own). */
   showTopBack?: boolean;
+  /** Pre-select tournament type on create (e.g. official-only flow from wiki entities). */
+  initialTournamentType?: TournamentType;
+  /** Lock type selector on create — used when admin picks official vs reclub upfront. */
+  lockTournamentType?: boolean;
 };
 
 export function TournamentCreateWizard({
@@ -103,6 +107,8 @@ export function TournamentCreateWizard({
   initial,
   tournamentId,
   showTopBack,
+  initialTournamentType,
+  lockTournamentType = false,
 }: TournamentCreateWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
   const adminCreate = useCreateTournament();
@@ -121,7 +127,7 @@ export function TournamentCreateWizard({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [status, setStatus] = useState<TournamentStatus>(initial?.status ?? "upcoming");
   const [tournamentType, setTournamentType] = useState<TournamentType>(
-    initial?.tournamentType ?? "official",
+    initial?.tournamentType ?? initialTournamentType ?? "official",
   );
   const [venue, setVenue] = useState(initial?.venue ?? "");
   const [venueMapsUrl, setVenueMapsUrl] = useState(
@@ -475,7 +481,7 @@ export function TournamentCreateWizard({
                   <Select
                     value={tournamentType}
                     onValueChange={(v) => setTournamentType(v as TournamentType)}
-                    disabled={isEdit}
+                    disabled={isEdit || (lockTournamentType && !isEdit)}
                   >
                     <SelectTrigger className="border-cp-border bg-cp-elevated">
                       <SelectValue />
@@ -488,6 +494,11 @@ export function TournamentCreateWizard({
                       ))}
                     </SelectContent>
                   </Select>
+                  {lockTournamentType && !isEdit ? (
+                    <p className="text-xs text-cp-muted">
+                      Official tournament — use the reclub flow to create a free session.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label>Visibility</Label>

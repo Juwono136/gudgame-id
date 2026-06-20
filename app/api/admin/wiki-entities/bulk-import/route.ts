@@ -3,6 +3,7 @@ import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { createWikiEntity } from "@/lib/wiki/service";
 import type { WikiScrapePreview } from "@/lib/wiki/scrapers/types";
 import { slugifyWikiName } from "@/lib/wiki/slug";
+import { assertScrapeUrlAllowed } from "@/lib/wiki/scrapers/security";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
 
     for (const item of body.items) {
       try {
+        await assertScrapeUrlAllowed(item.sourceUrl, { sportId: ctx.sportId });
+
         const preview: WikiScrapePreview = {
           sourceUrl: item.sourceUrl,
           sourceHost: new URL(item.sourceUrl).hostname,

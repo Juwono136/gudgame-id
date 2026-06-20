@@ -12,6 +12,11 @@ import { useHostTournamentsList } from "@/hooks/use-host-tournaments";
 import { adminRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import { userCanAccessAdmin } from "@/lib/roles/dashboard-links";
+import {
+  getTournamentStatusBadgeClass,
+  getTournamentTypeBadgeClass,
+  tournamentStatusBadgeClass,
+} from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type HostDashboardProps = {
@@ -21,23 +26,12 @@ type HostDashboardProps = {
   roles: AppRole[];
 };
 
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  draft: "bg-slate-500/20 text-slate-300",
-  upcoming: "bg-blue-500/20 text-blue-300",
-  live: "bg-emerald-500/20 text-emerald-300",
-  completed: "bg-cp-muted/20 text-cp-muted",
-  cancelled: "bg-red-500/20 text-red-300",
-};
+const STATUS_BADGE_STYLES = tournamentStatusBadgeClass;
 
 function TournamentTypeBadge({ tournamentType }: { tournamentType: string }) {
   const isOfficial = tournamentType === "official";
   return (
-    <Badge
-      className={cn(
-        "gap-1 border-0 text-[10px] uppercase",
-        isOfficial ? "bg-cp-primary/20 text-cp-primary" : "bg-emerald-500/20 text-emerald-300",
-      )}
-    >
+    <Badge className={cn("gap-1 border-0 text-[10px] uppercase", getTournamentTypeBadgeClass(tournamentType))}>
       {isOfficial ? <Trophy className="h-3 w-3" /> : <Gamepad2 className="h-3 w-3" />}
       {isOfficial ? "Official" : "Reclub"}
     </Badge>
@@ -46,7 +40,7 @@ function TournamentTypeBadge({ tournamentType }: { tournamentType: string }) {
 
 function TournamentStatusBadge({ status }: { status: string }) {
   return (
-    <Badge className={cn("gap-1.5 border-0 capitalize", STATUS_BADGE_STYLES[status])}>
+    <Badge className={cn("gap-1.5 border-0 capitalize", STATUS_BADGE_STYLES[status] ?? getTournamentStatusBadgeClass(status))}>
       {status === "live" ? (
         <span className="relative flex h-1.5 w-1.5 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />

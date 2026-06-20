@@ -20,13 +20,14 @@ export { discoverGearCatalog, batchScrapeGearProducts };
 export async function scrapeGearFromUrl(
   url: string,
   sportSlug: string,
+  options?: { sportId?: string | null },
 ): Promise<WikiScrapePreview> {
-  const parsed = assertScrapeUrlAllowed(url);
+  const parsed = await assertScrapeUrlAllowed(url, options);
   const host = parsed.hostname.toLowerCase();
 
   if (host === "padeltop.id" || host === "www.padeltop.id") {
-    return scrapePadeltopProduct(url);
+    return scrapePadeltopProduct(url, options);
   }
 
-  return scrapeGenericProductPage(url);
+  return scrapeGenericProductPage(url, options);
 }

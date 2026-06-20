@@ -2,13 +2,24 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { AppError } from "@/lib/errors";
 import { batchScrapeGearProducts } from "@/lib/wiki/scrapers";
+import { normalizeScrapeInputUrl } from "@/lib/wiki/scrapers/normalize-url";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const bodySchema = z.object({
-  urls: z.array(z.string().url()).min(1).max(30),
+  urls: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .transform(normalizeScrapeInputUrl)
+        .pipe(z.string().url()),
+    )
+    .min(1)
+    .max(30),
   sportSlug: z.string().trim().min(1),
 });
 
@@ -24,7 +35,9 @@ export async function POST(request: Request) {
       });
     }
 
-    const result = await batchScrapeGearProducts(body.urls, ctx.sportSlug);
+    const result = await batchScrapeGearProducts(body.urls, ctx.sportSlug, {
+      sportId: ctx.sportId,
+    });
     return jsonSuccess(result);
   } catch (error) {
     return jsonError(error);

@@ -35,6 +35,8 @@ function buildWikiFormData(
     primaryImage?: File | null;
     gallerySlots?: GallerySlot[];
     equipmentFiles?: Record<string, File>;
+    clearPrimaryImage?: boolean;
+    clearHeroImage?: boolean;
   },
 ): FormData {
   const fd = new FormData();
@@ -59,6 +61,8 @@ function buildWikiFormData(
   if (primaryUrl) fd.append("primaryImageUrl", primaryUrl);
   if (files?.heroImage) fd.append("heroImage", files.heroImage);
   if (files?.primaryImage) fd.append("primaryImage", files.primaryImage);
+  if (files?.clearPrimaryImage) fd.append("clearPrimaryImage", "true");
+  if (files?.clearHeroImage) fd.append("clearHeroImage", "true");
   for (const slot of files?.gallerySlots ?? []) {
     if (slot.file) fd.append("galleryImages", slot.file);
   }
@@ -165,6 +169,8 @@ export function useCreateWikiEntity() {
         heroImage?: File | null;
         primaryImage?: File | null;
         gallerySlots?: GallerySlot[];
+        clearPrimaryImage?: boolean;
+        clearHeroImage?: boolean;
       };
     }) => {
       const res = await fetch("/api/admin/wiki-entities", {
@@ -217,6 +223,8 @@ export function useUpdateWikiEntity(id: WikiEntityId) {
         heroImage?: File | null;
         primaryImage?: File | null;
         gallerySlots?: GallerySlot[];
+        clearPrimaryImage?: boolean;
+        clearHeroImage?: boolean;
       };
     }) => {
       const res = await fetch(`/api/admin/wiki-entities/${id}`, {

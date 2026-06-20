@@ -9,6 +9,15 @@ import { publicSportRoutes } from "@/lib/constants/routes";
 import { WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
 import type { WikiEntityType } from "@/lib/domain/wiki";
 import { resolveWikiImageUrl } from "@/lib/media/client";
+import { formatIdrDisplay } from "@/lib/format/currency";
+import { htmlExcerpt } from "@/lib/html/strip-html";
+import { GEAR_CATEGORY_LABELS, type GearCategory } from "@/lib/wiki/gear/constants";
+import { normalizeGearCategory } from "@/lib/wiki/gear/validation";
+import {
+  gearProductAtAGlance,
+  getFilledGearPerformance,
+  getFilledGearSpecs,
+} from "@/lib/wiki/gear/spec-display";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
 import {
   getPlayerCareerStats,
@@ -18,8 +27,8 @@ import {
   parsePlayerEditableAttributes,
   parseSocialLinks,
 } from "@/lib/wiki/player-profile-fields";
-import Image from "next/image";
 import Link from "next/link";
+import Image from "next/image";
 
 type EntityDetailLayoutProps = {
   entity: WikiEntityDetail;
@@ -44,7 +53,10 @@ function performanceFromRecord(
   };
 
   return Object.entries(perf)
-    .filter(([, v]) => typeof v === "number" || (typeof v === "string" && v !== ""))
+    .filter(([, v]) => {
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) && n > 0;
+    })
     .map(([key, v]) => ({
       label: labels[key] ?? key,
       value: typeof v === "number" ? v : Number(v) || 0,
@@ -59,22 +71,46 @@ function specsFromEntity(entity: WikiEntityDetail): { label: string; value: stri
     if (val != null && String(val).trim()) items.push({ label, value: String(val) });
   };
 
+  if (entity.entityType === "gear") {
+    return getFilledGearSpecs(entity.specs);
+  }
+
   for (const [k, v] of Object.entries(entity.specs)) {
     add(k.replace(/([A-Z])/g, " $1").trim(), v);
   }
   for (const [k, v] of Object.entries(entity.attributes)) {
-    if (["brand", "model", "gearCategory", "nationality", "tier"].includes(k)) {
-      add(k.replace(/([A-Z])/g, " $1").trim(), v);
+    if (["brand", "model", "gearCategory", "nationality", "tier", "price", "priceDisplay", "priceIdr"].includes(k)) {
+      continue;
     }
+    add(k.replace(/([A-Z])/g, " $1").trim(), v);
   }
   return items;
 }
 
 export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProps) {
   const typeLabel = entity.entityType as WikiEntityType;
+  const isGear = entity.entityType === "gear";
 
-  const perfMetrics = performanceFromRecord(entity.performance);
+  const perfMetrics = isGear
+    ? getFilledGearPerformance(entity.performance)
+    : performanceFromRecord(entity.performance);
   const specItems = specsFromEntity(entity);
+
+  const gearCategory = isGear
+    ? normalizeGearCategory(String(entity.attributes.gearCategory ?? "other"))
+    : null;
+  const gearAtAGlance = isGear
+    ? gearProductAtAGlance(
+        entity.attributes,
+        gearCategory!,
+        GEAR_CATEGORY_LABELS[gearCategory as GearCategory] ?? gearCategory!,
+        (typeof entity.attributes.priceDisplay === "string" && entity.attributes.priceDisplay) ||
+          (typeof entity.attributes.price === "string" && entity.attributes.price) ||
+          (typeof entity.attributes.priceIdr === "number" && entity.attributes.priceIdr > 0
+            ? formatIdrDisplay(entity.attributes.priceIdr)
+            : null),
+      )
+    : [];
 
   const tier = entity.attributes.tier as string | undefined;
   const badges = [
@@ -106,6 +142,10 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
   );
   const heroImage = resolveWikiImageUrl(entity.heroImageUrl, entity.heroImageStorageKey);
 
+  const isGearEntity = entity.entityType === "gear";
+  const heroSummary =
+    isGearEntity && entity.summary ? htmlExcerpt(entity.summary, 200) : entity.summary;
+
   return (
     <WikiPageShell
       breadcrumbs={[
@@ -126,7 +166,7 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
       <EntityHero
         displayName={entity.displayName}
         nickname={entity.nickname}
-        summary={entity.summary}
+        summary={heroSummary}
         imageUrl={primaryImage}
         heroUrl={heroImage}
         badges={badges}
@@ -136,7 +176,9 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
         <div className="space-y-8 lg:col-span-2">
           {perfMetrics.length > 0 ? (
             <section className="rounded-xl border border-cp-border bg-cp-card p-6">
-              <h2 className="text-lg font-semibold text-foreground">Performance profile</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isGear ? "Performance feel" : "Performance profile"}
+              </h2>
               <div className="mt-4">
                 <PerformanceBars metrics={perfMetrics} />
               </div>
@@ -275,7 +317,16 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
                         </div>
                       ) : null}
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                        {item.gearEntityId && item.gearPublicUrl ? (
+                          <Link
+                            href={item.gearPublicUrl}
+                            className="text-sm font-semibold text-cp-primary hover:underline"
+                          >
+                            {item.name}
+                          </Link>
+                        ) : (
+                          <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                        )}
                         <p className="text-xs capitalize text-cp-muted">{item.category}</p>
                         {item.brand ? (
                           <p className="mt-0.5 text-xs text-cp-muted">{item.brand}</p>
@@ -310,8 +361,15 @@ export function EntityDetailLayout({ entity, sportName }: EntityDetailLayoutProp
             </section>
           ) : null}
 
+          {isGear && gearAtAGlance.length > 0 ? (
+            <SpecGrid title="At a glance" items={gearAtAGlance} />
+          ) : null}
+
           {specItems.length > 0 ? (
-            <SpecGrid title="Biodata" items={specItems} />
+            <SpecGrid
+              title={entity.entityType === "gear" ? "Technical details" : "Biodata"}
+              items={specItems}
+            />
           ) : null}
 
           {entity.relations.length > 0 ? (

@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ReclubLobbyDnd } from "@/components/tournaments/reclub-lobby-dnd";
+import { ReclubSessionStatusBanner } from "@/components/tournaments/reclub/reclub-session-status-banner";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import {
   useCompleteReclubRound,
@@ -36,6 +37,10 @@ import {
 } from "@/hooks/use-tournament-lobby";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { authRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import {
+  canJoinReclubSession,
+  getReclubSessionEndedMessage,
+} from "@/lib/tournaments/reclub/session-lifecycle";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 
@@ -104,6 +109,8 @@ export function ReclubTournamentLobby({
   const currentUserId = data?.userId ?? null;
 
   const liveElapsed = useLiveTimer(activeMatch?.startedAt ?? null, Boolean(activeMatch));
+
+  const canJoinSession = canJoinReclubSession(tournament);
 
   const busy =
     joining ||
@@ -215,7 +222,7 @@ export function ReclubTournamentLobby({
 
           <FadeInView className="mt-6">
             <div className="flex flex-wrap gap-2">
-              <Badge className="border-0 bg-emerald-500/20 text-emerald-300">
+              <Badge variant="success" className="border-0">
                 <Gamepad2 className="mr-1 h-3 w-3" />
                 Reclub — free play
               </Badge>
@@ -305,13 +312,15 @@ export function ReclubTournamentLobby({
                   </Button>
                 </div>
               ) : (
-                <Badge className="border-amber-500/50 bg-amber-500/10 text-amber-300">
+                <Badge variant="warning">
                   Match in progress
                 </Badge>
               )}
             </div>
           </motion.div>
         ) : null}
+
+        <ReclubSessionStatusBanner session={tournament} className="mb-6" />
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -321,7 +330,7 @@ export function ReclubTournamentLobby({
               {tournament.playersPerTeam} per team
             </p>
           </div>
-          {!userTeamId && tournament.status !== "completed" ? (
+          {!userTeamId && canJoinSession ? (
             <Button
               className="bg-emerald-600 hover:bg-emerald-500"
               disabled={joining}
@@ -335,9 +344,11 @@ export function ReclubTournamentLobby({
               {isAuthenticated ? "Join lobby" : "Sign up to join"}
             </Button>
           ) : userTeamId ? (
-            <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
+            <Badge variant="success">
               You&apos;re on a team
             </Badge>
+          ) : !canJoinSession ? (
+            <p className="text-xs text-cp-muted">{getReclubSessionEndedMessage()}</p>
           ) : null}
         </div>
 
@@ -355,7 +366,7 @@ export function ReclubTournamentLobby({
               teams={teams}
               playersPerTeam={tournament.playersPerTeam}
               maxTeams={data?.tournament.maxTeams ?? tournament.maxTeams}
-              tournamentStatus={tournament.status}
+              session={tournament}
               userTeamId={userTeamId}
               currentUserId={currentUserId}
               activeMatch={Boolean(activeMatch)}

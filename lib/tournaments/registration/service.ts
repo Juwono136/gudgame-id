@@ -18,6 +18,7 @@ import { getPlatformPaymentSettings } from "@/lib/tournaments/payments/platform-
 import { calculateOfficialPaymentSplit } from "@/lib/tournaments/payments/split";
 import { syncReclubParticipation } from "@/lib/tournaments/stats/sync";
 import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
+import { assertReclubSessionJoinable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   confirmUrl,
@@ -220,6 +221,8 @@ export async function joinReclubTournament(
     });
     return { teamId: existing[0]!.teamId };
   }
+
+  assertReclubSessionJoinable(tournament);
 
   const playersPerTeam = tournament.playersPerTeam ?? 2;
   const openTeam = await findOpenTeam(tournament.id, playersPerTeam);

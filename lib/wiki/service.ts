@@ -22,6 +22,10 @@ import {
   type WikiEntityType,
 } from "@/db/schema";
 import { AppError } from "@/lib/errors";
+import {
+  adminWikiEntityVisibilityCondition,
+  assertAdminCanManageWikiEntity,
+} from "@/lib/wiki/admin-entity-access";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
 import type {
@@ -96,12 +100,22 @@ function mapEntityRow(
   };
 }
 
+export type WikiEntityListOptions = {
+  /** When set, signup/self-managed player profiles are excluded from results. */
+  adminUserId?: string;
+};
+
 export async function listWikiEntities(
   sportId: string,
   query: WikiEntitiesListQuery,
+  options?: WikiEntityListOptions,
 ) {
   const db = getDb();
   const conditions = [eq(wikiEntities.sportId, sportId)];
+
+  if (options?.adminUserId) {
+    conditions.push(adminWikiEntityVisibilityCondition(options.adminUserId));
+  }
 
   if (query.entityType) {
     conditions.push(eq(wikiEntities.entityType, query.entityType));
@@ -156,8 +170,13 @@ export async function listWikiEntities(
   };
 }
 
-export async function getWikiEntityStats(sportId: string) {
+export async function getWikiEntityStats(sportId: string, adminUserId?: string) {
   const db = getDb();
+  const conditions = [eq(wikiEntities.sportId, sportId)];
+  if (adminUserId) {
+    conditions.push(adminWikiEntityVisibilityCondition(adminUserId));
+  }
+
   const rows = await db
     .select({
       entityType: wikiEntities.entityType,
@@ -165,7 +184,7 @@ export async function getWikiEntityStats(sportId: string) {
       count: count(),
     })
     .from(wikiEntities)
-    .where(eq(wikiEntities.sportId, sportId))
+    .where(and(...conditions))
     .groupBy(wikiEntities.entityType, wikiEntities.status);
 
   const totals = { player: 0, team: 0, gear: 0, published: 0, draft: 0 };
@@ -308,6 +327,7 @@ export async function createWikiEntity(
     primaryStorageKey?: string;
     primaryUrl?: string;
   },
+  options?: { ownerUserId?: string | null },
 ) {
   const db = getDb();
   const baseSlug = input.slug?.trim() || slugifyWikiName(input.displayName);
@@ -346,6 +366,7 @@ export async function createWikiEntity(
       heroImageStorageKey: images?.heroStorageKey ?? null,
       primaryImageUrl: images?.primaryUrl || input.primaryImageUrl || null,
       primaryImageStorageKey: images?.primaryStorageKey ?? null,
+      ownerUserId: options?.ownerUserId ?? null,
       createdBy: actorId,
       updatedBy: actorId,
     })
@@ -378,6 +399,8 @@ export async function updateWikiEntity(
     heroUrl?: string;
     primaryStorageKey?: string;
     primaryUrl?: string;
+    clearPrimary?: boolean;
+    clearHero?: boolean;
   },
 ) {
   const db = getDb();
@@ -390,6 +413,8 @@ export async function updateWikiEntity(
   if (!existing) {
     throw new AppError("Wiki entity not found", { code: "NOT_FOUND", statusCode: 404 });
   }
+
+  assertAdminCanManageWikiEntity(existing, actorId, sportId);
 
   let slug = existing.slug;
   if (input.slug && input.slug !== existing.slug) {
@@ -416,10 +441,12 @@ export async function updateWikiEntity(
         ? null
         : existing.publishedAt;
 
-  const nextHeroKey =
-    images?.heroStorageKey ?? existing.heroImageStorageKey ?? null;
-  const nextPrimaryKey =
-    images?.primaryStorageKey ?? existing.primaryImageStorageKey ?? null;
+  const nextHeroKey = images?.clearHero
+    ? null
+    : (images?.heroStorageKey ?? existing.heroImageStorageKey ?? null);
+  const nextPrimaryKey = images?.clearPrimary
+    ? null
+    : (images?.primaryStorageKey ?? existing.primaryImageStorageKey ?? null);
 
   const { deleteStoredObjectIfReplaced } = await import(
     "@/lib/storage/object-lifecycle"
@@ -442,12 +469,18 @@ export async function updateWikiEntity(
       sourceType: input.sourceType,
       sourceUrl: input.sourceUrl || null,
       publishedAt,
-      heroImageUrl: images?.heroUrl ?? input.heroImageUrl ?? existing.heroImageUrl,
-      heroImageStorageKey: images?.heroStorageKey ?? existing.heroImageStorageKey,
-      primaryImageUrl:
-        images?.primaryUrl ?? input.primaryImageUrl ?? existing.primaryImageUrl,
-      primaryImageStorageKey:
-        images?.primaryStorageKey ?? existing.primaryImageStorageKey,
+      heroImageUrl: images?.clearHero
+        ? null
+        : (images?.heroUrl ?? input.heroImageUrl ?? existing.heroImageUrl),
+      heroImageStorageKey: images?.clearHero
+        ? null
+        : (images?.heroStorageKey ?? existing.heroImageStorageKey),
+      primaryImageUrl: images?.clearPrimary
+        ? null
+        : (images?.primaryUrl ?? input.primaryImageUrl ?? existing.primaryImageUrl),
+      primaryImageStorageKey: images?.clearPrimary
+        ? null
+        : (images?.primaryStorageKey ?? existing.primaryImageStorageKey),
       updatedBy: actorId,
       updatedAt: new Date(),
     })
@@ -541,7 +574,7 @@ async function syncWikiGallery(
   await deleteStoredObjects(removedKeys);
 }
 
-export async function deleteWikiEntity(id: string, sportId: string) {
+export async function deleteWikiEntity(id: string, sportId: string, actorId: string) {
   const db = getDb();
   const [existing] = await db
     .select()
@@ -552,6 +585,8 @@ export async function deleteWikiEntity(id: string, sportId: string) {
   if (!existing) {
     throw new AppError("Wiki entity not found", { code: "NOT_FOUND", statusCode: 404 });
   }
+
+  assertAdminCanManageWikiEntity(existing, actorId, sportId);
 
   const gallery = await db
     .select({
@@ -582,9 +617,23 @@ export async function searchWikiEntitiesForLink(
   entityTypes: WikiEntityType[],
   search: string,
   limit = 10,
+  options?: WikiEntityListOptions,
 ) {
   const db = getDb();
   const term = `%${search.trim()}%`;
+  const conditions = [
+    eq(wikiEntities.sportId, sportId),
+    inArray(wikiEntities.entityType, entityTypes),
+    or(
+      ilike(wikiEntities.displayName, term),
+      ilike(wikiEntities.nickname, term),
+    )!,
+  ];
+
+  if (options?.adminUserId) {
+    conditions.push(adminWikiEntityVisibilityCondition(options.adminUserId));
+  }
+
   return db
     .select({
       id: wikiEntities.id,
@@ -594,16 +643,7 @@ export async function searchWikiEntitiesForLink(
       primaryImageUrl: wikiEntities.primaryImageUrl,
     })
     .from(wikiEntities)
-    .where(
-      and(
-        eq(wikiEntities.sportId, sportId),
-        inArray(wikiEntities.entityType, entityTypes),
-        or(
-          ilike(wikiEntities.displayName, term),
-          ilike(wikiEntities.nickname, term),
-        )!,
-      ),
-    )
+    .where(and(...conditions))
     .orderBy(asc(wikiEntities.displayName))
     .limit(limit);
 }
@@ -614,26 +654,6 @@ export async function searchPublishedGearForTournament(
   search: string,
   limit = 15,
 ) {
-  const db = getDb();
-  const term = `%${search.trim()}%`;
-  return db
-    .select({
-      id: wikiEntities.id,
-      slug: wikiEntities.slug,
-      displayName: wikiEntities.displayName,
-    })
-    .from(wikiEntities)
-    .where(
-      and(
-        eq(wikiEntities.sportId, sportId),
-        eq(wikiEntities.entityType, "gear"),
-        eq(wikiEntities.status, "published"),
-        or(
-          ilike(wikiEntities.displayName, term),
-          ilike(wikiEntities.nickname, term),
-        )!,
-      ),
-    )
-    .orderBy(asc(wikiEntities.displayName))
-    .limit(limit);
+  const { searchPublishedGear } = await import("@/lib/wiki/gear/search");
+  return searchPublishedGear({ sportId, query: search, limit });
 }

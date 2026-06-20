@@ -20,10 +20,45 @@ function resolveUrl(href: string, base: URL): string | null {
   }
 }
 
+function extractImageFromFragment(fragment: string, baseUrl: URL): string | undefined {
+  const patterns = [
+    /src=["']((?:https?:)?\/\/[^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i,
+    /data-(?:src|lazy-src|bgset)=["']([^"']+)["']/i,
+    /srcset=["']([^"'\s]+)/i,
+  ];
+  for (const re of patterns) {
+    const m = fragment.match(re);
+    if (!m?.[1]) continue;
+    const raw = m[1].split(/\s+/)[0]!;
+    if (raw.includes("cdn.shopify.com") || raw.includes(".jpg") || raw.includes(".png")) {
+      const resolved = resolveUrl(raw, baseUrl);
+      if (resolved && !resolved.includes("data:image") && !resolved.includes("placeholder")) {
+        return resolved;
+      }
+    }
+  }
+  return undefined;
+}
+
 /** Extract product links from PadelTop / Shopify-style HTML */
 export function discoverPadeltopProducts(html: string, baseUrl: URL): WikiCatalogListItem[] {
   const seen = new Set<string>();
   const items: WikiCatalogListItem[] = [];
+  const imageByUrl = new Map<string, string>();
+
+  const cardRe =
+    /<(?:div|li|article)[^>]*class=["'][^"']*(?:product|grid__item|card)[^"']*["'][^>]*>([\s\S]{0,4000}?)<\/(?:div|li|article)>/gi;
+  let cardMatch: RegExpExecArray | null;
+  while ((cardMatch = cardRe.exec(html)) !== null) {
+    const block = cardMatch[0]!;
+    const hrefMatch = block.match(/href=["']([^"']*\/products\/([^"'?#/]+))["']/i);
+    if (!hrefMatch?.[1]) continue;
+    const full = resolveUrl(hrefMatch[1], baseUrl);
+    if (!full) continue;
+    const key = full.split("?")[0]!;
+    const img = extractImageFromFragment(block, baseUrl);
+    if (img) imageByUrl.set(key, img);
+  }
 
   const patterns = [
     /<a[^>]+href=["']([^"']*\/products\/[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi,
@@ -37,6 +72,7 @@ export function discoverPadeltopProducts(html: string, baseUrl: URL): WikiCatalo
       const full = resolveUrl(href, baseUrl);
       if (!full || !full.includes("/products/") || seen.has(full)) continue;
       seen.add(full);
+      const key = full.split("?")[0]!;
 
       let title = "";
       if (m[2]) {
@@ -48,13 +84,17 @@ export function discoverPadeltopProducts(html: string, baseUrl: URL): WikiCatalo
         title = slug ? decodeHtmlEntities(slug) : "Product";
       }
 
-      const imgMatch = m[0]?.match(/src=["']([^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i);
-      const priceMatch = m[0]?.match(/Rp\s?[\d.,]+/i);
+      const context = m[0] ?? "";
+      const img =
+        imageByUrl.get(key) ??
+        extractImageFromFragment(context, baseUrl) ??
+        extractImageFromFragment(html.slice(Math.max(0, (m.index ?? 0) - 500), (m.index ?? 0) + 1500), baseUrl);
+      const priceMatch = context.match(/Rp\s?[\d.,]+/i);
 
       items.push({
-        url: full.split("?")[0]!,
+        url: key,
         title: title.replace(/\s*\(RACKET\)\s*/gi, "").trim(),
-        imageUrl: imgMatch?.[1] ? resolveUrl(imgMatch[1], baseUrl) ?? undefined : undefined,
+        imageUrl: img,
         priceHint: priceMatch?.[0],
       });
     }
@@ -76,11 +116,12 @@ function isLikelyProductPage(url: URL): boolean {
 export async function discoverGearCatalog(
   url: string,
   sportSlug: string,
+  options?: { sportId?: string | null },
 ): Promise<WikiCatalogDiscovery> {
-  const parsed = assertScrapeUrlAllowed(url);
+  const parsed = await assertScrapeUrlAllowed(url, options);
   void sportSlug;
 
-  const { html, finalUrl } = await fetchHtmlForScrape(url);
+  const { html, finalUrl } = await fetchHtmlForScrape(url, options);
   const host = finalUrl.hostname.toLowerCase();
 
   if (isLikelyProductPage(finalUrl)) {

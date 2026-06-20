@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { EntityDetailLayout } from "@/components/wiki/entity-detail-layout";
+import { GearDetailLayout } from "@/components/wiki/gear-detail-layout";
 import { getSportBySlug } from "@/lib/wiki/public";
 import { getPublishedWikiEntityBySlug } from "@/lib/wiki/service";
 
@@ -21,5 +21,5 @@ export default async function GearWikiPage({ params }: PageProps) {
   const entity = await getPublishedWikiEntityBySlug(sportSlug, "gear", slug);
   if (!entity) notFound();
 
-  return <EntityDetailLayout entity={entity} sportName={sport.name} />;
+  return <GearDetailLayout entity={entity} sportName={sport.name} />;
 }

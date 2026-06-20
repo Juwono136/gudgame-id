@@ -88,14 +88,21 @@ function FieldControl({
   }
 
   if (field.type === "select" && field.options) {
+    const selectValue = strVal || "__unset__";
     return (
       <div>
         <Label htmlFor={id}>{field.label}</Label>
-        <Select value={strVal || undefined} onValueChange={(v) => onChange(v)}>
+        <Select
+          value={selectValue}
+          onValueChange={(v) => onChange(v === "__unset__" ? "" : v)}
+        >
           <SelectTrigger id={id} className="mt-1.5 border-cp-border bg-cp-elevated">
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="__unset__" className="text-cp-muted">
+              Not set
+            </SelectItem>
             {field.options.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}

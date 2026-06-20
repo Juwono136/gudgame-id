@@ -73,13 +73,13 @@ function buildSubLinks(sport: SportPublicCard) {
   if (sport.modules.tournaments)
     links.push({ label: "Tournaments", icon: <Trophy className="h-3.5 w-3.5 text-cp-primary" /> });
   if (sport.modules.players || sport.modules.rankings)
-    links.push({ label: "Players", icon: <Users className="h-3.5 w-3.5 text-[#DAF8E7]" /> });
+    links.push({ label: "Players", icon: <Users className="h-3.5 w-3.5 text-cp-primary" /> });
   if (sport.modules.gear)
-    links.push({ label: "Equipment", icon: <Disc className="h-3.5 w-3.5 text-[#F0EFFF]" /> });
+    links.push({ label: "Equipment", icon: <Disc className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-300" /> });
   if (sport.modules.rules)
     links.push({
       label: "Rules",
-      icon: <ShieldAlert className="h-3.5 w-3.5 text-[#B82800]" />,
+      icon: <ShieldAlert className="h-3.5 w-3.5 text-cp-accent-red" />,
     });
   return links.slice(0, 4);
 }

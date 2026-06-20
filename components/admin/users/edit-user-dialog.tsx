@@ -22,6 +22,7 @@ import { APP_ROLES, getRoleLabel, type AppRole } from "@/lib/roles/constants";
 import type { AdminUserListItem } from "@/lib/admin/users/service";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { getProfileHandle } from "@/lib/auth/user-display";
+import { statusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type EditUserDialogProps = {
@@ -211,9 +212,7 @@ export function EditUserDialog({
                   onClick={() => setIsActive(true)}
                   className={cn(
                     "rounded-xl border px-4 py-3 text-sm font-semibold transition-all",
-                    isActive
-                      ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                      : "border-cp-border text-cp-muted hover:text-foreground",
+                    isActive ? statusBadgeClass.success : "border-cp-border text-cp-muted hover:text-foreground",
                   )}
                 >
                   Activate

@@ -27,6 +27,10 @@ const ROUTE_CRUMBS: Record<string, AdminBreadcrumbItem[]> = {
     { label: "Dashboard", href: adminRoutes.home },
     { label: "System Settings" },
   ],
+  [`${adminRoutes.settings}/payments`]: [
+    { label: "Dashboard", href: adminRoutes.home },
+    { label: "Payment settings" },
+  ],
 };
 
 /** Resolve breadcrumb trail for an admin pathname */

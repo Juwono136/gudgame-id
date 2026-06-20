@@ -1,6 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { createTournament, listTournaments } from "@/lib/tournaments/service";
+import { assertCanCreateTournamentType } from "@/lib/tournaments/permissions";
 import { AppError } from "@/lib/errors";
 import {
   tournamentUpsertSchema,
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
         context: { fieldErrors: parsed.error.flatten().fieldErrors },
       });
     }
+
+    assertCanCreateTournamentType(ctx.roles, parsed.data.tournamentType);
 
     const tournament = await createTournament(ctx.sportId, ctx.userId, parsed.data);
     return jsonSuccess({ tournament }, 201);

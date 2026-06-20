@@ -1,9 +1,6 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { CreateEntityFlow } from "@/components/admin/wiki/create-entity-flow";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
-import { adminRoutes } from "@/lib/constants/routes";
 
 export const metadata = {
   title: "Create Wiki Entity",
@@ -14,13 +11,6 @@ export default async function NewWikiEntityPage() {
 
   return (
     <AdminShell context={context} title="Create New Wiki Entity">
-      <Link
-        href={adminRoutes.wikiEntities}
-        className="mb-6 inline-flex items-center text-sm text-cp-muted hover:text-foreground"
-      >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        Wiki database
-      </Link>
       <CreateEntityFlow sportSlug={context.sportSlug} />
     </AdminShell>
   );

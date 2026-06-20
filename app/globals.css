@@ -267,6 +267,11 @@
   }
 }
 
+/* Reserve scrollbar width so opening menus/dialogs does not shift layout */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Prevent horizontal scroll when fixed dashboard bottom nav is active */
 html.dashboard-mobile-nav-active,
 html.dashboard-mobile-nav-active body {

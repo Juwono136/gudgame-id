@@ -53,12 +53,18 @@ export function validateReclubWizardStep(
     if (!Number.isFinite(maxRounds) || maxRounds < 1 || maxRounds > 99) {
       return "Number of rounds must be between 1 and 99.";
     }
-    if (data.startsAt && data.endsAt) {
-      const start = new Date(data.startsAt).getTime();
-      const end = new Date(data.endsAt).getTime();
-      if (!Number.isNaN(start) && !Number.isNaN(end) && end < start) {
-        return "End time must be after start time.";
-      }
+    if (!data.startsAt.trim()) {
+      return "Start date & time is required.";
+    }
+    if (!data.endsAt.trim()) {
+      return "End date & time is required.";
+    }
+    const start = new Date(data.startsAt).getTime();
+    const end = new Date(data.endsAt).getTime();
+    if (Number.isNaN(start)) return "Start date & time is invalid.";
+    if (Number.isNaN(end)) return "End date & time is invalid.";
+    if (end <= start) {
+      return "End time must be after start time.";
     }
     return null;
   }

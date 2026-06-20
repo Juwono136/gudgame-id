@@ -97,16 +97,13 @@ export function SportsManagementPage({ context }: SportsManagementPageProps) {
     statusFilter === "all" &&
     !debouncedSearch;
 
-  const stats = useMemo(() => {
-    const items = data?.items ?? [];
-    const live = items.filter((s) => s.visibility === "live").length;
-    const coming = items.filter((s) => s.visibility === "coming_soon").length;
-    return {
-      total: data?.total ?? 0,
-      live,
-      coming,
-    };
-  }, [data]);
+  const stats = data?.stats ?? {
+    total: data?.total ?? 0,
+    live: 0,
+    comingSoon: 0,
+    hidden: 0,
+    active: 0,
+  };
 
   const openCreate = () => {
     setEditingSport(null);
@@ -194,133 +191,134 @@ export function SportsManagementPage({ context }: SportsManagementPageProps) {
 
   return (
     <AdminShell context={context} title="Sports">
-      <div className="space-y-6">
-        <p className="text-sm leading-relaxed text-cp-muted">
+      <div className="space-y-4 sm:space-y-6">
+        <p className="hidden text-sm leading-relaxed text-cp-muted sm:block">
           Add and configure sport disciplines. Each sport has its own players, gear,
           tournaments, and rules — scoped by sport context across the admin console.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
           <StatCard label="Total sports" value={String(stats.total)} />
           <StatCard label="Live" value={String(stats.live)} />
-          <StatCard
-            label="Coming soon"
-            value={String(stats.coming)}
-            className="col-span-2 sm:col-span-1"
-          />
+          <StatCard label="Coming soon" value={String(stats.comingSoon)} />
+          <StatCard label="Active" value={String(stats.active)} />
         </div>
 
-        <div className="rounded-2xl border border-cp-border bg-cp-card/40 p-4 sm:p-5">
-          <div className="flex flex-col gap-3">
-            <div className="relative w-full">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-              <Input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Search by name or slug…"
-                className="h-11 w-full border-cp-border bg-cp-bg-input pl-10 text-foreground"
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <Select
-                value={visibilityFilter}
-                onValueChange={(v) => {
-                  setVisibilityFilter(v as AdminSportsListQuery["visibility"]);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-11 w-full")}>
-                  <SelectValue placeholder="Visibility" />
-                </SelectTrigger>
-                <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All visibility
-                  </SelectItem>
-                  {SPORT_VISIBILITY.map((v) => (
-                    <SelectItem key={v} value={v} className={cpSelectItemClass}>
-                      {v.replace("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => {
-                  setStatusFilter(v as AdminSportsListQuery["status"]);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-11 w-full")}>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All status
-                  </SelectItem>
-                  <SelectItem value="active" className={cpSelectItemClass}>
-                    Active
-                  </SelectItem>
-                  <SelectItem value="inactive" className={cpSelectItemClass}>
-                    Inactive
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={`${sortBy}-${sortDir}`}
-                onValueChange={(v) => {
-                  const [by, dir] = v.split("-") as [
-                    AdminSportsListQuery["sortBy"],
-                    AdminSportsListQuery["sortDir"],
-                  ];
-                  setSortBy(by);
-                  setSortDir(dir);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-11 w-full")}>
-                  <SelectValue placeholder="Sort" />
-                </SelectTrigger>
-                <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
-                  <SelectItem value="displayOrder-asc" className={cpSelectItemClass}>
-                    Display order
-                  </SelectItem>
-                  <SelectItem value="name-asc" className={cpSelectItemClass}>
-                    Name A–Z
-                  </SelectItem>
-                  <SelectItem value="name-desc" className={cpSelectItemClass}>
-                    Name Z–A
-                  </SelectItem>
-                  <SelectItem value="updated-desc" className={cpSelectItemClass}>
-                    Recently updated
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+        <div className="overflow-hidden rounded-xl border border-cp-border bg-cp-card cp-shadow-card sm:rounded-2xl">
+          <div className="border-b border-cp-border p-3 sm:p-4 lg:p-5">
+            <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:gap-4">
               <Button
                 onClick={openCreate}
-                className="h-11 w-full bg-cp-primary hover:bg-cp-primary-light sm:col-span-2 lg:col-span-1"
+                className="h-10 w-auto shrink-0 self-start bg-cp-primary px-3 hover:bg-cp-primary-light sm:h-11 sm:px-4"
+                aria-label="Add sport"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Add sport
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Add sport</span>
               </Button>
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
+                <Input
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search by name or slug…"
+                  className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-10 text-foreground sm:h-11"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:max-w-2xl lg:shrink-0">
+                <Select
+                  value={visibilityFilter}
+                  onValueChange={(v) => {
+                    setVisibilityFilter(v as AdminSportsListQuery["visibility"]);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                    <SelectValue placeholder="Visibility" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
+                    <SelectItem value="all" className={cpSelectItemClass}>
+                      All visibility
+                    </SelectItem>
+                    {SPORT_VISIBILITY.map((v) => (
+                      <SelectItem key={v} value={v} className={cpSelectItemClass}>
+                        {v.replace("_", " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v as AdminSportsListQuery["status"]);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
+                    <SelectItem value="all" className={cpSelectItemClass}>
+                      All status
+                    </SelectItem>
+                    <SelectItem value="active" className={cpSelectItemClass}>
+                      Active
+                    </SelectItem>
+                    <SelectItem value="inactive" className={cpSelectItemClass}>
+                      Inactive
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={`${sortBy}-${sortDir}`}
+                  onValueChange={(v) => {
+                    const [by, dir] = v.split("-") as [
+                      AdminSportsListQuery["sortBy"],
+                      AdminSportsListQuery["sortDir"],
+                    ];
+                    setSortBy(by);
+                    setSortDir(dir);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      cpSelectTriggerClass,
+                      "col-span-2 h-10 w-full sm:col-span-1 sm:h-11",
+                    )}
+                  >
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent className={cn(cpSelectContentClass, "z-[200]")}>
+                    <SelectItem value="displayOrder-asc" className={cpSelectItemClass}>
+                      Display order
+                    </SelectItem>
+                    <SelectItem value="name-asc" className={cpSelectItemClass}>
+                      Name A–Z
+                    </SelectItem>
+                    <SelectItem value="name-desc" className={cpSelectItemClass}>
+                      Name Z–A
+                    </SelectItem>
+                    <SelectItem value="updated-desc" className={cpSelectItemClass}>
+                      Recently updated
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {canReorder ? (
+              <p className="mt-2 flex items-center gap-1.5 text-[11px] text-cp-muted sm:mt-3 sm:text-xs lg:hidden">
+                <GripHorizontal className="h-3.5 w-3.5 shrink-0" />
+                Drag rows to change homepage display order.
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-cp-muted sm:mt-3 sm:text-xs lg:hidden">
+                Clear filters and sort by display order to enable drag-and-drop reordering.
+              </p>
+            )}
           </div>
-        </div>
-
-        {canReorder ? (
-          <p className="flex items-center gap-2 text-xs text-cp-muted">
-            <GripHorizontal className="h-3.5 w-3.5" />
-            Drag rows to change homepage display order.
-          </p>
-        ) : (
-          <p className="text-xs text-cp-muted">
-            Clear filters and sort by display order to enable drag-and-drop reordering.
-          </p>
-        )}
-
-        <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card/50 shadow-sm">
           {isFetching && !isLoading ? (
             <div className="flex items-center justify-center gap-2 border-b border-cp-border py-2 text-xs text-cp-muted">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -347,14 +345,26 @@ export function SportsManagementPage({ context }: SportsManagementPageProps) {
               </Button>
             </div>
           ) : (
-            <SportsSortableTable
-              items={data.items}
-              canReorder={canReorder}
-              onPageReorder={handlePageReorder}
-              onEdit={openEdit}
-              onDelete={handleDeleteFromTable}
-              reordering={reorderSports.isPending}
-            />
+            <>
+              {canReorder ? (
+                <p className="hidden items-center gap-2 border-b border-cp-border px-4 py-2.5 text-xs text-cp-muted lg:flex">
+                  <GripHorizontal className="h-3.5 w-3.5 shrink-0" />
+                  Drag rows to change homepage display order.
+                </p>
+              ) : (
+                <p className="hidden border-b border-cp-border px-4 py-2.5 text-xs text-cp-muted lg:block">
+                  Clear filters and sort by display order to enable drag-and-drop reordering.
+                </p>
+              )}
+              <SportsSortableTable
+                items={data.items}
+                canReorder={canReorder}
+                onPageReorder={handlePageReorder}
+                onEdit={openEdit}
+                onDelete={handleDeleteFromTable}
+                reordering={reorderSports.isPending}
+              />
+            </>
           )}
         </div>
 

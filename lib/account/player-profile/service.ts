@@ -37,6 +37,11 @@ import {
   getPlayerCareerStats,
   getSignatureGearItem,
 } from "@/lib/wiki/player-career-stats";
+import {
+  enrichEquipmentFromCatalog,
+  migrateAndResolvePlayerEquipment,
+} from "@/lib/wiki/gear/equipment-resolve";
+import { validatePlayerGearLinks } from "@/lib/wiki/gear/player-create";
 import { requirePlayerDisplayNameForUser } from "@/lib/account/player-profile/resolve-display-name";
 import { getUserPhotoForWiki } from "@/lib/account/player-profile/sync-primary-photo";
 
@@ -147,7 +152,20 @@ export async function getPlayerWikiProfileForUser(
   const entityId = await getPlayerWikiEntityIdForUser(userId);
   if (!entityId) return null;
   const detail = await getWikiEntityById(entityId);
-  return detail ? mapPlayerProfile(detail) : null;
+  if (!detail) return null;
+
+  const view = mapPlayerProfile(detail);
+  const sport = await getSportBySlug(detail.sportSlug);
+  if (!sport) return view;
+
+  const equipment = await migrateAndResolvePlayerEquipment(
+    sport.id,
+    detail.sportSlug,
+    view.equipment,
+    userId,
+  );
+
+  return { ...view, equipment };
 }
 
 async function uploadEquipmentImages(
@@ -296,6 +314,9 @@ export async function upsertPlayerWikiProfile(
     equipmentFiles,
     sport.slug,
   );
+
+  await validatePlayerGearLinks(sport.id, equipment);
+  equipment = await enrichEquipmentFromCatalog(sport.id, sport.slug, equipment);
 
   const db = getDb();
   const displayName = await requirePlayerDisplayNameForUser(userId);

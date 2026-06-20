@@ -73,7 +73,7 @@ export function AdminProfileMenu({ context }: { context: AdminSessionContext }) 
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         className={cn(
           "rounded-full outline-none ring-cp-primary/0 transition-shadow",

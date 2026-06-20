@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { Search, User } from "lucide-react";
+import { Search, Users } from "lucide-react";
+import { PublicPlayersList } from "@/components/wiki/public-players-list";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -19,7 +18,11 @@ import {
 } from "@/components/dashboard/player/competition/competition-list-loading";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePublicPlayersList } from "@/hooks/use-public-players";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
 import type { PublicPlayersListQuery } from "@/lib/validations/public-wiki";
 import { cn } from "@/lib/utils";
 
@@ -27,11 +30,6 @@ type PlayerRankingTableProps = {
   sportSlug: string;
   sportName: string;
 };
-
-function formatPoints(points: number | null): string {
-  if (points == null) return "—";
-  return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(points);
-}
 
 export function PlayerRankingTable({ sportSlug, sportName }: PlayerRankingTableProps) {
   const [search, setSearch] = useState("");
@@ -56,52 +54,74 @@ export function PlayerRankingTable({ sportSlug, sportName }: PlayerRankingTableP
 
   return (
     <div>
-      <header className="mb-8">
+      <header className="mb-6 sm:mb-8">
         <h1 className="text-3xl font-bold text-foreground sm:text-4xl">Players</h1>
-        <p className="mt-2 text-cp-muted">
-          Find the best {sportName.toLowerCase()} players — rankings, points, and profiles.
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-cp-muted sm:text-base">
+          All published {sportName.toLowerCase()} player profiles — rankings, tiers, and career
+          stats from official tournament results.
         </p>
+        {data ? (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-cp-border bg-cp-elevated/40 px-3 py-1 text-xs font-medium text-cp-muted">
+            <Users className="h-3.5 w-3.5" />
+            {data.total} player{data.total === 1 ? "" : "s"} in {sportName}
+          </p>
+        ) : null}
       </header>
 
-      <div className="rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
-        <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:flex-row sm:items-center sm:p-5">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
+      <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+        <div className="border-b border-cp-border p-3 sm:p-4 lg:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search player name, nickname, or bio…"
+                className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9 text-foreground sm:h-11"
+              />
+            </div>
+            <Select
+              value={`${sortBy}-${sortDir}`}
+              onValueChange={(v) => {
+                const [sb, sd] = v.split("-") as [
+                  PublicPlayersListQuery["sortBy"],
+                  PublicPlayersListQuery["sortDir"],
+                ];
+                setSortBy(sb);
+                setSortDir(sd);
                 setPage(1);
               }}
-              placeholder="Search player name…"
-              className="h-10 border-cp-border bg-cp-elevated/50 pl-9"
-            />
+            >
+              <SelectTrigger
+                className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11 lg:w-[200px] lg:shrink-0")}
+              >
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent className={cpSelectContentClass}>
+                <SelectItem value="points-desc" className={cpSelectItemClass}>
+                  Points (highest)
+                </SelectItem>
+                <SelectItem value="points-asc" className={cpSelectItemClass}>
+                  Points (lowest)
+                </SelectItem>
+                <SelectItem value="rank-asc" className={cpSelectItemClass}>
+                  Rank (best first)
+                </SelectItem>
+                <SelectItem value="name-asc" className={cpSelectItemClass}>
+                  Name (A–Z)
+                </SelectItem>
+                <SelectItem value="name-desc" className={cpSelectItemClass}>
+                  Name (Z–A)
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select
-            value={`${sortBy}-${sortDir}`}
-            onValueChange={(v) => {
-              const [sb, sd] = v.split("-") as [
-                PublicPlayersListQuery["sortBy"],
-                PublicPlayersListQuery["sortDir"],
-              ];
-              setSortBy(sb);
-              setSortDir(sd);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="h-10 w-full border-cp-border bg-cp-elevated/50 sm:w-48">
-              <SelectValue placeholder="Sort" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="points-desc">Points (highest)</SelectItem>
-              <SelectItem value="points-asc">Points (lowest)</SelectItem>
-              <SelectItem value="name-asc">Name (A–Z)</SelectItem>
-              <SelectItem value="name-desc">Name (Z–A)</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
-        <div className="relative overflow-x-auto">
+        <div className="relative">
           {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
 
           {error ? (
@@ -111,87 +131,16 @@ export function PlayerRankingTable({ sportSlug, sportName }: PlayerRankingTableP
           ) : isLoading ? (
             <CompetitionListSkeleton />
           ) : data?.items.length === 0 ? (
-            <p className="py-16 text-center text-sm text-cp-muted">No players found.</p>
+            <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
+              <Users className="h-10 w-10 text-cp-muted" />
+              <p className="text-sm text-cp-muted">
+                {debouncedSearch
+                  ? "No players match your search."
+                  : `No published player profiles for ${sportName} yet.`}
+              </p>
+            </div>
           ) : (
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-cp-border bg-cp-elevated/50 text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:text-xs">
-                  <th className="px-4 py-3 sm:px-6">Rank</th>
-                  <th className="px-4 py-3 sm:px-6">Name</th>
-                  <th className="hidden px-4 py-3 sm:table-cell sm:px-6">Province</th>
-                  <th className="hidden px-4 py-3 md:table-cell sm:px-6">Tier</th>
-                  <th className="px-4 py-3 text-right sm:px-6">Points</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-cp-border">
-                {data?.items.map((player) => (
-                  <tr
-                    key={player.slug}
-                    className="transition-colors hover:bg-cp-elevated/30"
-                  >
-                    <td className="px-4 py-3 font-semibold text-foreground sm:px-6">
-                      {player.rank}
-                    </td>
-                    <td className="px-4 py-3 sm:px-6">
-                      <Link
-                        href={publicSportRoutes.player(sportSlug, player.slug)}
-                        className="group inline-flex min-w-0 items-center gap-3"
-                      >
-                        <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-cp-border bg-cp-elevated">
-                          {player.avatarUrl ? (
-                            <Image
-                              src={player.avatarUrl}
-                              alt=""
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          ) : (
-                            <span className="flex h-full w-full items-center justify-center text-cp-muted">
-                              <User className="h-5 w-5" />
-                            </span>
-                          )}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block font-medium text-foreground group-hover:text-cp-primary">
-                            {player.displayName}
-                          </span>
-                          {player.playingStyle ? (
-                            <span className="block truncate text-xs text-cp-muted">
-                              {player.playingStyle}
-                            </span>
-                          ) : player.nickname ? (
-                            <span className="block text-xs text-cp-muted">{player.nickname}</span>
-                          ) : null}
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="hidden px-4 py-3 text-cp-muted sm:table-cell sm:px-6">
-                      {player.province ?? "—"}
-                    </td>
-                    <td className="hidden px-4 py-3 sm:px-6 md:table-cell">
-                      {player.tier ? (
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                            player.tier === "pro"
-                              ? "bg-amber-500/15 text-amber-300"
-                              : "bg-cp-primary/15 text-cp-primary",
-                          )}
-                        >
-                          {player.tier}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-foreground sm:px-6">
-                      {formatPoints(player.points)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <PublicPlayersList sportSlug={sportSlug} items={data?.items ?? []} />
           )}
         </div>
 

@@ -50,6 +50,13 @@
       "when": 1782200000000,
       "tag": "0006_host_payout_disbursements",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782300000000,
+      "tag": "0007_wiki_scrape_hosts",
+      "breakpoints": true
     }
   ]
 }

@@ -24,6 +24,12 @@ import {
   canCreateReclubSquad,
   canRenameReclubSquad,
 } from "@/lib/tournaments/reclub/squad-names";
+import {
+  canJoinReclubSession,
+  computeReclubSessionPhase,
+  getReclubSessionEndedMessage,
+  type ReclubSessionSchedule,
+} from "@/lib/tournaments/reclub/session-lifecycle";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +37,7 @@ type ReclubLobbyDndProps = {
   teams: LobbyTeamView[];
   playersPerTeam: number;
   maxTeams?: number | null;
-  tournamentStatus: string;
+  session: ReclubSessionSchedule;
   userTeamId: string | null;
   currentUserId: string | null;
   activeMatch: boolean;
@@ -50,7 +56,7 @@ export function ReclubLobbyDnd({
   teams,
   playersPerTeam,
   maxTeams,
-  tournamentStatus,
+  session,
   userTeamId,
   currentUserId,
   activeMatch,
@@ -75,7 +81,7 @@ export function ReclubLobbyDnd({
   const handleDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const handleDragEnd = (e: DragEndEvent) => {
     setActiveId(null);
-    if (activeMatch) return;
+    if (activeMatch || !canJoinReclubSession(session)) return;
     const overId = e.over?.id;
     if (!overId || !String(overId).startsWith("team-")) return;
     const teamId = String(overId).replace("team-", "");
@@ -92,8 +98,10 @@ export function ReclubLobbyDnd({
   const teamsAtCapacity =
     maxTeams != null && maxTeams > 0 && teams.length >= maxTeams;
 
+  const sessionPhase = computeReclubSessionPhase(session);
+
   const allowCreate = canCreateReclubSquad({
-    tournamentStatus,
+    session,
     hasActiveMatch: activeMatch,
     teamsAtCapacity,
   });
@@ -128,6 +136,10 @@ export function ReclubLobbyDnd({
         <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200/90">
           Squads are locked during an active round.
         </p>
+      ) : sessionPhase === "ended" ? (
+        <p className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-xs text-cp-muted">
+          {getReclubSessionEndedMessage()}
+        </p>
       ) : null}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -139,14 +151,18 @@ export function ReclubLobbyDnd({
               index={i}
               playersPerTeam={playersPerTeam}
               isUserTeam={userTeamId === team.id}
-              canDrop={!activeMatch && team.memberCount < playersPerTeam}
+              canDrop={
+                canJoinReclubSession(session) &&
+                !activeMatch &&
+                team.memberCount < playersPerTeam
+              }
               currentUserId={currentUserId}
               onSwitchTeam={onSwitchTeam}
               activeMatch={activeMatch}
               canRename={
                 Boolean(onRenameTeam) &&
                 canRenameReclubSquad({
-                  tournamentStatus,
+                  session,
                   hasActiveMatch: activeMatch,
                   canManage,
                   captainUserId: team.captainUserId,

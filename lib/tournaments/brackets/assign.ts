@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
+import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 
@@ -14,6 +15,10 @@ export async function assignTeamToBracketSlot(
   slot: "a" | "b",
   teamId: string | null,
 ): Promise<BracketMatchView> {
+  if (tournament.tournamentType === "recreational") {
+    assertReclubSessionPlayable(tournament);
+  }
+
   const db = getDb();
 
   const [match] = await db

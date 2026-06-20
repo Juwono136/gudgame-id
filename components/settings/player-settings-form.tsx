@@ -96,7 +96,7 @@ export function PlayerSettingsForm({
   }, [equipmentPreviews]);
 
   const validEquipment = useMemo(
-    () => equipment.filter((e) => e.name.trim().length > 0),
+    () => equipment.filter((e) => (e.gearEntityId || e.name?.trim()) && (e.gearEntityId || e.name!.trim().length > 0)),
     [equipment],
   );
 
@@ -300,6 +300,7 @@ export function PlayerSettingsForm({
         description="Gear you use in competition. Mark one item as your signature gear for the public page."
       >
         <PlayerEquipmentEditor
+          sportSlug={profile?.sportSlug ?? "padel"}
           items={equipment}
           onChange={setEquipment}
           equipmentPreviews={equipmentPreviews}

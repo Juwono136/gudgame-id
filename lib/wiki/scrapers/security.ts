@@ -1,23 +1,7 @@
 import "server-only";
 
 import { AppError } from "@/lib/errors";
-
-const DEFAULT_ALLOWED_HOSTS = [
-  "padeltop.id",
-  "www.padeltop.id",
-  "padelful.com",
-  "www.padelful.com",
-  "padelracket.id",
-  "www.padelracket.id",
-  "decathlon.co.id",
-  "www.decathlon.co.id",
-];
-
-function getAllowedHosts(): Set<string> {
-  const env = process.env.WIKI_SCRAPE_ALLOWED_HOSTS?.trim();
-  const list = env ? env.split(",").map((h) => h.trim().toLowerCase()) : DEFAULT_ALLOWED_HOSTS;
-  return new Set(list.filter(Boolean));
-}
+import { getEnabledScrapeHostnames } from "@/lib/wiki/scrape-hosts/service";
 
 function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
@@ -29,7 +13,10 @@ function isPrivateHost(hostname: string): boolean {
   return false;
 }
 
-export function assertScrapeUrlAllowed(rawUrl: string): URL {
+export async function assertScrapeUrlAllowed(
+  rawUrl: string,
+  options?: { sportId?: string | null },
+): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl.trim());
@@ -52,10 +39,10 @@ export function assertScrapeUrlAllowed(rawUrl: string): URL {
     });
   }
 
-  const allowed = getAllowedHosts();
+  const allowed = await getEnabledScrapeHostnames(options?.sportId);
   if (!allowed.has(host)) {
     throw new AppError(
-      `Scraping is not enabled for this site. Allowed: ${[...allowed].join(", ")}`,
+      `Scraping is not enabled for this site (${host}). Add the host in Data source settings.`,
       { code: "FORBIDDEN", statusCode: 403 },
     );
   }

@@ -31,6 +31,7 @@ async function mapPool<T, R>(
 export async function batchScrapeGearProducts(
   urls: string[],
   sportSlug: string,
+  options?: { sportId?: string | null },
 ): Promise<WikiBatchScrapeResult> {
   const unique = [...new Set(urls.map((u) => u.trim()).filter(Boolean))];
 
@@ -50,7 +51,7 @@ export async function batchScrapeGearProducts(
 
   const outcomes = await mapPool(unique, BATCH_CONCURRENCY, async (url) => {
     try {
-      const preview = await scrapeGearFromUrl(url, sportSlug);
+      const preview = await scrapeGearFromUrl(url, sportSlug, options);
       return { ok: true as const, preview };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Scrape failed";

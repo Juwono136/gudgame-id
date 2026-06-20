@@ -26,6 +26,11 @@ import {
 } from "@/hooks/use-tournament-bracket";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import {
+  canPlayReclubSession,
+  computeReclubSessionPhase,
+  type ReclubSessionSchedule,
+} from "@/lib/tournaments/reclub/session-lifecycle";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +43,7 @@ type ReclubBracketPanelProps = {
   participant: TournamentParticipantContext;
   userTeamId: string | null;
   tournamentStatus: string;
+  session: ReclubSessionSchedule;
 };
 
 export function ReclubBracketPanel({
@@ -49,17 +55,21 @@ export function ReclubBracketPanel({
   participant,
   userTeamId,
   tournamentStatus,
+  session,
 }: ReclubBracketPanelProps) {
   const { data, isLoading, isFetching } = useTournamentBracket(sportSlug, slug);
   const generate = useGenerateReclubBracket(sportSlug, slug);
   const assign = useAssignBracketTeam(sportSlug, slug);
+
+  const sessionPhase = computeReclubSessionPhase(session);
+  const canPlay = canPlayReclubSession(session);
 
   const matches = data?.matches ?? [];
   const generated = data?.generated ?? false;
   const seedingLocked = matches.some(
     (m) => m.status === "in_progress" || m.status === "completed",
   );
-  const canSeed = canManage && generated && !seedingLocked && tournamentStatus !== "completed";
+  const canSeed = canManage && generated && !seedingLocked && canPlay;
 
   const placedTeamIds = useMemo(() => {
     const ids = new Set<string>();
@@ -82,7 +92,7 @@ export function ReclubBracketPanel({
     canManage &&
     !generated &&
     activeSquads >= 2 &&
-    tournamentStatus !== "completed" &&
+    sessionPhase !== "ended" &&
     tournamentStatus !== "cancelled";
 
   if (isLoading) {

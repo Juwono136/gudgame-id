@@ -1,4 +1,5 @@
 import type { PayoutSchedule } from "@/lib/payments/host-payout/constants";
+import { disbursementStatusBadgeClass } from "@/lib/styles/status-badges";
 
 /** Minimum accumulated host earnings before a bank disbursement is triggered */
 export const MIN_HOST_PAYOUT_DISBURSEMENT_IDR = 10_000;
@@ -21,15 +22,7 @@ export const DISBURSEMENT_STATUS_LABELS: Record<string, string> = {
   reversed: "Reversed",
 };
 
-export const DISBURSEMENT_STATUS_STYLES: Record<string, string> = {
-  pending: "bg-slate-500/20 text-slate-300",
-  accepted: "bg-sky-500/20 text-sky-300",
-  requested: "bg-sky-500/20 text-sky-300",
-  succeeded: "bg-emerald-500/20 text-emerald-300",
-  failed: "bg-red-500/20 text-red-300",
-  cancelled: "bg-slate-500/20 text-slate-400",
-  reversed: "bg-amber-500/20 text-amber-300",
-};
+export const DISBURSEMENT_STATUS_STYLES = disbursementStatusBadgeClass;
 
 export function buildDisbursementReferenceId(
   hostUserId: string,

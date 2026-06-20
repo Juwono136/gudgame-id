@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const PLAYER_DISPLAY_NAME_MAX = 120;
+export const PLAYER_NICKNAME_MAX = 120;
+export const PLAYER_SLUG_MAX = 120;
 
 /** Public player name is derived from account full name (KTP name preferred). */
 export function resolvePlayerDisplayNameFromAccount(account: {
