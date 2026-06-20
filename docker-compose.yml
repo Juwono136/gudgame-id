@@ -94,28 +94,21 @@ services:
 
   # Sidecar: daily host bank payout job (Docker/VPS — replaces Vercel Cron).
   # Schedule: 08:00 Asia/Jakarta — see ops/cron/host-payouts.crontab
+  # Pattern: external scheduler → HTTP /api/cron/host-payouts (CRON_SECRET). Standard for VPS/Docker.
   payout-cron:
-    image: alpine:3.20
+    build:
+      context: ./ops/cron
+      dockerfile: Dockerfile
+    image: tandingbase-payout-cron:local
     container_name: tandingbase-payout-cron
     restart: unless-stopped
     depends_on:
       app:
-        condition: service_healthy
+        condition: service_started
     environment:
       CRON_SECRET: ${CRON_SECRET:-}
       APP_INTERNAL_URL: http://app:3000
       TZ: Asia/Jakarta
-    volumes:
-      - ./ops/cron:/cron:ro
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        apk add --no-cache curl tzdata
-        chmod +x /cron/run-host-payouts.sh
-        crontab /cron/host-payouts.crontab
-        echo "Payout cron started (TZ=$$TZ, target=$$APP_INTERNAL_URL)"
-        crond -f -l 8
     networks:
       - tunnel
     logging:

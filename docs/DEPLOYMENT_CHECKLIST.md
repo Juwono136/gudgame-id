@@ -49,8 +49,9 @@ Gunakan checklist ini sebelum membuka akses publik penuh.
 - [ ] Cloudflare: SSL Full, Bot Fight / WAF aktif (sesuai plan)
 - [ ] Rate limit edge untuk `/api/auth/*` (opsional, lapisan tambahan)
 - [ ] `HEALTH_CHECK_TOKEN` kuat & tidak dipublikasikan
-- [ ] `CRON_SECRET` kuat — sidecar `payout-cron` + `/api/cron/host-payouts`
-- [ ] Container `tandingbase-payout-cron` running setelah deploy (`docker ps`)
+- [ ] `CRON_SECRET` kuat (≥16 karakter) — sidecar `payout-cron` + `/api/cron/host-payouts`
+- [ ] Deploy CI mem-build `ops/cron/Dockerfile` lalu `docker compose up --wait payout-cron`
+- [ ] Container `tandingbase-payout-cron` running + healthy setelah deploy (`docker compose ps payout-cron`)
 - [ ] Rotasi secret jika pernah ter-expose di log/chat
 
 ## CI/CD

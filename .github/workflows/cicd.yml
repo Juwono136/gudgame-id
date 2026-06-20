@@ -116,7 +116,9 @@ jobs:
       - name: Deploy TandingBase app
         run: |
           docker compose pull app
-          docker compose up -d --no-deps app payout-cron
+          docker compose build payout-cron
+          docker compose up -d --no-deps app
+          docker compose up -d --wait --wait-timeout 120 --no-deps payout-cron
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
@@ -191,7 +193,19 @@ jobs:
 
       - name: Verify payout cron sidecar
         run: |
-          docker ps --filter "name=tandingbase-payout-cron" --filter "status=running" --format '{{.Names}}' | grep -q 'tandingbase-payout-cron'
+          docker compose ps payout-cron
+          STATUS="$(docker inspect -f '{{.State.Status}}' tandingbase-payout-cron 2>/dev/null || echo missing)"
+          HEALTH="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' tandingbase-payout-cron 2>/dev/null || echo missing)"
+          echo "payout-cron status=${STATUS} health=${HEALTH}"
+          if [ "${STATUS}" != "running" ]; then
+            docker logs tandingbase-payout-cron --tail 50 2>&1 || true
+            exit 1
+          fi
+          if [ "${HEALTH}" = "unhealthy" ]; then
+            docker logs tandingbase-payout-cron --tail 50 2>&1 || true
+            exit 1
+          fi
+          echo "payout-cron is running"
 
       - name: Cleanup dangling images
         run: docker image prune -f

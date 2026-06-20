@@ -165,12 +165,12 @@ Repo → **Settings → Secrets and variables → Actions**
 | `STRICT_PRODUCTION_ENV` | `true` |
 | `WIKI_SCRAPE_ALLOWED_HOSTS` | opsional |
 
-Build job (GitHub-hosted) membake `NEXT_PUBLIC_*` ke image. Deploy job (self-hosted runner) menjalankan migrate + `docker compose up -d --no-deps app payout-cron`.
+Build job (GitHub-hosted) membake `NEXT_PUBLIC_*` ke image. Deploy job (self-hosted runner) menjalankan migrate + `docker compose build payout-cron` + `docker compose up -d --wait payout-cron`.
 
-Sidecar **`payout-cron`** (Alpine + `crond`) memanggil `GET /api/cron/host-payouts` setiap hari **08:00 WIB** lewat jaringan internal Docker (`http://app:3000`). Jadwal: `ops/cron/host-payouts.crontab`. Manual test di VPS:
+Sidecar **`payout-cron`** (Alpine + `crond`, image terpisah di `ops/cron/Dockerfile`) memanggil `GET /api/cron/host-payouts` setiap hari **08:00 WIB** lewat jaringan internal Docker (`http://app:3000`). Jadwal: `ops/cron/host-payouts.crontab`. Manual test di VPS:
 
 ```bash
-docker compose exec payout-cron /cron/run-host-payouts.sh
+docker compose exec payout-cron sh /cron/run-host-payouts.sh
 ```
 
 **DB migrate di CI/CD** menjalankan `scripts/run-db-migrate.ts`, yang sebelum `drizzle migrate` selalu menerapkan `db/migrations/prerequisites/ensure-host-payout-prerequisites.sql` (tabel `host_bank_accounts`, kolom payout di `host_xendit_accounts`). Ini mencegah gagal deploy bila migrasi `0003` pernah di-baseline tanpa dieksekusi.
