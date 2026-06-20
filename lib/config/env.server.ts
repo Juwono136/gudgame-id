@@ -36,6 +36,7 @@ const serverSchema = z
     STORAGE_REGION: z.string().default("us-east-1"),
     STORAGE_AUTH_MODE: z.enum(["nginx-basic", "s3"]).default("nginx-basic"),
     HEALTH_CHECK_TOKEN: z.string().min(16).optional(),
+    CRON_SECRET: z.string().min(16).optional(),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
     GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
     XENDIT_SECRET_KEY: z.string().min(1).optional(),
@@ -85,6 +86,15 @@ const serverSchema = z
         code: "custom",
         path: ["HEALTH_CHECK_TOKEN"],
         message: "HEALTH_CHECK_TOKEN (min 16 chars) is required in production",
+      });
+    }
+
+    if (!data.CRON_SECRET) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CRON_SECRET"],
+        message:
+          "CRON_SECRET (min 16 chars) is required in production for scheduled host bank payouts",
       });
     }
 

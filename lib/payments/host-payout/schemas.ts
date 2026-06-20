@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PAYOUT_SCHEDULES } from "@/lib/payments/host-payout/constants";
 
 const bankAccountFields = {
   bankCode: z.string().min(2).max(20),
@@ -12,7 +13,7 @@ const bankAccountFields = {
 
 export const bankPayoutSchema = z.object({
   ...bankAccountFields,
-  payoutSchedule: z.enum(["weekly", "biweekly", "monthly"]).default("weekly"),
+  payoutSchedule: z.enum(PAYOUT_SCHEDULES).default("weekly"),
 });
 
 export const addBankAccountSchema = z.object(bankAccountFields);
@@ -27,7 +28,7 @@ export const setPrimaryBankSchema = z.object({
 });
 
 export const payoutScheduleSchema = z.object({
-  payoutSchedule: z.enum(["weekly", "biweekly", "monthly"]),
+  payoutSchedule: z.enum(PAYOUT_SCHEDULES),
 });
 
 export type BankPayoutInput = z.infer<typeof bankPayoutSchema>;

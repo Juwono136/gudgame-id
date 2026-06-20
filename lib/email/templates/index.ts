@@ -10,6 +10,8 @@ import { renderRegistrationPaymentReminderTemplate } from "./registration-paymen
 import { renderRegistrationTeamInviteTemplate } from "./registration-team-invite";
 import { renderRegistrationCancelledTemplate } from "./registration-cancelled";
 import { renderHostPaymentReceivedTemplate } from "./host-payment-received";
+import { renderHostPayoutDisbursedTemplate } from "./host-payout-disbursed";
+import { renderHostPayoutFailedTemplate } from "./host-payout-failed";
 import { renderVerifyEmailTemplate } from "./verify-email";
 import { renderResetPasswordTemplate } from "./reset-password";
 import { renderPasswordChangedTemplate } from "./password-changed";
@@ -57,6 +59,14 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "host-payment-received":
       return renderHostPaymentReceivedTemplate(
         input.data as EmailTemplateDataMap["host-payment-received"],
+      );
+    case "host-payout-disbursed":
+      return renderHostPayoutDisbursedTemplate(
+        input.data as EmailTemplateDataMap["host-payout-disbursed"],
+      );
+    case "host-payout-failed":
+      return renderHostPayoutFailedTemplate(
+        input.data as EmailTemplateDataMap["host-payout-failed"],
       );
     case "welcome":
       throw new Error("Welcome email template is not implemented yet");

@@ -136,7 +136,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
             variant="outline"
             className="h-10 w-full border-emerald-500/40 text-emerald-300 md:w-auto"
           >
-            <Link href={dashboardRoutes.tournamentsNew}>
+            <Link href={dashboardRoutes.hostTournamentsNewReclub}>
               <Plus className="mr-2 h-4 w-4" />
               Create reclub
             </Link>
@@ -173,7 +173,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
               variant="outline"
               className="h-10 w-full border-emerald-500/40 text-emerald-300"
             >
-              <Link href={dashboardRoutes.tournamentsNew}>
+              <Link href={dashboardRoutes.hostTournamentsNewReclub}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create reclub
               </Link>

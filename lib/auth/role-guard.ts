@@ -81,6 +81,15 @@ export async function requireHostDashboardAccess(): Promise<RoleGuardContext> {
   return ctx;
 }
 
+/** API routes — JSON errors instead of login redirects. */
+export async function requireApiHostDashboardAccess(): Promise<RoleGuardContext> {
+  const ctx = await requireApiRoleGuardContext();
+  if (!canAccessHostDashboard(ctx.roles)) {
+    throw new AppError("Host access required", { code: "FORBIDDEN", statusCode: 403 });
+  }
+  return ctx;
+}
+
 export async function requireAccountSettingsAccess(): Promise<RoleGuardContext> {
   const ctx = await loadRoleGuardContext();
   if (!canAccessAccountSettings(ctx.roles)) {

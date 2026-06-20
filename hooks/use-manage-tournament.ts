@@ -1,12 +1,34 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import { dashboardRoutes } from "@/lib/constants/routes";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import type { HostTournamentWorkspace } from "@/lib/tournaments/workspace/service";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
+
+export function useManageTournamentWorkspace(tournamentId: string) {
+  return useQuery({
+    queryKey: ["manage", "tournaments", tournamentId, "workspace"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/manage/${tournamentId}/workspace`);
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { workspace: HostTournamentWorkspace };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Failed to load tournament workspace"));
+      }
+      return json.data.workspace;
+    },
+    enabled: Boolean(tournamentId),
+    refetchInterval: 10_000,
+  });
+}
 
 export function useUpdateManageTournament(tournamentId: string) {
   const qc = useQueryClient();
@@ -31,6 +53,9 @@ export function useUpdateManageTournament(tournamentId: string) {
       void qc.invalidateQueries({ queryKey: ["account", "player", "tournaments"] });
       void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
       void qc.invalidateQueries({ queryKey: ["public", "tournaments"] });
+      void qc.invalidateQueries({
+        queryKey: ["manage", "tournaments", tournamentId, "workspace"],
+      });
       toast.success("Tournament updated");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -60,7 +85,7 @@ export function useDeleteManageTournament() {
       void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
       void qc.invalidateQueries({ queryKey: ["public", "tournaments"] });
       toast.success("Tournament deleted");
-      router.push("/dashboard/tournaments");
+      router.push(dashboardRoutes.tournaments);
     },
     onError: (err: Error) => toast.error(err.message),
   });

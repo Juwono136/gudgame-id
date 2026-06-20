@@ -36,7 +36,25 @@ export async function GET() {
 
     const account = await getUserAccountStatusById(session.user.id);
 
-    if (!account?.isActive) {
+    if (!account) {
+      return jsonSuccess({
+        authenticated: false,
+        accountInactive: false,
+        staleSession: true,
+        roles: [],
+        roleLabels: [],
+        dashboardLinks: [],
+        canAccessAdmin: false,
+        mustChangePassword: false,
+        profileComplete: true,
+        profileCompletionPercent: 100,
+        missingProfileFields: [],
+        isGoogleOnly: false,
+        hasGoogle: false,
+      });
+    }
+
+    if (!account.isActive) {
       return jsonSuccess({
         authenticated: false,
         accountInactive: true,

@@ -1,28 +1,66 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { CreditCard } from "lucide-react";
+import { useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ClipboardList, Receipt } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
+import { PlayerRegistrationsPanel } from "@/components/dashboard/player/player-registrations-panel";
+import { WorkspaceTabs } from "@/components/dashboard/workspace-tabs";
 import { PaymentTransactionsLedger } from "@/components/payments/payment-transactions-ledger";
-import { usePlayerRegistrations } from "@/hooks/use-player-payments";
-import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PaymentTransactionRow } from "@/lib/tournaments/payments/transaction-types";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+
+const PLAYER_PAYMENTS_TABS = [
+  {
+    id: "ledger",
+    label: "Payment ledger",
+    description:
+      "Search invoices and receipts for every official tournament registration you have paid or started.",
+    icon: Receipt,
+  },
+  {
+    id: "registrations",
+    label: "My registrations",
+    description:
+      "Tournaments you have joined — official events and reclub sessions, with status and quick actions.",
+    icon: ClipboardList,
+  },
+] as const;
+
+type PlayerPaymentsTabId = (typeof PLAYER_PAYMENTS_TABS)[number]["id"];
+
+const DEFAULT_TAB: PlayerPaymentsTabId = "ledger";
+
+function isPlayerPaymentsTabId(value: string | null): value is PlayerPaymentsTabId {
+  return PLAYER_PAYMENTS_TABS.some((tab) => tab.id === value);
+}
 
 type PlayerPaymentsPageProps = {
   roles: AppRole[];
 };
 
-const REG_FILTERS = ["all", "upcoming", "live", "completed"] as const;
-
 export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
   const router = useRouter();
-  const [regFilter, setRegFilter] = useState<(typeof REG_FILTERS)[number]>("all");
-  const registrations = usePlayerRegistrations();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const rawTab = searchParams.get("tab");
+  const activeTab = isPlayerPaymentsTabId(rawTab) ? rawTab : DEFAULT_TAB;
+
+  const setActiveTab = useCallback(
+    (tabId: PlayerPaymentsTabId) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (tabId === DEFAULT_TAB) {
+        params.delete("tab");
+      } else {
+        params.set("tab", tabId);
+      }
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
 
   const handlePay = (row: PaymentTransactionRow) => {
     router.push(
@@ -41,92 +79,23 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
         { label: "Payments" },
       ]}
     >
-      <section className="min-w-0">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground sm:text-lg">
-          <CreditCard className="h-5 w-5 shrink-0 text-cp-primary" />
-          Payment history
-        </h2>
-        <div className="mt-3 sm:mt-4">
+      <WorkspaceTabs
+        tabs={[...PLAYER_PAYMENTS_TABS]}
+        activeId={activeTab}
+        onChange={(id) => {
+          if (isPlayerPaymentsTabId(id)) setActiveTab(id);
+        }}
+      >
+        {activeTab === "ledger" ? (
           <PaymentTransactionsLedger
             apiPath="/api/account/player/payments"
             scope="player"
+            embedded
             onPayPending={handlePay}
           />
-        </div>
-      </section>
-
-      <section className="mt-8 min-w-0 sm:mt-12">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-semibold text-foreground sm:text-lg">My registrations</h2>
-          <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-cp-border p-1 sm:w-auto sm:grid-cols-4">
-            {REG_FILTERS.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setRegFilter(f)}
-                className={cn(
-                  "h-9 rounded-md px-2 text-xs capitalize sm:px-3",
-                  regFilter === f
-                    ? "bg-cp-primary/15 font-medium text-cp-primary"
-                    : "text-cp-muted hover:text-foreground",
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
-        {registrations.isLoading ? (
-          <p className="mt-4 text-sm text-cp-muted">Loading registrations…</p>
-        ) : registrations.data?.length === 0 ? (
-          <p className="mt-4 rounded-2xl border border-dashed border-cp-border px-4 py-10 text-center text-sm text-cp-muted sm:py-12">
-            No registrations yet.
-          </p>
-        ) : (
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {registrations.data
-              ?.filter((r) => {
-                if (regFilter === "all") return true;
-                const now = Date.now();
-                const start = r.startsAt ? new Date(r.startsAt).getTime() : null;
-                const end = r.endsAt ? new Date(r.endsAt).getTime() : null;
-                if (regFilter === "upcoming") return start != null && start > now;
-                if (regFilter === "live")
-                  return start != null && start <= now && (end == null || end >= now);
-                if (regFilter === "completed") return end != null && end < now;
-                return true;
-              })
-              .map((r) => (
-                <li
-                  key={r.tournamentId}
-                  className="min-w-0 rounded-2xl border border-cp-border bg-cp-card/70 p-4 sm:p-5"
-                >
-                  <div className="flex flex-wrap gap-2">
-                    <Badge
-                      className={
-                        r.tournamentType === "official"
-                          ? "border-0 bg-cp-primary/20 text-cp-primary"
-                          : "border-0 bg-emerald-500/20 text-emerald-300"
-                      }
-                    >
-                      {r.tournamentType === "official" ? "Official" : "Reclub"}
-                    </Badge>
-                    <Badge variant="muted" className="capitalize">
-                      {r.status.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 font-semibold text-foreground">{r.tournamentName}</p>
-                  <Link
-                    href={publicSportRoutes.tournament(r.sportSlug, r.tournamentSlug)}
-                    className="mt-2 inline-block text-sm text-cp-primary hover:underline"
-                  >
-                    View tournament →
-                  </Link>
-                </li>
-              ))}
-          </ul>
-        )}
-      </section>
+        ) : null}
+        {activeTab === "registrations" ? <PlayerRegistrationsPanel /> : null}
+      </WorkspaceTabs>
     </DashboardWorkspaceShell>
   );
 }

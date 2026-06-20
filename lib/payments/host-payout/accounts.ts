@@ -13,6 +13,11 @@ import type {
   UpdateBankAccountInput,
 } from "@/lib/payments/host-payout/schemas";
 import type { HostBankAccountView, HostBankPayoutProfileView } from "@/lib/payments/host-payout/types";
+import {
+  PAYOUT_SCHEDULES,
+  type PayoutSchedule,
+  normalizePayoutSchedule,
+} from "@/lib/payments/host-payout/constants";
 import { isXenPlatformEnabled } from "@/lib/payments/xenplatform/config";
 import { createManagedSubAccount } from "@/lib/payments/xenplatform/accounts";
 import { verifyIndonesiaBankAccount } from "@/lib/payments/iluma/bank-name-validator";
@@ -165,7 +170,7 @@ export async function getHostBankPayoutProfile(userId: string): Promise<HostBank
       configured: legacyViews.length > 0,
       accounts: legacyViews,
       maxAccounts: MAX_HOST_BANK_ACCOUNTS,
-      payoutSchedule: profile?.payoutSchedule ?? "weekly",
+      payoutSchedule: normalizePayoutSchedule(profile?.payoutSchedule),
       status: profile?.status ?? (legacyViews.length > 0 ? "active" : null),
       xenPlatformLinked: Boolean(profile?.xenditAccountId),
       businessName: profile?.businessName ?? null,
@@ -179,7 +184,7 @@ export async function getHostBankPayoutProfile(userId: string): Promise<HostBank
     configured: views.length > 0,
     accounts: views,
     maxAccounts: MAX_HOST_BANK_ACCOUNTS,
-    payoutSchedule: profile?.payoutSchedule ?? "weekly",
+    payoutSchedule: normalizePayoutSchedule(profile?.payoutSchedule),
     status: profile?.status ?? (views.length > 0 ? "active" : null),
     xenPlatformLinked: Boolean(profile?.xenditAccountId),
     businessName: profile?.businessName ?? null,
@@ -427,13 +432,41 @@ export async function setPrimaryHostBankAccount(
 
 export async function updateHostPayoutSchedule(
   userId: string,
-  payoutSchedule: "weekly" | "biweekly" | "monthly",
+  payoutSchedule: PayoutSchedule,
 ): Promise<HostBankPayoutProfileView> {
-  await ensureHostProfile(userId);
-  await getDb()
+  if (!PAYOUT_SCHEDULES.includes(payoutSchedule)) {
+    throw new AppError("Invalid payout schedule", { code: "VALIDATION_ERROR", statusCode: 422 });
+  }
+
+  const { existing } = await ensureHostProfile(userId);
+  const current = normalizePayoutSchedule(existing.payoutSchedule);
+
+  const profile = await getHostBankPayoutProfile(userId);
+  if (!profile.configured) {
+    throw new AppError("Add a payout bank account before setting a schedule.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
+
+  if (current === payoutSchedule) {
+    return profile;
+  }
+
+  const [updated] = await getDb()
     .update(hostXenditAccounts)
-    .set({ payoutSchedule })
-    .where(eq(hostXenditAccounts.userId, userId));
+    .set({ payoutSchedule, updatedAt: new Date() })
+    .where(eq(hostXenditAccounts.userId, userId))
+    .returning({ id: hostXenditAccounts.id });
+
+  if (!updated) {
+    throw new AppError("Could not update payout schedule", {
+      code: "INTERNAL_ERROR",
+      statusCode: 500,
+    });
+  }
+
+  log.info("Host payout schedule updated", { userId, payoutSchedule, previous: current });
 
   return getHostBankPayoutProfile(userId);
 }

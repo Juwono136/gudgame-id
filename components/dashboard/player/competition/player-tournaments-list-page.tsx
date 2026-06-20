@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Pencil, Plus, Search, Trash2, Trophy } from "lucide-react";
+import { LayoutDashboard, Pencil, Plus, Search, Trash2, Trophy } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
 import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
@@ -48,7 +48,7 @@ function placementTone(placement: string) {
 }
 
 const TOURNAMENT_LIST_GRID =
-  "md:grid md:grid-cols-[3.25rem_minmax(0,1.5fr)_5.25rem_minmax(0,1fr)_6.5rem_minmax(6.5rem,auto)] md:items-center md:gap-x-3 md:gap-y-1";
+  "md:grid md:grid-cols-[3.25rem_minmax(0,1.5fr)_5.25rem_minmax(0,1fr)_6.5rem_minmax(7.5rem,auto)] md:items-center md:gap-x-3 md:gap-y-1";
 
 type TournamentListRowProps = {
   row: PlayerTournamentListItem;
@@ -73,7 +73,11 @@ function TournamentListRow({
   onDelete,
 }: TournamentListRowProps) {
   const href =
-    row.sportSlug && row.slug ? publicSportRoutes.tournament(row.sportSlug, row.slug) : null;
+    scope === "created" && row.tournamentId
+      ? dashboardRoutes.tournament(row.tournamentId)
+      : row.sportSlug && row.slug
+        ? publicSportRoutes.tournament(row.sportSlug, row.slug)
+        : null;
 
   const statusLabel = row.registrationStatus
     ? row.registrationStatus.replace(/_/g, " ")
@@ -107,8 +111,27 @@ function TournamentListRow({
       />
     ) : null;
 
+  const isReclubCreated =
+    scope === "created" && row.source === "recreational" && Boolean(row.tournamentId);
+
   const hostActions = (
     <>
+      {isReclubCreated ? (
+        <Button
+          asChild
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-emerald-400 hover:text-emerald-300"
+        >
+          <Link
+            href={dashboardRoutes.tournament(row.tournamentId!)}
+            title="Open session workspace"
+            aria-label="Open session workspace"
+          >
+            <LayoutDashboard className="h-4 w-4" />
+          </Link>
+        </Button>
+      ) : null}
       {row.canEdit && row.tournamentId ? (
         <Button
           asChild
@@ -196,7 +219,7 @@ function TournamentListRow({
           </div>
         </dl>
 
-        {registrationActions || row.canEdit || row.canDelete ? (
+        {registrationActions || isReclubCreated || row.canEdit || row.canDelete ? (
           <div className="flex flex-wrap items-center justify-end gap-1 border-t border-cp-border/60 pt-3">
             {registrationActions}
             {hostActions}

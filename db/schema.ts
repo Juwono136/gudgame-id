@@ -22,6 +22,7 @@ export * from "./schema/tournament-payments";
 export * from "./schema/tournament-matches";
 export * from "./schema/host-xendit";
 export * from "./schema/host-bank-accounts";
+export * from "./schema/host-payout-disbursements";
 export * from "./schema/notifications";
 
 export { sports, type Sport, type NewSport } from "./schema/sports";

@@ -66,11 +66,31 @@ UPDATE "notifications" SET "id_new" = gen_random_uuid() WHERE "id_new" IS NULL;
 ALTER TABLE "notifications" ALTER COLUMN "id_new" SET NOT NULL;
 ALTER TABLE "notifications" ALTER COLUMN "id_new" SET DEFAULT gen_random_uuid();
 
--- ─── host_bank_accounts ────────────────────────────────────────────────────────
-ALTER TABLE "host_bank_accounts" ADD COLUMN IF NOT EXISTS "id_new" uuid;
-UPDATE "host_bank_accounts" SET "id_new" = gen_random_uuid() WHERE "id_new" IS NULL;
-ALTER TABLE "host_bank_accounts" ALTER COLUMN "id_new" SET NOT NULL;
-ALTER TABLE "host_bank_accounts" ALTER COLUMN "id_new" SET DEFAULT gen_random_uuid();
+-- ─── host_bank_accounts (only when table exists with integer PK) ───────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+  ) THEN
+    RAISE NOTICE 'host_bank_accounts absent — skipping UUID migration (created by prerequisites/0003)';
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+      AND column_name = 'id' AND data_type IN ('integer', 'bigint', 'smallint')
+  ) THEN
+    RAISE NOTICE 'host_bank_accounts.id already UUID — skipping UUID migration';
+    RETURN;
+  END IF;
+
+  ALTER TABLE "host_bank_accounts" ADD COLUMN IF NOT EXISTS "id_new" uuid;
+  UPDATE "host_bank_accounts" SET "id_new" = gen_random_uuid() WHERE "id_new" IS NULL;
+  ALTER TABLE "host_bank_accounts" ALTER COLUMN "id_new" SET NOT NULL;
+  ALTER TABLE "host_bank_accounts" ALTER COLUMN "id_new" SET DEFAULT gen_random_uuid();
+END $$;
 
 -- ─── drop foreign keys ─────────────────────────────────────────────────────────
 ALTER TABLE "tournaments" DROP CONSTRAINT IF EXISTS "tournaments_sport_id_sports_id_fk";
@@ -86,14 +106,30 @@ ALTER TABLE "player_profiles" DROP CONSTRAINT IF EXISTS "player_profiles_sport_i
 ALTER TABLE "equipments" DROP CONSTRAINT IF EXISTS "equipments_sport_id_sports_id_fk";
 
 -- ─── drop primary keys & old integer columns ───────────────────────────────────
-ALTER TABLE "host_bank_accounts" DROP CONSTRAINT IF EXISTS "host_bank_accounts_pkey";
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+      AND column_name = 'id_new'
+  ) THEN
+    ALTER TABLE "host_bank_accounts" DROP CONSTRAINT IF EXISTS "host_bank_accounts_pkey";
+  END IF;
+END $$;
 ALTER TABLE "notifications" DROP CONSTRAINT IF EXISTS "notifications_pkey";
 ALTER TABLE "wiki_entity_media" DROP CONSTRAINT IF EXISTS "wiki_entity_media_pkey";
 ALTER TABLE "wiki_entity_relations" DROP CONSTRAINT IF EXISTS "wiki_entity_relations_pkey";
 ALTER TABLE "wiki_entities" DROP CONSTRAINT IF EXISTS "wiki_entities_pkey";
 ALTER TABLE "sports" DROP CONSTRAINT IF EXISTS "sports_pkey";
 
-ALTER TABLE "host_bank_accounts" DROP COLUMN IF EXISTS "id";
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+      AND column_name = 'id' AND data_type IN ('integer', 'bigint', 'smallint')
+  ) THEN
+    ALTER TABLE "host_bank_accounts" DROP COLUMN "id";
+  END IF;
+END $$;
 ALTER TABLE "notifications" DROP COLUMN IF EXISTS "id";
 
 ALTER TABLE "wiki_entity_media" DROP COLUMN IF EXISTS "id";
@@ -135,7 +171,15 @@ ALTER TABLE "wiki_entity_media" RENAME COLUMN "id_new" TO "id";
 ALTER TABLE "wiki_entity_media" RENAME COLUMN "entity_id_new" TO "entity_id";
 
 ALTER TABLE "notifications" RENAME COLUMN "id_new" TO "id";
-ALTER TABLE "host_bank_accounts" RENAME COLUMN "id_new" TO "id";
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+      AND column_name = 'id_new'
+  ) THEN
+    ALTER TABLE "host_bank_accounts" RENAME COLUMN "id_new" TO "id";
+  END IF;
+END $$;
 
 -- ─── primary keys & foreign keys ─────────────────────────────────────────────
 ALTER TABLE "sports" ADD PRIMARY KEY ("id");
@@ -143,7 +187,18 @@ ALTER TABLE "wiki_entities" ADD PRIMARY KEY ("id");
 ALTER TABLE "wiki_entity_relations" ADD PRIMARY KEY ("id");
 ALTER TABLE "wiki_entity_media" ADD PRIMARY KEY ("id");
 ALTER TABLE "notifications" ADD PRIMARY KEY ("id");
-ALTER TABLE "host_bank_accounts" ADD PRIMARY KEY ("id");
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'host_bank_accounts_pkey'
+      AND conrelid = 'public.host_bank_accounts'::regclass
+  ) THEN
+    ALTER TABLE "host_bank_accounts" ADD PRIMARY KEY ("id");
+  END IF;
+END $$;
 
 ALTER TABLE "tournaments" ADD CONSTRAINT "tournaments_sport_id_sports_id_fk"
   FOREIGN KEY ("sport_id") REFERENCES "sports"("id") ON DELETE restrict;

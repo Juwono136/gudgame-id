@@ -132,7 +132,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
             variant="outline"
             className="h-10 w-full border-emerald-500/40 text-emerald-300 md:w-auto"
           >
-            <Link href={dashboardRoutes.tournamentsNew}>
+            <Link href={dashboardRoutes.hostTournamentsNewReclub}>
               <Plus className="mr-2 h-4 w-4" />
               Create reclub
             </Link>
@@ -165,7 +165,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
             icon: "plus",
           },
           {
-            href: dashboardRoutes.tournamentsNew,
+            href: dashboardRoutes.hostTournamentsNewReclub,
             label: "Create reclub",
             description: "Free community play",
             icon: "gamepad2",
@@ -214,7 +214,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
                 variant="outline"
                 className="h-10 w-full border-emerald-500/40 text-emerald-300"
               >
-                <Link href={dashboardRoutes.tournamentsNew}>Create reclub</Link>
+                <Link href={dashboardRoutes.hostTournamentsNewReclub}>Create reclub</Link>
               </Button>
             </div>
           </div>

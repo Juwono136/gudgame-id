@@ -1,6 +1,6 @@
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
-
+import { canAccessHostDashboard } from "@/lib/roles/route-access";
 export type TournamentEditWorkspace = "host" | "player";
 
 export function resolveTournamentEditWorkspace(
@@ -41,4 +41,18 @@ export function tournamentAfterSaveUrl(
     return dashboardRoutes.hostTournaments;
   }
   return dashboardRoutes.tournaments;
+}
+
+export function resolveReclubCreateWorkspace(roles: AppRole[]): TournamentEditWorkspace {
+  return canAccessHostDashboard(roles) ? "host" : "player";
+}
+
+export function tournamentAfterCreateUrl(
+  workspace: TournamentEditWorkspace,
+  tournament: { id: string; sportSlug: string; slug: string },
+): string {
+  if (workspace === "host") {
+    return dashboardRoutes.hostTournament(tournament.id);
+  }
+  return dashboardRoutes.tournament(tournament.id);
 }

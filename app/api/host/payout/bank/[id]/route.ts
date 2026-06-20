@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
-import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
+import { parseRequestJson } from "@/lib/api/parse-request-json";
+import { requireApiHostDashboardAccess } from "@/lib/auth/role-guard";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import {
   deleteHostBankAccount,
@@ -14,11 +15,14 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
-    const ctx = await requireHostDashboardAccess();
+    const ctx = await requireApiHostDashboardAccess();
     const accountId = parseEntityIdParam((await params).id, "account id");
 
-    const body = await request.json();
-    const parsed = updateBankAccountSchema.safeParse({ ...body, id: accountId });
+    const body = await parseRequestJson(request);
+    const parsed = updateBankAccountSchema.safeParse({
+      ...(typeof body === "object" && body !== null ? body : {}),
+      id: accountId,
+    });
     if (!parsed.success) {
       throw new AppError("Invalid bank account details", {
         code: "VALIDATION_ERROR",
@@ -36,7 +40,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
   try {
-    const ctx = await requireHostDashboardAccess();
+    const ctx = await requireApiHostDashboardAccess();
     const accountId = parseEntityIdParam((await params).id, "account id");
 
     const profile = await deleteHostBankAccount(ctx.userId, accountId);

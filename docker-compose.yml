@@ -67,6 +67,7 @@ services:
 
       # Ops
       HEALTH_CHECK_TOKEN: ${HEALTH_CHECK_TOKEN:-}
+      CRON_SECRET: ${CRON_SECRET:-}
       WIKI_SCRAPE_ALLOWED_HOSTS: ${WIKI_SCRAPE_ALLOWED_HOSTS:-}
 
     extra_hosts:
@@ -90,6 +91,38 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+
+  # Sidecar: daily host bank payout job (Docker/VPS — replaces Vercel Cron).
+  # Schedule: 08:00 Asia/Jakarta — see ops/cron/host-payouts.crontab
+  payout-cron:
+    image: alpine:3.20
+    container_name: tandingbase-payout-cron
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CRON_SECRET: ${CRON_SECRET:-}
+      APP_INTERNAL_URL: http://app:3000
+      TZ: Asia/Jakarta
+    volumes:
+      - ./ops/cron:/cron:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        apk add --no-cache curl tzdata
+        chmod +x /cron/run-host-payouts.sh
+        crontab /cron/host-payouts.crontab
+        echo "Payout cron started (TZ=$$TZ, target=$$APP_INTERNAL_URL)"
+        crond -f -l 8
+    networks:
+      - tunnel
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # One-off: apply SQL migrations from db/migrations (same as npm run db:migrate:prod).
   # docker compose --profile migrate run --rm db-migrate

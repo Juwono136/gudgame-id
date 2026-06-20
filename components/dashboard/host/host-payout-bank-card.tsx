@@ -18,13 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -34,7 +27,13 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { HostBankAccountView, HostBankPayoutProfileView } from "@/lib/payments/host-payout/types";
+import {
+  normalizePayoutSchedule,
+  type PayoutSchedule,
+} from "@/lib/payments/host-payout/constants";
+import { PayoutScheduleField } from "@/components/dashboard/host/payout-schedule-field";
 import { cn } from "@/lib/utils";
 
 type AccountFormState = {
@@ -75,13 +74,19 @@ function validateForm(form: AccountFormState) {
   return { errors, ok: Object.keys(errors).length === 0 };
 }
 
-export function HostPayoutBankCard({ className }: { className?: string }) {
+export function HostPayoutBankCard({
+  className,
+  embedded = false,
+}: {
+  className?: string;
+  embedded?: boolean;
+}) {
   const { confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<HostBankAccountView | null>(null);
   const [form, setForm] = useState<AccountFormState>(EMPTY_FORM);
-  const [schedule, setSchedule] = useState("weekly");
+  const [schedule, setSchedule] = useState<PayoutSchedule>("weekly");
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [touched, setTouched] = useState<Partial<Record<keyof AccountFormState, boolean>>>({});
@@ -128,7 +133,9 @@ export function HostPayoutBankCard({ className }: { className?: string }) {
   }, [editingAccount]);
 
   useEffect(() => {
-    if (profile?.payoutSchedule) setSchedule(profile.payoutSchedule);
+    if (profile?.payoutSchedule) {
+      setSchedule(normalizePayoutSchedule(profile.payoutSchedule));
+    }
   }, [profile?.payoutSchedule]);
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["host", "bank-payout"] });
@@ -235,21 +242,42 @@ export function HostPayoutBankCard({ className }: { className?: string }) {
   });
 
   const saveSchedule = useMutation({
-    mutationFn: async (value: string) => {
+    mutationFn: async (value: PayoutSchedule) => {
       const res = await fetch("/api/host/payout/bank", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payoutSchedule: value }),
       });
-      const json = await parseJsonResponse(res);
-      if (!res.ok) throw new Error((json as { error?: { message?: string } }).error?.message ?? "Failed");
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data?: { profile: HostBankPayoutProfileView };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not update payout schedule"));
+      }
+      return json.data?.profile;
     },
-    onSuccess: () => {
+    onSuccess: (updatedProfile) => {
+      if (updatedProfile?.payoutSchedule) {
+        setSchedule(normalizePayoutSchedule(updatedProfile.payoutSchedule));
+      }
       toast.success("Payout schedule updated");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+    },
   });
+
+  const handleScheduleChange = (value: PayoutSchedule) => {
+    if (value === schedule || saveSchedule.isPending || migrationRequired) return;
+    const previous = schedule;
+    setSchedule(value);
+    saveSchedule.mutate(value, {
+      onError: () => setSchedule(previous),
+    });
+  };
 
   // Hooks MUST be called unconditionally (before early returns).
   const debouncedBankQuery = useDebouncedValue(bankQuery, 150);
@@ -278,14 +306,25 @@ export function HostPayoutBankCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border p-4 sm:p-6",
-        isConfigured ? "border-emerald-500/30 bg-emerald-500/5" : "border-cp-primary/30 bg-cp-primary/5",
+        embedded ? "space-y-5" : "rounded-2xl border p-4 sm:p-6",
+        !embedded &&
+          (isConfigured
+            ? "border-emerald-500/30 bg-emerald-500/5"
+            : "border-cp-primary/30 bg-cp-primary/5"),
+        embedded && "min-w-0",
         className,
       )}
     >
       <LoadingOverlay
-        show={saveAccount.isPending || removeAccount.isPending || setPrimary.isPending}
-        label="Updating payout accounts…"
+        show={
+          saveAccount.isPending ||
+          removeAccount.isPending ||
+          setPrimary.isPending ||
+          saveSchedule.isPending
+        }
+        label={
+          saveSchedule.isPending ? "Saving payout schedule…" : "Updating payout accounts…"
+        }
       />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -296,7 +335,9 @@ export function HostPayoutBankCard({ className }: { className?: string }) {
             <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-cp-primary" />
           )}
           <div>
-            <h2 className="text-base font-semibold text-foreground">Payout bank accounts</h2>
+            <h2 className="text-base font-semibold text-foreground">
+              {embedded ? "Your payout accounts" : "Payout bank accounts"}
+            </h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-cp-muted">
               Add up to {profile?.maxAccounts ?? 3} accounts. Select one as primary — tournament
               earnings are deposited there on your chosen schedule. Notifications come from TandingBase
@@ -396,30 +437,17 @@ export function HostPayoutBankCard({ className }: { className?: string }) {
       )}
 
       {isConfigured ? (
-        <div className="mt-5 flex flex-col gap-3 border-t border-cp-border/60 pt-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="sm:max-w-xs">
-            <Label className="text-xs">Payout schedule</Label>
-            <Select
-              value={schedule}
-              onValueChange={(v) => {
-                setSchedule(v);
-                saveSchedule.mutate(v);
-              }}
-            >
-              <SelectTrigger className="mt-1.5">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="biweekly">Every 2 weeks</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-cp-muted">
-            <Shield className="h-3.5 w-3.5 shrink-0" />
-            Bank details are encrypted and used only for tournament payouts.
-          </div>
+        <div className="mt-5 border-t border-cp-border/60 pt-5">
+          <PayoutScheduleField
+            value={schedule}
+            onChange={handleScheduleChange}
+            disabled={migrationRequired}
+            isSaving={saveSchedule.isPending}
+          />
+          <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-cp-muted lg:justify-end">
+            <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>Bank details are encrypted and used only for tournament payouts.</span>
+          </p>
         </div>
       ) : null}
 

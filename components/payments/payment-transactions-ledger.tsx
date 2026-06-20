@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, FileText, Receipt, Search } from "lucide-react";
+import { AlertCircle, FileText, Receipt, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -21,6 +22,11 @@ import { formatIdrDisplay } from "@/lib/format/currency";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { PaymentTransactionRow, TransactionQueryResult } from "@/lib/tournaments/payments/transaction-types";
 import { PaymentInvoiceDialog } from "@/components/payments/payment-invoice-dialog";
+import {
+  DEFAULT_PAGE_SIZE,
+  toOffset,
+  toTotalPages,
+} from "@/lib/pagination/constants";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -38,6 +44,7 @@ type PaymentTransactionsLedgerProps = {
   showPlatformFees?: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
   pageSize?: number;
+  embedded?: boolean;
 };
 
 function useDebouncedValue<T>(value: T, ms: number): T {
@@ -236,24 +243,26 @@ export function PaymentTransactionsLedger({
   showHostColumn = false,
   showPlatformFees = false,
   onPayPending,
-  pageSize = 15,
+  pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
+  embedded = false,
 }: PaymentTransactionsLedgerProps) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const [invoicePaymentId, setInvoicePaymentId] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search, 350);
 
   useEffect(() => {
-    setPage(0);
-  }, [debouncedSearch, status]);
+    setPage(1);
+  }, [debouncedSearch, status, pageSize]);
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["payments", "ledger", apiPath, debouncedSearch, status, page],
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
+    queryKey: ["payments", "ledger", apiPath, debouncedSearch, status, page, pageSize],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: String(pageSize),
-        offset: String(page * pageSize),
+        offset: String(toOffset(page, pageSize)),
       });
       if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
       if (status !== "all") params.set("status", status);
@@ -267,9 +276,10 @@ export function PaymentTransactionsLedger({
       if (!res.ok) throw new Error(extractApiErrorMessage(json, "Failed to load transactions"));
       return json.data;
     },
+    placeholderData: keepPreviousData,
   });
 
-  const totalPages = data ? Math.ceil(data.total / pageSize) : 0;
+  const totalPages = data ? toTotalPages(data.total, pageSize) : 0;
 
   const handleViewReceipt = (row: PaymentTransactionRow) => {
     setInvoicePaymentId(row.paymentId);
@@ -284,6 +294,14 @@ export function PaymentTransactionsLedger({
           if (!open) setInvoicePaymentId(null);
         }}
       />
+
+      {!embedded ? (
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <Receipt className="h-5 w-5 text-cp-primary" />
+          Payment ledger
+        </h2>
+      ) : null}
+
       {data?.summary ? (
         scope === "player" ? (
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
@@ -347,6 +365,25 @@ export function PaymentTransactionsLedger({
         {isLoading ? (
           <div className="flex justify-center px-4 py-12 sm:py-16">
             <LoadingSpinner label="Loading transactions…" />
+          </div>
+        ) : isError ? (
+          <div className="px-4 py-12 text-center sm:py-16">
+            <AlertCircle className="mx-auto h-8 w-8 text-red-300" />
+            <p className="mt-3 text-sm font-medium text-foreground">Could not load transactions</p>
+            <p className="mx-auto mt-1 max-w-md text-xs text-red-200/90">
+              {error instanceof Error ? error.message : "Something went wrong"}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-4 border-cp-border"
+              disabled={isFetching}
+              onClick={() => void refetch()}
+            >
+              <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
+              Try again
+            </Button>
           </div>
         ) : !data?.items.length ? (
           <div className="px-4 py-12 text-center text-sm text-cp-muted sm:py-16">
@@ -449,34 +486,16 @@ export function PaymentTransactionsLedger({
           </>
         )}
 
-        {totalPages > 1 ? (
-          <div className="flex flex-col gap-3 border-t border-cp-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p className="text-xs text-cp-muted">
-              Page {page + 1} of {totalPages} · {data?.total ?? 0} total
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-cp-border"
-                disabled={page === 0}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-cp-border"
-                disabled={page + 1 >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+        {data && data.total > 0 ? (
+          <DataTablePagination
+            page={page}
+            pageSize={pageSize}
+            total={data.total}
+            totalPages={totalPages}
+            disabled={isFetching}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => setPageSize(size)}
+          />
         ) : null}
       </div>
     </div>

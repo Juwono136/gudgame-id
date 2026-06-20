@@ -112,11 +112,11 @@ jobs:
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
 
-      # Only recreate this app — never `docker compose down --remove-orphans` (can remove other stacks).
+      # Only recreate app + payout scheduler — never `docker compose down --remove-orphans`.
       - name: Deploy TandingBase app
         run: |
           docker compose pull app
-          docker compose up -d --no-deps app
+          docker compose up -d --no-deps app payout-cron
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
@@ -176,6 +176,7 @@ jobs:
 
           # Ops
           HEALTH_CHECK_TOKEN: ${{ secrets.HEALTH_CHECK_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           WIKI_SCRAPE_ALLOWED_HOSTS: ${{ secrets.WIKI_SCRAPE_ALLOWED_HOSTS }}
 
       - name: Smoke test health endpoint
@@ -187,6 +188,10 @@ jobs:
             -H "X-Health-Token: ${HEALTH_CHECK_TOKEN}" \
             "http://127.0.0.1:3000/api/health" \
             | jq -e '.status == "healthy" or .status == "degraded"'
+
+      - name: Verify payout cron sidecar
+        run: |
+          docker ps --filter "name=tandingbase-payout-cron" --filter "status=running" --format '{{.Names}}' | grep -q 'tandingbase-payout-cron'
 
       - name: Cleanup dangling images
         run: docker image prune -f

@@ -11,6 +11,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { readMigrationFiles } from "drizzle-orm/migrator";
+import { ensureMigrationPrerequisites } from "./ensure-migration-prerequisites";
 
 const MIGRATIONS_FOLDER = path.join(process.cwd(), "db", "migrations");
 const MIGRATIONS_SCHEMA = "drizzle";
@@ -121,6 +122,12 @@ async function baselineExistingSchema(client: postgres.Sql): Promise<void> {
   console.log(
     `[db-migrate] Existing public schema detected with no applied migrations — baselining ${migrations.length} migration(s).`,
   );
+  console.warn(
+    "[db-migrate] Baselining records migrations as applied without re-running SQL. " +
+      "Prerequisite tables (host_bank_accounts, etc.) are ensured separately.",
+  );
+
+  await ensureMigrationPrerequisites(client);
 
   await client`CREATE SCHEMA IF NOT EXISTS drizzle`;
   await client.unsafe(`
@@ -139,6 +146,22 @@ async function baselineExistingSchema(client: postgres.Sql): Promise<void> {
   }
 
   console.log("[db-migrate] Baseline complete — future deploys will apply only new migrations.");
+}
+
+async function verifyCriticalTables(client: postgres.Sql): Promise<void> {
+  const [hostBanks] = await client<{ ok: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'host_bank_accounts'
+    ) AS ok
+  `;
+
+  if (!hostBanks?.ok) {
+    console.error(
+      "[db-migrate] Post-migrate check failed: host_bank_accounts table is missing.",
+    );
+    process.exit(1);
+  }
 }
 
 async function main(): Promise<void> {
@@ -164,9 +187,12 @@ async function main(): Promise<void> {
       return;
     }
 
+    await ensureMigrationPrerequisites(client);
+
     console.log("[db-migrate] Applying pending migrations...");
     const db = drizzle(client);
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    await verifyCriticalTables(client);
     console.log("[db-migrate] Migrations applied successfully.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

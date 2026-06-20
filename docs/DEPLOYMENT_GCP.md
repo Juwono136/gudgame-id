@@ -160,11 +160,20 @@ Repo → **Settings → Secrets and variables → Actions**
 | `XENDIT_XENPLATFORM_ENABLED` | `true` |
 | `GOOGLE_MAPS_API_KEY` | Places API |
 | `HEALTH_CHECK_TOKEN` | string acak ≥16 karakter |
+| `CRON_SECRET` | string acak ≥16 karakter — auth `/api/cron/host-payouts` + sidecar `payout-cron` |
 | `LOG_LEVEL` | `info` |
 | `STRICT_PRODUCTION_ENV` | `true` |
 | `WIKI_SCRAPE_ALLOWED_HOSTS` | opsional |
 
-Build job (GitHub-hosted) membake `NEXT_PUBLIC_*` ke image. Deploy job (self-hosted runner) menjalankan migrate + `docker compose up -d --no-deps app`.
+Build job (GitHub-hosted) membake `NEXT_PUBLIC_*` ke image. Deploy job (self-hosted runner) menjalankan migrate + `docker compose up -d --no-deps app payout-cron`.
+
+Sidecar **`payout-cron`** (Alpine + `crond`) memanggil `GET /api/cron/host-payouts` setiap hari **08:00 WIB** lewat jaringan internal Docker (`http://app:3000`). Jadwal: `ops/cron/host-payouts.crontab`. Manual test di VPS:
+
+```bash
+docker compose exec payout-cron /cron/run-host-payouts.sh
+```
+
+**DB migrate di CI/CD** menjalankan `scripts/run-db-migrate.ts`, yang sebelum `drizzle migrate` selalu menerapkan `db/migrations/prerequisites/ensure-host-payout-prerequisites.sql` (tabel `host_bank_accounts`, kolom payout di `host_xendit_accounts`). Ini mencegah gagal deploy bila migrasi `0003` pernah di-baseline tanpa dieksekusi.
 
 ### Variabel penting produksi
 
@@ -178,6 +187,7 @@ Build job (GitHub-hosted) membake `NEXT_PUBLIC_*` ke image. Deploy job (self-hos
 | `STORAGE_ALLOW_LOCALHOST` | `true` (single-VM) |
 | `STORAGE_ENDPOINT` | `http://127.0.0.1:8333` |
 | `HEALTH_CHECK_TOKEN` | string acak ≥16 karakter |
+| `CRON_SECRET` | string acak ≥16 karakter (scheduled host payouts) |
 
 Webhook Xendit production:
 

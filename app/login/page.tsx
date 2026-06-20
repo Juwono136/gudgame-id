@@ -24,7 +24,9 @@ export default async function LoginPage({
   const session = await getServerSession();
   if (session?.user) {
     const account = await getUserAccountStatusById(session.user.id);
-    if (account && !account.isActive) {
+    if (!account) {
+      await signOutCurrentSession();
+    } else if (!account.isActive) {
       await signOutCurrentSession();
       redirect(`${authRoutes.login}?error=account_inactive`);
     }

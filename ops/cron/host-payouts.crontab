@@ -1,0 +1,6 @@
+# Scheduled host bank payouts — Asia/Jakarta 08:00 daily
+# Managed by payout-cron service in docker-compose.yml (VPS deploy, not Vercel).
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+0 8 * * * /cron/run-host-payouts.sh >> /var/log/host-payouts.log 2>&1

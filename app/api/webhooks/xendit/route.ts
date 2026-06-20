@@ -8,6 +8,11 @@ import {
   type XenditSplitPaymentWebhook,
 } from "@/lib/payments/xenplatform/split-webhook";
 import {
+  handlePayoutWebhook,
+  isPayoutWebhookEvent,
+  type XenditPayoutWebhook,
+} from "@/lib/payments/host-payout/disbursement/webhook";
+import {
   confirmPaymentByInvoiceId,
   confirmPaymentByRegistrationId,
   failPaymentByInvoiceId,
@@ -58,15 +63,17 @@ export async function POST(request: Request) {
       throw new AppError("Invalid webhook token", { code: "UNAUTHORIZED", statusCode: 401 });
     }
 
-    const body = (await request.json()) as XenditInvoiceWebhook & XenditSplitPaymentWebhook;
+    const body = (await request.json()) as XenditInvoiceWebhook &
+      XenditSplitPaymentWebhook &
+      XenditPayoutWebhook;
 
     if (body.event === "split.payment") {
       await handleSplitPaymentWebhook(body);
       return jsonSuccess({ received: true });
     }
 
-    if (body.event === "split.payment") {
-      await handleSplitPaymentWebhook(body);
+    if (isPayoutWebhookEvent(body.event)) {
+      await handlePayoutWebhook(body);
       return jsonSuccess({ received: true });
     }
 

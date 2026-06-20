@@ -1,3 +1,5 @@
+import type { PayoutSchedule } from "@/lib/payments/host-payout/constants";
+
 export type HostBankAccountView = {
   id: string;
   bankCode: string;
@@ -12,7 +14,7 @@ export type HostBankPayoutProfileView = {
   configured: boolean;
   accounts: HostBankAccountView[];
   maxAccounts: number;
-  payoutSchedule: string;
+  payoutSchedule: PayoutSchedule;
   status: string | null;
   xenPlatformLinked: boolean;
   businessName: string | null;

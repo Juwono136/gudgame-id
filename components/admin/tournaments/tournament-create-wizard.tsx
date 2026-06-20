@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
@@ -35,6 +37,7 @@ import { useCreateHostTournament } from "@/hooks/use-host-tournaments";
 import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
 import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import {
+  tournamentAfterCreateUrl,
   tournamentAfterSaveUrl,
   tournamentListUrl,
   type TournamentEditWorkspace,
@@ -50,6 +53,7 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   { id: "basics", label: "Basics", shortLabel: "Basics" },
@@ -87,6 +91,8 @@ type TournamentCreateWizardProps = {
   workspace?: TournamentEditWorkspace;
   initial?: TournamentDetail;
   tournamentId?: string;
+  /** When false, hides the top “back to list” link (e.g. page provides its own). */
+  showTopBack?: boolean;
 };
 
 export function TournamentCreateWizard({
@@ -96,6 +102,7 @@ export function TournamentCreateWizard({
   workspace = "player",
   initial,
   tournamentId,
+  showTopBack,
 }: TournamentCreateWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
   const adminCreate = useCreateTournament();
@@ -376,7 +383,7 @@ export function TournamentCreateWizard({
       createMutation.mutate(payload, {
         onSuccess: (tournament) => {
           if (mode === "host") {
-            router.push(dashboardRoutes.hostTournament(tournament.id));
+            router.push(tournamentAfterCreateUrl("host", tournament));
           }
         },
       });
@@ -390,10 +397,26 @@ export function TournamentCreateWizard({
   const isPending =
     submitting || (isEdit ? updateMutation.isPending : createMutation.isPending);
   const isLast = stepIndex >= STEPS.length - 1;
+  const shouldShowTopBack =
+    showTopBack ?? (!onBack && (mode === "host" || workspace === "host"));
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
+      {shouldShowTopBack ? (
+        <Link
+          href={listBackHref}
+          className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          {listBackLabel}
+        </Link>
+      ) : null}
+      <div
+        className={cn(
+          "overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm",
+          shouldShowTopBack && "mt-6",
+        )}
+      >
         <div className="border-b border-cp-border bg-cp-elevated/50 px-3 py-3 sm:px-5 sm:py-5">
           <WikiStepper
             steps={[...STEPS]}
