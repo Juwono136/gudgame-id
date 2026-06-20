@@ -12,19 +12,29 @@ ALTER TABLE IF EXISTS "host_xendit_accounts" ADD COLUMN IF NOT EXISTS "payout_sc
 ALTER TABLE IF EXISTS "host_xendit_accounts" ALTER COLUMN "xendit_account_id" DROP NOT NULL;
 
 -- 0003_host_bank_accounts
-CREATE TABLE IF NOT EXISTS "host_bank_accounts" (
-  "id" serial PRIMARY KEY NOT NULL,
-  "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
-  "bank_code" varchar(20) NOT NULL,
-  "bank_account_number" varchar(40) NOT NULL,
-  "bank_account_holder" varchar(120) NOT NULL,
-  "label" varchar(60),
-  "is_primary" boolean DEFAULT false NOT NULL,
-  "created_at" timestamp DEFAULT now() NOT NULL,
-  "updated_at" timestamp DEFAULT now() NOT NULL
-);
 
-CREATE INDEX IF NOT EXISTS "host_bank_accounts_user_idx" ON "host_bank_accounts" ("user_id");
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'user'
+  ) THEN
+    CREATE TABLE IF NOT EXISTS "host_bank_accounts" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+      "bank_code" varchar(20) NOT NULL,
+      "bank_account_number" varchar(40) NOT NULL,
+      "bank_account_holder" varchar(120) NOT NULL,
+      "label" varchar(60),
+      "is_primary" boolean DEFAULT false NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS "host_bank_accounts_user_idx" ON "host_bank_accounts" ("user_id");
+  END IF;
+END
+$$;
 
 DO $$
 BEGIN
