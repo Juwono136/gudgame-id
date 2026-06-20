@@ -10,10 +10,10 @@ import {
   Users,
 } from "lucide-react";
 import { TournamentCoverPreview } from "@/components/tournaments/form/tournament-cover-preview";
-import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
 import { formatIdrDisplay } from "@/components/tournaments/form/currency-input";
+import { TournamentReviewRichBlock } from "@/components/tournaments/form/tournament-review-rich-block";
+import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
 import { formatWizardDateRange, formatWizardDateTime } from "@/lib/tournaments/form/format-wizard-dates";
-import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import type { TournamentType } from "@/lib/domain/tournaments";
 import { cn } from "@/lib/utils";
 
@@ -101,18 +101,6 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReviewTextBlock({ label, html }: { label: string; html: string }) {
-  const plain = stripHtmlToText(html);
-  if (!plain) return null;
-  const preview = plain.length > 280 ? `${plain.slice(0, 280)}…` : plain;
-  return (
-    <div className="rounded-lg border border-cp-border/60 bg-cp-elevated/20 px-3 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-cp-muted">{label}</p>
-      <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{preview}</p>
-    </div>
-  );
-}
-
 export function TournamentWizardReview({
   name,
   slug,
@@ -195,8 +183,8 @@ export function TournamentWizardReview({
             {categoryLabel ? <ReviewItem label="Category" value={categoryLabel} /> : null}
           </dl>
           <div className="mt-4 space-y-3">
-            <ReviewTextBlock label="Summary" html={summary} />
-            <ReviewTextBlock label="Description" html={description} />
+            <TournamentReviewRichBlock label="Summary" html={summary} />
+            <TournamentReviewRichBlock label="Description" html={description} />
           </div>
         </ReviewSection>
 
@@ -266,9 +254,9 @@ export function TournamentWizardReview({
             className="lg:col-span-2"
           >
             <div className="grid gap-3 lg:grid-cols-2">
-              <ReviewTextBlock label="Eligibility & categories" html={eligibilityRules} />
-              <ReviewTextBlock label="Match format" html={matchFormatRules} />
-              <ReviewTextBlock label="Equipment standards" html={equipmentStandardsRules} />
+              <TournamentReviewRichBlock label="Eligibility & categories" html={eligibilityRules} />
+              <TournamentReviewRichBlock label="Match format" html={matchFormatRules} />
+              <TournamentReviewRichBlock label="Equipment standards" html={equipmentStandardsRules} />
               <ReviewItem
                 label="Approved equipment"
                 value={gearCount > 0 ? `${gearCount} item${gearCount === 1 ? "" : "s"} selected` : "None selected"}
@@ -283,7 +271,7 @@ export function TournamentWizardReview({
             onEditStep={onEditStep}
             className="lg:col-span-2"
           >
-            <ReviewTextBlock label="Tournament rules" html={rules} />
+            <TournamentReviewRichBlock label="Tournament rules" html={rules} />
           </ReviewSection>
         )}
 

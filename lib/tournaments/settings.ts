@@ -1,5 +1,9 @@
 import { isUuid } from "@/lib/domain/uuid";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import {
+  coerceRichHtmlField,
+  sanitizeTournamentRichField,
+} from "@/lib/wiki/sanitize-rich-text";
 
 export type TournamentRuleSections = {
   eligibilityHtml?: string;
@@ -35,18 +39,15 @@ export function parseTournamentSettings(
   return {
     venueMapsUrl:
       typeof venueMapsUrl === "string" && venueMapsUrl.trim() ? venueMapsUrl : undefined,
-    eligibilityHtml:
-      typeof eligibilityHtml === "string" && eligibilityHtml.trim()
-        ? eligibilityHtml
-        : undefined,
-    matchFormatHtml:
-      typeof matchFormatHtml === "string" && matchFormatHtml.trim()
-        ? matchFormatHtml
-        : undefined,
-    equipmentStandardsHtml:
-      typeof equipmentStandardsHtml === "string" && equipmentStandardsHtml.trim()
-        ? equipmentStandardsHtml
-        : undefined,
+    eligibilityHtml: coerceRichHtmlField(
+      typeof eligibilityHtml === "string" ? eligibilityHtml : null,
+    ) ?? undefined,
+    matchFormatHtml: coerceRichHtmlField(
+      typeof matchFormatHtml === "string" ? matchFormatHtml : null,
+    ) ?? undefined,
+    equipmentStandardsHtml: coerceRichHtmlField(
+      typeof equipmentStandardsHtml === "string" ? equipmentStandardsHtml : null,
+    ) ?? undefined,
     gearEntityIds: parsedGearIds?.length ? parsedGearIds : undefined,
     maxRounds:
       typeof maxRounds === "number" && Number.isFinite(maxRounds) && maxRounds > 0
@@ -126,8 +127,9 @@ export function buildTournamentSettings(
   ] as const;
 
   for (const [key, value] of textFields) {
-    if (value?.trim()) {
-      next[key] = value.trim();
+    const sanitized = sanitizeTournamentRichField(value);
+    if (sanitized) {
+      next[key] = sanitized;
     } else if (key in input) {
       delete next[key];
     }

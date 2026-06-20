@@ -17,7 +17,9 @@ import {
   TournamentTypeBadge,
   WorkspaceStatCard,
 } from "@/components/dashboard/host/host-tournament-ui";
+import { TournamentRichTextSections } from "@/components/tournaments/tournament-rich-text-sections";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
+import { hasRichTextContent } from "@/lib/wiki/sanitize-rich-text";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -29,7 +31,6 @@ import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 type PlayerTournamentWorkspaceProps = {
   tournamentId: string;
@@ -219,7 +220,7 @@ export function PlayerTournamentWorkspace({ tournamentId }: PlayerTournamentWork
           </div>
         </div>
 
-        {tournament.summary ? (
+        {hasRichTextContent(tournament.summary) ? (
           <div className="border-t border-cp-border px-4 py-4 sm:px-5">
             <RichHtmlContent html={tournament.summary} variant="article" />
           </div>
@@ -237,23 +238,7 @@ export function PlayerTournamentWorkspace({ tournamentId }: PlayerTournamentWork
         />
       </div>
 
-      {tournament.description ? (
-        <section className="mt-8 rounded-2xl border border-cp-border bg-cp-card p-4 sm:mt-10 sm:p-6">
-          <h2 className="text-base font-semibold text-foreground sm:text-lg">About this session</h2>
-          <div className="mt-3">
-            <RichHtmlContent html={tournament.description} variant="article" />
-          </div>
-        </section>
-      ) : null}
-
-      {tournament.rules ? (
-        <section className="mt-6 rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-          <h2 className="text-base font-semibold text-foreground sm:text-lg">House rules</h2>
-          <div className="mt-3">
-            <RichHtmlContent html={tournament.rules} variant="article" />
-          </div>
-        </section>
-      ) : null}
+      <TournamentRichTextSections tournament={tournament} showSummary={false} className="mt-8 sm:mt-10" />
 
       <HostReclubLobbyPanel
         sportSlug={tournament.sportSlug}

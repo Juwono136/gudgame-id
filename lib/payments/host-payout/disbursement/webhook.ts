@@ -64,7 +64,7 @@ export async function handlePayoutWebhook(body: XenditPayoutWebhook): Promise<vo
     return;
   }
 
-  let disbursement =
+  const disbursement =
     (payoutId ? await getDisbursementByXenditPayoutId(payoutId) : null) ??
     (referenceId ? await getDisbursementByReferenceId(referenceId) : null);
 

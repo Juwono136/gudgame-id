@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ReclubLobbyDnd } from "@/components/tournaments/reclub-lobby-dnd";
+import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import {
   useCompleteReclubRound,
   useCreateReclubTeam,
@@ -223,7 +224,9 @@ export function ReclubTournamentLobby({
             </div>
             <h1 className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">{tournament.name}</h1>
             {tournament.summary ? (
-              <p className="mt-2 max-w-2xl text-cp-muted">{tournament.summary}</p>
+              <div className="mt-2 max-w-2xl">
+                <RichHtmlContent html={tournament.summary} variant="article" />
+              </div>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-cp-muted">
               {tournament.venue ? (

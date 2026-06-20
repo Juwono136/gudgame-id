@@ -28,6 +28,10 @@ import {
 import { syncReclubParticipation } from "@/lib/tournaments/stats/sync";
 import { resolveTournamentCoverUrl } from "@/lib/tournaments/resolve-cover";
 import { deleteStoredObject, deleteStoredObjectIfReplaced } from "@/lib/storage/object-lifecycle";
+import {
+  coerceTournamentRichFields,
+  sanitizeTournamentRichFields,
+} from "@/lib/tournaments/rich-text";
 import { slugifyWikiName } from "@/lib/wiki/slug";
 import type {
   PublicTournamentsListQuery,
@@ -430,10 +434,16 @@ export async function getTournamentBySlug(
         endsAt: row.endsAt,
       });
 
-      return {
-        ...mapListRow({ ...row, status: syncedStatus }),
+      const rich = coerceTournamentRichFields({
+        summary: row.summary,
         description: row.description,
         rules: row.rules,
+      });
+
+      return {
+        ...mapListRow({ ...row, status: syncedStatus, summary: rich.summary }),
+        description: rich.description,
+        rules: rich.rules,
         coverImageUrl: resolveTournamentCoverUrl(row.coverImageUrl, row.coverImageStorageKey),
         coverImageStorageKey: row.coverImageStorageKey,
         format: row.format,
@@ -483,6 +493,14 @@ export async function createTournament(
   const startsAt = parseOptionalDate(input.startsAt);
   const endsAt = parseOptionalDate(input.endsAt);
   const status = resolveStatusOnWrite(input.status, startsAt, endsAt);
+  const rich = sanitizeTournamentRichFields({
+    summary: input.summary,
+    description: input.description,
+    rules: input.rules,
+    eligibilityRules: input.eligibilityRules,
+    matchFormatRules: input.matchFormatRules,
+    equipmentStandardsRules: input.equipmentStandardsRules,
+  });
 
   const [created] = await getDb()
     .insert(tournaments)
@@ -490,13 +508,13 @@ export async function createTournament(
       sportId,
       slug,
       name: input.name,
-      summary: input.summary || null,
-      description: input.description || null,
+      summary: rich.summary,
+      description: rich.description,
       status,
       tournamentType: input.tournamentType,
       format: input.format,
       categoryLabel: input.categoryLabel || null,
-      rules: input.matchFormatRules || input.rules || null,
+      rules: rich.matchFormatRules || rich.rules,
       venue: input.venue || null,
       maxTeams: input.maxTeams ?? null,
       playersPerTeam: input.playersPerTeam,
@@ -512,7 +530,16 @@ export async function createTournament(
         ? null
         : input.coverImageUrl?.trim() || null,
       coverImageStorageKey: input.coverImageStorageKey?.trim() || null,
-      settings: buildTournamentSettings(undefined, settingsInputFromUpsert(input)),
+      settings: buildTournamentSettings(
+        undefined,
+        settingsInputFromUpsert({
+          ...input,
+          eligibilityRules: rich.eligibilityRules ?? undefined,
+          matchFormatRules: rich.matchFormatRules ?? undefined,
+          equipmentStandardsRules: rich.equipmentStandardsRules ?? undefined,
+          rules: rich.rules ?? undefined,
+        }),
+      ),
       createdBy: userId,
     })
     .returning();
@@ -622,18 +649,27 @@ export async function updateTournament(
     ? current.registrationClosesAt
     : (parseOptionalDate(input.registrationClosesAt) ?? startsAt);
 
+  const rich = sanitizeTournamentRichFields({
+    summary: input.summary,
+    description: input.description,
+    rules: input.rules,
+    eligibilityRules: input.eligibilityRules,
+    matchFormatRules: input.matchFormatRules,
+    equipmentStandardsRules: input.equipmentStandardsRules,
+  });
+
   const [updated] = await getDb()
     .update(tournaments)
     .set({
       slug,
       name: input.name,
-      summary: input.summary || null,
-      description: input.description || null,
+      summary: rich.summary,
+      description: rich.description,
       status,
       tournamentType: input.tournamentType,
       format: input.format,
       categoryLabel: input.categoryLabel || null,
-      rules: input.matchFormatRules || input.rules || null,
+      rules: rich.matchFormatRules || rich.rules,
       venue: input.venue || null,
       maxTeams: input.maxTeams ?? null,
       playersPerTeam: input.playersPerTeam,
@@ -648,7 +684,13 @@ export async function updateTournament(
       coverImageStorageKey: nextCoverKey,
       settings: buildTournamentSettings(
         (current?.settings as Record<string, unknown>) ?? undefined,
-        settingsInputFromUpsert(input),
+        settingsInputFromUpsert({
+          ...input,
+          eligibilityRules: rich.eligibilityRules ?? undefined,
+          matchFormatRules: rich.matchFormatRules ?? undefined,
+          equipmentStandardsRules: rich.equipmentStandardsRules ?? undefined,
+          rules: rich.rules ?? undefined,
+        }),
       ),
     })
     .where(and(eq(tournaments.id, id), eq(tournaments.sportId, sportId)))

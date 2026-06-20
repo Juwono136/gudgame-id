@@ -55,7 +55,7 @@ export function PlayerPageCompletionPrompt({
                 : "A few details are still missing on your public player page. Update them in My Settings to look your best to scouts and opponents."}
             </p>
             {labels.length > 0 ? (
-              <ul className="mt-3 grid gap-1 sm:grid-cols-2">
+              <ul className="mt-3 grid gap-1 sm:grid-cols-1">
                 {labels.map((label) => (
                   <li
                     key={label}

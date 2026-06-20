@@ -8,6 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import { TournamentCoverPreview } from "@/components/tournaments/form/tournament-cover-preview";
+import { TournamentReviewRichBlock } from "@/components/tournaments/form/tournament-review-rich-block";
 import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
 import { formatWizardDateRange, formatWizardDateTime } from "@/lib/tournaments/form/format-wizard-dates";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
@@ -80,20 +81,6 @@ function ReviewField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RichPreview({ label, html }: { label: string; html: string }) {
-  const plain = stripHtmlToText(html);
-  if (!plain) return null;
-  return (
-    <div className="rounded-lg border border-cp-border/60 bg-cp-elevated/20 p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">{label}</p>
-      <div
-        className="prose prose-invert mt-2 max-w-none text-sm leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </div>
-  );
-}
-
 export function ReclubWizardReview({
   sportName,
   name,
@@ -149,7 +136,13 @@ export function ReclubWizardReview({
             <TournamentVenueMapPreview venue={venue} mapsUrl={venueMapsUrl} />
           </div>
         ) : null}
-        <RichPreview label="Summary" html={summary} />
+        <div className="mt-3">
+          <TournamentReviewRichBlock
+            label="Summary"
+            html={summary}
+            containerClassName="border-emerald-500/15"
+          />
+        </div>
       </ReviewSection>
 
       <ReviewSection title="Schedule & squads" icon={Users} stepIndex={1} onEditStep={onEditStep}>
@@ -173,8 +166,18 @@ export function ReclubWizardReview({
       </ReviewSection>
 
       <ReviewSection title="Details & rules" icon={ScrollText} stepIndex={2} onEditStep={onEditStep}>
-        <RichPreview label="Description" html={description} />
-        <RichPreview label="House rules" html={rules} />
+        <div className="space-y-3">
+          <TournamentReviewRichBlock
+            label="Description"
+            html={description}
+            containerClassName="border-emerald-500/15"
+          />
+          <TournamentReviewRichBlock
+            label="House rules"
+            html={rules}
+            containerClassName="border-emerald-500/15"
+          />
+        </div>
         {!stripHtmlToText(description) && !stripHtmlToText(rules) ? (
           <p className="text-sm text-cp-muted">No extended description or house rules added.</p>
         ) : null}

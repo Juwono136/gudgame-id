@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { Bold, Italic, List, ListOrdered, Link2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bold, Italic, Link2, List, ListOrdered, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
+import { normalizeLinkHref } from "@/lib/wiki/normalize-link";
+import { richHtmlClassName } from "@/lib/wiki/rich-html-class";
+import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
 import { cn } from "@/lib/utils";
 
 type RichTextEditorProps = {
@@ -20,6 +24,32 @@ function truncateHtml(html: string, maxLength: number): string {
   return html.slice(0, maxLength);
 }
 
+function getAnchorFromSelection(): HTMLAnchorElement | null {
+  const selection = window.getSelection();
+  if (!selection?.anchorNode) return null;
+  const node =
+    selection.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? (selection.anchorNode as Element)
+      : selection.anchorNode.parentElement;
+  return node?.closest("a") ?? null;
+}
+
+function saveSelectionRange(container: HTMLElement | null): Range | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !container) return null;
+  const range = selection.getRangeAt(0);
+  if (!container.contains(range.commonAncestorContainer)) return null;
+  return range.cloneRange();
+}
+
+function restoreSelectionRange(container: HTMLElement | null, range: Range | null) {
+  if (!container || !range) return;
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  container.focus();
+}
+
 export function RichTextEditor({
   value,
   onChange,
@@ -29,42 +59,149 @@ export function RichTextEditor({
   className,
 }: RichTextEditorProps) {
   const ref = useRef<HTMLDivElement>(null);
+  /** Tracks the last HTML emitted to the parent — avoids resetting the caret on self-updates. */
+  const lastEmittedRef = useRef(value);
+  const isFocusedRef = useRef(false);
+  const savedSelectionRef = useRef<Range | null>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  const [linkEditorOpen, setLinkEditorOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    if (el.innerHTML !== value) {
-      el.innerHTML = value || "";
+    if (!el || isFocusedRef.current) return;
+
+    const target = value || "";
+    if (el.innerHTML !== target) {
+      el.innerHTML = target;
     }
+    lastEmittedRef.current = value;
   }, [value]);
 
-  const emitChange = useCallback(
+  const emitRawChange = useCallback(
     (html: string) => {
       const next = maxLength ? truncateHtml(html, maxLength) : html;
       if (maxLength && html.length > maxLength && ref.current) {
         ref.current.innerHTML = next;
       }
+      lastEmittedRef.current = next;
       onChange(next);
     },
     [maxLength, onChange],
   );
 
+  const emitSanitizedChange = useCallback(
+    (html: string) => {
+      const sanitized = sanitizeRichText(html);
+      const next = maxLength ? truncateHtml(sanitized, maxLength) : sanitized;
+      if (ref.current && ref.current.innerHTML !== next) {
+        const selection = saveSelectionRange(ref.current);
+        ref.current.innerHTML = next;
+        restoreSelectionRange(ref.current, selection);
+      }
+      lastEmittedRef.current = next;
+      onChange(next);
+    },
+    [maxLength, onChange],
+  );
+
+  const saveSelection = useCallback(() => {
+    savedSelectionRef.current = saveSelectionRange(ref.current);
+  }, []);
+
+  const restoreSelection = useCallback(() => {
+    restoreSelectionRange(ref.current, savedSelectionRef.current);
+  }, []);
+
   const exec = useCallback(
     (command: string, val?: string) => {
+      saveSelection();
+      restoreSelection();
       document.execCommand(command, false, val);
       ref.current?.focus();
-      if (ref.current) emitChange(ref.current.innerHTML);
+      if (ref.current) emitRawChange(ref.current.innerHTML);
     },
-    [emitChange],
+    [emitRawChange, restoreSelection, saveSelection],
   );
 
   const handleInput = () => {
-    if (ref.current) emitChange(ref.current.innerHTML);
+    if (ref.current) emitRawChange(ref.current.innerHTML);
   };
 
-  const addLink = () => {
-    const url = window.prompt("Link URL (https://…)");
-    if (url?.trim()) exec("createLink", url.trim());
+  const handleBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    const related = event.relatedTarget as Node | null;
+    if (related && event.currentTarget.parentElement?.contains(related)) {
+      return;
+    }
+    isFocusedRef.current = false;
+    if (ref.current) emitSanitizedChange(ref.current.innerHTML);
+  };
+
+  const handleFocus = () => {
+    isFocusedRef.current = true;
+  };
+
+  const openLinkEditor = () => {
+    saveSelection();
+    const anchor = getAnchorFromSelection();
+    setLinkUrl(anchor?.getAttribute("href") ?? "");
+    setLinkError(null);
+    setLinkEditorOpen(true);
+    requestAnimationFrame(() => linkInputRef.current?.focus());
+  };
+
+  const closeLinkEditor = () => {
+    setLinkEditorOpen(false);
+    setLinkUrl("");
+    setLinkError(null);
+    ref.current?.focus();
+  };
+
+  const applyLink = () => {
+    const normalized = normalizeLinkHref(linkUrl);
+    if (!normalized) {
+      setLinkError("Enter a valid URL (e.g. https://example.com)");
+      return;
+    }
+
+    restoreSelection();
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      setLinkError("Select the text you want to turn into a link first.");
+      return;
+    }
+
+    document.execCommand("createLink", false, normalized);
+    if (ref.current) emitRawChange(ref.current.innerHTML);
+    closeLinkEditor();
+  };
+
+  const removeLink = () => {
+    restoreSelection();
+    document.execCommand("unlink");
+    if (ref.current) emitRawChange(ref.current.innerHTML);
+    closeLinkEditor();
+  };
+
+  const handleEditorClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("a")) {
+      event.preventDefault();
+      const anchor = target.closest("a");
+      if (anchor) {
+        saveSelection();
+        const range = document.createRange();
+        range.selectNodeContents(anchor);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        setLinkUrl(anchor.getAttribute("href") ?? "");
+        setLinkError(null);
+        setLinkEditorOpen(true);
+        requestAnimationFrame(() => linkInputRef.current?.focus());
+      }
+    }
   };
 
   const atLimit = maxLength != null && value.length >= maxLength;
@@ -73,19 +210,27 @@ export function RichTextEditor({
     <div className={cn("overflow-hidden rounded-xl border border-cp-border bg-cp-elevated", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cp-border bg-cp-card/80 p-2">
         <div className="flex flex-wrap gap-1">
-          <ToolbarButton onClick={() => exec("bold")} title="Bold">
+          <ToolbarButton onMouseDown={preventToolbarBlur} onClick={() => exec("bold")} title="Bold">
             <Bold className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={() => exec("italic")} title="Italic">
+          <ToolbarButton onMouseDown={preventToolbarBlur} onClick={() => exec("italic")} title="Italic">
             <Italic className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={() => exec("insertUnorderedList")} title="Bullet list">
+          <ToolbarButton
+            onMouseDown={preventToolbarBlur}
+            onClick={() => exec("insertUnorderedList")}
+            title="Bullet list"
+          >
             <List className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={() => exec("insertOrderedList")} title="Numbered list">
+          <ToolbarButton
+            onMouseDown={preventToolbarBlur}
+            onClick={() => exec("insertOrderedList")}
+            title="Numbered list"
+          >
             <ListOrdered className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={addLink} title="Link">
+          <ToolbarButton onMouseDown={preventToolbarBlur} onClick={openLinkEditor} title="Insert link">
             <Link2 className="h-4 w-4" />
           </ToolbarButton>
         </div>
@@ -93,6 +238,49 @@ export function RichTextEditor({
           <FieldCharCounter current={value.length} max={maxLength} className="px-1" />
         ) : null}
       </div>
+
+      {linkEditorOpen ? (
+        <div className="space-y-2 border-b border-cp-border bg-cp-card/60 px-3 py-2">
+          <p className="text-xs text-cp-muted">
+            Select text in the editor, paste a URL, then apply. Click an existing link to edit it.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              ref={linkInputRef}
+              value={linkUrl}
+              onChange={(e) => {
+                setLinkUrl(e.target.value);
+                setLinkError(null);
+              }}
+              placeholder="https://example.com"
+              className="h-9 flex-1 rounded-xl"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyLink();
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  closeLinkEditor();
+                }
+              }}
+            />
+            <div className="flex shrink-0 gap-1">
+              <Button type="button" size="sm" className="h-9" onClick={applyLink}>
+                Apply
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-9" onClick={removeLink} title="Remove link">
+                <Unlink className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-9" onClick={closeLinkEditor}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+          {linkError ? <p className="text-xs text-red-400">{linkError}</p> : null}
+        </div>
+      ) : null}
+
       <div
         ref={ref}
         contentEditable
@@ -101,10 +289,13 @@ export function RichTextEditor({
         aria-invalid={atLimit || undefined}
         data-placeholder={placeholder}
         onInput={handleInput}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onClick={handleEditorClick}
         className={cn(
-          "prose dark:prose-invert max-w-none px-4 py-3 text-sm text-foreground outline-none",
+          richHtmlClassName("article"),
+          "px-4 py-3 text-foreground outline-none",
           "empty:before:pointer-events-none empty:before:text-cp-muted empty:before:content-[attr(data-placeholder)]",
-          "[&_a]:text-cp-logo-accent [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5",
           atLimit && "ring-1 ring-inset ring-amber-500/40",
         )}
         style={{ minHeight }}
@@ -119,13 +310,19 @@ export function RichTextEditor({
   );
 }
 
+function preventToolbarBlur(event: React.MouseEvent) {
+  event.preventDefault();
+}
+
 function ToolbarButton({
   children,
   onClick,
+  onMouseDown,
   title,
 }: {
   children: React.ReactNode;
   onClick: () => void;
+  onMouseDown?: (event: React.MouseEvent) => void;
   title: string;
 }) {
   return (
@@ -134,6 +331,7 @@ function ToolbarButton({
       variant="ghost"
       size="icon"
       className="h-8 w-8 text-cp-muted hover:bg-cp-primary/15 hover:text-foreground"
+      onMouseDown={onMouseDown}
       onClick={onClick}
       title={title}
     >

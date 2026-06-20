@@ -20,6 +20,8 @@ import {
   WorkspaceSection,
   WorkspaceStatCard,
 } from "@/components/dashboard/host/host-tournament-ui";
+import { TournamentRichTextSections } from "@/components/tournaments/tournament-rich-text-sections";
+import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -29,6 +31,7 @@ import {
 } from "@/hooks/use-host-tournaments";
 import { useGenerateBracket, useTournamentBracket } from "@/hooks/use-tournament-bracket";
 import { dashboardRoutes } from "@/lib/constants/routes";
+import { hasRichTextContent } from "@/lib/wiki/sanitize-rich-text";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { toast } from "sonner";
 
@@ -140,6 +143,12 @@ export function HostTournamentWorkspace({ tournamentId }: HostTournamentWorkspac
           </div>
         </div>
 
+        {hasRichTextContent(tournament.summary) ? (
+          <div className="border-t border-cp-border px-4 py-4 sm:px-5">
+            <RichHtmlContent html={tournament.summary} variant="article" />
+          </div>
+        ) : null}
+
         {isOfficial ? (
           <div className="border-t border-cp-border px-4 py-3 sm:px-5">
             <Button
@@ -184,6 +193,8 @@ export function HostTournamentWorkspace({ tournamentId }: HostTournamentWorkspac
           <WorkspaceStatCard label="Rounds played" value={String(matches.length)} icon={Swords} />
         )}
       </div>
+
+      <TournamentRichTextSections tournament={tournament} showSummary={false} className="mt-8 sm:mt-10" />
 
       {isOfficial ? (
         <div className="mt-8 sm:mt-10">
