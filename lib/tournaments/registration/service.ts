@@ -52,41 +52,64 @@ export async function getRegistrationSummary(
   registrationClosesAt: Date | null,
   registrationOpensAt?: Date | null,
   tournamentStartsAt?: Date | null,
+  tournamentType: "official" | "recreational" = "official",
 ): Promise<TournamentRegistrationSummary> {
   const db = getDb();
 
-  const [teamRow] = await db
-    .select({ count: count() })
-    .from(tournamentRegistrations)
-    .where(
-      and(
-        eq(tournamentRegistrations.tournamentId, tournamentId),
-        eq(tournamentRegistrations.status, "confirmed"),
-      ),
-    );
+  let registeredTeams = 0;
+  let registeredPlayers = 0;
 
-  const [playerRow] = await db
-    .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
-    .from(tournamentTeamMembers)
-    .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(
-      tournamentRegistrations,
-      eq(tournamentRegistrations.teamId, tournamentTeams.id),
-    )
-    .innerJoin(
-      tournamentPayments,
-      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
-    )
-    .where(
-      and(
-        eq(tournamentTeams.tournamentId, tournamentId),
-        eq(tournamentRegistrations.status, "confirmed"),
-        eq(tournamentPayments.status, "paid"),
-      ),
-    );
+  if (tournamentType === "recreational") {
+    const [playerRow] = await db
+      .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
+      .from(tournamentTeamMembers)
+      .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+      .where(eq(tournamentTeams.tournamentId, tournamentId));
 
-  const registeredTeams = Number(teamRow?.count ?? 0);
-  const registeredPlayers = Number(playerRow?.count ?? 0);
+    const [teamRow] = await db
+      .select({
+        count: sql<number>`count(distinct ${tournamentTeams.id})::int`,
+      })
+      .from(tournamentTeams)
+      .innerJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+      .where(eq(tournamentTeams.tournamentId, tournamentId));
+
+    registeredPlayers = Number(playerRow?.count ?? 0);
+    registeredTeams = Number(teamRow?.count ?? 0);
+  } else {
+    const [teamRow] = await db
+      .select({ count: count() })
+      .from(tournamentRegistrations)
+      .where(
+        and(
+          eq(tournamentRegistrations.tournamentId, tournamentId),
+          eq(tournamentRegistrations.status, "confirmed"),
+        ),
+      );
+
+    const [playerRow] = await db
+      .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
+      .from(tournamentTeamMembers)
+      .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+      .innerJoin(
+        tournamentRegistrations,
+        eq(tournamentRegistrations.teamId, tournamentTeams.id),
+      )
+      .innerJoin(
+        tournamentPayments,
+        eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+      )
+      .where(
+        and(
+          eq(tournamentTeams.tournamentId, tournamentId),
+          eq(tournamentRegistrations.status, "confirmed"),
+          eq(tournamentPayments.status, "paid"),
+        ),
+      );
+
+    registeredTeams = Number(teamRow?.count ?? 0);
+    registeredPlayers = Number(playerRow?.count ?? 0);
+  }
   const registrationOpen = computeRegistrationOpen(
     registrationOpensAt,
     registrationClosesAt,

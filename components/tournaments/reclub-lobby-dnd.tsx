@@ -15,10 +15,15 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { motion } from "framer-motion";
-import { Check, GripVertical, LogOut, Pencil, Plus, X } from "lucide-react";
+import { GripVertical, LogOut, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SquadCreateForm } from "@/components/tournaments/reclub/squad-create-form";
+import { SquadNameEditor } from "@/components/tournaments/reclub/squad-name-editor";
 import type { LobbyTeamView, LobbyMemberView } from "@/lib/tournaments/reclub/teams";
+import {
+  canCreateReclubSquad,
+  canRenameReclubSquad,
+} from "@/lib/tournaments/reclub/squad-names";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
@@ -26,18 +31,18 @@ type ReclubLobbyDndProps = {
   teams: LobbyTeamView[];
   playersPerTeam: number;
   maxTeams?: number | null;
+  tournamentStatus: string;
   userTeamId: string | null;
   currentUserId: string | null;
   activeMatch: boolean;
-  canRenameTeams?: boolean;
   canManage?: boolean;
   onSwitchTeam: (teamId: string) => void;
-  onCreateTeam: (name: string) => void;
-  onRenameTeam?: (teamId: string, name: string) => void;
+  onCreateTeam: (name: string) => Promise<void>;
+  onRenameTeam?: (teamId: string, name: string) => Promise<void>;
   onLeave?: () => void;
   canLeave?: boolean;
   creating?: boolean;
-  renaming?: boolean;
+  renamingTeamId?: string | null;
   leaving?: boolean;
 };
 
@@ -45,6 +50,7 @@ export function ReclubLobbyDnd({
   teams,
   playersPerTeam,
   maxTeams,
+  tournamentStatus,
   userTeamId,
   currentUserId,
   activeMatch,
@@ -53,14 +59,12 @@ export function ReclubLobbyDnd({
   onRenameTeam,
   onLeave,
   canLeave = false,
-  canRenameTeams = false,
   canManage = false,
   creating,
-  renaming,
+  renamingTeamId,
   leaving,
 }: ReclubLobbyDndProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [newTeamName, setNewTeamName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
 
   const sensors = useSensors(
@@ -88,36 +92,27 @@ export function ReclubLobbyDnd({
   const teamsAtCapacity =
     maxTeams != null && maxTeams > 0 && teams.length >= maxTeams;
 
+  const allowCreate = canCreateReclubSquad({
+    tournamentStatus,
+    hasActiveMatch: activeMatch,
+    teamsAtCapacity,
+  });
+
   return (
     <div className="space-y-4">
-      {!activeMatch && !teamsAtCapacity ? (
-        <div className="flex flex-wrap items-end gap-2">
+      {allowCreate ? (
+        <div>
           {showCreate ? (
-            <>
-              <Input
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                placeholder="Squad name"
-                className="max-w-xs border-cp-border bg-cp-bg-input"
-              />
-              <Button
-                size="sm"
-                className="bg-emerald-600"
-                disabled={creating || !newTeamName.trim()}
-                onClick={() => {
-                  onCreateTeam(newTeamName.trim());
-                  setNewTeamName("");
-                  setShowCreate(false);
-                }}
-              >
-                Create
-              </Button>
-            </>
+            <SquadCreateForm
+              onSubmit={onCreateTeam}
+              onCancel={() => setShowCreate(false)}
+              disabled={creating}
+            />
           ) : (
             <Button
               size="sm"
               variant="outline"
-              className="border-cp-border"
+              className="border-cp-border hover:border-emerald-500/40 hover:bg-emerald-500/5"
               onClick={() => setShowCreate(true)}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -126,8 +121,12 @@ export function ReclubLobbyDnd({
           )}
         </div>
       ) : teamsAtCapacity ? (
-        <p className="text-xs text-cp-muted">
+        <p className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-xs text-cp-muted">
           Squad limit reached ({maxTeams} max). Switch to an existing squad or wait for a slot.
+        </p>
+      ) : activeMatch ? (
+        <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200/90">
+          Squads are locked during an active round.
         </p>
       ) : null}
 
@@ -145,12 +144,17 @@ export function ReclubLobbyDnd({
               onSwitchTeam={onSwitchTeam}
               activeMatch={activeMatch}
               canRename={
-                canRenameTeams &&
                 Boolean(onRenameTeam) &&
-                (canManage || team.captainUserId === currentUserId)
+                canRenameReclubSquad({
+                  tournamentStatus,
+                  hasActiveMatch: activeMatch,
+                  canManage,
+                  captainUserId: team.captainUserId,
+                  currentUserId,
+                })
               }
               onRenameTeam={onRenameTeam}
-              renaming={renaming}
+              renaming={renamingTeamId === team.id}
               canLeave={canLeave}
               onLeave={onLeave}
               leaving={leaving}
@@ -197,8 +201,8 @@ function TeamLane({
   currentUserId: string | null;
   onSwitchTeam: (teamId: string) => void;
   activeMatch: boolean;
-  canRename?: boolean;
-  onRenameTeam?: (teamId: string, name: string) => void;
+  canRename: boolean;
+  onRenameTeam?: (teamId: string, name: string) => Promise<void>;
   renaming?: boolean;
   canLeave?: boolean;
   onLeave?: () => void;
@@ -206,19 +210,6 @@ function TeamLane({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `team-${team.id}` });
   const slots = Array.from({ length: playersPerTeam }, (_, i) => team.members[i] ?? null);
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(team.name);
-
-  const saveRename = () => {
-    const trimmed = editName.trim();
-    if (!trimmed || trimmed === team.name) {
-      setEditing(false);
-      setEditName(team.name);
-      return;
-    }
-    onRenameTeam?.(team.id, trimmed);
-    setEditing(false);
-  };
 
   return (
     <motion.div
@@ -227,61 +218,23 @@ function TeamLane({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       className={cn(
-        "rounded-2xl border bg-cp-card p-5 transition-colors",
+        "rounded-2xl border bg-cp-card p-4 sm:p-5 transition-colors",
         isUserTeam ? "border-emerald-500/50 ring-1 ring-emerald-500/20" : "border-cp-border",
         canDrop && isOver && "border-emerald-400 bg-emerald-950/20",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        {editing ? (
-          <div className="flex min-w-0 flex-1 items-center gap-1">
-            <Input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="h-8 border-cp-border bg-cp-bg-input text-sm"
-              disabled={renaming}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveRename();
-                if (e.key === "Escape") {
-                  setEditing(false);
-                  setEditName(team.name);
-                }
-              }}
-            />
-            <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={saveRename} disabled={renaming}>
-              <Check className="h-4 w-4 text-emerald-400" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 shrink-0"
-              onClick={() => {
-                setEditing(false);
-                setEditName(team.name);
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+        {onRenameTeam ? (
+          <SquadNameEditor
+            name={team.name}
+            canEdit={canRename}
+            saving={renaming}
+            onSave={(nextName) => onRenameTeam(team.id, nextName)}
+          />
         ) : (
-          <div className="flex min-w-0 items-center gap-1.5">
-            <h3 className="truncate font-semibold text-foreground">{team.name}</h3>
-            {canRename ? (
-              <button
-                type="button"
-                className="shrink-0 text-cp-muted hover:text-emerald-400"
-                onClick={() => {
-                  setEditName(team.name);
-                  setEditing(true);
-                }}
-                title="Rename squad"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
+          <h3 className="truncate font-semibold text-foreground">{team.name}</h3>
         )}
-        <span className="shrink-0 text-xs text-cp-muted">
+        <span className="shrink-0 rounded-full bg-cp-elevated px-2 py-0.5 text-xs tabular-nums text-cp-muted">
           {team.memberCount}/{playersPerTeam}
         </span>
       </div>

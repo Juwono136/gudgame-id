@@ -29,6 +29,7 @@ import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import {
   useCompleteReclubRound,
   useCreateReclubTeam,
+  useRenameReclubTeam,
   useStartReclubRound,
   useSwitchTeam,
   useTournamentLobby,
@@ -84,6 +85,7 @@ export function ReclubTournamentLobby({
 
   const switchTeam = useSwitchTeam(tournament.sportSlug, tournament.slug);
   const createTeam = useCreateReclubTeam(tournament.sportSlug, tournament.slug);
+  const renameTeam = useRenameReclubTeam(tournament.sportSlug, tournament.slug);
   const startRound = useStartReclubRound(tournament.sportSlug, tournament.slug);
   const completeRound = useCompleteReclubRound(tournament.sportSlug, tournament.slug);
 
@@ -106,6 +108,8 @@ export function ReclubTournamentLobby({
   const busy =
     joining ||
     switchTeam.isPending ||
+    createTeam.isPending ||
+    renameTeam.isPending ||
     startRound.isPending ||
     completeRound.isPending;
 
@@ -170,7 +174,7 @@ export function ReclubTournamentLobby({
       cancelLabel: "Cancel",
     });
     if (!ok) return;
-    startRound.mutate({ teamAId: Number(teamAId), teamBId: Number(teamBId) });
+    startRound.mutate({ teamAId, teamBId });
   };
 
   const handleCompleteRound = async () => {
@@ -350,12 +354,21 @@ export function ReclubTournamentLobby({
             <ReclubLobbyDnd
               teams={teams}
               playersPerTeam={tournament.playersPerTeam}
+              maxTeams={data?.tournament.maxTeams ?? tournament.maxTeams}
+              tournamentStatus={tournament.status}
               userTeamId={userTeamId}
               currentUserId={currentUserId}
               activeMatch={Boolean(activeMatch)}
+              canManage={canManage}
               onSwitchTeam={(teamId) => void handleSwitch(teamId)}
-              onCreateTeam={(name) => createTeam.mutate(name)}
+              onCreateTeam={(name) => createTeam.mutateAsync(name)}
+              onRenameTeam={(teamId, name) =>
+                renameTeam.mutateAsync({ teamId, name })
+              }
               creating={createTeam.isPending}
+              renamingTeamId={
+                renameTeam.isPending ? renameTeam.variables?.teamId ?? null : null
+              }
             />
           </div>
         )}

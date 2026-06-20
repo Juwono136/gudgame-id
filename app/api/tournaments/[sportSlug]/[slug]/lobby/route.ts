@@ -2,6 +2,8 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { getServerSession } from "@/lib/auth/session";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
+import { getTeamsInActiveBracketMatches } from "@/lib/tournaments/brackets/active-teams";
+import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { getActiveReclubMatch, listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
@@ -34,7 +36,8 @@ export async function GET(
     const userId = session?.user?.id ?? null;
     const roles = userId ? await getUserRoleAssignments(userId) : [];
 
-    const [summary, teams, matches, activeMatch, userTeamId] = await Promise.all([
+    const [summary, teams, matches, activeMatch, userTeamId, teamsInActiveBracket] =
+      await Promise.all([
       getRegistrationSummary(
         tournament.id,
         tournament.maxTeams,
@@ -45,16 +48,25 @@ export async function GET(
           ? new Date(tournament.registrationOpensAt)
           : null,
         tournament.startsAt ? new Date(tournament.startsAt) : null,
+        tournament.tournamentType,
       ),
       listLobbyTeamsDetailed(tournament.id),
       listReclubMatches(tournament.id),
       getActiveReclubMatch(tournament.id),
       userId ? getUserTeamInTournament(tournament.id, userId) : Promise.resolve(null),
+      getTeamsInActiveBracketMatches(tournament.id),
     ]);
 
     const canManage = userId
       ? canManageTournament(roles, tournament.createdBy, userId)
       : false;
+
+    const participant = buildTournamentParticipantContext({
+      userId,
+      userTeamId,
+      roles,
+      tournamentCreatedBy: tournament.createdBy,
+    });
 
     return jsonSuccess({
       userId,
@@ -73,6 +85,8 @@ export async function GET(
       activeMatch,
       userTeamId,
       canManage,
+      participant,
+      teamsInActiveBracket,
       isAuthenticated: Boolean(userId),
     });
   } catch (error) {

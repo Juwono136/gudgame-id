@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
+import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 
@@ -24,6 +25,8 @@ export type LobbyPayload = {
   activeMatch: ReclubMatchView | null;
   userTeamId: string | null;
   canManage: boolean;
+  participant: TournamentParticipantContext;
+  teamsInActiveBracket: string[];
   isAuthenticated: boolean;
   userId: string | null;
 };
@@ -80,7 +83,7 @@ export function useSwitchTeam(sportSlug: string, slug: string) {
 export function useStartReclubRound(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { teamAId: number; teamBId: number }) => {
+    mutationFn: async (input: { teamAId: string; teamBId: string }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/matches/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,7 +128,6 @@ export function useRenameReclubTeam(sportSlug: string, slug: string) {
       void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
       toast.success("Squad renamed");
     },
-    onError: (err: Error) => toast.error(err.message),
   });
 }
 
@@ -147,7 +149,6 @@ export function useCreateReclubTeam(sportSlug: string, slug: string) {
       void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
       toast.success("Squad created!");
     },
-    onError: (err: Error) => toast.error(err.message),
   });
 }
 

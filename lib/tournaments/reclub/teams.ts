@@ -95,7 +95,7 @@ export async function createNamedTeam(
       .values({
         tournamentId: tournament.id,
         name: teamName.trim(),
-        captainUserId: existingTeamId ? null : userId,
+        captainUserId: userId,
       })
       .returning();
   } catch (cause) {
@@ -151,8 +151,8 @@ export async function renameReclubTeam(
     });
   }
 
-  if (tournament.status === "live" || tournament.status === "completed") {
-    throw new AppError("Cannot rename teams after the session has started or ended", {
+  if (tournament.status === "completed" || tournament.status === "cancelled") {
+    throw new AppError("Cannot rename teams after the session has ended", {
       code: "VALIDATION_ERROR",
       statusCode: 400,
     });
@@ -206,10 +206,21 @@ export async function renameReclubTeam(
     });
   }
 
-  await db
-    .update(tournamentTeams)
-    .set({ name: trimmed })
-    .where(eq(tournamentTeams.id, teamId));
+  try {
+    await db
+      .update(tournamentTeams)
+      .set({ name: trimmed })
+      .where(eq(tournamentTeams.id, teamId));
+  } catch (cause) {
+    const msg = cause instanceof Error ? cause.message : "";
+    if (msg.includes("tournament_teams_name_uidx") || msg.includes("unique")) {
+      throw new AppError("A squad with this name already exists", {
+        code: "CONFLICT",
+        statusCode: 409,
+      });
+    }
+    throw cause;
+  }
 }
 
 export async function switchTeam(

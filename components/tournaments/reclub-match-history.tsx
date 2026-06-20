@@ -1,16 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  Clock,
-  Loader2,
-  Search,
-  Swords,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { Clock, Loader2, Search, Trophy, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,122 +155,6 @@ export function ReclubMatchCard({
         ) : null}
       </div>
     </article>
-  );
-}
-
-type ReclubMatchOverviewPreviewProps = {
-  matches: ReclubMatchView[];
-  onViewAll?: () => void;
-};
-
-export function ReclubMatchOverviewPreview({
-  matches,
-  onViewAll,
-}: ReclubMatchOverviewPreviewProps) {
-  const recent = useMemo(
-    () =>
-      [...matches]
-        .sort((a, b) => b.roundNumber - a.roundNumber)
-        .filter((m) => m.status === "completed" || m.status === "in_progress")
-        .slice(0, 3),
-    [matches],
-  );
-
-  if (recent.length === 0) return null;
-
-  return (
-    <section className="min-w-0 rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground sm:text-lg">
-          <Swords className="h-5 w-5 shrink-0 text-emerald-400" />
-          Recent rounds
-        </h2>
-        {onViewAll ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-cp-primary"
-            onClick={onViewAll}
-          >
-            Full history
-            <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
-        ) : null}
-      </div>
-
-      <ul className="mt-4 space-y-3 md:hidden">
-        {recent.map((m) => (
-          <li
-            key={getReclubMatchHistoryKey(m)}
-            className="rounded-xl border border-cp-border bg-cp-elevated/30 p-3.5"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
-                {m.roundLabel ?? `R${m.roundNumber}`}
-              </p>
-              <Badge variant="muted" className="shrink-0 text-[10px] capitalize">
-                {m.status.replace("_", " ")}
-              </Badge>
-            </div>
-            <p className="mt-2 text-sm font-medium text-foreground">
-              {m.teamAName} vs {m.teamBName}
-            </p>
-            <p className="mt-1 text-xs text-cp-muted">{formatWhen(m.endedAt ?? m.startedAt)}</p>
-            <p className="mt-2 text-xl font-bold tabular-nums text-foreground">
-              {m.scoreA ?? "–"} : {m.scoreB ?? "–"}
-            </p>
-            {m.teamAPlayers.length > 0 || m.teamBPlayers.length > 0 ? (
-              <p className="mt-2 line-clamp-2 text-xs text-cp-muted">
-                {[...m.teamAPlayers, ...m.teamBPlayers].join(" · ")}
-              </p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-4 hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[520px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-cp-border text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              <th className="pb-2 pr-3">Round</th>
-              <th className="pb-2 pr-3">Match</th>
-              <th className="pb-2 pr-3">Players</th>
-              <th className="pb-2 pr-3 text-center">Score</th>
-              <th className="pb-2 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-cp-border/60">
-            {recent.map((m) => (
-              <tr key={getReclubMatchHistoryKey(m)} className="align-middle">
-                <td className="py-3 pr-3 font-semibold text-emerald-300">
-                  {m.roundLabel ?? `R${m.roundNumber}`}
-                </td>
-                <td className="py-3 pr-3">
-                  <p className="font-medium text-foreground">
-                    {m.teamAName} vs {m.teamBName}
-                  </p>
-                  <p className="text-xs text-cp-muted">{formatWhen(m.endedAt ?? m.startedAt)}</p>
-                </td>
-                <td className="max-w-[180px] py-3 pr-3 text-xs text-cp-muted">
-                  <span className="line-clamp-2">
-                    {[...m.teamAPlayers, ...m.teamBPlayers].join(" · ") || "—"}
-                  </span>
-                </td>
-                <td className="py-3 pr-3 text-center font-bold tabular-nums text-foreground">
-                  {m.scoreA ?? "–"} : {m.scoreB ?? "–"}
-                </td>
-                <td className="py-3 text-right">
-                  <Badge variant="muted" className="text-[10px] capitalize">
-                    {m.status.replace("_", " ")}
-                  </Badge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 

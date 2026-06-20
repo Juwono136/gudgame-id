@@ -6,6 +6,10 @@ export function mapReclubMatchRow(
   row: typeof tournamentReclubMatches.$inferSelect,
 ): ReclubMatchView {
   const meta = parseReclubMatchMetadata(row.metadata);
+  const raw = row.metadata as Record<string, unknown> | null;
+  const bracketMatchId =
+    typeof raw?.bracketMatchId === "string" ? raw.bracketMatchId : null;
+
   return {
     id: row.id,
     roundNumber: row.roundNumber,
@@ -23,5 +27,8 @@ export function mapReclubMatchRow(
     teamAPlayers: meta.teamAPlayers ?? [],
     teamBPlayers: meta.teamBPlayers ?? [],
     scoreEvents: meta.scoreEvents ?? [],
+    sourceKind: bracketMatchId ? "bracket" : "round",
+    bracketMatchId,
+    roundLabel: typeof raw?.roundLabel === "string" ? raw.roundLabel : null,
   };
 }

@@ -26,6 +26,7 @@ import {
 } from "@/hooks/use-tournament-bracket";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { cn } from "@/lib/utils";
 
 type ReclubBracketPanelProps = {
@@ -34,6 +35,7 @@ type ReclubBracketPanelProps = {
   tournamentId: string;
   teams: LobbyTeamView[];
   canManage: boolean;
+  participant: TournamentParticipantContext;
   userTeamId: string | null;
   tournamentStatus: string;
 };
@@ -44,6 +46,7 @@ export function ReclubBracketPanel({
   tournamentId,
   teams,
   canManage,
+  participant,
   userTeamId,
   tournamentStatus,
 }: ReclubBracketPanelProps) {
@@ -162,7 +165,9 @@ export function ReclubBracketPanel({
             sportSlug={sportSlug}
             slug={slug}
             matches={matches}
-            canManage={canManage}
+            participant={participant}
+            showBracketTree={false}
+            variant="reclub"
           />
         </>
       )}

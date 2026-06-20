@@ -48,17 +48,15 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { matchId: string; scoreA: number; scoreB: number }) => {
-      const res = await fetch(
-        `/api/tournaments/${sportSlug}/${slug}/bracket/matches/${input.matchId}/live`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            scoreA: input.scoreA,
-            scoreB: input.scoreB,
-          }),
-        },
-      );
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/live`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: input.matchId,
+          scoreA: input.scoreA,
+          scoreB: input.scoreB,
+        }),
+      });
       const json = await parseJsonResponse<{
         success: boolean;
         data: { match: BracketMatchView };
@@ -176,14 +174,15 @@ export function useSubmitBracketScore(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { matchId: string; scoreA: number; scoreB: number }) => {
-      const res = await fetch(
-        `/api/tournaments/${sportSlug}/${slug}/bracket/matches/${input.matchId}/score`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scoreA: input.scoreA, scoreB: input.scoreB }),
-        },
-      );
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: input.matchId,
+          scoreA: input.scoreA,
+          scoreB: input.scoreB,
+        }),
+      });
       const json = await parseJsonResponse<{
         success: boolean;
         data: { match: BracketMatchView };

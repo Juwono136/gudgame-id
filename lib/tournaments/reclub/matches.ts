@@ -6,6 +6,7 @@ import { user } from "@/db/schema/auth";
 import { tournamentReclubMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
+import { assertTeamsNotInActiveBracket } from "@/lib/tournaments/brackets/active-teams";
 import { getMaxRounds } from "@/lib/tournaments/settings";
 import { syncReclubMatchToPlayerHistory } from "@/lib/tournaments/stats/sync";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -112,6 +113,8 @@ export async function startReclubRound(
   if (!teamA || !teamB) {
     throw new AppError("Invalid teams", { code: "VALIDATION_ERROR", statusCode: 422 });
   }
+
+  await assertTeamsNotInActiveBracket(tournament.id, teamAId, teamBId);
 
   const [teamAPlayers, teamBPlayers] = await Promise.all([
     getTeamPlayerNames(teamAId),

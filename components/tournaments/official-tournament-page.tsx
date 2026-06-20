@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
-import { OfficialLeaderboard } from "@/components/tournaments/official-leaderboard";
+import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
+import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
+import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
 import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
 import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
 import { TournamentCountdown } from "@/components/tournaments/tournament-countdown";
@@ -27,12 +29,15 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
+import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
-import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentRuleSections } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { mapBracketMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
+import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { isActiveRegistrationStatus } from "@/lib/tournaments/registration/urls";
@@ -57,21 +62,21 @@ function formatDateRange(starts: string | null, ends: string | null) {
 type OfficialTournamentPageProps = {
   tournament: TournamentDetail;
   summary: TournamentRegistrationSummary;
-  publicRoster: LobbyTeamView[];
   isAuthenticated: boolean;
+  participant: TournamentParticipantContext;
   canManage?: boolean;
   venueMapsUrl?: string | null;
   ruleSections?: TournamentRuleSections;
   gearItems?: TournamentGearRuleItem[];
 };
 
-const TABS = ["Overview", "Bracket", "Leaderboard"] as const;
+const TABS = ["Overview", "Players", "Bracket", "Stats"] as const;
 
 export function OfficialTournamentPage({
   tournament,
   summary,
-  publicRoster,
   isAuthenticated,
+  participant,
   canManage = false,
   venueMapsUrl = null,
   ruleSections,
@@ -97,6 +102,36 @@ export function OfficialTournamentPage({
   const { data: bracket, isLoading: bracketLoading } = useTournamentBracket(
     tournament.sportSlug,
     tournament.slug,
+  );
+  const { data: participantsData, isLoading: participantsLoading } = useTournamentParticipants(
+    tournament.sportSlug,
+    tournament.slug,
+    1,
+    200,
+    { enabled: tab === "Stats" },
+  );
+
+  const sessionStats = useMemo(
+    () =>
+      computeOfficialTournamentStats({
+        matches: bracket?.matches ?? [],
+        leaderboard: bracket?.leaderboard ?? [],
+        participants: participantsData?.items ?? [],
+        totalPlayers: summary.registeredPlayers,
+        totalTeams: summary.registeredTeams,
+      }),
+    [
+      bracket?.matches,
+      bracket?.leaderboard,
+      participantsData?.items,
+      summary.registeredPlayers,
+      summary.registeredTeams,
+    ],
+  );
+
+  const recentMatchRows = useMemo(
+    () => mapBracketMatchesToRecentRows(bracket?.matches ?? []),
+    [bracket?.matches],
   );
 
   const handleRegister = async () => {
@@ -235,9 +270,17 @@ export function OfficialTournamentPage({
                 />
               </div>
               <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-semibold text-foreground">Who&apos;s playing</h2>
-                  <span className="text-sm text-cp-muted">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="font-semibold text-foreground">Who&apos;s playing</h2>
+                    <p className="mt-1 text-sm text-cp-muted">
+                      {summary.registeredPlayers} players registered
+                      {summary.spotsRemaining != null
+                        ? ` · ${summary.spotsRemaining} team spots left`
+                        : ""}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-cp-primary">
                     {summary.registeredTeams}
                     {summary.maxTeams != null ? ` / ${summary.maxTeams}` : ""} teams
                   </span>
@@ -250,32 +293,26 @@ export function OfficialTournamentPage({
                     }}
                   />
                 </div>
-                <p className="mt-3 text-sm text-cp-muted">
-                  {summary.registeredPlayers} players registered
-                  {summary.spotsRemaining != null
-                    ? ` · ${summary.spotsRemaining} team spots left`
-                    : ""}
-                </p>
-                {publicRoster.length > 0 ? (
-                  <ul className="mt-5 space-y-3">
-                    {publicRoster.map((team) => (
-                      <li
-                        key={team.id}
-                        className="rounded-xl border border-cp-border bg-cp-elevated/40 px-4 py-3"
-                      >
-                        <p className="font-medium text-foreground">{team.name}</p>
-                        <p className="mt-1 text-xs text-cp-muted">
-                          {team.members.map((m) => m.displayName).join(" · ")}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-4 text-sm text-cp-muted">
-                    Confirmed teams will appear here once registration and payment are complete.
-                  </p>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 border-cp-border"
+                  onClick={() => setTab("Players")}
+                >
+                  View full player list
+                </Button>
               </section>
+              <TournamentRecentMatchesSection
+                variant="official"
+                rows={recentMatchRows}
+                alwaysShow
+                emptyMessage={
+                  bracket?.generated
+                    ? "No match results yet. Seeded bracket matches will appear here as play progresses."
+                    : "The host will publish the bracket after registration closes. Results will show here once matches are played."
+                }
+                onViewAll={() => setTab("Bracket")}
+              />
               {tournament.description ? (
                 <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                   <h2 className="font-semibold text-foreground">About</h2>
@@ -303,6 +340,15 @@ export function OfficialTournamentPage({
             </>
           ) : null}
 
+          {tab === "Players" ? (
+            <TournamentParticipantsPanel
+              sportSlug={tournament.sportSlug}
+              slug={tournament.slug}
+              tournamentType="official"
+              variant="official"
+            />
+          ) : null}
+
           {tab === "Bracket" ? (
             bracketLoading ? (
               <LoadingSpinner label="Loading bracket…" />
@@ -311,16 +357,24 @@ export function OfficialTournamentPage({
                 sportSlug={tournament.sportSlug}
                 slug={tournament.slug}
                 matches={bracket?.matches ?? []}
-                canManage={canManage}
+                participant={participant}
               />
             )
           ) : null}
 
-          {tab === "Leaderboard" ? (
-            bracketLoading ? (
-              <LoadingSpinner label="Loading standings…" />
+          {tab === "Stats" ? (
+            bracketLoading || participantsLoading ? (
+              <LoadingSpinner label="Loading stats…" />
             ) : (
-              <OfficialLeaderboard entries={bracket?.leaderboard ?? []} />
+              <TournamentSessionStatsPanel
+                variant="official"
+                stats={sessionStats}
+                emptyMessage={
+                  bracket?.generated
+                    ? undefined
+                    : "The host will publish the bracket after registration closes. Stats will appear once matches are played."
+                }
+              />
             )
           ) : null}
         </div>
