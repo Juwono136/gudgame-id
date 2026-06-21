@@ -42,16 +42,16 @@ Details: [docs/SETUP.md](./docs/SETUP.md)
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Development server |
-| `npm run build` | Production build |
-| `npm run start` | Production server |
-| `npm run typecheck` | TypeScript check |
-| `npm run lint` | ESLint |
+| Command                | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `npm run dev`          | Development server                                       |
+| `npm run build`        | Production build                                         |
+| `npm run start`        | Production server                                        |
+| `npm run typecheck`    | TypeScript check                                         |
+| `npm run lint`         | ESLint                                                   |
 | `npm run validate:env` | Validate `.env` (use `STRICT_PRODUCTION_ENV=true` in CI) |
-| `npm run infra:check` | PostgreSQL, Redis, SeaweedFS health |
-| `npm run db:seed` | Seed MVP sport (padel) |
+| `npm run infra:check`  | PostgreSQL, Redis, SeaweedFS health                      |
+| `npm run db:seed`      | Seed MVP sport (padel)                                   |
 
 ## Production checklist
 
@@ -64,6 +64,6 @@ Details: [docs/SETUP.md](./docs/SETUP.md)
 
 ## Documentation
 
+- [Analisis Aplikasi](./docs/TANDINGBASE_ANALYSIS.md)
 - [Architecture](./docs/ARCHITECTURE.md)
-- [Local setup](./docs/SETUP.md)
 - [GCP deployment](./docs/DEPLOYMENT-GCP.md)

@@ -72,7 +72,7 @@ function RegistrationCard({ item }: { item: PlayerRegistrationItem }) {
         {formatTournamentDates(item.startsAt, item.endsAt)}
       </p>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="mt-4 flex flex-col gap-2 sm:items-start">
         <Button asChild size="sm" variant="outline" className="h-9 border-cp-border">
           <Link href={publicSportRoutes.tournament(item.sportSlug, item.tournamentSlug)}>
             View tournament
