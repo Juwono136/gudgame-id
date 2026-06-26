@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { user } from "@/db/schema/auth";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
-import { tournamentTeams } from "@/db/schema/tournament-registration";
+import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -15,12 +16,37 @@ export type BracketMatchView = {
   teamBId: string | null;
   teamAName: string | null;
   teamBName: string | null;
+  teamAPlayers: string[];
+  teamBPlayers: string[];
   scoreA: number | null;
   scoreB: number | null;
   winnerTeamId: string | null;
   status: string;
   nextMatchId: string | null;
 };
+
+async function getBracketTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
+  if (!teamIds.length) return new Map();
+
+  const rows = await getDb()
+    .select({
+      teamId: tournamentTeamMembers.teamId,
+      displayName: sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`,
+      slotIndex: tournamentTeamMembers.slotIndex,
+    })
+    .from(tournamentTeamMembers)
+    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .where(inArray(tournamentTeamMembers.teamId, teamIds))
+    .orderBy(asc(tournamentTeamMembers.slotIndex));
+
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = map.get(row.teamId) ?? [];
+    list.push(row.displayName);
+    map.set(row.teamId, list);
+  }
+  return map;
+}
 
 export async function listBracketMatches(tournamentId: string): Promise<BracketMatchView[]> {
   const rows = await getDb()
@@ -32,6 +58,15 @@ export async function listBracketMatches(tournamentId: string): Promise<BracketM
       asc(tournamentBracketMatches.matchNumber),
     );
 
+  const teamIds = [
+    ...new Set(
+      rows
+        .flatMap((row) => [row.teamAId, row.teamBId])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const playersByTeam = await getBracketTeamPlayers(teamIds);
+
   return rows.map((r) => ({
     id: r.id,
     roundNumber: r.roundNumber,
@@ -40,6 +75,8 @@ export async function listBracketMatches(tournamentId: string): Promise<BracketM
     teamBId: r.teamBId,
     teamAName: r.teamAName,
     teamBName: r.teamBName,
+    teamAPlayers: r.teamAId ? (playersByTeam.get(r.teamAId) ?? []) : [],
+    teamBPlayers: r.teamBId ? (playersByTeam.get(r.teamBId) ?? []) : [],
     scoreA: r.scoreA,
     scoreB: r.scoreB,
     winnerTeamId: r.winnerTeamId,
@@ -55,6 +92,13 @@ export async function submitBracketMatchScore(
   scoreA: number,
   scoreB: number,
 ): Promise<BracketMatchView> {
+  if (tournament.format === "americano") {
+    throw new AppError("Americano tournaments do not use bracket scoring", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
   const db = getDb();
   const [match] = await db
     .select()
@@ -200,6 +244,8 @@ export async function submitBracketMatchScore(
     teamBId: updated.teamBId,
     teamAName: updated.teamAName,
     teamBName: updated.teamBName,
+    teamAPlayers: match.teamAId ? (await getBracketTeamPlayers([match.teamAId])).get(match.teamAId) ?? [] : [],
+    teamBPlayers: match.teamBId ? (await getBracketTeamPlayers([match.teamBId])).get(match.teamBId) ?? [] : [],
     scoreA: updated.scoreA,
     scoreB: updated.scoreB,
     winnerTeamId: updated.winnerTeamId,
@@ -215,6 +261,13 @@ export async function updateBracketLiveScore(
   scoreA: number,
   scoreB: number,
 ): Promise<BracketMatchView> {
+  if (tournament.format === "americano") {
+    throw new AppError("Americano tournaments do not use bracket scoring", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
   const db = getDb();
   const [match] = await db
     .select()
@@ -279,6 +332,8 @@ export async function updateBracketLiveScore(
     teamBId: updated.teamBId,
     teamAName: updated.teamAName,
     teamBName: updated.teamBName,
+    teamAPlayers: match.teamAId ? (await getBracketTeamPlayers([match.teamAId])).get(match.teamAId) ?? [] : [],
+    teamBPlayers: match.teamBId ? (await getBracketTeamPlayers([match.teamBId])).get(match.teamBId) ?? [] : [],
     scoreA: updated.scoreA,
     scoreB: updated.scoreB,
     winnerTeamId: updated.winnerTeamId,

@@ -10,5 +10,5 @@ export const TOURNAMENT_STATUS_LABELS: Record<TournamentStatus, string> = {
 
 export const TOURNAMENT_TYPE_LABELS: Record<TournamentType, string> = {
   official: "Official — paid & ranked",
-  recreational: "Reclub — free community play",
+  recreational: "Fun Match — free community play",
 };

@@ -7,7 +7,7 @@ import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-r
 import { AppError } from "@/lib/errors";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
 
 export async function assignTeamToBracketSlot(
   tournament: TournamentDetail,
@@ -15,6 +15,13 @@ export async function assignTeamToBracketSlot(
   slot: "a" | "b",
   teamId: string | null,
 ): Promise<BracketMatchView> {
+  if (tournament.format === "americano") {
+    throw new AppError("Americano tournaments do not use brackets", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
   if (tournament.tournamentType === "recreational") {
     assertReclubSessionPlayable(tournament);
   }
@@ -145,18 +152,10 @@ export async function assignTeamToBracketSlot(
     throw new AppError("Could not update bracket slot", { code: "DATABASE_ERROR", statusCode: 500 });
   }
 
-  return {
-    id: updated.id,
-    roundNumber: updated.roundNumber,
-    matchNumber: updated.matchNumber,
-    teamAId: updated.teamAId,
-    teamBId: updated.teamBId,
-    teamAName: updated.teamAName,
-    teamBName: updated.teamBName,
-    scoreA: updated.scoreA,
-    scoreB: updated.scoreB,
-    winnerTeamId: updated.winnerTeamId,
-    status: updated.status,
-    nextMatchId: updated.nextMatchId,
-  };
+  const updatedMatches = await listBracketMatches(tournament.id);
+  const hydrated = updatedMatches.find((item) => item.id === updated.id);
+  if (!hydrated) {
+    throw new AppError("Could not reload bracket slot", { code: "DATABASE_ERROR", statusCode: 500 });
+  }
+  return hydrated;
 }

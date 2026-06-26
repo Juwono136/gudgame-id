@@ -151,7 +151,7 @@ export async function renameReclubTeam(
   newName: string,
 ): Promise<void> {
   if (tournament.tournamentType !== "recreational") {
-    throw new AppError("Team rename is only for reclub tournaments", {
+    throw new AppError("Team rename is only for Fun Match tournaments", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });

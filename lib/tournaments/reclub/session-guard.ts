@@ -12,7 +12,7 @@ import {
 
 export function assertReclubTournament(tournament: TournamentDetail): void {
   if (tournament.tournamentType !== "recreational") {
-    throw new AppError("This action is only available for reclub sessions", {
+    throw new AppError("This action is only available for Fun Match sessions", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });

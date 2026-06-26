@@ -150,7 +150,7 @@ export function PlayerTournamentWorkspace({ tournamentId }: PlayerTournamentWork
   if (!isReclub) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center text-sm text-cp-muted">
-        This workspace is for reclub sessions you created. Official tournaments are managed from
+        This workspace is for Fun Match sessions you created. Official tournaments are managed from
         the host dashboard.
       </div>
     );

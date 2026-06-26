@@ -16,8 +16,25 @@ export type TournamentSettings = TournamentRuleSections & {
   venueMapsUrl?: string;
   /** Max playable rounds for reclub sessions (set at creation). */
   maxRounds?: number;
+  scoringType?: TournamentScoringType;
+  pointsPerMatch?: number;
+  courtCount?: number;
   officialStaff?: OfficialTournamentStaffMember[];
 };
+
+export const TOURNAMENT_SCORING_TYPES = ["points", "timed"] as const;
+export type TournamentScoringType = (typeof TOURNAMENT_SCORING_TYPES)[number];
+
+export const TOURNAMENT_POINTS_PER_MATCH_OPTIONS = [11, 15, 21, 25, 30] as const;
+export const TOURNAMENT_COURT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12] as const;
+
+export function getTournamentFormatLabel(format: string | null | undefined): string {
+  return format === "americano" ? "Americano" : "Elimination";
+}
+
+export function getScoringTypeLabel(scoringType: string | null | undefined): string {
+  return scoringType === "timed" ? "Timed rounds" : "Points";
+}
 
 export type OfficialTournamentStaffRole = "host" | "scorekeeper";
 
@@ -41,6 +58,9 @@ export function parseTournamentSettings(
   const equipmentStandardsHtml = raw.equipmentStandardsHtml;
   const gearEntityIds = raw.gearEntityIds;
   const maxRounds = raw.maxRounds;
+  const scoringType = raw.scoringType;
+  const pointsPerMatch = raw.pointsPerMatch;
+  const courtCount = raw.courtCount;
   const officialStaff = raw.officialStaff;
 
   const parsedGearIds = Array.isArray(gearEntityIds)
@@ -65,6 +85,16 @@ export function parseTournamentSettings(
     maxRounds:
       typeof maxRounds === "number" && Number.isFinite(maxRounds) && maxRounds > 0
         ? Math.floor(maxRounds)
+        : undefined,
+    scoringType:
+      scoringType === "points" || scoringType === "timed" ? scoringType : undefined,
+    pointsPerMatch:
+      typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
+        ? Math.floor(pointsPerMatch)
+        : undefined,
+    courtCount:
+      typeof courtCount === "number" && Number.isFinite(courtCount) && courtCount > 0
+        ? Math.floor(courtCount)
         : undefined,
     officialStaff: parseOfficialTournamentStaff(officialStaff),
   };
@@ -125,6 +155,18 @@ export function getVenueMapsUrl(tournament: TournamentDetail): string | null {
   return parseTournamentSettings(tournament.settings).venueMapsUrl ?? null;
 }
 
+export function getTournamentScoringType(tournament: TournamentDetail): TournamentScoringType {
+  return parseTournamentSettings(tournament.settings).scoringType ?? "points";
+}
+
+export function getTournamentPointsPerMatch(tournament: TournamentDetail): number {
+  return parseTournamentSettings(tournament.settings).pointsPerMatch ?? 21;
+}
+
+export function getTournamentCourtCount(tournament: TournamentDetail): number {
+  return parseTournamentSettings(tournament.settings).courtCount ?? 1;
+}
+
 export function getTournamentRuleSections(
   tournament: TournamentDetail,
 ): TournamentRuleSections {
@@ -144,6 +186,9 @@ export type TournamentSettingsInput = {
   equipmentStandardsHtml?: string;
   gearEntityIds?: string[];
   maxRounds?: number;
+  scoringType?: TournamentScoringType;
+  pointsPerMatch?: number;
+  courtCount?: number;
 };
 
 export type TournamentSettingsUpsertFields = {
@@ -154,6 +199,9 @@ export type TournamentSettingsUpsertFields = {
   gearEntityIds?: string[];
   rules?: string;
   maxRounds?: number;
+  scoringType?: TournamentScoringType;
+  pointsPerMatch?: number;
+  courtCount?: number;
 };
 
 export function settingsInputFromUpsert(
@@ -166,6 +214,9 @@ export function settingsInputFromUpsert(
     equipmentStandardsHtml: input.equipmentStandardsRules,
     gearEntityIds: input.gearEntityIds,
     maxRounds: input.maxRounds,
+    scoringType: input.scoringType,
+    pointsPerMatch: input.pointsPerMatch,
+    courtCount: input.courtCount,
   };
 }
 
@@ -206,6 +257,24 @@ export function buildTournamentSettings(
     next.maxRounds = Math.floor(input.maxRounds);
   } else if ("maxRounds" in input) {
     delete next.maxRounds;
+  }
+
+  if (input.scoringType === "points" || input.scoringType === "timed") {
+    next.scoringType = input.scoringType;
+  } else if ("scoringType" in input) {
+    delete next.scoringType;
+  }
+
+  if (input.pointsPerMatch != null && input.pointsPerMatch > 0) {
+    next.pointsPerMatch = Math.floor(input.pointsPerMatch);
+  } else if ("pointsPerMatch" in input) {
+    delete next.pointsPerMatch;
+  }
+
+  if (input.courtCount != null && input.courtCount > 0) {
+    next.courtCount = Math.floor(input.courtCount);
+  } else if ("courtCount" in input) {
+    delete next.courtCount;
   }
 
   return next;

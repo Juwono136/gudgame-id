@@ -6,7 +6,7 @@ import { ADMIN_SPORT_COOKIE } from "@/lib/roles/constants";
 
 export const metadata = {
   title: "Create Tournament",
-  description: "Create an official or reclub tournament as a host on TandingBase.",
+  description: "Create an official tournament or Fun Match as a host on TandingBase.",
 };
 
 export default async function HostCreateTournamentPage() {

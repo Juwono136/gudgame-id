@@ -79,7 +79,7 @@ export function PlayerMatchesSummaryHint() {
   return (
     <p className="flex items-center gap-2 text-xs text-cp-muted">
       <Swords className="h-3.5 w-3.5 shrink-0" />
-      Official and reclub matches appear here after results are recorded in tournaments.
+      Official and Fun Match matches appear here after results are recorded in tournaments.
       <Trophy className="hidden h-3.5 w-3.5 sm:inline" />
     </p>
   );

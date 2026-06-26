@@ -25,6 +25,10 @@ type ReclubWizardReviewProps = {
   playersPerTeam: string;
   maxTeams: string;
   maxRounds: string;
+  matchType: string;
+  scoringType: string;
+  pointsPerMatch: string;
+  courtCount: string;
   startsAt: string;
   endsAt: string;
   summary: string;
@@ -93,6 +97,10 @@ export function ReclubWizardReview({
   playersPerTeam,
   maxTeams,
   maxRounds,
+  matchType,
+  scoringType,
+  pointsPerMatch,
+  courtCount,
   startsAt,
   endsAt,
   summary,
@@ -108,7 +116,7 @@ export function ReclubWizardReview({
           {isEdit ? "Review your changes" : "Ready to publish"}
         </p>
         <p className="mt-1 text-xs text-emerald-300/80">
-          Free reclub session — no official ranking impact. Public URL uses your sport slug and
+          Free Fun Match — no official ranking impact. Public URL uses your sport slug and
           session name.
         </p>
       </div>
@@ -150,7 +158,16 @@ export function ReclubWizardReview({
           <ReviewField label="Players per team" value={playersPerTeam} />
           <ReviewField label="Max squads" value={maxTeams} />
           <ReviewField label="Rounds" value={maxRounds} />
-          <ReviewField label="Format" value="Open play (reclub)" />
+          <ReviewField
+            label="Match type"
+            value={matchType === "americano" ? "Americano" : "Elimination"}
+          />
+          <ReviewField
+            label="Scoring type"
+            value={scoringType === "timed" ? "Timed rounds" : "Points"}
+          />
+          <ReviewField label="Point per match" value={`${pointsPerMatch} points`} />
+          <ReviewField label="Courts" value={courtCount} />
           <div className="sm:col-span-2">
             <ReviewField label="Schedule" value={formatWizardDateRange(startsAt, endsAt)} />
           </div>
@@ -187,7 +204,7 @@ export function ReclubWizardReview({
 
       <ReviewSection title="Visibility" icon={FileText} stepIndex={0} onEditStep={onEditStep}>
         <dl className="grid gap-2 sm:grid-cols-2">
-          <ReviewField label="Type" value="Reclub (free)" />
+          <ReviewField label="Type" value="Fun Match (free)" />
           <ReviewField label="Ranking" value="No official impact" />
           <ReviewField label="Registration fee" value="Free" />
           <ReviewField

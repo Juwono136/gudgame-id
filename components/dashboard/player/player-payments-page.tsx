@@ -23,7 +23,7 @@ const PLAYER_PAYMENTS_TABS = [
     id: "registrations",
     label: "My registrations",
     description:
-      "Tournaments you have joined — official events and reclub sessions, with status and quick actions.",
+      "Tournaments you have joined — official events and Fun Match sessions, with status and quick actions.",
     icon: ClipboardList,
   },
 ] as const;

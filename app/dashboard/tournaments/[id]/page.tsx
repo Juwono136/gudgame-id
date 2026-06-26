@@ -10,8 +10,8 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   return {
-    title: `Reclub session`,
-    description: "Manage your reclub session on TandingBase.",
+    title: "Fun Match",
+    description: "Manage your Fun Match on TandingBase.",
   };
 }
 

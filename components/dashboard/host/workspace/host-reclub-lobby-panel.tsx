@@ -103,7 +103,7 @@ export function HostReclubLobbyPanel({
   return (
     <WorkspaceSection
       title="Lobby & rounds"
-      description="Squads and match results from your reclub session. Run live rounds on the public lobby page."
+      description="Squads and match results from your Fun Match. Run live rounds on the public lobby page."
       className="mt-8 sm:mt-10"
     >
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -123,7 +123,7 @@ export function HostReclubLobbyPanel({
         <div className="rounded-2xl border border-dashed border-cp-border px-4 py-10 text-center">
           <p className="text-sm font-medium text-foreground">No squads yet</p>
           <p className="mt-1 text-sm text-cp-muted">
-            Players join squads from the public reclub lobby page.
+            Players join squads from the public Fun Match lobby page.
           </p>
           <Button asChild variant="outline" size="sm" className="mt-4 h-9 border-cp-border">
             <Link href={publicHref} target="_blank" rel="noopener noreferrer">

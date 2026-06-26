@@ -54,6 +54,14 @@ import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
 import { dashboardRoutes, adminRoutes } from "@/lib/constants/routes";
 import { tournamentAfterCreateUrl, tournamentAfterSaveUrl } from "@/lib/tournaments/edit-routes";
 import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
+import {
+  TOURNAMENT_COURT_COUNT_OPTIONS,
+  TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
+  getTournamentCourtCount,
+  getTournamentPointsPerMatch,
+  getTournamentScoringType,
+  type TournamentScoringType,
+} from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentStatus } from "@/lib/domain/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
@@ -93,7 +101,6 @@ function buildInitialCover(initial?: TournamentDetail): TournamentCoverValue {
 }
 
 function hydrateFromInitial(initial: TournamentDetail) {
-  const settings = initial.settings ?? {};
   const maxRounds = getMaxRounds(initial);
   return {
     sportSlug: initial.sportSlug,
@@ -106,6 +113,10 @@ function hydrateFromInitial(initial: TournamentDetail) {
     playersPerTeam: String(initial.playersPerTeam),
     maxTeams: String(initial.maxTeams ?? 8),
     maxRounds: String(maxRounds ?? 3),
+    matchType: initial.format === "americano" ? "americano" : "single_elimination",
+    scoringType: getTournamentScoringType(initial),
+    pointsPerMatch: String(getTournamentPointsPerMatch(initial)),
+    courtCount: String(getTournamentCourtCount(initial)),
     startsAt: toLocalDatetime(initial.startsAt),
     endsAt: toLocalDatetime(initial.endsAt),
   };
@@ -159,6 +170,16 @@ export function ReclubTournamentWizard({
     hydrated?.maxTeams ?? String(Math.min(defaults.maxTeams, 16)),
   );
   const [maxRounds, setMaxRounds] = useState(hydrated?.maxRounds ?? "3");
+  const [matchType, setMatchType] = useState(
+    hydrated?.matchType ?? "americano",
+  );
+  const [scoringType, setScoringType] = useState<TournamentScoringType>(
+    hydrated?.scoringType ?? "points",
+  );
+  const [pointsPerMatch, setPointsPerMatch] = useState(
+    hydrated?.pointsPerMatch ?? "21",
+  );
+  const [courtCount, setCourtCount] = useState(hydrated?.courtCount ?? "1");
   const [startsAt, setStartsAt] = useState(hydrated?.startsAt ?? "");
   const [endsAt, setEndsAt] = useState(hydrated?.endsAt ?? "");
 
@@ -170,7 +191,7 @@ export function ReclubTournamentWizard({
   }, []);
 
   const slug = useMemo(
-    () => (isEdit && initial ? initial.slug : slugifyWikiName(name || "reclub-session")),
+    () => (isEdit && initial ? initial.slug : slugifyWikiName(name || "fun-match")),
     [isEdit, initial, name],
   );
 
@@ -189,6 +210,10 @@ export function ReclubTournamentWizard({
     playersPerTeam,
     maxTeams,
     maxRounds,
+    matchType,
+    scoringType,
+    pointsPerMatch,
+    courtCount,
     startsAt,
     endsAt,
   };
@@ -268,7 +293,10 @@ export function ReclubTournamentWizard({
       maxRounds: Number(maxRounds) || 3,
       startsAt: localDatetimeToIso(startsAt),
       endsAt: localDatetimeToIso(endsAt),
-      format: "open_play" as const,
+      format: matchType as "americano" | "single_elimination",
+      scoringType,
+      pointsPerMatch: Number(pointsPerMatch) || 21,
+      courtCount: Number(courtCount) || 1,
     };
   };
 
@@ -280,7 +308,7 @@ export function ReclubTournamentWizard({
     }
 
     const ok = await confirm({
-      title: isEdit ? "Save reclub changes?" : "Create reclub session?",
+      title: isEdit ? "Save Fun Match changes?" : "Create Fun Match?",
       description: isEdit
         ? "Updates will appear on the public session page immediately."
         : "This is a free community session. It won't affect official rankings.",
@@ -331,7 +359,7 @@ export function ReclubTournamentWizard({
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10 lg:py-12">
       <LoadingOverlay
         show={isPending}
-        label={isEdit ? "Saving changes…" : "Creating session…"}
+      label={isEdit ? "Saving changes…" : "Creating session…"}
       />
 
       {onBack ? (
@@ -360,7 +388,7 @@ export function ReclubTournamentWizard({
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {isEdit ? "Edit reclub session" : "Create reclub session"}
+              {isEdit ? "Edit Fun Match" : "Create Fun Match"}
             </h1>
             <p className="mt-1 text-sm text-cp-muted">
               Free community play — no official ranking impact. Open to all members.
@@ -412,7 +440,7 @@ export function ReclubTournamentWizard({
                   )}
                 </div>
                 <div className="sm:col-span-2">
-                  <Label htmlFor="reclub-name">Session name *</Label>
+                  <Label htmlFor="reclub-name">Fun Match name *</Label>
                   <Input
                     id="reclub-name"
                     value={name}
@@ -500,6 +528,63 @@ export function ReclubTournamentWizard({
                     className="mt-1.5 max-w-[120px] border-cp-border bg-cp-bg-input disabled:opacity-70"
                   />
                 </div>
+                <div>
+                  <Label>Match type</Label>
+                  <Select value={matchType} onValueChange={setMatchType}>
+                    <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="americano">Americano</SelectItem>
+                      <SelectItem value="single_elimination">Elimination</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Scoring type</Label>
+                  <Select
+                    value={scoringType}
+                    onValueChange={(v) => setScoringType(v as TournamentScoringType)}
+                  >
+                    <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="points">Points</SelectItem>
+                      <SelectItem value="timed">Timed rounds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Point per match</Label>
+                  <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
+                    <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
+                        <SelectItem key={points} value={String(points)}>
+                          {points} points
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Number of courts</Label>
+                  <Select value={courtCount} onValueChange={setCourtCount}>
+                    <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOURNAMENT_COURT_COUNT_OPTIONS.map((count) => (
+                        <SelectItem key={count} value={String(count)}>
+                          {count} {count === 1 ? "court" : "courts"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <DateTimePicker label="Starts at *" value={startsAt} onChange={setStartsAt} />
               <p className="text-xs text-cp-muted">
@@ -557,6 +642,10 @@ export function ReclubTournamentWizard({
               playersPerTeam={playersPerTeam}
               maxTeams={maxTeams}
               maxRounds={maxRounds}
+              matchType={matchType}
+              scoringType={scoringType}
+              pointsPerMatch={pointsPerMatch}
+              courtCount={courtCount}
               startsAt={startsAt}
               endsAt={endsAt}
               summary={summary}

@@ -18,6 +18,10 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
+    if (tournament.format === "americano") {
+      return jsonSuccess({ matches: [], leaderboard: [], generated: false });
+    }
+
     const bracketExists = await hasBracket(tournament.id);
     if (!bracketExists) {
       return jsonSuccess({ matches: [], leaderboard: [], generated: false });

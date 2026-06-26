@@ -33,7 +33,7 @@ export function ReclubWizardStepper({
     steps.length <= 1 ? 0 : (currentIndex / (steps.length - 1)) * 100;
 
   return (
-    <nav aria-label="Reclub session progress" className="w-full">
+    <nav aria-label="Fun Match progress" className="w-full">
       {/* Mobile: compact track + circles */}
       <div className="w-full sm:hidden">
         <div className="relative w-full px-1">

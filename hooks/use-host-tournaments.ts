@@ -169,14 +169,14 @@ export function useCreatePlayerReclubTournament() {
         error?: unknown;
       }>(res);
       if (!res.ok) {
-        throw new Error(extractApiErrorMessage(json, "Failed to create reclub"));
+        throw new Error(extractApiErrorMessage(json, "Failed to create Fun Match"));
       }
       return json.data.tournament;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
       void qc.invalidateQueries({ queryKey: ["account", "player", "tournaments"] });
-      toast.success("Reclub session created!");
+      toast.success("Fun Match created!");
     },
     onError: (err: Error) => toast.error(err.message),
   });

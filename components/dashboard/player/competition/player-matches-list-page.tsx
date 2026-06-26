@@ -82,7 +82,7 @@ export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
       roles={roles}
       variant="player"
       title="Match log"
-      description="Official and reclub tournament matches you have played — with full results and context."
+      description="Official and Fun Match tournament matches you have played — with full results and context."
       breadcrumbs={[
         { label: "Overview", href: dashboardRoutes.home },
         { label: "Match log" },
@@ -204,7 +204,7 @@ export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
               <p className="max-w-md text-xs text-cp-muted">
                 {hasActiveFilters
                   ? "Try adjusting your search or filters."
-                  : "Match history from official and reclub tournaments will appear here after you compete."}
+                  : "Match history from official and Fun Match tournaments will appear here after you compete."}
               </p>
             </div>
           ) : (

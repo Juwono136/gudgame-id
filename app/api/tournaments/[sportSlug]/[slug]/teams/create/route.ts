@@ -25,7 +25,7 @@ export async function POST(
     }
 
     if (tournament.tournamentType !== "recreational") {
-      throw new AppError("Named teams are only for reclub tournaments", {
+      throw new AppError("Named teams are only for Fun Match tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
       });

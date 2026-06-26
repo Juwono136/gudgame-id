@@ -19,10 +19,8 @@ import { cn } from "@/lib/utils";
 
 type TournamentWizardReviewProps = {
   name: string;
-  slug: string;
   sportSlug: string;
   tournamentType: TournamentType;
-  typeLabel: string;
   statusLabel: string;
   visibilityLabel: string;
   venue: string;
@@ -39,11 +37,14 @@ type TournamentWizardReviewProps = {
   registrationClosesAt: string;
   summary: string;
   description: string;
-  eligibilityRules: string;
   matchFormatRules: string;
   equipmentStandardsRules: string;
   rules: string;
   gearCount: number;
+  matchTypeLabel: string;
+  scoringTypeLabel: string;
+  pointsPerMatch: string;
+  courtCount: string;
   onEditStep?: (stepIndex: number) => void;
 };
 
@@ -103,10 +104,8 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
 
 export function TournamentWizardReview({
   name,
-  slug,
   sportSlug,
   tournamentType,
-  typeLabel,
   statusLabel,
   visibilityLabel,
   venue,
@@ -123,11 +122,14 @@ export function TournamentWizardReview({
   registrationClosesAt,
   summary,
   description,
-  eligibilityRules,
   matchFormatRules,
   equipmentStandardsRules,
   rules,
   gearCount,
+  matchTypeLabel,
+  scoringTypeLabel,
+  pointsPerMatch,
+  courtCount,
   onEditStep,
 }: TournamentWizardReviewProps) {
   const isOfficial = tournamentType === "official";
@@ -162,7 +164,7 @@ export function TournamentWizardReview({
             <div className="absolute inset-0 bg-gradient-to-t from-cp-bg via-cp-bg/55 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-cp-primary sm:text-xs">
-                {typeLabel}
+                {matchTypeLabel}
               </p>
               <p className="mt-1 text-xl font-bold text-foreground sm:text-2xl">{name}</p>
               <p className="mt-0.5 text-sm capitalize text-cp-muted">{sportSlug}</p>
@@ -175,8 +177,6 @@ export function TournamentWizardReview({
         <ReviewSection title="Basics" icon={Trophy} stepIndex={0} onEditStep={onEditStep}>
           <dl className="grid gap-3 sm:grid-cols-2">
             <ReviewItem label="Name" value={name} />
-            <ReviewItem label="URL slug" value={`/${slug}`} />
-            <ReviewItem label="Type" value={typeLabel} />
             <ReviewItem label="Visibility" value={visibilityLabel} />
             <ReviewItem label="Computed status" value={statusLabel} />
             <ReviewItem label="Sport" value={sportSlug} />
@@ -192,6 +192,10 @@ export function TournamentWizardReview({
           <dl className="grid gap-3 sm:grid-cols-2">
             <ReviewItem label="Max teams" value={maxTeams || "—"} />
             <ReviewItem label="Players per team" value={playersPerTeam || "—"} />
+            <ReviewItem label="Match type" value={matchTypeLabel} />
+            <ReviewItem label="Scoring type" value={scoringTypeLabel} />
+            <ReviewItem label="Point per match" value={pointsPerMatch ? `${pointsPerMatch} points` : "—"} />
+            <ReviewItem label="Courts" value={courtCount || "—"} />
             {isOfficial ? (
               <>
                 <ReviewItem label="Registration fee" value={feeDisplay} />
@@ -254,7 +258,6 @@ export function TournamentWizardReview({
             className="lg:col-span-2"
           >
             <div className="grid gap-3 lg:grid-cols-2">
-              <TournamentReviewRichBlock label="Eligibility & categories" html={eligibilityRules} />
               <TournamentReviewRichBlock label="Match format" html={matchFormatRules} />
               <TournamentReviewRichBlock label="Equipment standards" html={equipmentStandardsRules} />
               <ReviewItem

@@ -4,6 +4,10 @@ import {
   TOURNAMENT_STATUSES,
   TOURNAMENT_TYPES,
 } from "@/db/schema/tournaments";
+import {
+  TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
+  TOURNAMENT_SCORING_TYPES,
+} from "@/lib/tournaments/settings";
 
 export const tournamentUpsertSchema = z
   .object({
@@ -40,8 +44,25 @@ export const tournamentUpsertSchema = z
     equipmentStandardsRules: z.string().trim().max(50000).optional().or(z.literal("")),
     gearEntityIds: z.array(z.string().uuid()).max(24).optional(),
     maxRounds: z.coerce.number().int().min(1).max(99).optional(),
+    scoringType: z.enum(TOURNAMENT_SCORING_TYPES).default("points"),
+    pointsPerMatch: z.coerce
+      .number()
+      .int()
+      .refine(
+        (value) => TOURNAMENT_POINTS_PER_MATCH_OPTIONS.includes(value as never),
+        "Point per match must be one of the supported options.",
+      )
+      .default(21),
+    courtCount: z.coerce.number().int().min(1).max(12).default(1),
   })
   .superRefine((data, ctx) => {
+    if (data.format !== "americano" && data.format !== "single_elimination") {
+      ctx.addIssue({
+        code: "custom",
+        message: "Match type must be Americano or Elimination.",
+        path: ["format"],
+      });
+    }
     if (data.tournamentType === "official") {
       if (!data.registrationFeeIdr || data.registrationFeeIdr <= 0) {
         ctx.addIssue({
@@ -54,7 +75,7 @@ export const tournamentUpsertSchema = z
     if (data.tournamentType === "recreational" && data.registrationFeeIdr && data.registrationFeeIdr > 0) {
       ctx.addIssue({
         code: "custom",
-        message: "Reclub tournaments must be free (no registration fee).",
+        message: "Fun Match tournaments must be free (no registration fee).",
         path: ["registrationFeeIdr"],
       });
     }
@@ -62,14 +83,14 @@ export const tournamentUpsertSchema = z
       if (!data.startsAt?.trim()) {
         ctx.addIssue({
           code: "custom",
-          message: "Reclub sessions require a start date & time.",
+          message: "Fun Match sessions require a start date & time.",
           path: ["startsAt"],
         });
       }
       if (!data.endsAt?.trim()) {
         ctx.addIssue({
           code: "custom",
-          message: "Reclub sessions require an end date & time.",
+          message: "Fun Match sessions require an end date & time.",
           path: ["endsAt"],
         });
       }

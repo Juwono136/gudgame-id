@@ -26,7 +26,7 @@ export async function GET(
     }
 
     if (tournament.tournamentType !== "recreational") {
-      throw new AppError("Lobby is only available for reclub tournaments", {
+      throw new AppError("Lobby is only available for Fun Match tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
       });

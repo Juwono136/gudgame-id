@@ -88,6 +88,7 @@ export function BracketTreeView({
                     <div className="px-1 py-1">
                       <MatchSlot
                         name={m.teamAName}
+                        players={m.teamAPlayers}
                         score={m.scoreA}
                         winner={m.winnerTeamId != null && m.winnerTeamId === m.teamAId}
                         eliminated={
@@ -106,6 +107,7 @@ export function BracketTreeView({
                       <div className="mx-2 border-t border-cp-border/60" />
                       <MatchSlot
                         name={m.teamBName}
+                        players={m.teamBPlayers}
                         score={m.scoreB}
                         winner={m.winnerTeamId != null && m.winnerTeamId === m.teamBId}
                         eliminated={
@@ -140,6 +142,7 @@ export function BracketTreeView({
 
 function MatchSlot({
   name,
+  players,
   score,
   winner,
   eliminated,
@@ -148,6 +151,7 @@ function MatchSlot({
   onClick,
 }: {
   name: string | null;
+  players?: string[];
   score: number | null;
   winner: boolean;
   eliminated: boolean;
@@ -157,15 +161,22 @@ function MatchSlot({
 }) {
   const content = (
     <>
-      <span
-        className={cn(
-          "truncate text-sm",
-          winner && "font-semibold text-emerald-300",
-          eliminated && "text-cp-muted line-through decoration-cp-muted/60",
-          !winner && !eliminated && "text-foreground",
-        )}
-      >
-        {name ?? (droppable ? "Drop squad here" : "TBD")}
+      <span className="min-w-0">
+        <span
+          className={cn(
+            "block truncate text-sm",
+            winner && "font-semibold text-emerald-300",
+            eliminated && "text-cp-muted line-through decoration-cp-muted/60",
+            !winner && !eliminated && "text-foreground",
+          )}
+        >
+          {name ?? (droppable ? "Drop squad here" : "TBD")}
+        </span>
+        {players?.length ? (
+          <span className="mt-0.5 block truncate text-[11px] leading-snug text-cp-muted">
+            {players.join(", ")}
+          </span>
+        ) : null}
       </span>
       {score != null ? (
         <span className="shrink-0 tabular-nums text-xs text-cp-muted">{score}</span>

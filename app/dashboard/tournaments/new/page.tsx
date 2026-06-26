@@ -6,7 +6,7 @@ import { listPublicSports } from "@/lib/sports/service";
 
 export const metadata = {
   title: "Create Reclub Session",
-  description: "Start a free community reclub tournament on TandingBase.",
+  description: "Start a free community Fun Match on TandingBase.",
 };
 
 export default async function PlayerCreateReclubPage() {

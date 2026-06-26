@@ -54,7 +54,7 @@ export function getReclubSessionPhaseLabel(phase: ReclubSessionPhase): string {
 }
 
 export function getReclubSessionEndedMessage(): string {
-  return "This reclub session has ended. Joining and new rounds are no longer available.";
+  return "This Fun Match has ended. Joining and new rounds are no longer available.";
 }
 
 export function getReclubSessionNotLiveMessage(): string {

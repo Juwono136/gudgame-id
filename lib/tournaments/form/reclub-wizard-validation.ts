@@ -10,6 +10,10 @@ export type ReclubWizardFormState = {
   playersPerTeam: string;
   maxTeams: string;
   maxRounds: string;
+  matchType: string;
+  scoringType: string;
+  pointsPerMatch: string;
+  courtCount: string;
   startsAt: string;
   endsAt: string;
 };
@@ -52,6 +56,20 @@ export function validateReclubWizardStep(
     const maxRounds = Number(data.maxRounds);
     if (!Number.isFinite(maxRounds) || maxRounds < 1 || maxRounds > 99) {
       return "Number of rounds must be between 1 and 99.";
+    }
+    if (data.matchType !== "americano" && data.matchType !== "single_elimination") {
+      return "Match type must be Americano or Elimination.";
+    }
+    if (data.scoringType !== "points" && data.scoringType !== "timed") {
+      return "Scoring type must be Points or Timed rounds.";
+    }
+    const pointsPerMatch = Number(data.pointsPerMatch);
+    if (![11, 15, 21, 25, 30].includes(pointsPerMatch)) {
+      return "Point per match must be 11, 15, 21, 25, or 30.";
+    }
+    const courtCount = Number(data.courtCount);
+    if (!Number.isFinite(courtCount) || courtCount < 1 || courtCount > 12) {
+      return "Number of courts must be between 1 and 12.";
     }
     if (!data.startsAt.trim()) {
       return "Start date & time is required.";

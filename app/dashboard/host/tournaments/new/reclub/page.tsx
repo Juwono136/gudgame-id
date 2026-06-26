@@ -4,8 +4,8 @@ import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
 import { listPublicSports } from "@/lib/sports/service";
 
 export const metadata = {
-  title: "Create Reclub Session",
-  description: "Start a free community reclub session as a host on TandingBase.",
+  title: "Create Fun Match",
+  description: "Start a free community Fun Match as a host on TandingBase.",
 };
 
 export default async function HostCreateReclubPage() {

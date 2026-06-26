@@ -69,7 +69,15 @@ import {
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { useReclubSessionPhase } from "@/hooks/use-reclub-session-phase";
 import { authRoutes, publicSportRoutes } from "@/lib/constants/routes";
-import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
+import {
+  getMaxRounds,
+  getScoringTypeLabel,
+  getTournamentCourtCount,
+  getTournamentFormatLabel,
+  getTournamentPointsPerMatch,
+  getTournamentScoringType,
+  getVenueMapsUrl,
+} from "@/lib/tournaments/settings";
 import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
 import {
   getReclubSessionEndedMessage,
@@ -174,6 +182,15 @@ export function ReclubTournamentPage({
   const liveElapsed = useLiveTimer(activeMatch?.startedAt ?? null, Boolean(activeMatch));
   const mapsUrl = getVenueMapsUrl(tournament);
   const maxRounds = getMaxRounds(tournament);
+  const isElimination = tournament.format !== "americano";
+  const visibleTabs = useMemo(
+    () => TABS.filter((item) => isElimination || item !== "Bracket"),
+    [isElimination],
+  );
+  const matchTypeLabel = getTournamentFormatLabel(tournament.format);
+  const scoringTypeLabel = getScoringTypeLabel(getTournamentScoringType(tournament));
+  const pointsPerMatch = getTournamentPointsPerMatch(tournament);
+  const courtCount = getTournamentCourtCount(tournament);
   const completedRounds = matches.filter((m) => m.status === "completed").length;
   const roundsRemaining =
     maxRounds != null ? Math.max(0, maxRounds - completedRounds - (activeMatch ? 1 : 0)) : null;
@@ -250,6 +267,11 @@ export function ReclubTournamentPage({
   useEffect(() => {
     setPublicUrl(window.location.href);
   }, []);
+  useEffect(() => {
+    if (!isElimination && tab === "Bracket") {
+      setTab("Overview");
+    }
+  }, [isElimination, tab]);
 
   const handleJoin = async () => {
     if (!isAuthenticated) {
@@ -258,7 +280,7 @@ export function ReclubTournamentPage({
       return;
     }
     const ok = await confirm({
-      title: "Join this reclub session?",
+      title: "Join this Fun Match?",
       description: "You'll be placed on a squad. Switch freely until a round starts.",
       confirmLabel: "Join lobby",
       cancelLabel: "Cancel",
@@ -381,7 +403,7 @@ export function ReclubTournamentPage({
           <div className="flex flex-wrap gap-2">
             <Badge className={cn("border-0", getTournamentTypeBadgeClass("recreational"))}>
               <Gamepad2 className="mr-1 h-3 w-3" />
-              Reclub — free play
+              Fun Match — free play
             </Badge>
             <Badge
               className={cn(
@@ -445,7 +467,7 @@ export function ReclubTournamentPage({
             <TournamentStatCard icon={Swords} label="Squads" value={String(teams.length)} tone="hero" />
             <TournamentStatCard
               icon={Trophy}
-              label="Rounds"
+              label={matchTypeLabel}
               value={
                 maxRounds != null
                   ? `${completedMatchCount} / ${maxRounds}`
@@ -455,8 +477,8 @@ export function ReclubTournamentPage({
             />
             <TournamentStatCard
               icon={Users}
-              label="Per squad"
-              value={`${tournament.playersPerTeam} max`}
+              label="Scoring"
+              value={`${pointsPerMatch} pts`}
               tone="hero"
             />
           </div>
@@ -535,7 +557,7 @@ export function ReclubTournamentPage({
       {/* Tabs */}
       <div className="sticky top-0 z-20 border-b border-cp-border bg-cp-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t}
               type="button"
@@ -586,7 +608,7 @@ export function ReclubTournamentPage({
                     <ReclubRulesPanel rulesHtml={tournament.rules} />
                   ) : null}
                   <p className="text-center text-xs text-cp-text-dim">
-                    Reclub matches don&apos;t affect official rankings. Scores appear in brief match
+                    Fun Match scores don&apos;t affect official rankings. Scores appear in brief match
                     history.
                   </p>
                 </div>
@@ -596,6 +618,22 @@ export function ReclubTournamentPage({
                     <p className="mt-1 text-sm text-cp-muted">
                       {summary.registeredPlayers} players · {teams.length} squads
                     </p>
+                    <dl className="mt-3 grid gap-2 text-xs text-cp-muted">
+                      <div className="flex justify-between gap-3 rounded-lg bg-cp-elevated/30 px-3 py-2">
+                        <dt>Match type</dt>
+                        <dd className="font-medium text-foreground">{matchTypeLabel}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3 rounded-lg bg-cp-elevated/30 px-3 py-2">
+                        <dt>Scoring</dt>
+                        <dd className="font-medium text-foreground">
+                          {scoringTypeLabel} · {pointsPerMatch} pts
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-3 rounded-lg bg-cp-elevated/30 px-3 py-2">
+                        <dt>Courts</dt>
+                        <dd className="font-medium text-foreground">{courtCount}</dd>
+                      </div>
+                    </dl>
                     {!userTeamId && canJoinSession ? (
                       <Button
                         className="mt-4 w-full bg-emerald-600 hover:bg-emerald-500"
@@ -784,29 +822,6 @@ export function ReclubTournamentPage({
         </AnimatePresence>
       </div>
     </TournamentDetailPageShell>
-  );
-}
-
-function ScoreInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <Label className="text-xs text-cp-muted">{label}</Label>
-      <Input
-        type="number"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-20 border-cp-border bg-cp-bg-input"
-      />
-    </div>
   );
 }
 

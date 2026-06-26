@@ -149,7 +149,7 @@ export function PlayerTournamentHistorySection({
             <div className="mt-2 flex flex-wrap justify-center gap-2">
               {createReclubHref ? (
                 <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-500">
-                  <Link href={createReclubHref}>Create free reclub</Link>
+                  <Link href={createReclubHref}>Create free Fun Match</Link>
                 </Button>
               ) : null}
               {viewAllHref ? (

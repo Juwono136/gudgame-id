@@ -26,7 +26,7 @@ export async function GET(
     }
 
     if (tournament.tournamentType !== "recreational") {
-      throw new AppError("Match history is only available for reclub sessions", {
+      throw new AppError("Match history is only available for Fun Match sessions", {
         code: "VALIDATION_ERROR",
         statusCode: 422,
       });

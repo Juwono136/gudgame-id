@@ -41,6 +41,13 @@ import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentRuleSections } from "@/lib/tournaments/settings";
+import {
+  getScoringTypeLabel,
+  getTournamentCourtCount,
+  getTournamentFormatLabel,
+  getTournamentPointsPerMatch,
+  getTournamentScoringType,
+} from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { mapBracketMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
 import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
@@ -96,9 +103,23 @@ export function OfficialTournamentPage({
   const [publicUrl, setPublicUrl] = useState("");
   const [resumingPayment, setResumingPayment] = useState(false);
   const [editRegistrationOpen, setEditRegistrationOpen] = useState(false);
+  const isElimination = tournament.format !== "americano";
+  const visibleTabs = useMemo(
+    () => TABS.filter((item) => isElimination || item !== "Bracket"),
+    [isElimination],
+  );
+  const matchTypeLabel = getTournamentFormatLabel(tournament.format);
+  const scoringTypeLabel = getScoringTypeLabel(getTournamentScoringType(tournament));
+  const pointsPerMatch = getTournamentPointsPerMatch(tournament);
+  const courtCount = getTournamentCourtCount(tournament);
   useEffect(() => {
     setPublicUrl(window.location.href);
   }, []);
+  useEffect(() => {
+    if (!isElimination && tab === "Bracket") {
+      setTab("Overview");
+    }
+  }, [isElimination, tab]);
 
   const { data: regStatus } = useRegistrationStatus(
     tournament.sportSlug,
@@ -108,6 +129,7 @@ export function OfficialTournamentPage({
   const { data: bracket, isLoading: bracketLoading } = useTournamentBracket(
     tournament.sportSlug,
     tournament.slug,
+    { enabled: isElimination },
   );
   const { data: participantsData, isLoading: participantsLoading } = useTournamentParticipants(
     tournament.sportSlug,
@@ -142,10 +164,12 @@ export function OfficialTournamentPage({
 
   const activeOfficialMatch = useMemo(
     () =>
-      (bracket?.matches ?? []).find(
-        (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
-      ) ?? null,
-    [bracket?.matches],
+      isElimination
+        ? (bracket?.matches ?? []).find(
+            (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
+          ) ?? null
+        : null,
+    [bracket?.matches, isElimination],
   );
 
   const handleRegister = async () => {
@@ -307,7 +331,7 @@ export function OfficialTournamentPage({
 
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8 lg:px-8">
         <div className="order-2 min-w-0 space-y-6 lg:order-1">
-          <TournamentTabNav tabs={TABS} active={tab} onChange={setTab} variant="official" />
+          <TournamentTabNav tabs={visibleTabs} active={tab} onChange={setTab} variant="official" />
 
           {tab === "Overview" ? (
             <>
@@ -321,12 +345,18 @@ export function OfficialTournamentPage({
                 <InfoCard
                   icon={Users}
                   title="Format"
-                  value={tournament.format.replace(/_/g, " ")}
+                  value={matchTypeLabel}
                   hint={
                     tournament.maxTeams
                       ? `Up to ${tournament.maxTeams} teams · ${tournament.playersPerTeam} players/team`
                       : `${tournament.playersPerTeam} players per team`
                   }
+                />
+                <InfoCard
+                  icon={Radio}
+                  title="Scoring"
+                  value={`${pointsPerMatch} points`}
+                  hint={`${scoringTypeLabel} · ${courtCount} ${courtCount === 1 ? "court" : "courts"}`}
                 />
               </div>
               <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
@@ -367,11 +397,13 @@ export function OfficialTournamentPage({
                 rows={recentMatchRows}
                 alwaysShow
                 emptyMessage={
-                  bracket?.generated
+                  !isElimination
+                    ? "Americano results will appear after rounds are recorded."
+                    : bracket?.generated
                     ? "No match results yet. Seeded bracket matches will appear here as play progresses."
                     : "The host will publish the bracket after registration closes. Results will show here once matches are played."
                 }
-                onViewAll={() => setTab("Bracket")}
+                onViewAll={isElimination ? () => setTab("Bracket") : undefined}
               />
               {tournament.description ? (
                 <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
@@ -388,12 +420,9 @@ export function OfficialTournamentPage({
                 />
               ) : null}
               <TournamentRulesAccordion
-                eligibilityHtml={ruleSections?.eligibilityHtml}
                 matchFormatHtml={ruleSections?.matchFormatHtml}
                 equipmentStandardsHtml={ruleSections?.equipmentStandardsHtml}
                 format={tournament.format}
-                categoryLabel={tournament.categoryLabel}
-                sportName={tournament.sportName}
                 sportSlug={tournament.sportSlug}
                 gearItems={gearItems}
               />

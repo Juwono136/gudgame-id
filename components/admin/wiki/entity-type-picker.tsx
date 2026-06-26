@@ -17,7 +17,7 @@ const ICONS = {
 const DESCRIPTIONS: Record<CreateEntityKind, string> = {
   player: "Editorial profiles you create here",
   gear: "Rackets, shoes, gloves & more",
-  tournament: "Official or free reclub events",
+  tournament: "Official events or free Fun Match sessions",
 };
 
 type EntityTypePickerProps = {

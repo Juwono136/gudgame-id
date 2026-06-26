@@ -22,6 +22,13 @@ function nextPowerOfTwo(n: number): number {
 export async function generateTournamentBracket(
   tournament: TournamentDetail,
 ): Promise<{ matchCount: number }> {
+  if (tournament.format === "americano") {
+    throw new AppError("Americano tournaments do not use brackets", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
   if (tournament.tournamentType === "recreational") {
     assertReclubSessionPlayable(tournament);
   }

@@ -128,7 +128,7 @@ export function ReclubTournamentLobby({
     }
 
     const ok = await confirm({
-      title: "Join this reclub session?",
+      title: "Join this Fun Match?",
       description:
         "You'll be placed on a team before play starts. You can switch teams freely until the host begins a round.",
       confirmLabel: "Join lobby",
@@ -224,7 +224,7 @@ export function ReclubTournamentLobby({
             <div className="flex flex-wrap gap-2">
               <Badge variant="success" className="border-0">
                 <Gamepad2 className="mr-1 h-3 w-3" />
-                Reclub — free play
+                Fun Match — free play
               </Badge>
               <Badge className="border-cp-border bg-cp-elevated uppercase">{tournament.status}</Badge>
               {isFetching && !isLoading ? (

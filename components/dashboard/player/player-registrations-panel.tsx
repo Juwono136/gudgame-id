@@ -127,7 +127,7 @@ export function PlayerRegistrationsPanel() {
         <div>
           <h3 className="text-sm font-semibold text-foreground">Tournament registrations</h3>
           <p className="mt-1 text-xs text-cp-muted">
-            Official and reclub events you have joined or registered for.
+            Official events and Fun Match sessions you have joined or registered for.
           </p>
         </div>
         <div className="grid w-full grid-cols-2 gap-1 rounded-xl border border-cp-border bg-cp-elevated/30 p-1 sm:w-auto sm:grid-cols-4">
@@ -180,7 +180,7 @@ export function PlayerRegistrationsPanel() {
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-cp-muted">
             {filter === "all"
-              ? "Join an official tournament or reclub session — it will appear here."
+              ? "Join an official tournament or Fun Match — it will appear here."
               : "Try another filter or browse upcoming events on the tournaments page."}
           </p>
         </div>

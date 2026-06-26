@@ -151,7 +151,7 @@ export function TournamentParticipantsPanel({
           <p className="mt-1 max-w-2xl text-sm text-cp-muted">
             {isOfficial
               ? "Confirmed teams with completed payment — updated as registrations are finalized."
-              : "Everyone currently in the lobby squads for this reclub session."}
+              : "Everyone currently in the lobby squads for this Fun Match."}
           </p>
         </div>
         {isFetching && !isLoading ? (

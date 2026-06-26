@@ -74,7 +74,7 @@ export function PublicTournamentsDirectory({
       </Link>
       <h1 className="mt-4 text-3xl font-bold text-foreground">Tournaments</h1>
       <p className="mt-2 text-cp-muted">
-        Official paid events and free reclub sessions for {sportName}.
+        Official paid events and free Fun Match sessions for {sportName}.
       </p>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">

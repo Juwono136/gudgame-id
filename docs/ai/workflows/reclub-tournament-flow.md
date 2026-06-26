@@ -1,12 +1,12 @@
-# Reclub Free Tournament Workflow
+# Fun Match Free Tournament Workflow
 
 Last updated: 2026-06-26
 
 ## Scope
 
-This document covers the end-to-end flow for Turnament Reclub (gratis), represented in code as `tournamentType: "recreational"`.
+This document covers the end-to-end flow for Fun Match / recreational tournaments (gratis), represented in code as `tournamentType: "recreational"`.
 
-Reclub sessions are free community play. They must not create tournament payment records and do not affect official rankings, although completed matches can sync brief history/stats.
+Fun Match sessions are free community play. They must not create tournament payment records and do not affect official rankings, although completed matches can sync brief history/stats. Internal code paths still use the historical `reclub` naming.
 
 ## Entry Point
 
@@ -32,16 +32,16 @@ Lobby API:
 
 Creation:
 
-1. Host opens the Reclub creation page.
+1. Host opens the Fun Match creation page.
 2. Host selects sport, enters session name, summary, venue, and optional cover.
-3. Host sets schedule, squad size, max squads, and max rounds.
+3. Host sets schedule, squad size, max squads, max rounds, match type, scoring type, point per match, and number of courts.
 4. Host adds optional description and house rules.
 5. Host reviews and confirms creation.
 6. App creates a `recreational` tournament and redirects to the host/public session target.
 
 Participation:
 
-1. Player opens the public Reclub session page.
+1. Player opens the public Fun Match session page.
 2. Unauthenticated player is sent to register/login before joining.
 3. Authenticated player joins the lobby.
 4. Player is placed in an open squad or a new squad.
@@ -54,12 +54,13 @@ Play:
 3. Squads are locked while a round is active.
 4. Host updates live scores.
 5. Host completes the round.
-6. Completed round is saved to Reclub match history and synced to player history.
+6. Completed round is saved to Fun Match match history and synced to player history.
 
-Optional bracket:
+Elimination bracket:
 
-1. Host can generate a Reclub bracket from the Bracket tab.
-2. Bracket match scoring uses the shared bracket APIs, with Reclub-specific playable-session checks.
+1. Host can generate a bracket from the Bracket tab only when match type is Elimination (`format: "single_elimination"`).
+2. Bracket match scoring uses the shared bracket APIs, with Fun Match playable-session checks.
+3. Americano (`format: "americano"`) does not show or generate brackets; play stays round/points based through the lobby/history/stat views.
 
 ## UI Component Sequence
 
@@ -114,24 +115,29 @@ Creation validation:
 
 - Frontend: `lib/tournaments/form/reclub-wizard-validation.ts`
 - Backend: `lib/validations/tournaments.ts`
-- Reclub payload uses:
+- Fun Match payload uses:
   - `tournamentType: "recreational"`
-  - `format: "open_play"`
+  - `format: "americano"` or `format: "single_elimination"`
   - `status: "upcoming"` on create
+  - settings metadata: `scoringType`, `pointsPerMatch`, `courtCount`, and `maxRounds`
   - no registration fee
-- Reclub sessions reject paid fees: `registrationFeeIdr > 0` is invalid.
+- Fun Match sessions reject paid fees: `registrationFeeIdr > 0` is invalid.
 - Start and end date/time are required.
 - End time must be after start time.
 - Players per team must be 1-12.
 - Max squads must be 2-64 in the wizard.
 - Max rounds must be 1-99.
+- Match type must be Americano or Elimination.
+- Scoring type must be Points or Timed rounds.
+- Point per match must be 11, 15, 21, 25, or 30.
+- Court count must be 1-12.
 - Name, summary, description, rules, venue, and maps URL use field length and URL checks.
 
 Create API validation:
 
 - `app/api/tournaments/create/route.ts`
 - Extends `tournamentUpsertSchema` with `sportSlug`.
-- Uses `assertCanCreateTournamentType`; Reclub creation requires a signed-in user with at least one role.
+- Uses `assertCanCreateTournamentType`; Fun Match creation requires a signed-in user with at least one role.
 - Looks up sport by slug and rejects missing sport.
 
 Join validation:
@@ -269,6 +275,8 @@ Bracket:
 - API: `POST /api/tournaments/[sportSlug]/[slug]/bracket/generate`
 - Service: `generateTournamentBracket`
 - Read API: `GET /api/tournaments/[sportSlug]/[slug]/bracket`
+- Americano tournaments return no generated bracket and bracket generation/scoring is rejected server-side.
+- Bracket match responses include `teamAPlayers` and `teamBPlayers` so both official and Fun Match bracket trees can show player names under each team/squad.
 
 ## Auth/Session Handling
 
@@ -315,8 +323,8 @@ Primary tables:
 Creation phase:
 
 - `createTournament` inserts into `tournaments`.
-- For Reclub, `registrationFeeIdr` is stored as `null`.
-- `settings` stores extended tournament settings such as max rounds and venue maps URL.
+- For Fun Match, `registrationFeeIdr` is stored as `null`.
+- `settings` stores extended tournament settings such as max rounds, venue maps URL, scoring type, points per match, and court count.
 - After create, `syncReclubParticipation` records organizer participation/history context.
 
 Join phase:

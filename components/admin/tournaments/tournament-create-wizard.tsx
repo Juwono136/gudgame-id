@@ -42,12 +42,21 @@ import {
   tournamentListUrl,
   type TournamentEditWorkspace,
 } from "@/lib/tournaments/edit-routes";
-import { getTournamentRuleSections, getVenueMapsUrl } from "@/lib/tournaments/settings";
+import {
+  TOURNAMENT_COURT_COUNT_OPTIONS,
+  TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
+  getTournamentRuleSections,
+  getTournamentCourtCount,
+  getTournamentFormatLabel,
+  getTournamentPointsPerMatch,
+  getTournamentScoringType,
+  getScoringTypeLabel,
+  getVenueMapsUrl,
+  type TournamentScoringType,
+} from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
 import {
-  TOURNAMENT_STATUSES,
-  TOURNAMENT_TYPES,
   type TournamentStatus,
   type TournamentType,
 } from "@/lib/domain/tournaments";
@@ -71,10 +80,11 @@ const STATUS_LABELS: Record<TournamentStatus, string> = {
   cancelled: "Cancelled",
 };
 
-const TYPE_LABELS: Record<TournamentType, string> = {
-  official: "Official — paid & ranked",
-  recreational: "Reclub — free community play",
-};
+const CATEGORY_OPTIONS = ["Male", "Female", "Mix"] as const;
+const MATCH_TYPE_OPTIONS = [
+  { value: "americano", label: "Americano" },
+  { value: "single_elimination", label: "Elimination" },
+] as const;
 
 function toLocalDatetime(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -108,7 +118,6 @@ export function TournamentCreateWizard({
   tournamentId,
   showTopBack,
   initialTournamentType,
-  lockTournamentType = false,
 }: TournamentCreateWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
   const adminCreate = useCreateTournament();
@@ -148,9 +157,6 @@ export function TournamentCreateWizard({
   }, []);
   const initialRules = initial ? getTournamentRuleSections(initial) : null;
   const [rules, setRules] = useState(initial?.rules ?? "");
-  const [eligibilityRules, setEligibilityRules] = useState(
-    initialRules?.eligibilityHtml ?? "",
-  );
   const [matchFormatRules, setMatchFormatRules] = useState(
     initialRules?.matchFormatHtml ?? initial?.rules ?? "",
   );
@@ -179,6 +185,18 @@ export function TournamentCreateWizard({
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     toLocalDatetime(initial?.registrationClosesAt),
   );
+  const [matchType, setMatchType] = useState<TournamentUpsertInput["format"]>(
+    initial?.format === "americano" ? "americano" : "single_elimination",
+  );
+  const [scoringType, setScoringType] = useState<TournamentScoringType>(
+    initial ? getTournamentScoringType(initial) : "points",
+  );
+  const [pointsPerMatch, setPointsPerMatch] = useState(
+    String(initial ? getTournamentPointsPerMatch(initial) : 21),
+  );
+  const [courtCount, setCourtCount] = useState(
+    String(initial ? getTournamentCourtCount(initial) : 1),
+  );
 
   useEffect(() => {
     if (!initial) return;
@@ -198,7 +216,6 @@ export function TournamentCreateWizard({
     });
     const sections = getTournamentRuleSections(initial);
     setRules(initial.rules ?? "");
-    setEligibilityRules(sections.eligibilityHtml ?? "");
     setMatchFormatRules(sections.matchFormatHtml ?? initial.rules ?? "");
     setEquipmentStandardsRules(sections.equipmentStandardsHtml ?? "");
     setGearEntityIds(sections.gearEntityIds ?? []);
@@ -212,6 +229,10 @@ export function TournamentCreateWizard({
     setPlayersPerTeam(String(initial.playersPerTeam ?? sportDefaults.playersPerTeam));
     setCategoryLabel(initial.categoryLabel ?? "");
     setRegistrationClosesAt(toLocalDatetime(initial.registrationClosesAt));
+    setMatchType(initial.format === "americano" ? "americano" : "single_elimination");
+    setScoringType(getTournamentScoringType(initial));
+    setPointsPerMatch(String(getTournamentPointsPerMatch(initial)));
+    setCourtCount(String(getTournamentCourtCount(initial)));
   }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
 
   const resolvedSlug = slug.trim() || slugifyWikiName(name);
@@ -229,9 +250,9 @@ export function TournamentCreateWizard({
       description,
       status,
       tournamentType,
-      format: (initial?.format ?? "single_elimination") as TournamentUpsertInput["format"],
+      format: matchType,
       rules: tournamentType === "recreational" ? rules : undefined,
-      eligibilityRules: tournamentType === "official" ? eligibilityRules : undefined,
+      eligibilityRules: tournamentType === "official" ? "" : undefined,
       matchFormatRules: tournamentType === "official" ? matchFormatRules : rules,
       equipmentStandardsRules:
         tournamentType === "official" ? equipmentStandardsRules : undefined,
@@ -250,6 +271,9 @@ export function TournamentCreateWizard({
       registrationClosesAt: toIso(registrationClosesAt),
       startsAt: toIso(startsAt),
       endsAt: toIso(endsAt),
+      scoringType,
+      pointsPerMatch: Number(pointsPerMatch) || 21,
+      courtCount: Number(courtCount) || 1,
     };
   };
 
@@ -269,6 +293,23 @@ export function TournamentCreateWizard({
       }
       if (categoryLabel.length > TOURNAMENT_FIELD_LIMITS.categoryLabel) {
         limitError("Category label", TOURNAMENT_FIELD_LIMITS.categoryLabel);
+        return false;
+      }
+      if (!CATEGORY_OPTIONS.includes(categoryLabel as (typeof CATEGORY_OPTIONS)[number])) {
+        toast.error("Choose a category: Male, Female, or Mix");
+        return false;
+      }
+      if (matchType !== "americano" && matchType !== "single_elimination") {
+        toast.error("Choose a match type");
+        return false;
+      }
+      if (![11, 15, 21, 25, 30].includes(Number(pointsPerMatch))) {
+        toast.error("Choose a supported point per match value");
+        return false;
+      }
+      const courts = Number(courtCount);
+      if (!Number.isFinite(courts) || courts < 1 || courts > 12) {
+        toast.error("Number of courts must be between 1 and 12");
         return false;
       }
       if (summary.length > TOURNAMENT_FIELD_LIMITS.summary) {
@@ -301,10 +342,6 @@ export function TournamentCreateWizard({
         return false;
       }
       if (tournamentType === "official") {
-        if (eligibilityRules.length > TOURNAMENT_FIELD_LIMITS.eligibilityRules) {
-          limitError("Eligibility rules", TOURNAMENT_FIELD_LIMITS.eligibilityRules);
-          return false;
-        }
         if (matchFormatRules.length > TOURNAMENT_FIELD_LIMITS.matchFormatRules) {
           limitError("Match format rules", TOURNAMENT_FIELD_LIMITS.matchFormatRules);
           return false;
@@ -466,41 +503,6 @@ export function TournamentCreateWizard({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="t-slug">URL slug</Label>
-                  <Input
-                    id="t-slug"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder={resolvedSlug || "auto-generated"}
-                    disabled={isEdit}
-                    className="border-cp-border bg-cp-elevated disabled:opacity-60"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <Select
-                    value={tournamentType}
-                    onValueChange={(v) => setTournamentType(v as TournamentType)}
-                    disabled={isEdit || (lockTournamentType && !isEdit)}
-                  >
-                    <SelectTrigger className="border-cp-border bg-cp-elevated">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TOURNAMENT_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {TYPE_LABELS[t]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {lockTournamentType && !isEdit ? (
-                    <p className="text-xs text-cp-muted">
-                      Official tournament — use the reclub flow to create a free session.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
                   <Label>Visibility</Label>
                   <Select
                     value={status === "draft" ? "draft" : "scheduled"}
@@ -534,28 +536,85 @@ export function TournamentCreateWizard({
                       <CurrencyInput value={prizePoolIdr} onChange={setPrizePoolIdr} />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor="t-category">Category label</Label>
-                        <FieldCharCounter
-                          current={categoryLabel.length}
-                          max={TOURNAMENT_FIELD_LIMITS.categoryLabel}
-                        />
-                      </div>
-                      <Input
-                        id="t-category"
-                        value={categoryLabel}
-                        onChange={(e) =>
-                          setCategoryLabel(
-                            e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.categoryLabel),
-                          )
-                        }
-                        placeholder="P1 · Men's doubles"
-                        maxLength={TOURNAMENT_FIELD_LIMITS.categoryLabel}
-                        className="border-cp-border bg-cp-elevated"
-                      />
+                      <Label>Category</Label>
+                      <Select value={categoryLabel} onValueChange={setCategoryLabel}>
+                        <SelectTrigger className="border-cp-border bg-cp-elevated">
+                          <SelectValue placeholder="Choose category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CATEGORY_OPTIONS.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 ) : null}
+                <div className="space-y-2">
+                  <Label>Match type</Label>
+                  <Select
+                    value={matchType}
+                    onValueChange={(v) => setMatchType(v as TournamentUpsertInput["format"])}
+                  >
+                    <SelectTrigger className="border-cp-border bg-cp-elevated">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATCH_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Scoring type</Label>
+                  <Select
+                    value={scoringType}
+                    onValueChange={(v) => setScoringType(v as TournamentScoringType)}
+                  >
+                    <SelectTrigger className="border-cp-border bg-cp-elevated">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="points">Points</SelectItem>
+                      <SelectItem value="timed">Timed rounds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Point per match</Label>
+                  <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
+                    <SelectTrigger className="border-cp-border bg-cp-elevated">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
+                        <SelectItem key={points} value={String(points)}>
+                          {points} points
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Number of courts</Label>
+                  <Select value={courtCount} onValueChange={setCourtCount}>
+                    <SelectTrigger className="border-cp-border bg-cp-elevated">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOURNAMENT_COURT_COUNT_OPTIONS.map((count) => (
+                        <SelectItem key={count} value={String(count)}>
+                          {count} {count === 1 ? "court" : "courts"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="t-max-teams">Max teams</Label>
                   <Input
@@ -653,19 +712,6 @@ export function TournamentCreateWizard({
               {tournamentType === "official" ? (
                 <div className="space-y-6">
                   <div>
-                    <Label>Eligibility & categories</Label>
-                    <p className="mb-2 text-xs text-cp-muted">
-                      Who can register, age/skill requirements, category notes.
-                    </p>
-                    <RichTextEditor
-                      value={eligibilityRules}
-                      onChange={setEligibilityRules}
-                      placeholder="Eligibility and category rules…"
-                      minHeight={140}
-                      maxLength={TOURNAMENT_FIELD_LIMITS.eligibilityRules}
-                    />
-                  </div>
-                  <div>
                     <Label>Match format</Label>
                     <p className="mb-2 text-xs text-cp-muted">
                       Scoring, sets, tie-breaks, scheduling, and match flow.
@@ -716,10 +762,8 @@ export function TournamentCreateWizard({
               {currentStepId === "review" ? (
                 <TournamentWizardReview
               name={name}
-              slug={resolvedSlug}
               sportSlug={sportSlug}
               tournamentType={tournamentType}
-              typeLabel={TYPE_LABELS[tournamentType]}
               statusLabel={STATUS_LABELS[status]}
               visibilityLabel={visibilityLabel}
               venue={venue}
@@ -736,11 +780,14 @@ export function TournamentCreateWizard({
               registrationClosesAt={registrationClosesAt}
               summary={summary}
               description={description}
-              eligibilityRules={eligibilityRules}
               matchFormatRules={matchFormatRules}
               equipmentStandardsRules={equipmentStandardsRules}
               rules={rules}
               gearCount={gearEntityIds.length}
+              matchTypeLabel={getTournamentFormatLabel(matchType)}
+              scoringTypeLabel={getScoringTypeLabel(scoringType)}
+              pointsPerMatch={pointsPerMatch}
+              courtCount={courtCount}
               onEditStep={goToStep}
             />
               ) : null}

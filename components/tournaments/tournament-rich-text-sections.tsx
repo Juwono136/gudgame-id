@@ -53,8 +53,7 @@ export function TournamentRichTextSections({
   const hasOfficialRules =
     isOfficial &&
     Boolean(
-      hasRichTextContent(ruleSections.eligibilityHtml) ||
-        hasRichTextContent(ruleSections.matchFormatHtml) ||
+      hasRichTextContent(ruleSections.matchFormatHtml) ||
         hasRichTextContent(ruleSections.equipmentStandardsHtml) ||
         gearItems.length > 0,
     );
@@ -80,12 +79,9 @@ export function TournamentRichTextSections({
       {hasOfficialRules ? (
         <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
           <TournamentRulesAccordion
-            eligibilityHtml={ruleSections.eligibilityHtml}
             matchFormatHtml={ruleSections.matchFormatHtml}
             equipmentStandardsHtml={ruleSections.equipmentStandardsHtml}
             format={tournament.format}
-            categoryLabel={tournament.categoryLabel}
-            sportName={tournament.sportName}
             sportSlug={tournament.sportSlug}
             gearItems={gearItems}
           />

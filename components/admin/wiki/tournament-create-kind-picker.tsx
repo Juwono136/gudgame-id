@@ -28,7 +28,7 @@ const OPTIONS: {
   },
   {
     kind: "reclub",
-    label: "Reclub session",
+    label: "Fun Match",
     description: "Free community play — lobby, squads, and casual rounds.",
     icon: Gamepad2,
     accent: "border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50",
@@ -58,7 +58,7 @@ export function TournamentCreateKindPicker({
       <div>
         <h2 className="text-lg font-semibold text-foreground">Choose tournament type</h2>
         <p className="mt-1 text-sm text-cp-muted">
-          Create an official paid event or a free reclub session for{" "}
+          Create an official paid event or a free Fun Match for{" "}
           <span className="font-medium capitalize text-cp-logo-accent">{sportSlug}</span>.
           Same options available to hosts.
         </p>

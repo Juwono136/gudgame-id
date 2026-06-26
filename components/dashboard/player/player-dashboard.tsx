@@ -150,7 +150,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
                 Community play
               </p>
               <h2 className="mt-1 text-base font-semibold text-foreground">
-                Host a free reclub session
+                Host a free Fun Match
               </h2>
               <p className="mt-1 text-sm text-cp-muted">
                 Create a recreational tournament for friends and club mates. No registration
@@ -159,7 +159,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
               <Button asChild size="sm" className="mt-4 bg-emerald-600 hover:bg-emerald-500">
                 <Link href={dashboardRoutes.tournamentsNew}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Create reclub tournament
+                  Create Fun Match
                 </Link>
               </Button>
             </div>

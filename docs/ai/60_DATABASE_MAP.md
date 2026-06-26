@@ -40,7 +40,7 @@ Last updated: 2026-06-25
 | `db/schema/roles.ts` | User role assignments. |
 | `db/schema/sports.ts` | Sport catalog and display config. |
 | `db/schema/wiki.ts` | Wiki entity core, media, relations. |
-| `db/schema/tournaments.ts` | Tournament metadata, schedule, registration configuration. |
+| `db/schema/tournaments.ts` | Tournament metadata, schedule, registration configuration, and JSON `settings` for venue maps, official staff, scoring type, points per match, court count, and max rounds. |
 | `db/schema/tournament-registration.ts` | Teams, team members, registrations. |
 | `db/schema/tournament-matches.ts` | Reclub and bracket match records. |
 | `db/schema/tournament-payments.ts` | Tournament payments and platform settings. |

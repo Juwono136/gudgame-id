@@ -293,7 +293,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
     {
       id: "created",
       label: "I host",
-      hint: "Reclub sessions and community events you created",
+      hint: "Fun Match sessions and community events you created",
     },
     {
       id: "joined",
@@ -337,7 +337,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
           >
             <Link href={dashboardRoutes.tournamentsNew}>
               <Plus className="mr-2 h-4 w-4" />
-              Create reclub
+              Create Fun Match
             </Link>
           </Button>
         ) : null
@@ -445,7 +445,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
               <p className="max-w-md text-xs text-cp-muted">
                 {search || year !== "all"
                   ? "Try adjusting your search or filters."
-                  : "Create a reclub session or join one — it will appear here. Official placements sync after ranked events."}
+                  : "Create a Fun Match or join one — it will appear here. Official placements sync after ranked events."}
               </p>
             </div>
           ) : (

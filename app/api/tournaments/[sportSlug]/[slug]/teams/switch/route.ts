@@ -25,7 +25,7 @@ export async function POST(
     }
 
     if (tournament.tournamentType !== "recreational") {
-      throw new AppError("Team switching is only for reclub tournaments", {
+      throw new AppError("Team switching is only for Fun Match tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
       });

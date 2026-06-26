@@ -109,7 +109,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
       roles={roles}
       variant="host"
       title="Overview"
-      description="Manage official events, reclub sessions, registrations, and payouts."
+      description="Manage official events, Fun Match sessions, registrations, and payouts."
       actions={
         <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
           <Button
@@ -128,7 +128,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
           >
             <Link href={dashboardRoutes.hostTournamentsNewReclub}>
               <Plus className="mr-2 h-4 w-4" />
-              Create reclub
+              Create Fun Match
             </Link>
           </Button>
         </div>
@@ -160,7 +160,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
           },
           {
             href: dashboardRoutes.hostTournamentsNewReclub,
-            label: "Create reclub",
+            label: "Create Fun Match",
             description: "Free community play",
             icon: "gamepad2",
             accent: "emerald",
@@ -196,7 +196,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
             <Trophy className="h-10 w-10 text-cp-muted" />
             <p className="font-medium text-foreground">No tournaments yet</p>
             <p className="max-w-sm text-sm text-cp-muted">
-              Official events require a host account. Reclub sessions are free community play.
+              Official events require a host account. Fun Match sessions are free community play.
             </p>
             <div className="mt-2 grid w-full max-w-xs grid-cols-1 gap-2 min-[360px]:grid-cols-2">
               <Button asChild size="sm" className="h-10 w-full bg-cp-primary">
@@ -208,7 +208,7 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
                 variant="outline"
                 className="h-10 w-full border-emerald-500/40 text-emerald-300"
               >
-                <Link href={dashboardRoutes.hostTournamentsNewReclub}>Create reclub</Link>
+                <Link href={dashboardRoutes.hostTournamentsNewReclub}>Create Fun Match</Link>
               </Button>
             </div>
           </div>

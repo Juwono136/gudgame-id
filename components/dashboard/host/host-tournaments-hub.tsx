@@ -115,7 +115,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
       roles={roles}
       variant="host"
       title="My tournaments"
-      description="Official paid events and reclub community sessions you host."
+      description="Official paid events and Fun Match sessions you host."
       breadcrumbs={[
         { label: "Host", href: dashboardRoutes.host },
         { label: "Tournaments" },
@@ -138,7 +138,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
           >
             <Link href={dashboardRoutes.hostTournamentsNewReclub}>
               <Plus className="mr-2 h-4 w-4" />
-              Create reclub
+              Create Fun Match
             </Link>
           </Button>
         </div>
@@ -159,7 +159,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
           <Trophy className="mx-auto h-10 w-10 text-cp-muted" />
           <p className="mt-4 font-medium text-foreground">No tournaments yet</p>
           <p className="mt-1 text-sm text-cp-muted">
-            Create an official ranked event or a free reclub session.
+            Create an official ranked event or a free Fun Match.
           </p>
           <div className="mx-auto mt-6 grid w-full max-w-xs grid-cols-1 gap-2 min-[360px]:grid-cols-2">
             <Button asChild className="h-10 w-full bg-cp-primary">
@@ -175,7 +175,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
             >
               <Link href={dashboardRoutes.hostTournamentsNewReclub}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create reclub
+                Create Fun Match
               </Link>
             </Button>
           </div>

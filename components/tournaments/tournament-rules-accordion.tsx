@@ -17,31 +17,16 @@ type AccordionItem = {
 };
 
 type TournamentRulesAccordionProps = {
-  eligibilityHtml?: string | null;
   matchFormatHtml?: string | null;
   equipmentStandardsHtml?: string | null;
   format?: string;
-  categoryLabel?: string | null;
-  sportName?: string;
   sportSlug?: string;
   gearItems?: TournamentGearRuleItem[];
 };
 
-function defaultEligibility(
-  categoryLabel: string | null | undefined,
-  sportName: string | undefined,
-): string {
-  return [
-    categoryLabel ? `<p><strong>Category:</strong> ${categoryLabel}</p>` : "",
-    `<p>Open to registered ${sportName ?? "sport"} players on TandingBase with a verified account.</p>`,
-    "<p>Age and skill requirements follow the organizer rules below.</p>",
-  ]
-    .filter(Boolean)
-    .join("");
-}
-
 function defaultMatchFormat(format: string | undefined): string {
-  return `<p>Tournament format: <strong>${(format ?? "single_elimination").replace(/_/g, " ")}</strong>.</p><p>Match rules will be announced by the host before play begins.</p>`;
+  const label = format === "americano" ? "Americano" : "Elimination";
+  return `<p>Match type: <strong>${label}</strong>.</p><p>Match rules will be announced by the host before play begins.</p>`;
 }
 
 function defaultEquipment(): string {
@@ -49,21 +34,13 @@ function defaultEquipment(): string {
 }
 
 export function TournamentRulesAccordion({
-  eligibilityHtml,
   matchFormatHtml,
   equipmentStandardsHtml,
   format,
-  categoryLabel,
-  sportName,
   sportSlug,
   gearItems = [],
 }: TournamentRulesAccordionProps) {
   const items: AccordionItem[] = [
-    {
-      id: "eligibility",
-      title: "Eligibility & categories",
-      html: eligibilityHtml?.trim() || defaultEligibility(categoryLabel, sportName),
-    },
     {
       id: "format",
       title: "Match format",
@@ -77,7 +54,7 @@ export function TournamentRulesAccordion({
     },
   ];
 
-  const [openId, setOpenId] = useState<string>("eligibility");
+  const [openId, setOpenId] = useState<string>("format");
 
   return (
     <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">

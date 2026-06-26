@@ -73,7 +73,7 @@ export function ReclubSessionStatusBanner({
           {schedule ? (
             <p className="mt-1 text-sm text-cp-muted">{schedule}</p>
           ) : (
-            <p className="mt-1 text-sm text-amber-400/90">Start and end times are required for reclub sessions.</p>
+            <p className="mt-1 text-sm text-amber-400/90">Start and end times are required for Fun Match sessions.</p>
           )}
           <p className="mt-2 text-xs leading-relaxed text-cp-muted">{hint}</p>
         </div>

@@ -26,6 +26,7 @@ export const TOURNAMENT_TYPES = ["official", "recreational"] as const;
 export type TournamentType = (typeof TOURNAMENT_TYPES)[number];
 
 export const TOURNAMENT_FORMATS = [
+  "americano",
   "single_elimination",
   "double_elimination",
   "round_robin",
