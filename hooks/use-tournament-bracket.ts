@@ -6,6 +6,10 @@ import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LeaderboardEntry } from "@/lib/tournaments/brackets/leaderboard";
+import type {
+  OfficialTournamentStaffMember,
+  OfficialTournamentStaffRole,
+} from "@/lib/tournaments/settings";
 
 type UseTournamentBracketOptions = {
   enabled?: boolean;
@@ -79,6 +83,7 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
         },
       );
     },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 
@@ -198,6 +203,83 @@ export function useSubmitBracketScore(sportSlug: string, slug: string) {
       void qc.invalidateQueries({ queryKey: ["reclub", "matches", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "lobby", sportSlug, slug] });
       toast.success("Score saved — session history updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useOfficialTournamentStaff(
+  sportSlug: string,
+  slug: string,
+  options?: UseTournamentBracketOptions,
+) {
+  const enabled = Boolean(sportSlug && slug) && (options?.enabled ?? true);
+
+  return useQuery({
+    queryKey: ["tournaments", "staff", sportSlug, slug],
+    enabled,
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/staff`);
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { staff: OfficialTournamentStaffMember[] };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Failed to load scoring staff"));
+      }
+      return json.data.staff;
+    },
+  });
+}
+
+export function useInviteOfficialTournamentStaff(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email: string; role: OfficialTournamentStaffRole }) => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/staff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { staff: OfficialTournamentStaffMember[] };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not invite scoring staff"));
+      }
+      return json.data.staff;
+    },
+    onSuccess: (staff) => {
+      qc.setQueryData(["tournaments", "staff", sportSlug, slug], staff);
+      toast.success("Scoring staff invited");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useRemoveOfficialTournamentStaff(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/staff/${userId}`, {
+        method: "DELETE",
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { staff: OfficialTournamentStaffMember[] };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not remove scoring staff"));
+      }
+      return json.data.staff;
+    },
+    onSuccess: (staff) => {
+      qc.setQueryData(["tournaments", "staff", sportSlug, slug], staff);
+      toast.success("Scoring staff removed");
     },
     onError: (e: Error) => toast.error(e.message),
   });

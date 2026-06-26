@@ -143,6 +143,7 @@ export function ReclubTournamentPage({
   const [teamBId, setTeamBId] = useState<string>("");
   const [scoreA, setScoreA] = useState("0");
   const [scoreB, setScoreB] = useState("0");
+  const [scoreStatus, setScoreStatus] = useState<"idle" | "syncing" | "saved" | "error">("idle");
 
   const summary = data?.summary ?? initialSummary;
   const teams = data?.teams ?? [];
@@ -177,27 +178,41 @@ export function ReclubTournamentPage({
   const roundsRemaining =
     maxRounds != null ? Math.max(0, maxRounds - completedRounds - (activeMatch ? 1 : 0)) : null;
   const scoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevScoresRef = useRef({ a: 0, b: 0 });
 
   useEffect(() => {
     if (activeMatch) {
       setScoreA(String(activeMatch.scoreA ?? 0));
       setScoreB(String(activeMatch.scoreB ?? 0));
+      setScoreStatus("idle");
     }
   }, [activeMatch?.id, activeMatch?.scoreA, activeMatch?.scoreB]);
+
+  useEffect(
+    () => () => {
+      if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
+    },
+    [],
+  );
 
   const persistLiveScore = useCallback(
     (a: number, b: number, side?: "a" | "b", action?: "increment" | "decrement" | "set") => {
       if (!activeMatch || !canUseHostControls) return;
       if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
+      setScoreStatus("syncing");
       scoreSyncRef.current = setTimeout(() => {
-        updateLiveScore.mutate({
-          matchId: activeMatch.id,
-          scoreA: a,
-          scoreB: b,
-          side,
-          action: action ?? "set",
-        });
+        updateLiveScore.mutate(
+          {
+            matchId: activeMatch.id,
+            scoreA: a,
+            scoreB: b,
+            side,
+            action: action ?? "set",
+          },
+          {
+            onSuccess: () => setScoreStatus("saved"),
+            onError: () => setScoreStatus("error"),
+          },
+        );
       }, 400);
     },
     [activeMatch, canUseHostControls, updateLiveScore],
@@ -334,6 +349,10 @@ export function ReclubTournamentPage({
       cancelLabel: "Cancel",
     });
     if (!ok) return;
+    if (scoreSyncRef.current) {
+      clearTimeout(scoreSyncRef.current);
+      scoreSyncRef.current = null;
+    }
     completeRound.mutate({
       matchId: activeMatch.id,
       scoreA: Number(scoreA) || 0,
@@ -480,16 +499,15 @@ export function ReclubTournamentPage({
                     setScoreA(String(n));
                     const action = n > prev ? "increment" : n < prev ? "decrement" : "set";
                     persistLiveScore(n, Number(scoreB) || 0, "a", action);
-                    prevScoresRef.current = { a: n, b: Number(scoreB) || 0 };
                   }}
                   onScoreBChange={(n) => {
                     const prev = Number(scoreB) || 0;
                     setScoreB(String(n));
                     const action = n > prev ? "increment" : n < prev ? "decrement" : "set";
                     persistLiveScore(Number(scoreA) || 0, n, "b", action);
-                    prevScoresRef.current = { a: Number(scoreA) || 0, b: n };
                   }}
                   disabled={updateLiveScore.isPending}
+                  status={scoreStatus}
                 />
                 <Button
                   className="w-full bg-amber-600 hover:bg-amber-500 sm:w-auto"

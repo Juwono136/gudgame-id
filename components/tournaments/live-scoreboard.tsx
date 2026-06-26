@@ -13,6 +13,8 @@ type LiveScoreboardProps = {
   onScoreBChange: (next: number) => void;
   maxScore?: number;
   disabled?: boolean;
+  status?: "idle" | "syncing" | "saved" | "error";
+  statusText?: string;
   className?: string;
 };
 
@@ -75,30 +77,54 @@ export function LiveScoreboard({
   onScoreBChange,
   maxScore = 99,
   disabled,
+  status = "idle",
+  statusText,
   className,
 }: LiveScoreboardProps) {
+  const resolvedStatusText =
+    statusText ??
+    (status === "syncing"
+      ? "Syncing score..."
+      : status === "saved"
+        ? "Score synced"
+        : status === "error"
+          ? "Could not sync score"
+          : null);
+
   return (
-    <div
-      className={cn(
-        "grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-cp-border bg-cp-card/80 p-4 sm:gap-6 sm:p-6",
-        className,
-      )}
-    >
-      <ScoreColumn
-        label={teamAName}
-        score={scoreA}
-        onChange={onScoreAChange}
-        maxScore={maxScore}
-        disabled={disabled}
-      />
-      <span className="pb-6 text-2xl font-light text-cp-muted">:</span>
-      <ScoreColumn
-        label={teamBName}
-        score={scoreB}
-        onChange={onScoreBChange}
-        maxScore={maxScore}
-        disabled={disabled}
-      />
+    <div className={className}>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-cp-border bg-cp-card/80 p-4 sm:gap-6 sm:p-6">
+        <ScoreColumn
+          label={teamAName}
+          score={scoreA}
+          onChange={onScoreAChange}
+          maxScore={maxScore}
+          disabled={disabled}
+        />
+        <span className="pb-6 text-2xl font-light text-cp-muted">:</span>
+        <ScoreColumn
+          label={teamBName}
+          score={scoreB}
+          onChange={onScoreBChange}
+          maxScore={maxScore}
+          disabled={disabled}
+        />
+      </div>
+      {resolvedStatusText ? (
+        <p
+          className={cn(
+            "mt-2 text-center text-xs font-medium",
+            status === "error"
+              ? "text-red-300"
+              : status === "syncing"
+                ? "text-amber-300"
+                : "text-cp-muted",
+          )}
+          aria-live="polite"
+        >
+          {resolvedStatusText}
+        </p>
+      ) : null}
     </div>
   );
 }

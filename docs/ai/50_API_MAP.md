@@ -46,6 +46,7 @@ Last updated: 2026-06-25
 | `/api/tournaments/manage/[id]` | Tournament owner/admin update/delete path with paid-registration checks. |
 | `/api/tournaments/manage/[id]/workspace` | Tournament workspace data for owner/manage UI. |
 | `/api/tournaments/[sportSlug]/[slug]/bracket/*` | Bracket generation, assignment, scoring, live updates. |
+| `/api/tournaments/[sportSlug]/[slug]/staff/*` | Official tournament scoring staff list/invite/remove for public bracket runtime access. |
 | `/api/tournaments/[sportSlug]/[slug]/matches/*` | Reclub match lifecycle and scoring. |
 | `/api/tournaments/[sportSlug]/[slug]/teams/*` | Reclub/registration team create, switch, update flows. |
 | `/api/host/tournaments/[id]` | Host update/delete path with paid-registration checks. |
@@ -62,7 +63,7 @@ Last updated: 2026-06-25
 | --- | --- |
 | `app/api/account` | register, settings, complete-profile, session-context, password flows, player payments/registrations/matches/gear. |
 | `app/api/admin` | active-role, me, sport-context, dashboard stats, sports CRUD/reorder, users CRUD/stats, tournaments CRUD, wiki entity CRUD/search/import/scrape, wiki scrape host CRUD, payment settings, payment transactions. |
-| `app/api/tournaments` | create/manage, cover upload/delete, players search, gear search, register/join/leave/lobby/participants, teams, matches, bracket, registrations payment/confirmation. |
+| `app/api/tournaments` | create/manage, cover upload/delete, players search, gear search, register/join/leave/lobby/participants, teams, matches, bracket, official scoring staff, registrations payment/confirmation. |
 | `app/api/host` | host tournament CRUD/workspace/status/bracket, host payments, payout profile/banks/disbursements. |
 | `app/api/public` | public sport-scoped tournaments, gear, players. |
 

@@ -2,6 +2,19 @@
 
 ## 2026-06-26
 
+- Added tournament-scoped official scoring staff delegation for public tournament pages.
+- Owners/super-admins can invite existing active users from the public Bracket tab to manage official bracket placement and scoring; staff entries are stored in `tournaments.settings.officialStaff`.
+- Official bracket live/final score APIs now require tournament `live` status and owner/super-admin/scoring-staff access; non-staff participants can view but cannot mutate official bracket or scoring.
+- Added staff list/invite/remove APIs, React Query hooks, owner-only public UI, and docs updates for feature/API/DB/component/hook maps and official/user-role workflows.
+
+- Added public live-score visibility for official paid tournament details.
+- Official public pages now show a live-score banner for the current `in_progress` bracket match, while Reclub public live-score behavior remains documented through its active-round banner.
+
+- Implemented tournament live score hardening for official paid brackets and free Reclub sessions.
+- Official bracket courtside scoring now allows hosts to score any playable match, records the scoring user on live updates, rejects live scoring before both teams are assigned, and shows an empty state before bracket publication.
+- Reclub and official live score UI now expose syncing/saved/error feedback, toast live-score failures, and clear pending debounced score writes before finalizing matches.
+- Updated affected docs for feature index, Reclub workflow, official/legal workflow, shared hooks, and shared UI.
+
 - Added `docs/ai/workflows/user-role-flow.md` documenting end-to-end player, host, and super admin access flows.
 - Covered role entry points, dashboard feature access, component sequence, validation, API/server calls, auth/session handling, database interactions, response/navigation/error behavior, risks, and recommended tests.
 - Scope: documentation only; no application code changed.

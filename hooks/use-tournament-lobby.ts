@@ -187,6 +187,7 @@ export function useUpdateReclubLiveScore(sportSlug: string, slug: string) {
         };
       });
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }
 

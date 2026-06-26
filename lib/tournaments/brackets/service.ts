@@ -71,6 +71,13 @@ export async function submitBracketMatchScore(
     throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
+  if (tournament.tournamentType === "official" && tournament.status !== "live") {
+    throw new AppError("Official scores can only be submitted while the tournament is live", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+
   if (
     tournament.tournamentType === "recreational" &&
     match.status !== "in_progress"
@@ -204,6 +211,7 @@ export async function submitBracketMatchScore(
 export async function updateBracketLiveScore(
   tournament: TournamentDetail,
   matchId: string,
+  userId: string,
   scoreA: number,
   scoreB: number,
 ): Promise<BracketMatchView> {
@@ -223,6 +231,13 @@ export async function updateBracketLiveScore(
     throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
+  if (tournament.tournamentType === "official" && tournament.status !== "live") {
+    throw new AppError("Official live scores can only be updated while the tournament is live", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+
   if (
     tournament.tournamentType === "recreational" &&
     match.status !== "in_progress"
@@ -234,12 +249,20 @@ export async function updateBracketLiveScore(
     throw new AppError("Match already finished", { code: "CONFLICT", statusCode: 409 });
   }
 
+  if (!match.teamAId || !match.teamBId) {
+    throw new AppError("Both teams must be set before live scoring", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
+
   const [updated] = await db
     .update(tournamentBracketMatches)
     .set({
       scoreA: Math.max(0, Math.min(99, scoreA)),
       scoreB: Math.max(0, Math.min(99, scoreB)),
       status: "in_progress",
+      recordedByUserId: userId,
     })
     .where(eq(tournamentBracketMatches.id, matchId))
     .returning();

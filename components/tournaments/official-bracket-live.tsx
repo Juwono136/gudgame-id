@@ -32,6 +32,7 @@ type OfficialBracketLiveProps = {
   /** When false, only courtside scoring is shown (tree rendered elsewhere). */
   showBracketTree?: boolean;
   variant?: "official" | "reclub";
+  officialScoringEnabled?: boolean;
 };
 
 function formatMatchOption(m: BracketMatchView): string {
@@ -46,6 +47,7 @@ export function OfficialBracketLive({
   participant,
   showBracketTree = true,
   variant = "official",
+  officialScoringEnabled = true,
 }: OfficialBracketLiveProps) {
   const { confirm } = useConfirmDialog();
   const liveScore = useUpdateBracketLiveScore(sportSlug, slug);
@@ -53,6 +55,7 @@ export function OfficialBracketLive({
   const [selectedId, setSelectedId] = useState<string>("");
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
+  const [scoreStatus, setScoreStatus] = useState<"idle" | "syncing" | "saved" | "error">("idle");
   const syncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allPlayable = useMemo(
@@ -64,9 +67,13 @@ export function OfficialBracketLive({
   );
 
   const scorableMatches = useMemo(
-    () =>
-      allPlayable.filter((m) => canScoreBracketMatch(participant, m)),
-    [allPlayable, participant],
+    () => {
+      if (variant === "official" && (!participant.canUseHostControls || !officialScoringEnabled)) {
+        return [];
+      }
+      return allPlayable.filter((m) => canScoreBracketMatch(participant, m));
+    },
+    [allPlayable, officialScoringEnabled, participant, variant],
   );
 
   const resolvedSelectedId = useMemo(() => {
@@ -94,8 +101,16 @@ export function OfficialBracketLive({
     if (selected) {
       setScoreA(selected.scoreA ?? 0);
       setScoreB(selected.scoreB ?? 0);
+      setScoreStatus("idle");
     }
   }, [selected?.id, selected?.scoreA, selected?.scoreB]);
+
+  useEffect(
+    () => () => {
+      if (syncRef.current) clearTimeout(syncRef.current);
+    },
+    [],
+  );
 
   const canEditSelected = selected
     ? canScoreBracketMatch(participant, selected)
@@ -104,8 +119,15 @@ export function OfficialBracketLive({
   const persist = (a: number, b: number) => {
     if (!selected || !canEditSelected) return;
     if (syncRef.current) clearTimeout(syncRef.current);
+    setScoreStatus("syncing");
     syncRef.current = setTimeout(() => {
-      liveScore.mutate({ matchId: selected.id, scoreA: a, scoreB: b });
+      liveScore.mutate(
+        { matchId: selected.id, scoreA: a, scoreB: b },
+        {
+          onSuccess: () => setScoreStatus("saved"),
+          onError: () => setScoreStatus("error"),
+        },
+      );
     }, 400);
   };
 
@@ -122,12 +144,17 @@ export function OfficialBracketLive({
       cancelLabel: "Cancel",
     });
     if (!ok) return;
+    if (syncRef.current) {
+      clearTimeout(syncRef.current);
+      syncRef.current = null;
+    }
     finalizeScore.mutate(
       { matchId: selected.id, scoreA, scoreB },
       {
         onSuccess: () => {
           setScoreA(0);
           setScoreB(0);
+          setScoreStatus("idle");
         },
       },
     );
@@ -204,6 +231,7 @@ export function OfficialBracketLive({
                   persist(scoreA, n);
                 }}
                 disabled={liveScore.isPending || finalizeScore.isPending}
+                status={scoreStatus}
               />
               <Button
                 className={cn(
@@ -221,10 +249,27 @@ export function OfficialBracketLive({
             </div>
           ) : null}
         </section>
-      ) : participant.isAuthenticated && !participant.isParticipant ? (
+      ) : participant.isAuthenticated && !participant.isParticipant && !participant.canUseHostControls ? (
         <div className="flex items-start gap-3 rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-5 text-sm text-cp-muted">
           <Info className="mt-0.5 h-5 w-5 shrink-0" />
-          <p>Join a squad to access courtside scoring. Everyone can view the bracket tree above.</p>
+          <p>
+            {isOfficial
+              ? "Only the tournament owner or invited scoring staff can edit official bracket scores."
+              : "Join a squad to access courtside scoring. Everyone can view the bracket tree above."}
+          </p>
+        </div>
+      ) : isOfficial && participant.isAuthenticated && !participant.canUseHostControls ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-5 text-sm text-cp-muted">
+          <Info className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>
+            Official score input is locked. Ask the tournament owner to invite your account as
+            scoring staff if you need to manage this bracket.
+          </p>
+        </div>
+      ) : isOfficial && participant.canUseHostControls && !officialScoringEnabled ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-5 text-sm text-cp-muted">
+          <Info className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>Official score input opens when the tournament status is live.</p>
         </div>
       ) : participant.canUseCourtsideScoring && allPlayable.length > 0 && !scorableMatches.length ? (
         <div className="flex items-start gap-3 rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-5 text-sm text-cp-muted">

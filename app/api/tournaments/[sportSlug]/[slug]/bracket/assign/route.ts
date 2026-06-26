@@ -2,7 +2,10 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
 import { assignTeamToBracketSlot } from "@/lib/tournaments/brackets/assign";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import {
+  canManageOfficialBracketRuntime,
+  canManageTournament,
+} from "@/lib/tournaments/permissions";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
 
@@ -27,7 +30,12 @@ export async function PATCH(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
+    const canManageBracket =
+      tournament.tournamentType === "official"
+        ? canManageOfficialBracketRuntime(roles, tournament, userId)
+        : canManageTournament(roles, tournament.createdBy, userId);
+
+    if (!canManageBracket) {
       throw new AppError("Only the host can seed the bracket", {
         code: "FORBIDDEN",
         statusCode: 403,

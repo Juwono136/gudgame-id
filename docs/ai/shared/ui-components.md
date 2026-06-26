@@ -26,6 +26,12 @@ Last updated: 2026-06-25
 | Sonner toaster | `components/ui/sonner.tsx` |
 | Backgrounds | `components/ui/backgrounds/grid-background.tsx` |
 
+Feature-specific shared tournament UI:
+
+| Component | File |
+| --- | --- |
+| Touch-friendly live score controls | `components/tournaments/live-scoreboard.tsx` |
+
 ## Other Shared UI
 
 | Folder | Purpose |
@@ -46,6 +52,7 @@ Last updated: 2026-06-25
 - Reuse local primitives before introducing new UI libraries.
 - Check server/client boundary before importing hooks or browser APIs.
 - Keep feature-specific UI inside feature folders unless it is broadly reused.
+- Live score controls expose explicit syncing/saved/error helper text for courtside scoring feedback.
 
 ## Needs Verification
 

@@ -14,7 +14,7 @@ Hooks live in `hooks/`. Many are client-side React Query wrappers over route han
 | `use-public-tournaments.ts`, `use-public-players.ts`, `use-public-gear.ts` | Public sport-scoped data. |
 | `use-wiki-entities.ts`, `use-gear-search.ts`, `use-player-search.ts` | Wiki/search data. |
 | `use-tournaments.ts`, `use-host-tournaments.ts`, `use-manage-tournament.ts` | Tournament list/create/edit/manage. |
-| `use-tournament-lobby.ts`, `use-tournament-bracket.ts`, `use-tournament-participants.ts` | Tournament runtime state. |
+| `use-tournament-lobby.ts`, `use-tournament-bracket.ts`, `use-tournament-participants.ts` | Tournament runtime state, including Reclub/official bracket live-score mutations, official scoring staff invite/remove hooks, React Query cache updates, and toast errors. |
 | `use-registration-status.ts`, `use-cancel-registration.ts` | Registration state/actions. |
 | `use-host-payments.ts`, `use-host-payout.ts`, `use-player-payments.ts`, `use-payment-invoice-download.ts` | Payment and payout client flows. |
 | `use-player-competition.ts` | Player match/tournament history. |

@@ -16,6 +16,18 @@ export type TournamentSettings = TournamentRuleSections & {
   venueMapsUrl?: string;
   /** Max playable rounds for reclub sessions (set at creation). */
   maxRounds?: number;
+  officialStaff?: OfficialTournamentStaffMember[];
+};
+
+export type OfficialTournamentStaffRole = "host" | "scorekeeper";
+
+export type OfficialTournamentStaffMember = {
+  userId: string;
+  email: string;
+  name: string;
+  role: OfficialTournamentStaffRole;
+  invitedAt: string;
+  invitedByUserId: string;
 };
 
 export function parseTournamentSettings(
@@ -29,6 +41,7 @@ export function parseTournamentSettings(
   const equipmentStandardsHtml = raw.equipmentStandardsHtml;
   const gearEntityIds = raw.gearEntityIds;
   const maxRounds = raw.maxRounds;
+  const officialStaff = raw.officialStaff;
 
   const parsedGearIds = Array.isArray(gearEntityIds)
     ? gearEntityIds
@@ -53,7 +66,55 @@ export function parseTournamentSettings(
       typeof maxRounds === "number" && Number.isFinite(maxRounds) && maxRounds > 0
         ? Math.floor(maxRounds)
         : undefined,
+    officialStaff: parseOfficialTournamentStaff(officialStaff),
   };
+}
+
+export function parseOfficialTournamentStaff(
+  raw: unknown,
+): OfficialTournamentStaffMember[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+
+  const seen = new Set<string>();
+  const staff = raw
+    .map((item): OfficialTournamentStaffMember | null => {
+      if (!item || typeof item !== "object") return null;
+      const value = item as Record<string, unknown>;
+      const userId = typeof value.userId === "string" ? value.userId.trim() : "";
+      const email = typeof value.email === "string" ? value.email.trim().toLowerCase() : "";
+      const name = typeof value.name === "string" ? value.name.trim() : "";
+      const role = value.role === "host" ? "host" : value.role === "scorekeeper" ? "scorekeeper" : null;
+      const invitedAt =
+        typeof value.invitedAt === "string" && value.invitedAt.trim()
+          ? value.invitedAt.trim()
+          : null;
+      const invitedByUserId =
+        typeof value.invitedByUserId === "string" ? value.invitedByUserId.trim() : "";
+
+      if (!userId || !email || !name || !role || !invitedAt || !invitedByUserId) {
+        return null;
+      }
+      if (seen.has(userId)) return null;
+      seen.add(userId);
+      return { userId, email, name, role, invitedAt, invitedByUserId };
+    })
+    .filter((item): item is OfficialTournamentStaffMember => item != null);
+
+  return staff.length ? staff : undefined;
+}
+
+export function getOfficialTournamentStaff(
+  tournament: TournamentDetail,
+): OfficialTournamentStaffMember[] {
+  return parseTournamentSettings(tournament.settings).officialStaff ?? [];
+}
+
+export function isOfficialTournamentStaff(
+  tournament: TournamentDetail,
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+  return getOfficialTournamentStaff(tournament).some((member) => member.userId === userId);
 }
 
 export function getMaxRounds(tournament: TournamentDetail): number | null {

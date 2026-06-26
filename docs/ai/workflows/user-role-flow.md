@@ -22,6 +22,7 @@ Notes:
 - `super_admin` does not automatically pass `canAccessPlayerDashboard`; access to `/dashboard`, `/dashboard/matches`, and `/dashboard/payments` still requires `player`.
 - `/dashboard/settings`, `/dashboard/complete-profile`, and `/dashboard/tournaments*` are treated as account-setting/community zones and allow any authenticated user with at least one role.
 - `/dashboard/contributor*` and `/admin/contributor*` are legacy paths redirected to `/dashboard/host*`.
+- Official tournament scoring staff are tournament-scoped delegates stored in tournament settings, not global app roles. They can manage official public bracket placement/scoring for that tournament only.
 
 ## Entry Point
 

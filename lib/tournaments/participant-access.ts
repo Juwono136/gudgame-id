@@ -9,6 +9,7 @@ export type TournamentParticipantContext = {
   userTeamId: string | null;
   isHost: boolean;
   isParticipant: boolean;
+  isRuntimeManager: boolean;
   canUseCourtsideScoring: boolean;
   canUseHostControls: boolean;
 };
@@ -18,22 +19,25 @@ export function buildTournamentParticipantContext(input: {
   userTeamId: string | null;
   roles: AppRole[];
   tournamentCreatedBy: string | null;
+  canManageRuntime?: boolean;
 }): TournamentParticipantContext {
   const isAuthenticated = Boolean(input.userId);
   const userTeamId = input.userTeamId;
   const isParticipant = Boolean(userTeamId);
-  const isHost = input.userId
+  const isOwnerOrAdmin = input.userId
     ? canManageTournament(input.roles, input.tournamentCreatedBy, input.userId)
     : false;
+  const isRuntimeManager = isOwnerOrAdmin || Boolean(input.canManageRuntime);
 
   return {
     isAuthenticated,
     userId: input.userId,
     userTeamId,
-    isHost,
+    isHost: isRuntimeManager,
     isParticipant,
-    canUseCourtsideScoring: isAuthenticated && isParticipant,
-    canUseHostControls: isAuthenticated && isHost,
+    isRuntimeManager,
+    canUseCourtsideScoring: isAuthenticated && (isParticipant || isRuntimeManager),
+    canUseHostControls: isAuthenticated && isRuntimeManager,
   };
 }
 
@@ -44,8 +48,8 @@ export function assertCourtsideScoringAccess(ctx: TournamentParticipantContext):
       statusCode: 401,
     });
   }
-  if (!ctx.isParticipant) {
-    throw new AppError("Join a squad or team to access courtside scoring", {
+  if (!ctx.isParticipant && !ctx.isHost) {
+    throw new AppError("Join a team or use a host account to access courtside scoring", {
       code: "FORBIDDEN",
       statusCode: 403,
     });
@@ -71,8 +75,8 @@ export function canScoreBracketMatch(
   ctx: TournamentParticipantContext,
   match: Pick<BracketMatchView, "teamAId" | "teamBId">,
 ): boolean {
-  if (!ctx.canUseCourtsideScoring) return false;
   if (ctx.isHost) return true;
+  if (!ctx.canUseCourtsideScoring) return false;
   if (!ctx.userTeamId) return false;
   return match.teamAId === ctx.userTeamId || match.teamBId === ctx.userTeamId;
 }

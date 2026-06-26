@@ -71,6 +71,7 @@ Last updated: 2026-06-25
 | --- | --- |
 | Registration payment confirmation | Must keep registration, payment, team, notifications, and provider IDs consistent. |
 | Bracket scoring/live updates | Race conditions can corrupt match and leaderboard state. |
+| Official scoring staff settings | Stored in `tournaments.settings.officialStaff`; stale cache or loose parsing can grant/deny public bracket runtime access incorrectly. |
 | Reclub match completion | Syncs to player competition history and session stats. |
 | Host payout job | Moves pending payments into disbursements and external payout state. |
 | Wiki entity delete/update | Media and relations cleanup must stay consistent. |
@@ -82,6 +83,7 @@ Last updated: 2026-06-25
 | --- | --- |
 | `lib/tournaments/registration/service.ts` | Registration, team, invoice/payment state writes. |
 | `lib/tournaments/brackets/*` | Bracket generation, slot assignment, live score and final score writes. |
+| `lib/tournaments/official-staff-service.ts` | Official scoring staff invite/remove writes to `tournaments.settings`. |
 | `lib/tournaments/reclub/*` | Reclub match/session/team writes and history sync. |
 | `lib/payments/host-payout/disbursement/*` | Payout candidate queries, batch creation, processor, webhook updates. |
 | `lib/wiki/service.ts` | Wiki entity CRUD, relations, media. |

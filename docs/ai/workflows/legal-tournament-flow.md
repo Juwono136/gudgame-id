@@ -36,6 +36,16 @@ The register page requires an authenticated session. Unauthenticated users are r
 8. The app receives payment confirmation through webhook or polling.
 9. Player lands on the success page and can view/download receipt.
 
+Live scoring after bracket generation:
+
+1. Host generates/publishes the official bracket from the host workspace.
+2. Tournament owner can invite trusted existing users as tournament-scoped scoring staff from the public Bracket tab.
+3. Owner, super-admin, and invited scoring staff can manage official bracket placement and score input from the public page while the tournament is `live`.
+4. Non-owner participants and public users can view the bracket/live score but cannot mutate official bracket or score state.
+5. Live score updates are debounced, cached in React Query, and finalized through the bracket score endpoint.
+6. Finalizing a match advances the winner and syncs official placement when the final match is completed.
+7. Public tournament detail shows a live-score banner whenever a bracket match is `in_progress`.
+
 ## UI Component Sequence
 
 Registration:
@@ -118,6 +128,27 @@ Checkout validation:
 - Paid payments cannot be paid again.
 - Rate limit key: `checkout-pay:${userId}`.
 
+Official bracket live score validation:
+
+- `PATCH /api/tournaments/[sportSlug]/[slug]/bracket/live` requires authentication and role guard context.
+- Official score input is allowed only while tournament status is `live`.
+- Owner/super-admin or tournament-scoped scoring staff can score official matches.
+- Non-owner/non-staff users cannot mutate official bracket scoring even if they are registered participants.
+- Match IDs must be UUIDs and belong to the tournament.
+- Live score values are integers 0-99.
+- Both teams must be assigned before live scoring can start.
+- Completed and bye matches reject live score updates.
+- Final score submission rejects ties and completed/bye matches.
+
+Official scoring staff validation:
+
+- `GET/POST /api/tournaments/[sportSlug]/[slug]/staff` and `DELETE /api/tournaments/[sportSlug]/[slug]/staff/[userId]` require API role guard context.
+- Staff list/invite/remove is owner/super-admin only.
+- Invites require an existing active account email.
+- Tournament owner cannot be invited because owner already has full access.
+- Duplicate staff entries return conflict.
+- Staff are stored in `tournaments.settings.officialStaff` and are scoped to that tournament only.
+
 ## API/Server Action Call
 
 No explicit Next.js server action is used for this workflow. Mutations use App Router route handlers.
@@ -169,6 +200,31 @@ Payment status polling:
 - API: `GET /api/tournaments/registrations/[id]/payment-status`
 - Handler: `app/api/tournaments/registrations/[id]/payment-status/route.ts`
 - Service: `expireRegistrationIfOverdue`
+
+Official bracket live score:
+
+- Client: `OfficialBracketLive`
+- Hook: `useUpdateBracketLiveScore`
+- API: `PATCH /api/tournaments/[sportSlug]/[slug]/bracket/live`
+- Service: `updateBracketLiveScore`
+- Response: `{ match }`
+
+Official bracket final score:
+
+- Client: `OfficialBracketLive`
+- Hook: `useSubmitBracketScore`
+- API: `POST /api/tournaments/[sportSlug]/[slug]/bracket/score`
+- Service: `submitBracketMatchScore`
+- Response: `{ match }`
+
+Official scoring staff:
+
+- Client: `OfficialScoringStaffPanel`
+- Hooks: `useOfficialTournamentStaff`, `useInviteOfficialTournamentStaff`, `useRemoveOfficialTournamentStaff`
+- API: `GET/POST /api/tournaments/[sportSlug]/[slug]/staff`
+- API: `DELETE /api/tournaments/[sportSlug]/[slug]/staff/[userId]`
+- Service: `lib/tournaments/official-staff-service.ts`
+- Response: `{ staff }`
 
 Provider callback:
 
@@ -261,6 +317,13 @@ Failure/expiry phase:
 - `markPaymentAttemptFailed` updates payment status to `failed` when the payment window is still active.
 - Decline/cancel before payment completion uses `rollbackDraftRegistration` when a team exists, deleting payment, registration, team members, and team.
 
+Official scoring staff:
+
+- Stored in `tournaments.settings.officialStaff`.
+- Each entry stores `userId`, `email`, `name`, role, inviter, and invite timestamp.
+- Invite/remove updates the tournament settings JSON and invalidates tournament detail/list caches.
+- Staff entries do not create global `host` or `super_admin` roles.
+
 ## Response Handling
 
 Registration wizard:
@@ -324,6 +387,11 @@ User-facing:
 - Loading states use `LoadingOverlay` and `LoadingSpinner`.
 - Cancel/confirm/payment actions use `ConfirmDialogProvider`.
 - Checkout presents specific UI for failed, expired, cancelled, and paid states.
+- Official bracket live scoring presents syncing/saved/error helper text and clears pending debounced live-score writes before finalizing a result.
+- Official public Bracket tab shows owner-only staff invite/remove controls.
+- Official public Bracket tab hides score controls from non-owner/non-staff users and shows a locked-state message.
+- Official public detail shows a read-only live-score banner above the main content for the current `in_progress` bracket match.
+- If the official bracket has not been generated, the Bracket tab shows an empty state; hosts get a direct workspace link.
 
 API:
 
@@ -361,6 +429,10 @@ Components/hooks:
 - `components/tournaments/registration-checkout-client.tsx`
 - `components/tournaments/registration-success-content.tsx`
 - `components/tournaments/player-search-picker.tsx`
+- `components/tournaments/official-bracket-live.tsx`
+- `components/tournaments/official-scoring-staff-panel.tsx`
+- `components/tournaments/live-scoreboard.tsx`
+- `hooks/use-tournament-bracket.ts`
 - `components/payments/payment-receipt-actions.tsx`
 - `hooks/use-cancel-registration.ts`
 
@@ -371,6 +443,11 @@ API routes:
 - `app/api/tournaments/registrations/[id]/confirm/route.ts`
 - `app/api/tournaments/registrations/[id]/pay/route.ts`
 - `app/api/tournaments/registrations/[id]/payment-status/route.ts`
+- `app/api/tournaments/[sportSlug]/[slug]/bracket/live/route.ts`
+- `app/api/tournaments/[sportSlug]/[slug]/bracket/score/route.ts`
+- `app/api/tournaments/[sportSlug]/[slug]/bracket/assign/route.ts`
+- `app/api/tournaments/[sportSlug]/[slug]/staff/route.ts`
+- `app/api/tournaments/[sportSlug]/[slug]/staff/[userId]/route.ts`
 - `app/api/webhooks/xendit/route.ts`
 
 Services:
@@ -384,6 +461,10 @@ Services:
 - `lib/tournaments/payments/checkout-methods.ts`
 - `lib/tournaments/payments/split.ts`
 - `lib/tournaments/payments/platform-settings.ts`
+- `lib/tournaments/brackets/service.ts`
+- `lib/tournaments/participant-access.ts`
+- `lib/tournaments/official-staff-service.ts`
+- `lib/tournaments/settings.ts`
 - `lib/payments/xenplatform/registration-invoice.ts`
 - `lib/payments/xenplatform/split-webhook.ts`
 - `lib/payments/xendit/*`
@@ -411,6 +492,8 @@ High risk:
 - Changing `registrationId` ownership checks can expose another player's checkout or receipt.
 - Changing payment split logic can misallocate platform fees, host payout amounts, or processing fees.
 - Changing redirect URLs can break Xendit return flow or send users to stale registration states.
+- Official scoring staff changes can over-grant bracket/score mutation access if server guards drift from UI guards.
+- Storing staff in settings requires cache invalidation after invite/remove.
 
 Medium risk:
 
@@ -453,6 +536,9 @@ Integration:
 - Cancel/expiry releases team slot and allows re-registration when capacity remains.
 - Public official roster includes only `confirmed` + `paid` registrations.
 - Paid registration blocks tournament deletion.
+- Official live score update/final score rejects non-owner/non-staff users.
+- Official live score update/final score rejects when tournament is not `live`.
+- Official staff invite rejects missing, inactive, duplicate, or owner accounts.
 
 Auth/security:
 

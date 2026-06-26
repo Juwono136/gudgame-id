@@ -3,7 +3,10 @@ import { OfficialTournamentPage } from "@/components/tournaments/official-tourna
 import { ReclubTournamentPage } from "@/components/tournaments/reclub-tournament-page";
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import {
+  canManageOfficialBracketRuntime,
+  canManageTournament,
+} from "@/lib/tournaments/permissions";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 import { getGearEntitiesForTournamentRules } from "@/lib/tournaments/gear-for-rules";
@@ -53,6 +56,8 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       userTeamId,
       roles,
       tournamentCreatedBy: tournament.createdBy,
+      canManageRuntime:
+        userId != null ? canManageOfficialBracketRuntime(roles, tournament, userId) : false,
     });
 
     return (

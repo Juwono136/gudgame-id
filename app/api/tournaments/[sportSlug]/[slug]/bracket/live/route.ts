@@ -7,6 +7,7 @@ import {
   assertCanScoreBracketMatch,
   buildTournamentParticipantContext,
 } from "@/lib/tournaments/participant-access";
+import { canManageOfficialBracketRuntime } from "@/lib/tournaments/permissions";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
@@ -38,11 +39,13 @@ export async function PATCH(
     }
 
     const userTeamId = await getUserTeamInTournament(tournament.id, userId);
+    const canManageRuntime = canManageOfficialBracketRuntime(roles, tournament, userId);
     const participant = buildTournamentParticipantContext({
       userId,
       userTeamId,
       roles,
       tournamentCreatedBy: tournament.createdBy,
+      canManageRuntime,
     });
 
     const matchId = parseEntityIdParam(parsed.data.matchId, "match id");
@@ -52,11 +55,20 @@ export async function PATCH(
       throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    assertCanScoreBracketMatch(participant, target);
+    if (tournament.tournamentType === "official" && !canManageRuntime) {
+      throw new AppError("Only the owner or invited scoring staff can update official scores", {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      });
+    }
+    if (tournament.tournamentType !== "official") {
+      assertCanScoreBracketMatch(participant, target);
+    }
 
     const match = await updateBracketLiveScore(
       tournament,
       matchId,
+      userId,
       parsed.data.scoreA,
       parsed.data.scoreB,
     );

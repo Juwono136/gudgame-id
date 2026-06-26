@@ -50,6 +50,7 @@ Only `stores/auth-ui-store.ts` was observed. It uses Zustand for auth UI state. 
 | Component/folder | Risk |
 | --- | --- |
 | `components/tournaments/*` | Large stateful flows for registration, live scoring, bracket/reclub behavior. |
+| `components/tournaments/official-scoring-staff-panel.tsx` | Owner-only public bracket staff delegation UI; controls who can manage official bracket scoring from the public page. |
 | `components/admin/wiki/wiki-entity-wizard.tsx` | Complex admin form and entity-type branching. |
 | `components/admin/tournaments/tournament-create-wizard.tsx` | Multi-step creation/edit flow. |
 | `components/tournaments/reclub/reclub-tournament-wizard.tsx` | Reclub-specific create flow. |

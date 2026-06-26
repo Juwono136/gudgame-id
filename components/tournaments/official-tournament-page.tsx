@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Trophy, Users } from "lucide-react";
+import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
+import { OfficialScoringStaffPanel } from "@/components/tournaments/official-scoring-staff-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
 import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
 import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
@@ -28,7 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   getTournamentStatusBadgeClass,
   getTournamentTypeBadgeClass,
-  statusBadgeClass,
   tournamentHeroStatusBadgeBase,
 } from "@/lib/styles/status-badges";
 import { Button } from "@/components/ui/button";
@@ -137,6 +137,14 @@ export function OfficialTournamentPage({
 
   const recentMatchRows = useMemo(
     () => mapBracketMatchesToRecentRows(bracket?.matches ?? []),
+    [bracket?.matches],
+  );
+
+  const activeOfficialMatch = useMemo(
+    () =>
+      (bracket?.matches ?? []).find(
+        (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
+      ) ?? null,
     [bracket?.matches],
   );
 
@@ -260,6 +268,43 @@ export function OfficialTournamentPage({
         </FadeInView>
       </TournamentHeroBanner>
 
+      {activeOfficialMatch ? (
+        <section className="border-b border-cp-primary/30 bg-linear-to-r from-cp-primary/12 via-cp-card to-cp-card">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
+                <Radio className="h-4 w-4 animate-pulse" />
+                Live score resmi
+              </p>
+              <h2 className="mt-2 text-lg font-bold text-foreground sm:text-xl">
+                {activeOfficialMatch.teamAName} vs {activeOfficialMatch.teamBName}
+              </h2>
+              <p className="mt-1 text-sm text-cp-muted">
+                Ronde {activeOfficialMatch.roundNumber} · Match{" "}
+                {activeOfficialMatch.matchNumber}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-2xl border border-cp-primary/25 bg-cp-bg/70 px-5 py-3 text-center shadow-[0_8px_32px_rgba(0,71,255,0.10)]">
+                <p className="text-4xl font-bold tabular-nums text-foreground">
+                  {activeOfficialMatch.scoreA ?? 0} : {activeOfficialMatch.scoreB ?? 0}
+                </p>
+                <p className="mt-1 text-xs font-medium uppercase tracking-wider text-cp-muted">
+                  Live now
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="border-cp-primary/30 bg-cp-card/70"
+                onClick={() => setTab("Bracket")}
+              >
+                Lihat bracket
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8 lg:px-8">
         <div className="order-2 min-w-0 space-y-6 lg:order-1">
           <TournamentTabNav tabs={TABS} active={tab} onChange={setTab} variant="official" />
@@ -367,13 +412,39 @@ export function OfficialTournamentPage({
           {tab === "Bracket" ? (
             bracketLoading ? (
               <LoadingSpinner label="Loading bracket…" />
+            ) : !bracket?.generated ? (
+              <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-5 text-center sm:p-8">
+                <Trophy className="mx-auto h-8 w-8 text-cp-primary" />
+                <h2 className="mt-3 text-lg font-semibold text-foreground">
+                  Bracket belum dipublish
+                </h2>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-cp-muted">
+                  Live score resmi akan aktif setelah host membuat bracket dari tim yang sudah
+                  terkonfirmasi. Peserta tetap bisa melihat detail turnamen dan daftar pemain.
+                </p>
+                {canManage ? (
+                  <Button asChild className="mt-5 bg-cp-primary hover:bg-cp-primary-light">
+                    <Link href={dashboardRoutes.hostTournament(tournament.id)}>
+                      Open host workspace
+                    </Link>
+                  </Button>
+                ) : null}
+              </section>
             ) : (
-              <OfficialBracketLive
-                sportSlug={tournament.sportSlug}
-                slug={tournament.slug}
-                matches={bracket?.matches ?? []}
-                participant={participant}
-              />
+              <div className="space-y-8">
+                <OfficialScoringStaffPanel
+                  sportSlug={tournament.sportSlug}
+                  slug={tournament.slug}
+                  enabled={canManage}
+                />
+                <OfficialBracketLive
+                  sportSlug={tournament.sportSlug}
+                  slug={tournament.slug}
+                  matches={bracket?.matches ?? []}
+                  participant={participant}
+                  officialScoringEnabled={tournament.status === "live"}
+                />
+              </div>
             )
           ) : null}
 

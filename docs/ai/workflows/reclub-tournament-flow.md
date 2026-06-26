@@ -369,6 +369,8 @@ Public page:
 - Join success refetches lobby, refreshes the router, and switches tab to `Lobby`.
 - Leave success refetches, refreshes, and switches tab to `Overview`.
 - Live score success updates React Query cache in place for the active match.
+- Live score failure shows a toast and the scoreboard exposes syncing/saved/error helper text.
+- Pending debounced score updates are cleared before completing a round to avoid stale writes after finalization.
 - Complete/start round success invalidates lobby data.
 
 UI terminal states:
@@ -376,6 +378,7 @@ UI terminal states:
 - Ended sessions hide join/start controls and show `getReclubSessionEndedMessage()`.
 - Upcoming sessions block play and show `getReclubSessionNotLiveMessage()`.
 - Active rounds show the live round banner and lock squad switching.
+- Public Reclub detail shows the active round banner above tabs with team names, timer, and live score for all visitors; host controls are shown only to users with host access.
 
 ## Redirect/Navigation
 

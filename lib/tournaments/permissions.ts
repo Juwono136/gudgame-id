@@ -1,6 +1,8 @@
 import type { TournamentType } from "@/db/schema/tournaments";
 import type { AppRole } from "@/lib/roles/constants";
 import { hasPermission } from "@/lib/roles/permissions";
+import { isOfficialTournamentStaff } from "@/lib/tournaments/settings";
+import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export function canCreateOfficialTournament(roles: AppRole[]): boolean {
   return (
@@ -46,4 +48,18 @@ export function canManageTournament(
     return true;
   }
   return createdByUserId === currentUserId;
+}
+
+export function canManageOfficialBracketRuntime(
+  roles: AppRole[],
+  tournament: TournamentDetail,
+  currentUserId: string,
+): boolean {
+  if (canManageTournament(roles, tournament.createdBy, currentUserId)) {
+    return true;
+  }
+  if (tournament.tournamentType !== "official") {
+    return false;
+  }
+  return isOfficialTournamentStaff(tournament, currentUserId);
 }
