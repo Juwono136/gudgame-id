@@ -4,71 +4,166 @@
 
 This repository is a large Next.js project.
 
-AI coding agents must use `docs/ai/` as the main technical memory before editing code.
+AI coding agents must use `docs/ai/` as the primary technical memory before editing code.
 
 RTK is configured globally through the user's global `RTK.md`. Do not create a local `RTK.md` unless explicitly requested.
 
-## Required Reading Order
+---
 
-Before editing code, read:
+# Required Reading Strategy
 
-1. `docs/ai/00_PROJECT_OVERVIEW.md`
-2. `docs/ai/10_ARCHITECTURE.md`
-3. `docs/ai/30_FEATURE_INDEX.md`
-4. `docs/ai/40_DATA_FLOW.md`
-5. `docs/ai/80_DEPENDENCY_GRAPH.md`
-6. `docs/ai/99_CHANGELOG_AI.md`
+Use progressive context loading.
 
-If the task involves routes/pages/layouts, also read:
+Always start with:
 
-- `docs/ai/20_ROUTE_MAP.md`
+- `docs/ai/00_PROJECT_OVERVIEW.md`
 
-If the task involves API/server actions, also read:
+Then read only the documentation required for the current task.
 
-- `docs/ai/50_API_MAP.md`
+| Task                                         | Read                                                           |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| Feature implementation                       | `30_FEATURE_INDEX.md` + related file under `docs/ai/features/` |
+| Routes / Pages / Layouts                     | `20_ROUTE_MAP.md`                                              |
+| Architecture change                          | `10_ARCHITECTURE.md`                                           |
+| Data flow                                    | `40_DATA_FLOW.md`                                              |
+| API / Route Handlers / Server Actions        | `50_API_MAP.md`                                                |
+| Database / ORM / Supabase / Prisma / Drizzle | `60_DATABASE_MAP.md`                                           |
+| UI / Components / Hooks / Providers / Stores | `70_COMPONENT_MAP.md` + relevant file under `docs/ai/shared/`  |
+| End-to-end workflow                          | related file under `docs/ai/workflows/`                        |
+| Dependency change                            | `80_DEPENDENCY_GRAPH.md`                                       |
 
-If the task involves database, ORM, schema, Supabase, Prisma, Drizzle, or persistence, also read:
+Read `99_CHANGELOG_AI.md` only when:
 
-- `docs/ai/60_DATABASE_MAP.md`
+- updating documentation after code changes
+- reviewing previous AI modifications
 
-If the task involves UI, components, hooks, providers, stores, or utilities, also read:
+Never load documentation that is unrelated to the current task.
 
-- `docs/ai/70_COMPONENT_MAP.md`
-- relevant files under `docs/ai/shared/`
+---
 
-If the task involves a known feature, read the related file under:
+# Working Rules
 
-- `docs/ai/features/`
+Before editing:
 
-If the task involves an end-to-end process, read the related file under:
+1. Identify the affected feature.
+2. Identify the affected files.
+3. Identify whether routes, APIs, database, UI, or architecture are impacted.
+4. Read only the required documentation.
 
-- `docs/ai/workflows/`
+General rules:
 
-## Working Rules
-
-- Do not scan the whole repository unless the documentation is missing, stale, or insufficient.
-- Before editing, identify affected features, files, routes, APIs, components, data flow, and risk level.
 - Modify only necessary files.
 - Do not refactor unrelated code.
 - Preserve existing architecture.
-- Preserve server/client component boundaries.
-- Preserve existing auth, middleware, caching, and revalidation behavior.
-- After every code change, update the relevant `docs/ai/` files.
-- Always append an entry to `docs/ai/99_CHANGELOG_AI.md`.
-- If documentation and code disagree, treat code as source of truth and update the documentation.
-- Mark uncertain items as `Needs verification`.
+- Preserve server/client boundaries.
+- Preserve auth, middleware, caching and revalidation.
+- Treat source code as the source of truth.
+- Update documentation only after code changes.
+- Mark uncertain information as `Needs verification`.
 
-## Next.js-Specific Rules
+---
 
-- Respect App Router or Pages Router structure.
-- Be careful with `layout.tsx`, `template.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `proxy.ts`, route handlers, and server actions.
-- Do not add `"use client"` unless required.
-- Do not move logic from server to client without clear reason.
-- Check affected caching, revalidation, cookies, headers, auth/session, and environment variable usage.
+# Token Efficiency Rules
 
-## Documentation Update Requirement
+Minimize token usage while maintaining correctness.
 
-After code changes, update only affected sections in:
+## Documentation
+
+- Never load every document by default.
+- Load documentation progressively.
+- Read only the documents required by the current task.
+- Never reread files already loaded during the same session unless they changed.
+- Do not recursively inspect documentation folders.
+- Read only the specific feature, workflow, component or shared document involved.
+- Skip architecture, database and dependency documentation unless affected.
+- Keep context limited to the current task.
+
+## Repository Search
+
+Prefer targeted searches.
+
+Use:
+
+- `rg "keyword"`
+- `rg --files path`
+- filename search
+- symbol search
+
+Avoid:
+
+- recursive repository scans
+- broad `find`
+- loading entire directories
+- repeatedly listing the same folders
+
+Only inspect files likely to be modified.
+
+## Command Usage
+
+Prefer RTK commands whenever practical.
+
+Examples:
+
+- `rtk rg`
+- `rtk git status`
+- `rtk git diff`
+- `rtk ls`
+
+Avoid commands that generate excessive output unless required.
+
+If using lint or tests:
+
+- prefer running only affected files
+- avoid full-project lint unless requested
+- avoid full-project test runs unless requested
+
+Examples:
+
+- `npm run lint path/to/file`
+- project-specific targeted lint commands
+
+## Context Management
+
+Reuse information already available in the current conversation.
+
+Do not:
+
+- reread identical files
+- repeat repository exploration
+- inspect unrelated modules
+- inspect unrelated APIs
+- inspect unrelated routes
+
+Expand context only when necessary.
+
+---
+
+# Next.js Rules
+
+- Respect the existing routing architecture.
+- Preserve server components whenever possible.
+- Do not introduce `"use client"` unless required.
+- Do not move server logic to the client without justification.
+- Review caching, cookies, headers, auth, middleware and revalidation when affected.
+
+Be careful when modifying:
+
+- `layout.tsx`
+- `template.tsx`
+- `loading.tsx`
+- `error.tsx`
+- `not-found.tsx`
+- `proxy.ts`
+- Route Handlers
+- Server Actions
+
+---
+
+# Documentation Update
+
+After code changes, update only affected documentation.
+
+Possible files include:
 
 - `docs/ai/00_PROJECT_OVERVIEW.md`
 - `docs/ai/10_ARCHITECTURE.md`
@@ -84,4 +179,35 @@ After code changes, update only affected sections in:
 - `docs/ai/shared/`
 - `docs/ai/workflows/`
 
+Update only documentation directly affected by the change.
+
 Do not rewrite unrelated documentation.
+
+---
+
+# RTK Notes
+
+When executing commands through RTK:
+
+- Prefer targeted commands over repository-wide commands.
+- Verify command output before issuing additional commands.
+- Avoid repeating identical commands.
+- If a command fails before execution, report the failure instead of retrying automatically.
+- When requested, verify whether the attempted command appears in `rtk gain`.
+- Do not assume failed commands are recorded by `rtk gain`.
+
+---
+
+# Preferred Workflow
+
+For most tasks:
+
+1. Read `00_PROJECT_OVERVIEW.md`
+2. Identify affected feature
+3. Read only relevant documentation
+4. Locate target files with targeted search
+5. Edit only necessary files
+6. Update only affected documentation
+7. Append to `99_CHANGELOG_AI.md`
+
+Avoid unnecessary repository exploration throughout the process.
