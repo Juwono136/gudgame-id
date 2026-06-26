@@ -2,6 +2,10 @@
 
 ## 2026-06-26
 
+- Added `docs/ai/workflows/user-role-flow.md` documenting end-to-end player, host, and super admin access flows.
+- Covered role entry points, dashboard feature access, component sequence, validation, API/server calls, auth/session handling, database interactions, response/navigation/error behavior, risks, and recommended tests.
+- Scope: documentation only; no application code changed.
+
 - Added `docs/ai/workflows/xendit-payment-flow.md` documenting the Xendit payment gateway schema and lifecycle for official/legal paid tournaments.
 - Covered checkout entry points, method-specific Xendit calls, XenPlatform split handling, webhook processing, auth/session checks, database schema interactions, response/navigation behavior, error handling, risks, and recommended tests.
 - Scope: documentation only; no application code changed.
