@@ -5,9 +5,8 @@ import { Label } from "@/components/ui/label";
 import {
   FORMAT_OPTIONS,
   getAllowedFormatsForSport,
-  type FormatOption,
 } from "@/lib/tournaments/form/format-options";
-import type { TournamentFormat } from "@/db/schema/tournaments";
+import type { TournamentFormat } from "@/lib/domain/tournaments";
 import { cn } from "@/lib/utils";
 
 const FORMAT_ICONS = {
