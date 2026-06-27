@@ -1,7 +1,12 @@
 import "server-only";
 
 import { AppError } from "@/lib/errors";
-import { isFunMatchType } from "@/lib/tournaments/core/types";
+import {
+  isFunMatchType,
+  isOfficialType,
+  supportsRoundBasedPlay,
+} from "@/lib/tournaments/core/types";
+import { assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
 import {
   canJoinReclubSession,
   canPlayReclubSession,
@@ -14,6 +19,15 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 export function assertReclubTournament(tournament: TournamentDetail): void {
   if (!isFunMatchType(tournament.tournamentType)) {
     throw new AppError("This action is only available for Fun Match sessions", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+}
+
+export function assertRoundBasedTournament(tournament: TournamentDetail): void {
+  if (!supportsRoundBasedPlay(tournament)) {
+    throw new AppError("Round scoring is not available for this tournament format", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
@@ -35,7 +49,12 @@ export function assertReclubSessionJoinable(tournament: TournamentDetail): void 
 }
 
 export function assertReclubSessionPlayable(tournament: TournamentDetail): void {
-  assertReclubTournament(tournament);
+  assertRoundBasedTournament(tournament);
+
+  if (isOfficialType(tournament.tournamentType)) {
+    assertTournamentLiveForScoring(tournament);
+    return;
+  }
 
   const phase = computeReclubSessionPhase(tournament);
   if (phase === "ended") {

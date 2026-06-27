@@ -27,6 +27,7 @@ export async function GET(
       sportId: tournament.sportId,
       sportSlug: tournament.sportSlug,
       tournamentType: normalizeTournamentType(tournament.tournamentType),
+      officialBilling: tournament.officialBilling,
       page,
       pageSize,
     });

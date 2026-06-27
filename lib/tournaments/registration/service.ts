@@ -22,6 +22,11 @@ import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
 import { assertReclubSessionJoinable } from "@/lib/tournaments/reclub/session-guard";
 import { createNamedTeam, switchTeam } from "@/lib/tournaments/reclub/teams";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
+import {
+  isFreeOfficialBilling,
+  listConfirmedOfficialTeamIds,
+} from "@/lib/tournaments/registration/official-roster";
+import type { OfficialBillingType } from "@/db/schema/tournaments";
 import type { FunMatchJoinInput } from "@/lib/validations/tournaments";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
@@ -58,6 +63,7 @@ export async function getRegistrationSummary(
   registrationOpensAt?: Date | null,
   tournamentStartsAt?: Date | null,
   tournamentType: "official" | "fun_match" = "official",
+  officialBilling?: OfficialBillingType | string | null,
 ): Promise<TournamentRegistrationSummary> {
   const db = getDb();
 
@@ -92,6 +98,8 @@ export async function getRegistrationSummary(
         ),
       );
 
+    const isFree = isFreeOfficialBilling(officialBilling);
+
     const [playerRow] = await db
       .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
       .from(tournamentTeamMembers)
@@ -100,7 +108,7 @@ export async function getRegistrationSummary(
         tournamentRegistrations,
         eq(tournamentRegistrations.teamId, tournamentTeams.id),
       )
-      .innerJoin(
+      .leftJoin(
         tournamentPayments,
         eq(tournamentPayments.registrationId, tournamentRegistrations.id),
       )
@@ -108,7 +116,7 @@ export async function getRegistrationSummary(
         and(
           eq(tournamentTeams.tournamentId, tournamentId),
           eq(tournamentRegistrations.status, "confirmed"),
-          eq(tournamentPayments.status, "paid"),
+          isFree ? sql`true` : eq(tournamentPayments.status, "paid"),
         ),
       );
 
@@ -165,31 +173,16 @@ export async function listLobbyTeams(tournamentId: string): Promise<TournamentLo
   });
 }
 
-/** Teams visible on the public tournament page — confirmed registration with paid fee only. */
-export async function listOfficialPublicRoster(tournamentId: string): Promise<LobbyTeamView[]> {
-  const db = getDb();
-  const paidRows = await db
-    .select({ teamId: tournamentRegistrations.teamId })
-    .from(tournamentRegistrations)
-    .innerJoin(
-      tournamentPayments,
-      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
-    )
-    .where(
-      and(
-        eq(tournamentRegistrations.tournamentId, tournamentId),
-        eq(tournamentRegistrations.status, "confirmed"),
-        eq(tournamentPayments.status, "paid"),
-      ),
-    );
-
-  const paidTeamIds = new Set(
-    paidRows.map((r) => r.teamId).filter((id): id is string => id != null),
-  );
-  if (!paidTeamIds.size) return [];
+/** Teams visible on the public tournament page — confirmed official registrations. */
+export async function listOfficialPublicRoster(
+  tournamentId: string,
+  officialBilling?: OfficialBillingType | string | null,
+): Promise<LobbyTeamView[]> {
+  const confirmedTeamIds = await listConfirmedOfficialTeamIds(tournamentId, officialBilling);
+  if (!confirmedTeamIds.size) return [];
 
   const all = await listLobbyTeamsDetailed(tournamentId);
-  return all.filter((t) => paidTeamIds.has(t.id));
+  return all.filter((t) => confirmedTeamIds.has(t.id));
 }
 
 export async function joinFunMatchTournament(
@@ -359,6 +352,7 @@ export type UserRegistrationStatus = {
   teamId: string | null;
   teamName: string | null;
   paymentStatus: string | null;
+  paymentId: string | null;
   invoiceUrl: string | null;
   amountIdr: number | null;
   confirmUrl: string | null;
@@ -417,6 +411,7 @@ export async function getUserRegistrationStatus(
       teamId: tournamentRegistrations.teamId,
       teamName: tournamentTeams.name,
       paymentStatus: tournamentPayments.status,
+      paymentId: tournamentPayments.id,
       invoiceUrl: tournamentPayments.invoiceUrl,
       amountIdr: tournamentPayments.amountIdr,
       paymentDueAt: tournamentRegistrations.paymentDueAt,
@@ -454,6 +449,7 @@ export async function getUserRegistrationStatus(
       teamId: null,
       teamName: null,
       paymentStatus: null,
+      paymentId: null,
       invoiceUrl: null,
       amountIdr: null,
       confirmUrl: null,
@@ -474,6 +470,7 @@ export async function getUserRegistrationStatus(
     teamId: row.teamId,
     teamName: row.teamName,
     paymentStatus: row.paymentStatus,
+    paymentId: row.paymentId,
     invoiceUrl: row.invoiceUrl,
     amountIdr: row.amountIdr,
     confirmUrl:

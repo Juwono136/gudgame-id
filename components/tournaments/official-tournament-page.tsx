@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
+import { OfficialAmericanoScoringPanel } from "@/components/tournaments/official-americano-scoring-panel";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
+import { PaymentReceiptActions } from "@/components/payments/payment-receipt-actions";
 import { TournamentHostToolsPanel } from "@/components/tournaments/tournament-host-tools-panel";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
 import { isTournamentManageMode, tournamentManageTabUrl, tournamentTabUrl } from "@/lib/tournaments/manage-mode";
@@ -41,6 +43,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
+import { useTournamentLobby } from "@/hooks/use-tournament-lobby";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
@@ -55,8 +58,11 @@ import {
   getTournamentScoringType,
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import { mapBracketMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
+import { mapBracketMatchesToRecentRows, mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
 import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
+import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
+import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
+import { getMaxRounds } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { isActiveRegistrationStatus } from "@/lib/tournaments/registration/urls";
@@ -122,10 +128,35 @@ export function OfficialTournamentPage({
       });
     }
   }, [searchParams]);
+
   const queryClient = useQueryClient();
+  const tournamentPublicHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+
+  useEffect(() => {
+    if (searchParams.get("registered") !== "1") return;
+    void queryClient.invalidateQueries({
+      queryKey: ["tournaments", "registration-status", tournament.sportSlug, tournament.slug],
+    });
+    invalidateTournamentQueries(queryClient, tournament.sportSlug, tournament.slug);
+    router.refresh();
+    router.replace(tournamentPublicHref, { scroll: false });
+    toast.success("You're registered!", {
+      description: isFreeOfficial
+        ? "Your team is confirmed for this event."
+        : "Payment confirmed — your official receipt is ready in Payment history.",
+    });
+  }, [
+    isFreeOfficial,
+    queryClient,
+    router,
+    searchParams,
+    tournament.slug,
+    tournament.sportSlug,
+    tournamentPublicHref,
+  ]);
+
   const [tab, setTab] = useState<OfficialTab>("Overview");
   const registerHref = `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}/register`;
-  const tournamentPublicHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
   const manageRegistrationsHref = tournamentManageTabUrl(
     tournament.sportSlug,
     tournament.slug,
@@ -207,56 +238,104 @@ export function OfficialTournamentPage({
     router.push(manageRegistrationsHref);
   }, [manageRegistrationsHref, navigateTab, router, showManage]);
 
+  const { data: bracket, isLoading: bracketLoading } = useTournamentBracket(
+    tournament.sportSlug,
+    tournament.slug,
+    { enabled: isElimination },
+  );
   const { data: regStatus } = useRegistrationStatus(
     tournament.sportSlug,
     tournament.slug,
     isAuthenticated,
   );
-  const { data: bracket, isLoading: bracketLoading } = useTournamentBracket(
+  const regStatusRef = useRef(regStatus?.status);
+  useEffect(() => {
+    const prev = regStatusRef.current;
+    const next = regStatus?.status;
+    regStatusRef.current = next;
+    if (
+      prev &&
+      (prev === "pending_payment" || prev === "awaiting_confirmation") &&
+      next === "confirmed"
+    ) {
+      invalidateTournamentQueries(queryClient, tournament.sportSlug, tournament.slug);
+      router.refresh();
+    }
+  }, [queryClient, regStatus?.status, router, tournament.slug, tournament.sportSlug]);
+
+  const { data: americanoLobby } = useTournamentLobby(
     tournament.sportSlug,
     tournament.slug,
-    { enabled: isElimination },
+    !isElimination,
   );
   const { data: participantsData, isLoading: participantsLoading } = useTournamentParticipants(
     tournament.sportSlug,
     tournament.slug,
     1,
     200,
-    { enabled: tab === "Stats" },
+    { enabled: tab === "Stats" || tab === "Players" || tab === "Manage" },
   );
 
-  const sessionStats = useMemo(
-    () =>
-      computeOfficialTournamentStats({
-        matches: bracket?.matches ?? [],
-        leaderboard: bracket?.leaderboard ?? [],
-        participants: participantsData?.items ?? [],
+  const sessionStats = useMemo(() => {
+    if (!isElimination) {
+      const lobbyMatches = americanoLobby?.matches ?? [];
+      const lobbyTeams = americanoLobby?.teams ?? [];
+      return computeReclubSessionStats({
+        matches: lobbyMatches,
+        teams: lobbyTeams,
         totalPlayers: summary.registeredPlayers,
-        totalTeams: summary.registeredTeams,
-      }),
-    [
-      bracket?.matches,
-      bracket?.leaderboard,
-      participantsData?.items,
-      summary.registeredPlayers,
-      summary.registeredTeams,
-    ],
-  );
+        maxRounds: getMaxRounds(tournament),
+      });
+    }
+    return computeOfficialTournamentStats({
+      matches: bracket?.matches ?? [],
+      leaderboard: bracket?.leaderboard ?? [],
+      participants: participantsData?.items ?? [],
+      totalPlayers: summary.registeredPlayers,
+      totalTeams: summary.registeredTeams,
+    });
+  }, [
+    americanoLobby?.matches,
+    americanoLobby?.teams,
+    bracket?.leaderboard,
+    bracket?.matches,
+    isElimination,
+    participantsData?.items,
+    summary.registeredPlayers,
+    summary.registeredTeams,
+    tournament,
+  ]);
 
-  const recentMatchRows = useMemo(
-    () => mapBracketMatchesToRecentRows(bracket?.matches ?? []),
-    [bracket?.matches],
-  );
+  const recentMatchRows = useMemo(() => {
+    if (!isElimination) {
+      return mapReclubMatchesToRecentRows(americanoLobby?.matches ?? []);
+    }
+    return mapBracketMatchesToRecentRows(bracket?.matches ?? []);
+  }, [americanoLobby?.matches, bracket?.matches, isElimination]);
 
-  const activeOfficialMatch = useMemo(
-    () =>
-      isElimination
-        ? (bracket?.matches ?? []).find(
-            (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
-          ) ?? null
-        : null,
-    [bracket?.matches, isElimination],
-  );
+  const activeOfficialMatch = useMemo(() => {
+    if (isElimination) {
+      return (
+        (bracket?.matches ?? []).find(
+          (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
+        ) ?? null
+      );
+    }
+    const liveRound =
+      liveData?.matches?.find(
+        (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
+      ) ?? americanoLobby?.activeMatch;
+    if (!liveRound) return null;
+    return {
+      id: liveRound.id,
+      teamAName: liveRound.teamAName ?? "TBD",
+      teamBName: liveRound.teamBName ?? "TBD",
+      scoreA: liveRound.scoreA,
+      scoreB: liveRound.scoreB,
+      roundNumber: liveRound.roundNumber,
+      matchNumber: "matchNumber" in liveRound ? liveRound.matchNumber : undefined,
+    };
+  }, [americanoLobby?.activeMatch, bracket?.matches, isElimination, liveData?.matches]);
 
   const handleRegister = async () => {
     if (!isAuthenticated) {
@@ -420,9 +499,9 @@ export function OfficialTournamentPage({
               <Button
                 variant="outline"
                 className="border-cp-primary/30 bg-cp-card/70"
-                onClick={() => navigateTab("Bracket")}
+                onClick={() => navigateTab(isElimination ? "Bracket" : "Live Score")}
               >
-                View bracket
+                {isElimination ? "View bracket" : "View live score"}
               </Button>
             </div>
           </div>
@@ -467,7 +546,16 @@ export function OfficialTournamentPage({
                       >
                         Open bracket & scoring
                       </Button>
-                    ) : null}
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-cp-border"
+                        onClick={() => navigateTab("Live Score")}
+                      >
+                        Open round scoring
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-6">
@@ -476,9 +564,18 @@ export function OfficialTournamentPage({
                     slug={tournament.slug}
                     tournamentType="official"
                     variant="official"
+                    officialBilling={tournament.officialBilling}
                   />
                 </div>
               </section>
+              {!isElimination ? (
+                <OfficialAmericanoScoringPanel
+                  tournament={tournament}
+                  participant={participant}
+                  livePhase={livePhase}
+                  variant="manage"
+                />
+              ) : null}
             </div>
           ) : null}
 
@@ -552,7 +649,7 @@ export function OfficialTournamentPage({
                     ? "No match results yet. Seeded bracket matches will appear here as play progresses."
                     : "The host will publish the bracket after registration closes. Results will show here once matches are played."
                 }
-                onViewAll={isElimination ? () => navigateTab("Bracket") : undefined}
+                onViewAll={isElimination ? () => navigateTab("Bracket") : () => navigateTab("Live Score")}
               />
               {tournament.description ? (
                 <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
@@ -579,6 +676,14 @@ export function OfficialTournamentPage({
           ) : null}
 
           {tab === "Live Score" ? (
+            !isElimination ? (
+              <OfficialAmericanoScoringPanel
+                tournament={tournament}
+                participant={participant}
+                livePhase={livePhase}
+                variant="live"
+              />
+            ) : (
             <div className="space-y-6">
               {activeOfficialMatch ? (
                 <section className="rounded-2xl border border-cp-primary/25 bg-cp-card p-4 sm:p-6">
@@ -670,6 +775,7 @@ export function OfficialTournamentPage({
                 </section>
               ) : null}
             </div>
+            )
           ) : null}
 
           {tab === "Players" ? (
@@ -678,6 +784,7 @@ export function OfficialTournamentPage({
               slug={tournament.slug}
               tournamentType="official"
               variant="official"
+              officialBilling={tournament.officialBilling}
             />
           ) : null}
 
@@ -724,9 +831,13 @@ export function OfficialTournamentPage({
                 variant="official"
                 stats={sessionStats}
                 emptyMessage={
-                  bracket?.generated
-                    ? undefined
-                    : "The host will publish the bracket after registration closes. Stats will appear once matches are played."
+                  isElimination
+                    ? bracket?.generated
+                      ? undefined
+                      : "The host will publish the bracket after registration closes. Stats will appear once matches are played."
+                    : livePhase === "live"
+                      ? undefined
+                      : "Americano point stats appear here once rounds are recorded."
                 }
               />
             )
@@ -774,33 +885,42 @@ export function OfficialTournamentPage({
               </Badge>
             ) : null}
 
-            <Button
-              className="btn-interactive mt-6 h-12 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light"
-              disabled={
-                resumingPayment ||
-                (!summary.registrationOpen &&
-                  regStatus?.status !== "pending_payment" &&
-                  regStatus?.status !== "awaiting_confirmation")
-              }
-              onClick={() => void handleRegister()}
-            >
-              {resumingPayment ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <CreditCard className="mr-2 h-4 w-4" />
-              )}
-              {!isAuthenticated
-                ? "Sign up to register"
-                : resumingPayment
-                  ? "Opening checkout…"
-                  : regStatus?.status === "confirmed"
-                    ? "Registered"
+            {regStatus?.status !== "confirmed" ? (
+              <Button
+                className="btn-interactive mt-6 h-12 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light"
+                disabled={
+                  resumingPayment ||
+                  (!summary.registrationOpen &&
+                    regStatus?.status !== "pending_payment" &&
+                    regStatus?.status !== "awaiting_confirmation")
+                }
+                onClick={() => void handleRegister()}
+              >
+                {resumingPayment ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="mr-2 h-4 w-4" />
+                )}
+                {!isAuthenticated
+                  ? "Sign up to register"
+                  : resumingPayment
+                    ? "Opening checkout…"
                     : regStatus?.status === "awaiting_confirmation"
                       ? "Confirm participation"
                       : regStatus?.status === "pending_payment"
                         ? "Continue to checkout"
                         : "Register team"}
-            </Button>
+              </Button>
+            ) : null}
+
+            {!isFreeOfficial && regStatus?.status === "confirmed" && regStatus.paymentId ? (
+              <div className="mt-4 border-t border-cp-border/60 pt-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-cp-primary">
+                  Payment receipt
+                </p>
+                <PaymentReceiptActions paymentId={regStatus.paymentId} layout="stack" />
+              </div>
+            ) : null}
 
             {isAuthenticated &&
             regStatus?.registrationId &&

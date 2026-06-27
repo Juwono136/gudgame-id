@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { zodErrorToAppError } from "@/lib/validations/format-zod-error";
+
 export type ErrorCode =
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
@@ -59,6 +62,7 @@ export function isAppError(error: unknown): error is AppError {
 
 export function toAppError(error: unknown, fallbackMessage = "Unexpected error"): AppError {
   if (isAppError(error)) return error;
+  if (error instanceof z.ZodError) return zodErrorToAppError(error);
   if (error instanceof Error) {
     return new AppError(error.message || fallbackMessage, {
       cause: error,

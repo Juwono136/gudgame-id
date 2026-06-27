@@ -24,6 +24,17 @@ export function isOfficialType(value: string | null | undefined): boolean {
   return normalizeTournamentType(value) === "official";
 }
 
+/** Round-robin lobby scoring (Fun Match or Official Americano). */
+export function supportsRoundBasedPlay(input: {
+  tournamentType: string | null | undefined;
+  format: string | null | undefined;
+}): boolean {
+  return (
+    isFunMatchType(input.tournamentType) ||
+    (isOfficialType(input.tournamentType) && input.format === "americano")
+  );
+}
+
 export function deriveStatsTier(input: {
   tournamentType: string | null | undefined;
   officialBilling: OfficialBillingType | string | null | undefined;

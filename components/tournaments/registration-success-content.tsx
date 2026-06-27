@@ -52,7 +52,7 @@ export function RegistrationSuccessContent({
   const [loading, setLoading] = useState(true);
   const [pollCount, setPollCount] = useState(0);
 
-  const hubHref = publicSportRoutes.tournament(sportSlug, slug);
+  const hubHref = `${publicSportRoutes.tournament(sportSlug, slug)}?registered=1`;
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +159,7 @@ export function RegistrationSuccessContent({
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <Button asChild className="bg-cp-primary">
-          <Link href={hubHref}>View bracket</Link>
+          <Link href={hubHref}>Back to tournament</Link>
         </Button>
         <Button asChild variant="outline" className="border-cp-border">
           <Link href={dashboardRoutes.payments}>Payment history</Link>

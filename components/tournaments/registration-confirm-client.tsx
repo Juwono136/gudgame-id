@@ -64,8 +64,15 @@ export function RegistrationConfirmClient({
       if (!res.ok) throw new Error(json.error?.message ?? "Could not confirm");
 
       toast.success("Participation confirmed", {
-        description: "Proceed to checkout to complete payment.",
+        description:
+          json.data?.status === "confirmed"
+            ? "Your team is registered for this event."
+            : "Proceed to checkout to complete payment.",
       });
+      if (json.data?.status === "confirmed") {
+        router.push(`${hubHref}?registered=1`);
+        return;
+      }
       const checkoutUrl = json.data?.checkoutUrl as string | undefined;
       router.push(checkoutUrl ?? `${hubHref}/register/checkout?registrationId=${registrationId}`);
     } catch (e) {

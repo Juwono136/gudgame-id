@@ -21,6 +21,13 @@ export function useRegistrationStatus(sportSlug: string, slug: string, enabled =
       return json.data;
     },
     enabled,
-    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "pending_payment" || status === "awaiting_confirmation") {
+        return 3000;
+      }
+      return 15000;
+    },
   });
 }

@@ -18,6 +18,7 @@ type TournamentParticipantsPanelProps = {
   slug: string;
   tournamentType: "official" | "fun_match";
   variant?: "official" | "reclub";
+  officialBilling?: string | null;
 };
 
 function formatIdr(amount: number | null) {
@@ -45,7 +46,7 @@ function initials(name: string) {
 }
 
 function paymentBadgeVariant(status: string | null): "success" | "warning" | "muted" {
-  if (status === "paid") return "success";
+  if (status === "paid" || status === "free") return "success";
   if (status === "pending") return "warning";
   return "muted";
 }
@@ -100,6 +101,7 @@ export function TournamentParticipantsPanel({
   slug,
   tournamentType,
   variant = tournamentType === "official" ? "official" : "reclub",
+  officialBilling,
 }: TournamentParticipantsPanelProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -111,6 +113,7 @@ export function TournamentParticipantsPanel({
   );
 
   const isOfficial = tournamentType === "official";
+  const isFreeOfficial = officialBilling === "free";
   const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
 
   if (isLoading) {
@@ -150,7 +153,9 @@ export function TournamentParticipantsPanel({
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-cp-muted">
             {isOfficial
-              ? "Confirmed teams with completed payment — updated as registrations are finalized."
+              ? isFreeOfficial
+                ? "Confirmed teams with completed registration — updated as players finalize their spot."
+                : "Confirmed teams with completed payment — updated as registrations are finalized."
               : "Everyone currently in the lobby squads for this Fun Match."}
           </p>
         </div>
@@ -164,7 +169,9 @@ export function TournamentParticipantsPanel({
           <UserRound className="mx-auto h-8 w-8 text-cp-muted/70" />
           <p className="mt-3 text-sm text-cp-muted">
             {isOfficial
-              ? "Teams appear here after registration and payment are complete."
+              ? isFreeOfficial
+                ? "Confirmed teams appear here after registration is complete."
+                : "Teams appear here after registration and payment are complete."
               : "No players in the lobby yet. Join a squad to get started."}
           </p>
         </div>

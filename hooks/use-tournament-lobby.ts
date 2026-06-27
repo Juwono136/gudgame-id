@@ -46,7 +46,7 @@ function invalidateLobbyAndLive(
   void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
 }
 
-export function useTournamentLobby(sportSlug: string, slug: string) {
+export function useTournamentLobby(sportSlug: string, slug: string, enabled = true) {
   return useQuery({
     queryKey: lobbyKey(sportSlug, slug),
     queryFn: async () => {
@@ -61,6 +61,7 @@ export function useTournamentLobby(sportSlug: string, slug: string) {
       }
       return json.data;
     },
+    enabled,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (data?.activeMatch) return 5000;

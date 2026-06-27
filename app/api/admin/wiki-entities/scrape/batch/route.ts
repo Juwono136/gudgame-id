@@ -3,6 +3,7 @@ import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { AppError } from "@/lib/errors";
 import { batchScrapeGearProducts } from "@/lib/wiki/scrapers";
 import { normalizeScrapeInputUrl } from "@/lib/wiki/scrapers/normalize-url";
+import { WIKI_BATCH_SCRAPE_MAX_URLS } from "@/lib/wiki/scrapers/constants";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ const bodySchema = z.object({
         .pipe(z.string().url()),
     )
     .min(1)
-    .max(30),
+    .max(WIKI_BATCH_SCRAPE_MAX_URLS),
   sportSlug: z.string().trim().min(1),
 });
 

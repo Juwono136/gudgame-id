@@ -1,7 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { getServerSession } from "@/lib/auth/session";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
-import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
+import { getRegistrationSummary, listOfficialPublicRoster } from "@/lib/tournaments/registration/service";
 import { getTeamsInActiveBracketMatches } from "@/lib/tournaments/brackets/active-teams";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
@@ -9,7 +9,7 @@ import { getActiveReclubMatch, listReclubMatches } from "@/lib/tournaments/reclu
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { AppError } from "@/lib/errors";
 import { canManageTournament } from "@/lib/tournaments/permissions";
-import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
+import { isOfficialType, normalizeTournamentType, supportsRoundBasedPlay } from "@/lib/tournaments/core/types";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 
 export const runtime = "nodejs";
@@ -26,8 +26,8 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (!isFunMatchType(tournament.tournamentType)) {
-      throw new AppError("Lobby is only available for Fun Match tournaments", {
+    if (!supportsRoundBasedPlay(tournament)) {
+      throw new AppError("Round lobby is not available for this tournament", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
       });
@@ -50,8 +50,11 @@ export async function GET(
           : null,
         tournament.startsAt ? new Date(tournament.startsAt) : null,
         normalizeTournamentType(tournament.tournamentType),
+        tournament.officialBilling,
       ),
-      listLobbyTeamsDetailed(tournament.id),
+      isOfficialType(tournament.tournamentType)
+        ? listOfficialPublicRoster(tournament.id, tournament.officialBilling)
+        : listLobbyTeamsDetailed(tournament.id),
       listReclubMatches(tournament.id),
       getActiveReclubMatch(tournament.id),
       userId ? getUserTeamInTournament(tournament.id, userId) : Promise.resolve(null),

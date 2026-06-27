@@ -31,6 +31,8 @@ import { formatIdrDisplay } from "@/lib/format/currency";
 import { CHECKOUT_PAYMENT_METHODS } from "@/lib/tournaments/payments/checkout-methods";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 
 type RegistrationCheckoutClientProps = {
   tournament: TournamentDetail;
@@ -180,6 +182,7 @@ export function RegistrationCheckoutClient({
 }: RegistrationCheckoutClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { confirm } = useConfirmDialog();
   const { cancelRegistration, isPending: cancelling } = useCancelRegistration();
   const failed = searchParams.get("failed") === "1";
@@ -225,6 +228,10 @@ export function RegistrationCheckoutClient({
         if (json.data?.paid) {
           clearInterval(interval);
           setPolling(false);
+          invalidateTournamentQueries(queryClient, tournament.sportSlug, tournament.slug);
+          void queryClient.invalidateQueries({
+            queryKey: ["tournaments", "registration-status", tournament.sportSlug, tournament.slug],
+          });
           toast.success("Payment received!", {
             description: "Your registration is confirmed. Check your email for the official receipt.",
           });
@@ -247,7 +254,7 @@ export function RegistrationCheckoutClient({
       clearInterval(interval);
       setPolling(false);
     };
-  }, [registrationId, hubHref, router, loadDetail]);
+  }, [hubHref, loadDetail, queryClient, registrationId, router, tournament.slug, tournament.sportSlug]);
 
   useEffect(() => {
     if (!instructions || instructions.method === "ewallet" || instructions.method === "card") {

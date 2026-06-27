@@ -39,6 +39,7 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       : null,
     tournament.startsAt ? new Date(tournament.startsAt) : null,
     normalizeTournamentType(tournament.tournamentType),
+    tournament.officialBilling,
   );
 
   if (isOfficialType(tournament.tournamentType)) {

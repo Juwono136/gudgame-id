@@ -132,6 +132,7 @@ export async function getHostTournamentWorkspace(
     tournament.registrationOpensAt ? new Date(tournament.registrationOpensAt) : null,
     tournament.startsAt ? new Date(tournament.startsAt) : null,
     normalizeTournamentType(tournament.tournamentType),
+    tournament.officialBilling,
   );
 
   const teams = await listLobbyTeamsDetailed(tournament.id);

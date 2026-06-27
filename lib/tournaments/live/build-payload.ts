@@ -6,7 +6,7 @@ import { user } from "@/db/schema/auth";
 import { tournamentTeamMembers } from "@/db/schema/tournament-registration";
 import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboard";
 import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
-import { isFunMatchType } from "@/lib/tournaments/core/types";
+import { isFunMatchType, supportsRoundBasedPlay } from "@/lib/tournaments/core/types";
 import {
   getPublicNotStartedPayload,
   getTournamentLivePhase,
@@ -92,7 +92,7 @@ export async function buildTournamentLivePayload(
 
   const isFunMatch = isFunMatchType(tournament.tournamentType);
   const includeBracket = tournament.format !== "americano";
-  const includeLobbyRounds = isFunMatch;
+  const includeLobbyRounds = supportsRoundBasedPlay(tournament);
 
   const db = getDb();
   const [bracketMatches, leaderboard, teams, lobbyMatches] = await Promise.all([
@@ -137,7 +137,7 @@ export async function buildTournamentLivePayload(
   const lobbyLiveMatches = lobbyMatches.map(mapReclubToLiveMatch);
   const bracketLiveMatches = bracketMatches.map(mapBracketToLiveMatch);
 
-  const liveMatches = isFunMatch
+  const liveMatches = includeLobbyRounds
     ? [...lobbyLiveMatches, ...bracketLiveMatches]
     : bracketLiveMatches;
 
@@ -199,7 +199,7 @@ export async function buildTournamentLivePayload(
       generated: bracketMatches.length > 0,
     },
     matches: liveMatches,
-    matchHistory: isFunMatch
+    matchHistory: includeLobbyRounds
       ? [...lobbyHistory, ...bracketHistory]
       : bracketHistory,
     leaderboard,

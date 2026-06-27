@@ -9,7 +9,7 @@ import {
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
-import type { TournamentType } from "@/db/schema/tournaments";
+import type { OfficialBillingType, TournamentType } from "@/db/schema/tournaments";
 import { wikiEntities } from "@/db/schema/wiki";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { formatUserGender } from "@/lib/constants/user-gender";
@@ -19,6 +19,7 @@ import {
   toOffset,
   toTotalPages,
 } from "@/lib/pagination/constants";
+import { isFreeOfficialBilling } from "@/lib/tournaments/registration/official-roster";
 
 export type TournamentParticipantRow = {
   userId: string;
@@ -107,8 +108,13 @@ async function countReclubParticipants(tournamentId: string): Promise<number> {
   return Number(row?.count ?? 0);
 }
 
-async function countOfficialParticipants(tournamentId: string): Promise<number> {
+async function countOfficialParticipants(
+  tournamentId: string,
+  officialBilling: OfficialBillingType | string | null | undefined,
+): Promise<number> {
   const db = getDb();
+  const isFree = isFreeOfficialBilling(officialBilling);
+
   const [row] = await db
     .select({ count: count() })
     .from(tournamentTeamMembers)
@@ -121,14 +127,18 @@ async function countOfficialParticipants(tournamentId: string): Promise<number> 
         eq(tournamentRegistrations.status, "confirmed"),
       ),
     )
-    .innerJoin(
+    .leftJoin(
       tournamentPayments,
-      and(
-        eq(tournamentPayments.registrationId, tournamentRegistrations.id),
-        eq(tournamentPayments.status, "paid"),
-      ),
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
     )
-    .where(eq(tournamentTeams.tournamentId, tournamentId));
+    .where(
+      and(
+        eq(tournamentTeams.tournamentId, tournamentId),
+        isFree
+          ? sql`true`
+          : eq(tournamentPayments.status, "paid"),
+      ),
+    );
   return Number(row?.count ?? 0);
 }
 
@@ -172,10 +182,13 @@ async function listOfficialParticipants(
   tournamentId: string,
   sportId: string,
   sportSlug: string,
+  officialBilling: OfficialBillingType | string | null | undefined,
   limit: number,
   offset: number,
 ): Promise<TournamentParticipantRow[]> {
   const db = getDb();
+  const isFree = isFreeOfficialBilling(officialBilling);
+
   const rows = await db
     .select({
       userId: tournamentTeamMembers.userId,
@@ -188,7 +201,9 @@ async function listOfficialParticipants(
       role: tournamentTeamMembers.role,
       joinedAt: tournamentTeamMembers.joinedAt,
       registrationStatus: tournamentRegistrations.status,
-      paymentStatus: tournamentPayments.status,
+      paymentStatus: isFree
+        ? sql<string | null>`'free'`
+        : tournamentPayments.status,
       paidAt: tournamentPayments.paidAt,
       amountIdr: tournamentPayments.amountIdr,
     })
@@ -204,14 +219,18 @@ async function listOfficialParticipants(
         eq(tournamentRegistrations.status, "confirmed"),
       ),
     )
-    .innerJoin(
+    .leftJoin(
       tournamentPayments,
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+    )
+    .where(
       and(
-        eq(tournamentPayments.registrationId, tournamentRegistrations.id),
-        eq(tournamentPayments.status, "paid"),
+        eq(tournamentTeams.tournamentId, tournamentId),
+        isFree
+          ? sql`true`
+          : eq(tournamentPayments.status, "paid"),
       ),
     )
-    .where(eq(tournamentTeams.tournamentId, tournamentId))
     .orderBy(asc(tournamentTeams.name), asc(tournamentTeamMembers.slotIndex))
     .limit(limit)
     .offset(offset);
@@ -224,6 +243,7 @@ export async function queryTournamentParticipants(input: {
   sportId: string;
   sportSlug: string;
   tournamentType: TournamentType;
+  officialBilling?: OfficialBillingType | string | null;
   page?: number;
   pageSize?: number;
 }): Promise<TournamentParticipantsResult> {
@@ -235,7 +255,7 @@ export async function queryTournamentParticipants(input: {
 
   const total = isFunMatch
       ? await countReclubParticipants(input.tournamentId)
-      : await countOfficialParticipants(input.tournamentId);
+      : await countOfficialParticipants(input.tournamentId, input.officialBilling);
 
   const items =
     total === 0
@@ -252,6 +272,7 @@ export async function queryTournamentParticipants(input: {
             input.tournamentId,
             input.sportId,
             input.sportSlug,
+            input.officialBilling,
             limit,
             offset,
           );

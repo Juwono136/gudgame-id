@@ -26,6 +26,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { ScrapeHostsManager } from "@/components/admin/wiki/scrape-hosts-manager";
 import { normalizeScrapeInputUrl } from "@/lib/wiki/scrapers/normalize-url";
+import { WIKI_BATCH_SCRAPE_MAX_URLS } from "@/lib/wiki/scrapers/constants";
 
 type GearCatalogImportProps = {
   sportSlug: string;
@@ -60,14 +61,29 @@ export function GearCatalogImport({
   const toggle = (url: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(url)) next.delete(url);
-      else next.add(url);
+      if (next.has(url)) {
+        next.delete(url);
+        return next;
+      }
+      if (next.size >= WIKI_BATCH_SCRAPE_MAX_URLS) {
+        toast.error(`You can select up to ${WIKI_BATCH_SCRAPE_MAX_URLS} products at a time`, {
+          description: "Deselect an item first, or import in smaller batches.",
+        });
+        return prev;
+      }
+      next.add(url);
       return next;
     });
   };
 
   const selectAllVisible = () => {
-    setSelected(new Set(filteredItems.map((i) => i.url)));
+    const urls = filteredItems.slice(0, WIKI_BATCH_SCRAPE_MAX_URLS).map((i) => i.url);
+    setSelected(new Set(urls));
+    if (filteredItems.length > WIKI_BATCH_SCRAPE_MAX_URLS) {
+      toast.message(`Selected first ${WIKI_BATCH_SCRAPE_MAX_URLS} products`, {
+        description: `Batch import is limited to ${WIKI_BATCH_SCRAPE_MAX_URLS} items per run.`,
+      });
+    }
   };
 
   const clearSelection = () => setSelected(new Set());
@@ -132,6 +148,12 @@ export function GearCatalogImport({
     const urls = [...selected];
     if (urls.length === 0) {
       toast.error("Select at least one product");
+      return;
+    }
+    if (urls.length > WIKI_BATCH_SCRAPE_MAX_URLS) {
+      toast.error(`You can import up to ${WIKI_BATCH_SCRAPE_MAX_URLS} products at a time`, {
+        description: "Deselect some items and try again.",
+      });
       return;
     }
 
@@ -211,8 +233,8 @@ export function GearCatalogImport({
             Import from website
           </h3>
           <p className="mt-1 max-w-xl text-xs leading-relaxed text-cp-muted">
-            Paste a shop or collection URL. Select products, then import as drafts or open one to
-            edit before publishing.
+            Paste a shop or collection URL. Select products (up to {WIKI_BATCH_SCRAPE_MAX_URLS} per
+            batch), then import as drafts or open one to edit before publishing.
           </p>
         </div>
         <Button
@@ -277,6 +299,9 @@ export function GearCatalogImport({
                 {" "}
                 of {discovery.totalFound} products
                 {discovery.truncated ? " (capped)" : ""} · {selected.size} selected
+                {selected.size >= WIKI_BATCH_SCRAPE_MAX_URLS
+                  ? ` (max ${WIKI_BATCH_SCRAPE_MAX_URLS})`
+                  : ""}
               </span>
             </p>
             <div className="flex flex-wrap gap-2">
@@ -320,7 +345,7 @@ export function GearCatalogImport({
               {selected.size === 1
                 ? "One product selected — open it to review details before saving."
                 : selected.size > 1
-                  ? `${selected.size} products will be saved as drafts.`
+                  ? `${selected.size} products will be saved as drafts (max ${WIKI_BATCH_SCRAPE_MAX_URLS} per batch).`
                   : "Select products to import."}
             </p>
             <div className="flex flex-wrap gap-2">
