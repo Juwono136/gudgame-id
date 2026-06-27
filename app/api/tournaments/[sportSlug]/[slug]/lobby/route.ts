@@ -9,6 +9,7 @@ import { getActiveReclubMatch, listReclubMatches } from "@/lib/tournaments/reclu
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { AppError } from "@/lib/errors";
 import { canManageTournament } from "@/lib/tournaments/permissions";
+import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (tournament.tournamentType !== "recreational") {
+    if (!isFunMatchType(tournament.tournamentType)) {
       throw new AppError("Lobby is only available for Fun Match tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
@@ -48,7 +49,7 @@ export async function GET(
           ? new Date(tournament.registrationOpensAt)
           : null,
         tournament.startsAt ? new Date(tournament.startsAt) : null,
-        tournament.tournamentType,
+        normalizeTournamentType(tournament.tournamentType),
       ),
       listLobbyTeamsDetailed(tournament.id),
       listReclubMatches(tournament.id),

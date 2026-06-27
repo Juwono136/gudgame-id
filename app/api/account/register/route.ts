@@ -1,13 +1,12 @@
-import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { auth } from "@/lib/auth/server";
-import { uploadProfilePhoto } from "@/lib/auth/upload-profile-photo";
+import { sanitizeRegistrationErrorMessage } from "@/lib/auth/sanitize-registration-error";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema";
+import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-import { registerSchema, validateProfilePhoto } from "@/lib/validations/auth";
-import { getNicknameFormatError } from "@/lib/auth/nickname-rules";
-import { isNicknameAvailable, normalizeNickname } from "@/lib/auth/nickname";
+import { registerSchema } from "@/lib/validations/auth";
 import { authRoutes } from "@/lib/constants/routes";
 import { getDialByCountryCode } from "@/lib/constants/phone-countries";
 import { guardApiRequest } from "@/lib/api/guard-request";
@@ -16,85 +15,36 @@ const log = logger.child({ route: "/api/account/register" });
 
 export const runtime = "nodejs";
 
+function displayNameFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "Player";
+  return local.replace(/[._-]+/g, " ").trim() || "Player";
+}
+
 export async function POST(request: Request) {
   try {
     await guardApiRequest(request, { tier: "register" });
 
     const formData = await request.formData();
-    const photoFile = formData.get("photo");
 
     const parsed = registerSchema.safeParse({
-      fullNameKtp: formData.get("fullNameKtp"),
       email: formData.get("email"),
-      phoneCountryCode: formData.get("phoneCountryCode"),
-      phone: formData.get("phone"),
+      phoneCountryCode: formData.get("phoneCountryCode") || "",
+      phone: formData.get("phone") || "",
       password: formData.get("password"),
       confirmPassword: formData.get("confirmPassword"),
-      nickname: formData.get("nickname") || "",
     });
 
     if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          fieldErrors: parsed.error.flatten().fieldErrors,
-        },
-        { status: 422 },
-      );
-    }
-
-    const photoValidation = validateProfilePhoto(
-      photoFile instanceof File ? photoFile : null,
-    );
-    if (!photoValidation.ok) {
-      return NextResponse.json(
-        { error: photoValidation.message, fieldErrors: { photo: [photoValidation.message] } },
-        { status: 422 },
-      );
+      throw new AppError("Please check your details and try again.", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+        context: { fieldErrors: parsed.error.flatten().fieldErrors },
+      });
     }
 
     const data = parsed.data;
     const email = data.email.toLowerCase();
-    const nicknameRaw = data.nickname?.trim() ?? "";
-    if (nicknameRaw) {
-      const formatError = getNicknameFormatError(nicknameRaw);
-      if (formatError) {
-        return NextResponse.json(
-          {
-            error: formatError,
-            fieldErrors: { nickname: [formatError] },
-          },
-          { status: 422 },
-        );
-      }
-    }
-
-    const nickname = normalizeNickname(data.nickname);
-
-    if (nickname) {
-      const available = await isNicknameAvailable(nickname);
-      if (!available) {
-        return NextResponse.json(
-          {
-            error: "This nickname is already taken",
-            fieldErrors: { nickname: ["This nickname is already taken. Try another."] },
-          },
-          { status: 409 },
-        );
-      }
-    }
-
-    const upload = await uploadProfilePhoto(photoValidation.file, email);
-    if (!upload.ok) {
-      return NextResponse.json(
-        {
-          error:
-            upload.error ||
-            "Failed to upload profile photo to storage. Check SeaweedFS connection.",
-        },
-        { status: 500 },
-      );
-    }
+    const displayName = displayNameFromEmail(email);
 
     const baseUrl =
       process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "";
@@ -111,33 +61,29 @@ export async function POST(request: Request) {
 
     const signUpResult = await auth.api.signUpEmail({
       body: {
-        name: data.fullNameKtp,
+        name: displayName,
         email,
         password: data.password,
-        image: upload.url,
         callbackURL: verifyCallback,
       },
     });
 
     if (!signUpResult?.user) {
-      return NextResponse.json(
-        { error: "Registration could not be completed. Please try again." },
-        { status: 400 },
-      );
+      throw new AppError("Registration could not be completed. Please try again.", {
+        code: "REGISTRATION_FAILED",
+        statusCode: 400,
+      });
     }
 
-    const phoneDialCode =
-      getDialByCountryCode(data.phoneCountryCode) ?? data.phoneCountryCode;
+    const phoneDialCode = data.phoneCountryCode
+      ? (getDialByCountryCode(data.phoneCountryCode) ?? data.phoneCountryCode)
+      : null;
 
     await getDb()
       .update(user)
       .set({
-        phone: data.phone,
+        phone: data.phone?.trim() || null,
         phoneCountryCode: phoneDialCode,
-        nickname,
-        fullNameKtp: data.fullNameKtp,
-        image: upload.url,
-        imageStorageKey: upload.storageKey,
         updatedAt: new Date(),
       })
       .where(eq(user.id, signUpResult.user.id));
@@ -145,8 +91,7 @@ export async function POST(request: Request) {
     const { ensureDefaultPlayerRole } = await import("@/lib/roles/sync");
     await ensureDefaultPlayerRole(signUpResult.user.id);
 
-    return NextResponse.json({
-      success: true,
+    return jsonSuccess({
       message:
         "Account created. Check your email to verify your address before signing in.",
       redirectTo: callbackUrl
@@ -155,40 +100,19 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     log.error("Registration failed", err);
-    const message =
-      err instanceof Error ? err.message : "Registration failed";
 
-    if (
-      message.toLowerCase().includes("nickname") ||
-      message.toLowerCase().includes("unique")
-    ) {
-      return NextResponse.json(
-        {
-          error: "This nickname is already taken",
-          fieldErrors: { nickname: ["This nickname is already taken. Try another."] },
-        },
-        { status: 409 },
-      );
+    if (err instanceof AppError) {
+      return jsonError(err);
     }
 
-    if (message.toLowerCase().includes("already")) {
-      return NextResponse.json(
-        {
-          error:
-            "If this email is registered, check your inbox. Otherwise try signing in.",
-        },
-        { status: 409 },
-      );
-    }
+    const friendly = sanitizeRegistrationErrorMessage(err);
+    const statusCode = friendly.toLowerCase().includes("already") ? 409 : 500;
 
-    return NextResponse.json(
-      {
-        error:
-          process.env.NODE_ENV === "production"
-            ? "Registration failed. Please try again."
-            : message,
-      },
-      { status: 500 },
+    return jsonError(
+      new AppError(friendly, {
+        code: statusCode === 409 ? "CONFLICT" : "REGISTRATION_FAILED",
+        statusCode,
+      }),
     );
   }
 }

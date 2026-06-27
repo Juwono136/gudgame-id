@@ -44,6 +44,7 @@ import {
 import { validatePlayerGearLinks } from "@/lib/wiki/gear/player-create";
 import { requirePlayerDisplayNameForUser } from "@/lib/account/player-profile/resolve-display-name";
 import { getUserPhotoForWiki } from "@/lib/account/player-profile/sync-primary-photo";
+import { resolvePlayerCareerStats } from "@/lib/account/player-performance/resolve-career-stats";
 
 export type PlayerWikiProfileView = {
   id: string;
@@ -165,7 +166,13 @@ export async function getPlayerWikiProfileForUser(
     userId,
   );
 
-  return { ...view, equipment };
+  const careerStats = await resolvePlayerCareerStats({
+    entity: detail,
+    ownerUserId: userId,
+    sportId: sport.id,
+  });
+
+  return { ...view, equipment, careerStats };
 }
 
 async function uploadEquipmentImages(

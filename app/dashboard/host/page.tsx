@@ -8,6 +8,9 @@ import { user } from "@/db/schema/auth";
 import { getServerSession } from "@/lib/auth/session";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
 import { getMediaProxyPath, resolveUserImageUrl } from "@/lib/storage/media-url";
+import { getPlayerWikiProfileForUser } from "@/lib/account/player-profile/service";
+import { getUserSportInterests } from "@/lib/account/player-performance/sport-interests";
+import { getProfileCompletionSnapshotForUser } from "@/lib/auth/profile-completion";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -37,6 +40,11 @@ export default async function HostDashboardPage() {
   const userName =
     dbUser?.fullNameKtp ?? dbUser?.name ?? session?.user?.name ?? "Host";
   const userEmail = session?.user?.email ?? "";
+  const playerProfile = roles.includes("player")
+    ? await getPlayerWikiProfileForUser(userId)
+    : null;
+  const sportInterests = await getUserSportInterests(userId);
+  const profileCompletion = await getProfileCompletionSnapshotForUser(userId);
 
   return (
     <PageShell showGridBackground={false}>
@@ -52,6 +60,9 @@ export default async function HostDashboardPage() {
           userEmail={userEmail}
           userImageUrl={userImageUrl}
           roles={roles}
+          publicPageUrl={playerProfile?.publicUrl ?? null}
+          sportInterests={sportInterests}
+          profileCompletion={profileCompletion}
         />
       </Suspense>
     </PageShell>

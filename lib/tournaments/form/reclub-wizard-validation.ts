@@ -37,6 +37,9 @@ export function validateReclubWizardStep(
     if (data.venue.trim().length > TOURNAMENT_FIELD_LIMITS.venue) {
       return `Venue must be at most ${TOURNAMENT_FIELD_LIMITS.venue} characters.`;
     }
+    if (!data.venue.trim()) {
+      return "Venue is required.";
+    }
     const maps = data.venueMapsUrl.trim();
     if (maps && (!URL_RE.test(maps) || maps.length > 2000)) {
       return "Maps link must be a valid http(s) URL.";

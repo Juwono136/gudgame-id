@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Info, Swords, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
+import { OfficialMatchScorePanel } from "@/components/tournaments/official-match-score-panel";
 import { OfficialBracketView } from "@/components/tournaments/official-bracket-view";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,8 @@ type OfficialBracketLiveProps = {
   slug: string;
   matches: BracketMatchView[];
   participant: TournamentParticipantContext;
+  /** Target score cap from tournament settings (points per match). */
+  pointsPerMatch?: number;
   /** When false, only courtside scoring is shown (tree rendered elsewhere). */
   showBracketTree?: boolean;
   variant?: "official" | "reclub";
@@ -48,6 +51,7 @@ export function OfficialBracketLive({
   showBracketTree = true,
   variant = "official",
   officialScoringEnabled = true,
+  pointsPerMatch = 21,
 }: OfficialBracketLiveProps) {
   const { confirm } = useConfirmDialog();
   const liveScore = useUpdateBracketLiveScore(sportSlug, slug);
@@ -217,35 +221,57 @@ export function OfficialBracketLive({
 
           {selected ? (
             <div className="mt-6 space-y-4">
-              <LiveScoreboard
-                teamAName={selected.teamAName ?? "Team A"}
-                teamBName={selected.teamBName ?? "Team B"}
-                scoreA={scoreA}
-                scoreB={scoreB}
-                onScoreAChange={(n) => {
-                  setScoreA(n);
-                  persist(n, scoreB);
-                }}
-                onScoreBChange={(n) => {
-                  setScoreB(n);
-                  persist(scoreA, n);
-                }}
-                disabled={liveScore.isPending || finalizeScore.isPending}
-                status={scoreStatus}
-              />
-              <Button
-                className={cn(
-                  "w-full sm:w-auto",
-                  isOfficial
-                    ? "bg-cp-primary hover:bg-cp-primary-light"
-                    : "bg-emerald-600 hover:bg-emerald-500",
-                )}
-                disabled={finalizeScore.isPending}
-                onClick={() => void handleFinalize()}
-              >
-                <Trophy className="mr-2 h-4 w-4" />
-                Finalize match & advance bracket
-              </Button>
+              {isOfficial ? (
+                <OfficialMatchScorePanel
+                  teamAName={selected.teamAName ?? "Team A"}
+                  teamBName={selected.teamBName ?? "Team B"}
+                  scoreA={scoreA}
+                  scoreB={scoreB}
+                  onScoreAChange={(n) => {
+                    setScoreA(n);
+                    persist(n, scoreB);
+                  }}
+                  onScoreBChange={(n) => {
+                    setScoreB(n);
+                    persist(scoreA, n);
+                  }}
+                  roundNumber={selected.roundNumber}
+                  matchNumber={selected.matchNumber}
+                  targetPoints={pointsPerMatch}
+                  disabled={liveScore.isPending || finalizeScore.isPending}
+                  status={scoreStatus}
+                  onFinalize={() => void handleFinalize()}
+                  finalizePending={finalizeScore.isPending}
+                />
+              ) : (
+                <>
+                  <LiveScoreboard
+                    teamAName={selected.teamAName ?? "Team A"}
+                    teamBName={selected.teamBName ?? "Team B"}
+                    scoreA={scoreA}
+                    scoreB={scoreB}
+                    onScoreAChange={(n) => {
+                      setScoreA(n);
+                      persist(n, scoreB);
+                    }}
+                    onScoreBChange={(n) => {
+                      setScoreB(n);
+                      persist(scoreA, n);
+                    }}
+                    disabled={liveScore.isPending || finalizeScore.isPending}
+                    status={scoreStatus}
+                    maxScore={pointsPerMatch}
+                  />
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 sm:w-auto"
+                    disabled={finalizeScore.isPending}
+                    onClick={() => void handleFinalize()}
+                  >
+                    <Trophy className="mr-2 h-4 w-4" />
+                    Finalize match & advance bracket
+                  </Button>
+                </>
+              )}
             </div>
           ) : null}
         </section>

@@ -10,6 +10,7 @@ import { LogIn, Menu, Search, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu, UserMenuMobileLinks } from "@/components/layout/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { GlobalSearchBox } from "@/components/search/global-search-box";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useSession } from "@/lib/auth/client";
 import {
@@ -94,6 +95,8 @@ export default function Navbar() {
     };
   }, [mobileOpen]);
 
+  const isHomePage = pathname === "/";
+
   const mobileMenuMaxHeight = `calc(100dvh - ${menuTop}px - ${
     hasBottomDashboardNav
       ? `calc(${DASHBOARD_MOBILE_BOTTOM_NAV_HEIGHT} + env(safe-area-inset-bottom, 0px))`
@@ -144,31 +147,30 @@ export default function Navbar() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5 lg:gap-3">
-            <div className="relative hidden lg:block">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-              <input
-                type="search"
-                placeholder="Search wiki..."
-                className="h-9 w-36 rounded-lg border border-cp-border bg-cp-bg-input py-2 pr-3 pl-9 text-sm text-foreground placeholder:text-cp-muted transition-colors focus:border-cp-primary focus:outline-none focus:ring-1 focus:ring-cp-primary/40 xl:w-52"
-              />
-            </div>
+            {!isHomePage ? (
+              <div className="relative hidden w-36 xl:w-52 lg:block">
+                <GlobalSearchBox variant="navbar" className="w-full" />
+              </div>
+            ) : null}
 
             <ThemeToggle />
 
-            <button
-              type="button"
-              className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-lg text-cp-muted transition-colors md:hidden",
-                mobileSearchOpen
-                  ? "bg-cp-primary/15 text-cp-primary"
-                  : "hover:bg-cp-elevated hover:text-foreground",
-              )}
-              onClick={() => setMobileSearchOpen((o) => !o)}
-              aria-label="Toggle search"
-              aria-expanded={mobileSearchOpen}
-            >
-              <Search className="h-4 w-4" />
-            </button>
+            {!isHomePage ? (
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-cp-muted transition-colors md:hidden",
+                  mobileSearchOpen
+                    ? "bg-cp-primary/15 text-cp-primary"
+                    : "hover:bg-cp-elevated hover:text-foreground",
+                )}
+                onClick={() => setMobileSearchOpen((o) => !o)}
+                aria-label="Toggle search"
+                aria-expanded={mobileSearchOpen}
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            ) : null}
 
             {isAuthenticated ? (
               <NotificationBell className="inline-flex h-9 w-9 shrink-0" />
@@ -239,20 +241,15 @@ export default function Navbar() {
         </div>
 
         <AnimatePresence>
-          {mobileSearchOpen ? (
+          {!isHomePage && mobileSearchOpen ? (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden border-b border-cp-border bg-cp-bg md:hidden"
+              className="overflow-visible border-b border-cp-border bg-cp-bg md:hidden"
             >
-              <div className="relative mx-auto max-w-7xl px-4 py-3 sm:px-6">
-                <Search className="absolute top-1/2 left-7 h-4 w-4 -translate-y-1/2 text-cp-muted sm:left-9" />
-                <input
-                  type="search"
-                  placeholder="Search wiki..."
-                  className="h-10 w-full rounded-lg border border-cp-border bg-cp-bg-input py-2 pr-3 pl-10 text-sm text-foreground placeholder:text-cp-muted focus:border-cp-primary focus:outline-none"
-                />
+              <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+                <GlobalSearchBox variant="navbar" />
               </div>
             </motion.div>
           ) : null}

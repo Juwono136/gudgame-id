@@ -1,6 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { queryTournamentParticipants } from "@/lib/tournaments/participants/query";
+import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 
 export const runtime = "nodejs";
@@ -25,7 +26,7 @@ export async function GET(
       tournamentId: tournament.id,
       sportId: tournament.sportId,
       sportSlug: tournament.sportSlug,
-      tournamentType: tournament.tournamentType,
+      tournamentType: normalizeTournamentType(tournament.tournamentType),
       page,
       pageSize,
     });

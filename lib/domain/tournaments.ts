@@ -10,9 +10,13 @@ export {
   TOURNAMENT_STATUSES,
   TOURNAMENT_TYPES,
   TOURNAMENT_FORMATS,
+  OFFICIAL_BILLING_TYPES,
+  TOURNAMENT_CATEGORIES,
   type TournamentStatus,
   type TournamentType,
   type TournamentFormat,
+  type OfficialBillingType,
+  type TournamentCategory,
   type Tournament,
   type NewTournament,
 } from "@/db/schema/tournaments";

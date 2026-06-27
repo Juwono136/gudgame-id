@@ -44,6 +44,7 @@ type ReclubBracketPanelProps = {
   userTeamId: string | null;
   tournamentStatus: string;
   session: ReclubSessionSchedule;
+  pointsPerMatch?: number;
 };
 
 export function ReclubBracketPanel({
@@ -56,6 +57,7 @@ export function ReclubBracketPanel({
   userTeamId,
   tournamentStatus,
   session,
+  pointsPerMatch = 21,
 }: ReclubBracketPanelProps) {
   const { data, isLoading, isFetching } = useTournamentBracket(sportSlug, slug);
   const generate = useGenerateReclubBracket(sportSlug, slug);
@@ -178,6 +180,7 @@ export function ReclubBracketPanel({
             participant={participant}
             showBracketTree={false}
             variant="reclub"
+            pointsPerMatch={pointsPerMatch}
           />
         </>
       )}

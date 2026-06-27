@@ -14,6 +14,7 @@ import {
   toTotalPages,
 } from "@/lib/pagination/constants";
 import type { PlayerRegistrationItem } from "@/lib/tournaments/payments/player-history";
+import { getPublicTournamentTypeLabel } from "@/lib/tournaments/ui/labels";
 import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
@@ -54,8 +55,8 @@ function RegistrationCard({ item }: { item: PlayerRegistrationItem }) {
   return (
     <li className="flex min-w-0 flex-col rounded-2xl border border-cp-border bg-cp-card/70 p-4 transition-colors hover:border-cp-primary/30 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge className={cn("border-0", getTournamentTypeBadgeClass(isOfficial ? "official" : "recreational"))}>
-          {isOfficial ? "Official" : "Reclub"}
+        <Badge className={cn("border-0", getTournamentTypeBadgeClass(isOfficial ? "official" : "fun_match"))}>
+          {getPublicTournamentTypeLabel(isOfficial ? "official" : "fun_match")}
         </Badge>
         <Badge variant="muted" className="capitalize">
           {item.status.replace(/_/g, " ")}

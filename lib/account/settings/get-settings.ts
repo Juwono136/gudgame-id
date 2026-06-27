@@ -17,9 +17,10 @@ export type AccountSettingsView = {
     name: string | null;
     fullNameKtp: string | null;
     nickname: string | null;
-    clubName: string | null;
     phone: string | null;
     phoneCountryCode: string | null;
+    sportInterestSlugs: string[];
+    gender: string | null;
     imageUrl: string | null;
     emailVerified: boolean;
     createdAt: string;
@@ -59,9 +60,10 @@ export async function getAccountSettings(userId: string): Promise<AccountSetting
       name: dbUser.name,
       fullNameKtp: dbUser.fullNameKtp,
       nickname: dbUser.nickname,
-      clubName: dbUser.clubName,
       phone: dbUser.phone,
       phoneCountryCode: dbUser.phoneCountryCode,
+      sportInterestSlugs: dbUser.sportInterestSlugs ?? [],
+      gender: dbUser.gender,
       imageUrl:
         resolveUserImageUrl(dbUser.image) ??
         (dbUser.imageStorageKey ? getMediaProxyPath(dbUser.imageStorageKey) : null),

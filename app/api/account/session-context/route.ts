@@ -75,9 +75,12 @@ export async function GET() {
 
     const [dbUser] = await getDb()
       .select({
+        id: user.id,
         fullNameKtp: user.fullNameKtp,
         phone: user.phone,
         phoneCountryCode: user.phoneCountryCode,
+        sportInterestSlugs: user.sportInterestSlugs,
+        gender: user.gender,
         image: user.image,
         imageStorageKey: user.imageStorageKey,
       })

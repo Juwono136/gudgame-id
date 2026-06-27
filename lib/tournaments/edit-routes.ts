@@ -1,4 +1,4 @@
-import { dashboardRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import { canAccessHostDashboard } from "@/lib/roles/route-access";
 export type TournamentEditWorkspace = "host" | "player";
@@ -33,14 +33,12 @@ export function tournamentDeniedRedirect(roles: AppRole[]): string {
 
 export function tournamentAfterSaveUrl(
   workspace: TournamentEditWorkspace,
-  tournamentId?: string,
+  tournament?: { sportSlug: string; slug: string },
 ): string {
-  if (workspace === "host") {
-    // After editing, returning to the list is less confusing than jumping into workspace.
-    // Workspace remains accessible from the tournament card row click.
-    return dashboardRoutes.hostTournaments;
+  if (tournament) {
+    return publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
   }
-  return dashboardRoutes.tournaments;
+  return tournamentListUrl(workspace);
 }
 
 export function resolveReclubCreateWorkspace(roles: AppRole[]): TournamentEditWorkspace {
@@ -51,8 +49,5 @@ export function tournamentAfterCreateUrl(
   workspace: TournamentEditWorkspace,
   tournament: { id: string; sportSlug: string; slug: string },
 ): string {
-  if (workspace === "host") {
-    return dashboardRoutes.hostTournament(tournament.id);
-  }
-  return dashboardRoutes.tournament(tournament.id);
+  return `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}?created=1`;
 }

@@ -9,9 +9,19 @@ import {
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
+import { assertBracketSetupAllowed, assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
-import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+
+function shuffleTeams<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
+  }
+  return copy;
+}
 
 function nextPowerOfTwo(n: number): number {
   let p = 1;
@@ -21,7 +31,10 @@ function nextPowerOfTwo(n: number): number {
 
 export async function generateTournamentBracket(
   tournament: TournamentDetail,
+  options?: { seedMode?: "random" | "manual" },
 ): Promise<{ matchCount: number }> {
+  assertBracketSetupAllowed(tournament);
+
   if (tournament.format === "americano") {
     throw new AppError("Americano tournaments do not use brackets", {
       code: "INVALID_TOURNAMENT_TYPE",
@@ -29,8 +42,8 @@ export async function generateTournamentBracket(
     });
   }
 
-  if (tournament.tournamentType === "recreational") {
-    assertReclubSessionPlayable(tournament);
+  if (isFunMatchType(tournament.tournamentType)) {
+    assertBracketSetupAllowed(tournament);
   }
 
   const db = getDb();
@@ -45,8 +58,8 @@ export async function generateTournamentBracket(
     throw new AppError("Bracket already generated", { code: "CONFLICT", statusCode: 409 });
   }
 
-  const teams =
-    tournament.tournamentType === "recreational"
+  let teams =
+    isFunMatchType(tournament.tournamentType)
       ? (await listLobbyTeamsDetailed(tournament.id))
           .filter((t) => t.memberCount > 0)
           .map((t) => ({ id: t.id, name: t.name }))
@@ -65,9 +78,13 @@ export async function generateTournamentBracket(
           )
           .orderBy(tournamentTeams.sortOrder);
 
+  if (options?.seedMode === "random") {
+    teams = shuffleTeams(teams);
+  }
+
   if (teams.length < 2) {
     throw new AppError(
-      tournament.tournamentType === "recreational"
+      isFunMatchType(tournament.tournamentType)
         ? "Need at least 2 squads with players to generate bracket"
         : "Need at least 2 confirmed teams to generate bracket",
       {
@@ -77,7 +94,7 @@ export async function generateTournamentBracket(
     );
   }
 
-  if (tournament.tournamentType === "recreational") {
+  if (isFunMatchType(tournament.tournamentType)) {
     for (const team of teams) {
       const [reg] = await db
         .select({ id: tournamentRegistrations.id })

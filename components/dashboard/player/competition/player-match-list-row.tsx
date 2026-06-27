@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlayerMatchTypeBadge } from "@/components/dashboard/player/competition/player-match-type-badge";
 import { formatMatchDate } from "@/lib/account/player-competition/format-match";
 import type { PlayerMatchListItem } from "@/lib/account/player-competition/types";
+import { dashboardRoutes } from "@/lib/constants/routes";
 import { cn } from "@/lib/utils";
 
 const MATCH_LIST_GRID =
@@ -27,10 +29,10 @@ function MatchResultBadge({ match }: { match: PlayerMatchListItem }) {
 
 type PlayerMatchListRowProps = {
   match: PlayerMatchListItem;
-  onViewDetails: (matchId: number) => void;
 };
 
-export function PlayerMatchListRow({ match, onViewDetails }: PlayerMatchListRowProps) {
+export function PlayerMatchListRow({ match }: PlayerMatchListRowProps) {
+  const detailHref = dashboardRoutes.match(match.id);
   return (
     <li className="px-4 py-4 sm:px-5 lg:px-6">
       <div className="flex flex-col gap-3 lg:hidden">
@@ -71,15 +73,11 @@ export function PlayerMatchListRow({ match, onViewDetails }: PlayerMatchListRowP
           </div>
         </dl>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 w-full border-cp-border"
-          onClick={() => onViewDetails(match.id)}
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          View details
+        <Button asChild variant="outline" size="sm" className="h-9 w-full border-cp-border">
+          <Link href={detailHref}>
+            <Eye className="mr-2 h-4 w-4" />
+            View details
+          </Link>
         </Button>
       </div>
 
@@ -96,15 +94,11 @@ export function PlayerMatchListRow({ match, onViewDetails }: PlayerMatchListRowP
           <MatchResultBadge match={match} />
         </div>
         <div className="text-right">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 border-cp-border px-3"
-            onClick={() => onViewDetails(match.id)}
-          >
-            <Eye className="mr-1.5 h-3.5 w-3.5" />
-            Details
+          <Button asChild variant="outline" size="sm" className="h-8 border-cp-border px-3">
+            <Link href={detailHref}>
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
+              Details
+            </Link>
           </Button>
         </div>
       </div>

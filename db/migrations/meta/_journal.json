@@ -57,6 +57,13 @@
       "when": 1782300000000,
       "tag": "0007_wiki_scrape_hosts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0008_tournament_tier_overhaul",
+      "breakpoints": true
     }
   ]
 }

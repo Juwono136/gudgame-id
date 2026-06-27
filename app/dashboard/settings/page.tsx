@@ -3,24 +3,20 @@ import { PageShell } from "@/components/layout/page-shell";
 import { SettingsPageClient } from "@/components/settings/settings-page-client";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { requireAccountSettingsAccess } from "@/lib/auth/role-guard";
+import { getProfileCompletionSnapshotForUser } from "@/lib/auth/profile-completion";
 import { getServerSession } from "@/lib/auth/session";
 import { dashboardRoutes } from "@/lib/constants/routes";
-import { getDefaultDashboardUrl } from "@/lib/roles/route-access";
 
 export const metadata = {
   title: "My Settings",
 };
 
 export default async function SettingsPage() {
-  const { roles } = await requireAccountSettingsAccess();
+  const { roles, userId } = await requireAccountSettingsAccess();
   const session = await getServerSession();
   if (!session?.user) return null;
-  const backHref = getDefaultDashboardUrl(roles);
-  const workspaceVariant =
-    roles.includes("host") || roles.includes("super_admin")
-      ? ("host" as const)
-      : ("player" as const);
-  const playerBackHref = dashboardRoutes.home;
+
+  const profileCompletion = await getProfileCompletionSnapshotForUser(userId);
 
   return (
     <PageShell showGridBackground={false}>
@@ -32,10 +28,11 @@ export default async function SettingsPage() {
         }
       >
         <SettingsPageClient
-          backHref={roles.includes("player") ? playerBackHref : backHref}
+          backHref={dashboardRoutes.home}
           email={session.user.email}
           roles={roles}
-          workspaceVariant={roles.includes("player") ? "player" : workspaceVariant}
+          workspaceVariant="player"
+          profileCompletion={profileCompletion}
         />
       </Suspense>
     </PageShell>

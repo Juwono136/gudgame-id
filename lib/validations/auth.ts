@@ -48,15 +48,6 @@ const maxPhotoBytes = 2 * 1024 * 1024;
 
 export const registerSchema = z
   .object({
-    fullNameKtp: z
-      .string()
-      .trim()
-      .min(3, "Full name must be at least 3 characters")
-      .max(150, "Full name is too long")
-      .regex(
-        /^[\p{L}\s'.-]+$/u,
-        "Use letters as shown on your ID (no numbers or symbols)",
-      ),
     email: z
       .string()
       .trim()
@@ -64,26 +55,19 @@ export const registerSchema = z
       .email("Enter a valid email address"),
     phoneCountryCode: z
       .string()
-      .refine((v) => phoneCountryIsoCodes.includes(v), "Select a valid country"),
+      .optional()
+      .or(z.literal(""))
+      .refine((v) => !v || phoneCountryIsoCodes.includes(v), "Select a valid country"),
     phone: z
       .string()
       .trim()
-      .min(8, "Enter a valid phone number")
-      .max(15, "Phone number is too long")
-      .regex(/^[0-9]+$/, "Phone number must contain digits only"),
-    password: passwordSchema,
-    confirmPassword: z.string().min(1, "Confirm your password"),
-    nickname: z
-      .string()
       .optional()
       .or(z.literal(""))
-      .superRefine((v, ctx) => {
-        if (!v) return;
-        const err = getNicknameFormatError(v);
-        if (err) {
-          ctx.addIssue({ code: "custom", message: err });
-        }
+      .refine((v) => !v || (v.length >= 8 && v.length <= 15 && /^[0-9]+$/.test(v)), {
+        message: "Enter a valid phone number",
       }),
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, "Confirm your password"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -96,7 +80,7 @@ export function validateProfilePhoto(file: File | null | undefined):
   | { ok: true; file: File }
   | { ok: false; message: string } {
   if (!file || file.size === 0) {
-    return { ok: false, message: "Profile photo is required" };
+    return { ok: false, message: "No photo provided" };
   }
   if (!imageMimeTypes.includes(file.type)) {
     return {

@@ -22,6 +22,15 @@ export function usePublicTournamentsList(
       params.set("status", query.status);
       params.set("sortBy", query.sortBy);
       params.set("sortDir", query.sortDir);
+      if (query.officialBilling && query.officialBilling !== "all") {
+        params.set("officialBilling", query.officialBilling);
+      }
+      if (query.format && query.format !== "all") {
+        params.set("format", query.format);
+      }
+      if (query.category && query.category !== "all") {
+        params.set("category", query.category);
+      }
 
       const res = await fetch(
         `/api/public/sports/${sportSlug}/tournaments?${params.toString()}`,

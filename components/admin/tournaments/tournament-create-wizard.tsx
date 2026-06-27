@@ -11,6 +11,13 @@ import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
 import { TournamentWizardFooter } from "@/components/admin/tournaments/tournament-wizard-footer";
 import { TournamentWizardReview } from "@/components/admin/tournaments/tournament-wizard-review";
 import { TournamentWizardStepHeader } from "@/components/admin/tournaments/tournament-wizard-step-header";
+import { BillingTypeSelect } from "@/components/tournaments/form/billing-type-select";
+import {
+  CategorySelect,
+  TOURNAMENT_CATEGORY_OPTIONS,
+  type TournamentCategoryOption,
+} from "@/components/tournaments/form/category-select";
+import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
 import { CurrencyInput } from "@/components/tournaments/form/currency-input";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { TOURNAMENT_FIELD_LIMITS } from "@/lib/tournaments/form/field-limits";
@@ -57,6 +64,11 @@ import {
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
 import {
+  isFunMatchType,
+  isOfficialType,
+  normalizeTournamentType,
+} from "@/lib/tournaments/core/types";
+import {
   type TournamentStatus,
   type TournamentType,
 } from "@/lib/domain/tournaments";
@@ -80,7 +92,7 @@ const STATUS_LABELS: Record<TournamentStatus, string> = {
   cancelled: "Cancelled",
 };
 
-const CATEGORY_OPTIONS = ["Male", "Female", "Mix"] as const;
+const CATEGORY_OPTIONS = TOURNAMENT_CATEGORY_OPTIONS;
 const MATCH_TYPE_OPTIONS = [
   { value: "americano", label: "Americano" },
   { value: "single_elimination", label: "Elimination" },
@@ -107,6 +119,8 @@ type TournamentCreateWizardProps = {
   initialTournamentType?: TournamentType;
   /** Lock type selector on create — used when admin picks official vs reclub upfront. */
   lockTournamentType?: boolean;
+  /** Pre-select official billing when kind is chosen upfront (host create hub). */
+  initialOfficialBilling?: "paid" | "free";
 };
 
 export function TournamentCreateWizard({
@@ -118,6 +132,7 @@ export function TournamentCreateWizard({
   tournamentId,
   showTopBack,
   initialTournamentType,
+  initialOfficialBilling,
 }: TournamentCreateWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
   const adminCreate = useCreateTournament();
@@ -136,7 +151,7 @@ export function TournamentCreateWizard({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [status, setStatus] = useState<TournamentStatus>(initial?.status ?? "upcoming");
   const [tournamentType, setTournamentType] = useState<TournamentType>(
-    initial?.tournamentType ?? initialTournamentType ?? "official",
+    normalizeTournamentType(initial?.tournamentType ?? initialTournamentType ?? "official"),
   );
   const [venue, setVenue] = useState(initial?.venue ?? "");
   const [venueMapsUrl, setVenueMapsUrl] = useState(
@@ -168,6 +183,11 @@ export function TournamentCreateWizard({
   );
   const [startsAt, setStartsAt] = useState(toLocalDatetime(initial?.startsAt));
   const [endsAt, setEndsAt] = useState(toLocalDatetime(initial?.endsAt));
+  const [officialBilling, setOfficialBilling] = useState<"paid" | "free">(
+    (initial?.officialBilling as "paid" | "free" | null) ??
+      initialOfficialBilling ??
+      (initial?.registrationFeeIdr && initial.registrationFeeIdr > 0 ? "paid" : "paid"),
+  );
   const [registrationFeeIdr, setRegistrationFeeIdr] = useState(
     initial?.registrationFeeIdr ? String(initial.registrationFeeIdr) : "",
   );
@@ -181,7 +201,9 @@ export function TournamentCreateWizard({
   const [playersPerTeam, setPlayersPerTeam] = useState(
     String(initial?.playersPerTeam ?? sportDefaults.playersPerTeam),
   );
-  const [categoryLabel, setCategoryLabel] = useState(initial?.categoryLabel ?? "");
+  const [categoryLabel, setCategoryLabel] = useState<TournamentCategoryOption | "">(
+    (initial?.categoryLabel as TournamentCategoryOption | "") ?? "",
+  );
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     toLocalDatetime(initial?.registrationClosesAt),
   );
@@ -205,7 +227,7 @@ export function TournamentCreateWizard({
     setSummary(initial.summary ?? "");
     setDescription(initial.description ?? "");
     setStatus(initial.status);
-    setTournamentType(initial.tournamentType);
+    setTournamentType(normalizeTournamentType(initial.tournamentType));
     setVenue(initial.venue ?? "");
     setVenueMapsUrl(getVenueMapsUrl(initial) ?? "");
     setCover({
@@ -224,10 +246,14 @@ export function TournamentCreateWizard({
     setRegistrationFeeIdr(
       initial.registrationFeeIdr ? String(initial.registrationFeeIdr) : "",
     );
+    setOfficialBilling(
+      (initial.officialBilling as "paid" | "free" | null) ??
+        (initial.registrationFeeIdr && initial.registrationFeeIdr > 0 ? "paid" : "free"),
+    );
     setPrizePoolIdr(initial.prizePoolIdr ? String(initial.prizePoolIdr) : "");
     setMaxTeams(String(initial.maxTeams ?? sportDefaults.maxTeams));
     setPlayersPerTeam(String(initial.playersPerTeam ?? sportDefaults.playersPerTeam));
-    setCategoryLabel(initial.categoryLabel ?? "");
+    setCategoryLabel((initial.categoryLabel as TournamentCategoryOption | "") ?? "");
     setRegistrationClosesAt(toLocalDatetime(initial.registrationClosesAt));
     setMatchType(initial.format === "americano" ? "americano" : "single_elimination");
     setScoringType(getTournamentScoringType(initial));
@@ -250,24 +276,27 @@ export function TournamentCreateWizard({
       description,
       status,
       tournamentType,
+      officialBilling: isOfficialType(tournamentType) ? officialBilling : null,
       format: matchType,
-      rules: tournamentType === "recreational" ? rules : undefined,
-      eligibilityRules: tournamentType === "official" ? "" : undefined,
-      matchFormatRules: tournamentType === "official" ? matchFormatRules : rules,
+      rules: isFunMatchType(tournamentType) ? rules : undefined,
+      eligibilityRules: isOfficialType(tournamentType) ? "" : undefined,
+      matchFormatRules: isOfficialType(tournamentType) ? matchFormatRules : rules,
       equipmentStandardsRules:
-        tournamentType === "official" ? equipmentStandardsRules : undefined,
-      gearEntityIds: tournamentType === "official" ? gearEntityIds : undefined,
+        isOfficialType(tournamentType) ? equipmentStandardsRules : undefined,
+      gearEntityIds: isOfficialType(tournamentType) ? gearEntityIds : undefined,
       venue,
       venueMapsUrl: venueMapsUrl.trim() || undefined,
       coverImageStorageKey: coverStorageKey,
       maxTeams: maxTeams ? Number(maxTeams) : undefined,
       playersPerTeam: Number(playersPerTeam) || 2,
       registrationFeeIdr:
-        tournamentType === "official" && registrationFeeIdr
+        isOfficialType(tournamentType) && officialBilling === "paid" && registrationFeeIdr
           ? Number(registrationFeeIdr)
-          : undefined,
+          : isOfficialType(tournamentType) && officialBilling === "free"
+            ? 0
+            : undefined,
       prizePoolIdr: prizePoolIdr ? Number(prizePoolIdr) : undefined,
-      categoryLabel,
+      categoryLabel: categoryLabel || undefined,
       registrationClosesAt: toIso(registrationClosesAt),
       startsAt: toIso(startsAt),
       endsAt: toIso(endsAt),
@@ -295,7 +324,7 @@ export function TournamentCreateWizard({
         limitError("Category label", TOURNAMENT_FIELD_LIMITS.categoryLabel);
         return false;
       }
-      if (!CATEGORY_OPTIONS.includes(categoryLabel as (typeof CATEGORY_OPTIONS)[number])) {
+      if (!CATEGORY_OPTIONS.includes(categoryLabel as TournamentCategoryOption)) {
         toast.error("Choose a category: Male, Female, or Mix");
         return false;
       }
@@ -324,15 +353,24 @@ export function TournamentCreateWizard({
         toast.error("Invalid URL slug");
         return false;
       }
+      if (tournamentType === "official" && !officialBilling) {
+        toast.error("Choose whether this official tournament is paid or free");
+        return false;
+      }
       if (
         tournamentType === "official" &&
+        officialBilling === "paid" &&
         (!registrationFeeIdr || Number(registrationFeeIdr) <= 0)
       ) {
-        toast.error("Official tournaments require a registration fee (IDR)");
+        toast.error("Paid official tournaments require a registration fee (IDR)");
         return false;
       }
     }
     if (stepId === "schedule") {
+      if (!venue.trim()) {
+        toast.error("Venue is required");
+        return false;
+      }
       if (venue.length > TOURNAMENT_FIELD_LIMITS.venue) {
         limitError("Venue", TOURNAMENT_FIELD_LIMITS.venue);
         return false;
@@ -359,6 +397,17 @@ export function TournamentCreateWizard({
   };
 
   const validateStep = (): boolean => validateStepById(currentStepId);
+
+  const validateAllSteps = (): boolean => {
+    for (let i = 0; i < STEPS.length; i++) {
+      const stepId = STEPS[i]?.id;
+      if (!stepId || !validateStepById(stepId)) {
+        setStepIndex(i);
+        return false;
+      }
+    }
+    return true;
+  };
 
   const goToStep = (targetIndex: number) => {
     if (targetIndex < 0 || targetIndex >= STEPS.length) return;
@@ -405,7 +454,7 @@ export function TournamentCreateWizard({
   };
 
   const handleSubmit = async () => {
-    if (!validateStep()) return;
+    if (!validateAllSteps()) return;
     setSubmitting(true);
     try {
       const coverKey = await resolveCoverStorageKey();
@@ -417,7 +466,12 @@ export function TournamentCreateWizard({
             if (mode === "admin") {
               router.push(adminRoutes.wikiEntities);
             } else {
-              router.push(tournamentAfterSaveUrl(workspace, tournamentId));
+              router.push(
+                tournamentAfterSaveUrl(workspace, {
+                  sportSlug,
+                  slug: initial?.slug ?? resolvedSlug,
+                }),
+              );
             }
           },
         });
@@ -427,6 +481,8 @@ export function TournamentCreateWizard({
         onSuccess: (tournament) => {
           if (mode === "host") {
             router.push(tournamentAfterCreateUrl("host", tournament));
+          } else {
+            router.push(tournamentAfterCreateUrl(workspace, tournament));
           }
         },
       });
@@ -440,19 +496,31 @@ export function TournamentCreateWizard({
   const isPending =
     submitting || (isEdit ? updateMutation.isPending : createMutation.isPending);
   const isLast = stepIndex >= STEPS.length - 1;
-  const shouldShowTopBack =
-    showTopBack ?? (!onBack && (mode === "host" || workspace === "host"));
+  const shouldShowTopBack = showTopBack ?? true;
+
+  const topBackLabel = onBack && !isEdit ? "Back" : listBackLabel;
 
   return (
     <div className="mx-auto w-full max-w-4xl">
       {shouldShowTopBack ? (
-        <Link
-          href={listBackHref}
-          className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          {listBackLabel}
-        </Link>
+        onBack && !isEdit ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            {topBackLabel}
+          </button>
+        ) : (
+          <Link
+            href={listBackHref}
+            className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            {topBackLabel}
+          </Link>
+        )
       ) : null}
       <div
         className={cn(
@@ -524,6 +592,13 @@ export function TournamentCreateWizard({
                 </div>
                 {tournamentType === "official" ? (
                   <>
+                    <div className="sm:col-span-2">
+                      <BillingTypeSelect
+                        value={officialBilling}
+                        onChange={setOfficialBilling}
+                      />
+                    </div>
+                    {officialBilling === "paid" ? (
                     <div className="space-y-2">
                       <Label>Registration fee (IDR) *</Label>
                       <CurrencyInput
@@ -531,44 +606,29 @@ export function TournamentCreateWizard({
                         onChange={setRegistrationFeeIdr}
                       />
                     </div>
+                    ) : null}
                     <div className="space-y-2">
-                      <Label>Prize pool (IDR)</Label>
+                      <Label>
+                        Prize pool (IDR)
+                        {officialBilling === "free" ? (
+                          <span className="ml-1 font-normal text-cp-muted">(optional)</span>
+                        ) : null}
+                      </Label>
                       <CurrencyInput value={prizePoolIdr} onChange={setPrizePoolIdr} />
                     </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Category</Label>
-                      <Select value={categoryLabel} onValueChange={setCategoryLabel}>
-                        <SelectTrigger className="border-cp-border bg-cp-elevated">
-                          <SelectValue placeholder="Choose category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CATEGORY_OPTIONS.map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <CategorySelect
+                      value={categoryLabel}
+                      onChange={setCategoryLabel}
+                      className="sm:col-span-2"
+                    />
                   </>
                 ) : null}
-                <div className="space-y-2">
-                  <Label>Match type</Label>
-                  <Select
+                <div className="sm:col-span-2">
+                  <FormatTypeSelect
                     value={matchType}
-                    onValueChange={(v) => setMatchType(v as TournamentUpsertInput["format"])}
-                  >
-                    <SelectTrigger className="border-cp-border bg-cp-elevated">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MATCH_TYPE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={setMatchType}
+                    sportSlug={sportSlug}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Scoring type</Label>
@@ -707,6 +767,7 @@ export function TournamentCreateWizard({
                 mapsUrl={venueMapsUrl}
                 onVenueChange={(v) => setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue))}
                 onMapsUrlChange={setVenueMapsUrl}
+                required
               />
 
               {tournamentType === "official" ? (

@@ -29,6 +29,7 @@ import {
 } from "@/hooks/use-manage-tournament";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { toast } from "sonner";
 
@@ -130,7 +131,7 @@ export function PlayerTournamentWorkspace({ tournamentId }: PlayerTournamentWork
   }
 
   const { tournament, summary, teams, matches } = ws;
-  const isReclub = tournament.tournamentType === "recreational";
+  const isFunMatch = isFunMatchType(tournament.tournamentType);
   const canEdit = tournament.status !== "completed" && tournament.status !== "cancelled";
   const maxRounds = getMaxRounds(tournament);
   const venueMapsUrl = getVenueMapsUrl(tournament);
@@ -147,7 +148,7 @@ export function PlayerTournamentWorkspace({ tournamentId }: PlayerTournamentWork
     deleteTournament.mutate(tournamentId);
   };
 
-  if (!isReclub) {
+  if (!isFunMatch) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center text-sm text-cp-muted">
         This workspace is for Fun Match sessions you created. Official tournaments are managed from

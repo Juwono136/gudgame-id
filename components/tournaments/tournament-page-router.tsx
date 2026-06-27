@@ -3,10 +3,9 @@ import { OfficialTournamentPage } from "@/components/tournaments/official-tourna
 import { ReclubTournamentPage } from "@/components/tournaments/reclub-tournament-page";
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
-import {
-  canManageOfficialBracketRuntime,
-  canManageTournament,
-} from "@/lib/tournaments/permissions";
+import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
+import { canManageTournament } from "@/lib/tournaments/permissions";
+import { isOfficialType, normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 import { getGearEntitiesForTournamentRules } from "@/lib/tournaments/gear-for-rules";
@@ -39,10 +38,10 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       ? new Date(tournament.registrationOpensAt)
       : null,
     tournament.startsAt ? new Date(tournament.startsAt) : null,
-    tournament.tournamentType,
+    normalizeTournamentType(tournament.tournamentType),
   );
 
-  if (tournament.tournamentType === "official") {
+  if (isOfficialType(tournament.tournamentType)) {
     const ruleSections = getTournamentRuleSections(tournament);
     const gearItems = await getGearEntitiesForTournamentRules(
       tournament.sportId,
@@ -51,13 +50,14 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
 
     const userTeamId =
       userId != null ? await getUserTeamInTournament(tournament.id, userId) : null;
+    const grantRole =
+      userId != null ? await getActiveAccessGrantRole(tournament.id, userId) : null;
     const participant = buildTournamentParticipantContext({
       userId,
       userTeamId,
       roles,
       tournamentCreatedBy: tournament.createdBy,
-      canManageRuntime:
-        userId != null ? canManageOfficialBracketRuntime(roles, tournament, userId) : false,
+      grantRole,
     });
 
     return (
@@ -83,6 +83,7 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       summary={summary}
       isAuthenticated={isAuthenticated}
       initialUserTeamId={userTeamId}
+      canManage={canManage}
     />
   );
 }

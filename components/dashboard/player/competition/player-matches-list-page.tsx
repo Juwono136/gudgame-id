@@ -122,7 +122,7 @@ export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="official">Official</SelectItem>
-                <SelectItem value="recreational">Reclub</SelectItem>
+                <SelectItem value="fun_match">Fun Match</SelectItem>
               </SelectContent>
             </Select>
 
@@ -226,11 +226,7 @@ export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
 
               <ul className="divide-y divide-cp-border">
                 {data?.items.map((match) => (
-                  <PlayerMatchListRow
-                    key={match.id}
-                    match={match}
-                    onViewDetails={openDetails}
-                  />
+                  <PlayerMatchListRow key={match.id} match={match} />
                 ))}
               </ul>
             </>

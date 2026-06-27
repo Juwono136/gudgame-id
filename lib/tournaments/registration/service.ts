@@ -17,8 +17,12 @@ import type { XenditPaymentMethod } from "@/lib/payments/xendit/invoices";
 import { getPlatformPaymentSettings } from "@/lib/tournaments/payments/platform-settings";
 import { calculateOfficialPaymentSplit } from "@/lib/tournaments/payments/split";
 import { syncReclubParticipation } from "@/lib/tournaments/stats/sync";
+import { assertUserEligibleForTournamentCategory } from "@/lib/tournaments/category-eligibility";
 import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
 import { assertReclubSessionJoinable } from "@/lib/tournaments/reclub/session-guard";
+import { createNamedTeam, switchTeam } from "@/lib/tournaments/reclub/teams";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
+import type { FunMatchJoinInput } from "@/lib/validations/tournaments";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   confirmUrl,
@@ -53,14 +57,14 @@ export async function getRegistrationSummary(
   registrationClosesAt: Date | null,
   registrationOpensAt?: Date | null,
   tournamentStartsAt?: Date | null,
-  tournamentType: "official" | "recreational" = "official",
+  tournamentType: "official" | "fun_match" = "official",
 ): Promise<TournamentRegistrationSummary> {
   const db = getDb();
 
   let registeredTeams = 0;
   let registeredPlayers = 0;
 
-  if (tournamentType === "recreational") {
+  if (tournamentType === "fun_match") {
     const [playerRow] = await db
       .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
       .from(tournamentTeamMembers)
@@ -188,13 +192,13 @@ export async function listOfficialPublicRoster(tournamentId: string): Promise<Lo
   return all.filter((t) => paidTeamIds.has(t.id));
 }
 
-export async function joinReclubTournament(
+export async function joinFunMatchTournament(
   tournament: TournamentDetail,
   userId: string,
-  teamName?: string,
+  input: FunMatchJoinInput,
 ): Promise<{ teamId: string }> {
-  if (tournament.tournamentType !== "recreational") {
-    throw new AppError("This tournament requires paid registration.", {
+  if (!isFunMatchType(tournament.tournamentType)) {
+    throw new AppError("This tournament requires official registration.", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
@@ -213,74 +217,124 @@ export async function joinReclubTournament(
     )
     .limit(1);
 
-  if (existing.length) {
-    await syncReclubParticipation({
-      tournament,
-      userId,
-      role: tournament.createdBy === userId ? "organizer" : "participant",
-    });
-    return { teamId: existing[0]!.teamId };
-  }
+  const existingTeamId = existing[0]?.teamId ?? null;
 
   assertReclubSessionJoinable(tournament);
 
-  const playersPerTeam = tournament.playersPerTeam ?? 2;
-  const openTeam = await findOpenTeam(tournament.id, playersPerTeam);
+  if (input.mode === "create_squad") {
+    const name =
+      input.teamName?.trim() ||
+      `Squad ${Math.floor(Math.random() * 900) + 100}`;
 
-  if (openTeam) {
-    const nextSlot = openTeam.memberCount;
-    await db.insert(tournamentTeamMembers).values({
-      teamId: openTeam.id,
-      userId,
-      slotIndex: nextSlot,
-      role: nextSlot === 0 ? "captain" : "member",
-    });
+    if (name.length < 2) {
+      throw new AppError("Squad name must be at least 2 characters", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    return createNamedTeam(tournament, userId, name);
+  }
+
+  if (existingTeamId === input.teamId) {
     await syncReclubParticipation({
       tournament,
       userId,
       role: tournament.createdBy === userId ? "organizer" : "participant",
     });
-    return { teamId: openTeam.id };
+    return { teamId: input.teamId };
   }
 
-  const name =
-    teamName?.trim() ||
-    `Squad ${Math.floor(Math.random() * 900) + 100}`;
-
-  const [team] = await db
-    .insert(tournamentTeams)
-    .values({
-      tournamentId: tournament.id,
-      name,
-      captainUserId: userId,
-    })
-    .returning();
-
-  if (!team) {
-    throw new AppError("Could not create team", { code: "DATABASE_ERROR", statusCode: 500 });
+  if (existingTeamId) {
+    await switchTeam(tournament, userId, input.teamId);
+    await ensureFunMatchRegistration(tournament.id, input.teamId, userId);
+    await syncReclubParticipation({
+      tournament,
+      userId,
+      role: tournament.createdBy === userId ? "organizer" : "participant",
+    });
+    return { teamId: input.teamId };
   }
 
-  await db.insert(tournamentTeamMembers).values({
-    teamId: team.id,
-    userId,
-    slotIndex: 0,
-    role: "captain",
-  });
+  if (input.mode === "join_squad") {
+    const [team] = await db
+      .select({ id: tournamentTeams.id, memberCount: sql<number>`count(${tournamentTeamMembers.id})::int` })
+      .from(tournamentTeams)
+      .leftJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+      .where(
+        and(eq(tournamentTeams.tournamentId, tournament.id), eq(tournamentTeams.id, input.teamId)),
+      )
+      .groupBy(tournamentTeams.id)
+      .limit(1);
 
-  await db.insert(tournamentRegistrations).values({
-    tournamentId: tournament.id,
-    teamId: team.id,
-    registeredByUserId: userId,
-    status: "confirmed",
-  });
+    if (!team) {
+      throw new AppError("Squad not found", { code: "NOT_FOUND", statusCode: 404 });
+    }
 
-  await syncReclubParticipation({
+    const playersPerTeam = tournament.playersPerTeam ?? 2;
+    if (Number(team.memberCount) >= playersPerTeam) {
+      throw new AppError("This squad is full.", { code: "CONFLICT", statusCode: 409 });
+    }
+
+    await db.insert(tournamentTeamMembers).values({
+      teamId: team.id,
+      userId,
+      slotIndex: Number(team.memberCount),
+      role: Number(team.memberCount) === 0 ? "captain" : "member",
+    });
+
+    await ensureFunMatchRegistration(tournament.id, team.id, userId);
+    await syncReclubParticipation({
+      tournament,
+      userId,
+      role: tournament.createdBy === userId ? "organizer" : "participant",
+    });
+    return { teamId: team.id };
+  }
+
+  throw new AppError("Invalid join mode", { code: "VALIDATION_ERROR", statusCode: 422 });
+}
+
+async function ensureFunMatchRegistration(
+  tournamentId: string,
+  teamId: string,
+  userId: string,
+): Promise<void> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: tournamentRegistrations.id })
+    .from(tournamentRegistrations)
+    .where(
+      and(
+        eq(tournamentRegistrations.tournamentId, tournamentId),
+        eq(tournamentRegistrations.teamId, teamId),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    await db.insert(tournamentRegistrations).values({
+      tournamentId,
+      teamId,
+      registeredByUserId: userId,
+      status: "confirmed",
+    });
+  }
+}
+
+/** @deprecated Use joinFunMatchTournament */
+export async function joinReclubTournament(
+  tournament: TournamentDetail,
+  userId: string,
+  teamName?: string,
+): Promise<{ teamId: string }> {
+  return joinFunMatchTournament(
     tournament,
     userId,
-    role: tournament.createdBy === userId ? "organizer" : "participant",
-  });
-
-  return { teamId: team.id };
+    teamName?.trim()
+      ? { mode: "create_squad", teamName }
+      : { mode: "create_squad" },
+  );
 }
 
 async function findOpenTeam(tournamentId: string, playersPerTeam: number) {
@@ -645,28 +699,34 @@ export async function startOfficialRegistration(
   input: OfficialRegistrationInput,
 ): Promise<OfficialRegistrationResult> {
   if (tournament.tournamentType !== "official") {
-    throw new AppError("Free registration only for reclub tournaments.", {
+    throw new AppError("Official registration only for official tournaments.", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
   }
 
+  const isFreeOfficial = tournament.officialBilling === "free";
   const fee = tournament.registrationFeeIdr;
-  if (!fee || fee <= 0) {
-    throw new AppError("Registration fee is not configured.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 400,
-    });
-  }
 
-  if (!isXenditConfigured()) {
-    throw new AppError("Payment gateway is not configured yet.", {
-      code: "PAYMENT_NOT_CONFIGURED",
-      statusCode: 503,
-    });
+  if (!isFreeOfficial) {
+    if (!fee || fee <= 0) {
+      throw new AppError("Registration fee is not configured.", {
+        code: "VALIDATION_ERROR",
+        statusCode: 400,
+      });
+    }
+
+    if (!isXenditConfigured()) {
+      throw new AppError("Payment gateway is not configured yet.", {
+        code: "PAYMENT_NOT_CONFIGURED",
+        statusCode: 503,
+      });
+    }
   }
 
   assertRegistrationWindow(tournament);
+
+  await assertUserEligibleForTournamentCategory(payerUserId, tournament.categoryLabel);
 
   const existing = await getUserRegistrationStatus(tournament.id, payerUserId);
   if (existing.status === "confirmed") {

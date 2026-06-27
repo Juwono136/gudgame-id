@@ -2,7 +2,12 @@ import "server-only";
 
 import { and, eq, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { playerMatches } from "@/db/schema/player-competition";
+import {
+  playerMatches,
+  playerTournamentResults,
+  type MatchResultType,
+  type StatsTier,
+} from "@/db/schema/player-competition";
 import { sports } from "@/db/schema/sports";
 import {
   tournamentBracketMatches,
@@ -14,12 +19,19 @@ import {
 } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { parseOpponentTeams } from "@/lib/account/player-competition/format-match";
+import {
+  computePlayerMatchStats,
+  computeTournamentUserStats,
+  computeSportRank,
+} from "@/lib/account/player-performance/compute";
+import { pointsForMatch } from "@/lib/account/player-performance/points";
+import { formatPlayerTierLabel } from "@/lib/player/tier";
 import type {
   PlayerMatchDetail,
   PlayerMatchListItem,
   PlayerMatchSourceDetail,
 } from "@/lib/account/player-competition/types";
-import type { MatchResultType } from "@/db/schema/player-competition";
+import { normalizePlayerCompetitionType } from "@/lib/tournaments/core/types";
 
 function mapListFields(row: {
   id: number; tournamentId: string | null;
@@ -37,12 +49,7 @@ function mapListFields(row: {
   tournamentType: string | null;
 }): PlayerMatchListItem {
   const isOfficial = row.isOfficial;
-  const tournamentType =
-    row.tournamentType === "official" || row.tournamentType === "recreational"
-      ? row.tournamentType
-      : isOfficial
-        ? "official"
-        : "recreational";
+  const tournamentType = normalizePlayerCompetitionType(row.tournamentType, isOfficial);
 
   return {
     id: row.id,
@@ -184,6 +191,8 @@ export async function getPlayerMatchDetail(
       round: playerMatches.round,
       playedAt: playerMatches.playedAt,
       isOfficial: playerMatches.isOfficial,
+      statsTier: playerMatches.statsTier,
+      sportId: playerMatches.sportId,
       createdAt: playerMatches.createdAt,
       sportName: sports.name,
       sportSlug: sports.slug,
@@ -222,13 +231,67 @@ export async function getPlayerMatchDetail(
 
   const source = await findSourceMatch(listFields);
 
+  let tournamentContext = {
+    userWins: 0,
+    userLosses: 0,
+    userMatches: 0,
+    userWinRate: null as number | null,
+    pointsEarned: pointsForMatch(
+      row.statsTier as StatsTier | null,
+      row.isOfficial,
+      row.resultType as "win" | "loss",
+    ),
+    placement: null as string | null,
+  };
+
+  if (row.tournamentId) {
+    const tStats = await computeTournamentUserStats(userId, row.tournamentId);
+    tournamentContext = {
+      ...tournamentContext,
+      userWins: tStats.wins,
+      userLosses: tStats.losses,
+      userMatches: tStats.totalMatches,
+      userWinRate: tStats.winRate,
+    };
+
+    const [placementRow] = await db
+      .select({ placement: playerTournamentResults.placement })
+      .from(playerTournamentResults)
+      .where(
+        and(
+          eq(playerTournamentResults.userId, userId),
+          eq(playerTournamentResults.tournamentId, row.tournamentId),
+        ),
+      )
+      .limit(1);
+    tournamentContext.placement = placementRow?.placement ?? null;
+  }
+
+  const careerAgg = await computePlayerMatchStats(userId, row.sportId ?? undefined);
+  const worldRank =
+    row.sportId && careerAgg.totalPoints > 0
+      ? await computeSportRank(row.sportId, userId, careerAgg.totalPoints)
+      : null;
+
   return {
     ...listFields,
     userTeamName,
+    statsTier: row.statsTier,
     tournamentStatus: row.tournamentStatus,
     tournamentStartsAt: row.tournamentStartsAt?.toISOString() ?? null,
     tournamentEndsAt: row.tournamentEndsAt?.toISOString() ?? null,
     recordedAt: row.createdAt.toISOString(),
     source,
+    tournamentContext,
+    careerSnapshot: {
+      totalPoints: careerAgg.totalPoints,
+      winRate: careerAgg.winRate,
+      tier: careerAgg.tierLevel ? formatPlayerTierLabel(careerAgg.tierLevel) : null,
+      tierLevel: careerAgg.tierLevel,
+      totalMatches: careerAgg.totalMatches,
+      wins: careerAgg.wins,
+      losses: careerAgg.losses,
+      worldRank,
+    },
   };
 }

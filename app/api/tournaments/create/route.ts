@@ -28,7 +28,11 @@ export async function POST(request: Request) {
       });
     }
 
-    assertCanCreateTournamentType(roles, parsed.data.tournamentType);
+    assertCanCreateTournamentType(
+      roles,
+      parsed.data.tournamentType,
+      parsed.data.officialBilling,
+    );
 
     const [sport] = await getDb()
       .select({ id: sports.id })

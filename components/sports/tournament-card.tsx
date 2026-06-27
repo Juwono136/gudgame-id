@@ -6,6 +6,7 @@ import { TournamentCountdown } from "@/components/tournaments/tournament-countdo
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { htmlExcerpt } from "@/lib/html/strip-html";
 import type { TournamentListItem } from "@/lib/tournaments/service";
+import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES = {
@@ -14,11 +15,6 @@ const STATUS_STYLES = {
   completed: "bg-cp-elevated text-cp-muted",
   cancelled: "bg-cp-elevated text-cp-muted",
   draft: "bg-cp-elevated text-cp-muted",
-} as const;
-
-const TYPE_LABELS = {
-  official: "Official",
-  recreational: "Reclub",
 } as const;
 
 function formatDateRange(starts: string | null, ends: string | null) {
@@ -81,7 +77,7 @@ export function TournamentCard({ tournament, registrationClosesAt, className }: 
             {tournament.status}
           </Badge>
           <Badge className="border-cp-border text-[10px] text-cp-muted">
-            {TYPE_LABELS[tournament.tournamentType]}
+            {getPublicTournamentTypeLabel(tournament.tournamentType)}
           </Badge>
           {fee ? (
             <Badge className="border-0 bg-cp-primary/15 text-[10px] text-cp-primary">{fee}</Badge>

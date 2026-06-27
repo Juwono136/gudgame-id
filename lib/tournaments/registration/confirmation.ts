@@ -24,7 +24,7 @@ export async function confirmParticipation(
   registrationId: string,
   userId: string,
   payerEmail: string,
-): Promise<{ registrationId: string; checkoutUrl: string; amountIdr: number }> {
+): Promise<{ registrationId: string; checkoutUrl?: string; amountIdr?: number; status: string }> {
   const db = getDb();
   const [registration] = await db
     .select()
@@ -59,7 +59,7 @@ export async function confirmParticipation(
   if (registration.status === "pending_payment") {
     const url = checkoutUrl(tournament, registrationId);
     const fee = tournament.registrationFeeIdr ?? 0;
-    return { registrationId, checkoutUrl: url, amountIdr: fee };
+    return { registrationId, checkoutUrl: url, amountIdr: fee, status: "pending_payment" };
   }
 
   if (registration.status !== "awaiting_confirmation") {
@@ -67,6 +67,34 @@ export async function confirmParticipation(
       code: "VALIDATION_ERROR",
       statusCode: 400,
     });
+  }
+
+  let teamName = "Team";
+  if (registration.teamId) {
+    const { tournamentTeams } = await import("@/db/schema/tournament-registration");
+    const [team] = await db
+      .select({ name: tournamentTeams.name })
+      .from(tournamentTeams)
+      .where(eq(tournamentTeams.id, registration.teamId))
+      .limit(1);
+    if (team?.name) teamName = team.name;
+  }
+
+  const isFreeOfficial = tournament.officialBilling === "free";
+
+  if (isFreeOfficial) {
+    await db
+      .update(tournamentRegistrations)
+      .set({
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedByUserId: userId,
+      })
+      .where(eq(tournamentRegistrations.id, registrationId));
+
+    void notifyHostPlayerConfirmedParticipation(tournament, registrationId, userId, teamName);
+
+    return { registrationId, status: "confirmed" };
   }
 
   if (!isXenditConfigured()) {
@@ -96,17 +124,6 @@ export async function confirmParticipation(
     })
     .where(eq(tournamentRegistrations.id, registrationId));
 
-  let teamName = "Team";
-  if (registration.teamId) {
-    const { tournamentTeams } = await import("@/db/schema/tournament-registration");
-    const [team] = await db
-      .select({ name: tournamentTeams.name })
-      .from(tournamentTeams)
-      .where(eq(tournamentTeams.id, registration.teamId))
-      .limit(1);
-    if (team?.name) teamName = team.name;
-  }
-
   try {
     const { amountIdr } = await issueRegistrationInvoice(
       tournament,
@@ -123,6 +140,7 @@ export async function confirmParticipation(
       registrationId,
       checkoutUrl: checkoutUrl(tournament, registrationId),
       amountIdr,
+      status: "pending_payment",
     };
   } catch (error) {
     await db

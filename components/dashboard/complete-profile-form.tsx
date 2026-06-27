@@ -1,29 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthInput } from "@/components/auth/auth-form-controls";
 import { AuthPhoneFieldGroup } from "@/components/auth/auth-phone-field-group";
 import { PhotoUploadField } from "@/components/auth/photo-upload-field";
+import { SportInterestsField } from "@/components/settings/sport-interests-field";
 import { Button } from "@/components/ui/button";
 import { defaultPhoneCountry } from "@/lib/constants/phone-countries";
-import { dashboardRoutes } from "@/lib/constants/routes";
 import {
   completeProfileSchema,
   type CompleteProfileFormValues,
 } from "@/lib/validations/profile-completion";
+import { GenderSelectField } from "@/components/auth/gender-select-field";
 import { validateProfilePhoto } from "@/lib/validations/auth";
-import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import { useCompleteProfileMutation } from "@/hooks/use-complete-profile";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 type CompleteProfileFormProps = {
   initialFullName?: string | null;
-  needsPhoto: boolean;
 };
 
 function FormSection({
@@ -50,14 +49,11 @@ function FormSection({
   );
 }
 
-export function CompleteProfileForm({
-  initialFullName,
-  needsPhoto,
-}: CompleteProfileFormProps) {
-  const router = useRouter();
+export function CompleteProfileForm({ initialFullName }: CompleteProfileFormProps) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState<string | undefined>();
-  const [submitting, setSubmitting] = useState(false);
+  const completeProfile = useCompleteProfileMutation();
+  const submitting = completeProfile.isPending;
 
   const {
     register,
@@ -72,11 +68,13 @@ export function CompleteProfileForm({
       phoneCountryCode: defaultPhoneCountry.code,
       phone: "",
       nickname: "",
+      sportInterestSlugs: [],
+      gender: "male",
     },
   });
 
   const onSubmit = async (values: CompleteProfileFormValues) => {
-    if (needsPhoto) {
+    if (photo) {
       const photoCheck = validateProfilePhoto(photo);
       if (!photoCheck.ok) {
         setPhotoError(photoCheck.message);
@@ -84,77 +82,55 @@ export function CompleteProfileForm({
       }
     }
     setPhotoError(undefined);
-    setSubmitting(true);
 
-    try {
-      const formData = new FormData();
-      formData.append("fullNameKtp", values.fullNameKtp);
-      formData.append("phoneCountryCode", values.phoneCountryCode);
-      formData.append("phone", values.phone);
-      if (values.nickname) formData.append("nickname", values.nickname);
-      if (needsPhoto && photo) formData.append("photo", photo);
+    const formData = new FormData();
+    formData.append("fullNameKtp", values.fullNameKtp);
+    formData.append("phoneCountryCode", values.phoneCountryCode);
+    formData.append("phone", values.phone);
+    if (values.nickname) formData.append("nickname", values.nickname);
+    if (photo) formData.append("photo", photo);
+    formData.append("sportInterestSlugs", JSON.stringify(values.sportInterestSlugs));
+    formData.append("gender", values.gender);
 
-      const res = await fetch("/api/account/complete-profile", {
-        method: "POST",
-        body: formData,
-      });
-      const payload = await parseJsonResponse<{
-        error?: string;
-        fieldErrors?: Record<string, string[]>;
-        message?: string;
-      }>(res);
-
-      if (!res.ok) {
-        if (payload.fieldErrors) {
-          for (const [key, messages] of Object.entries(payload.fieldErrors)) {
+    completeProfile.mutate(formData, {
+      onError: (err: Error & { fieldErrors?: Record<string, string[]> }) => {
+        if (err.fieldErrors) {
+          for (const [key, messages] of Object.entries(err.fieldErrors)) {
             if (messages?.[0]) {
               setError(key as keyof CompleteProfileFormValues, {
                 message: messages[0],
               });
             }
           }
-          if (payload.fieldErrors.photo?.[0]) {
-            setPhotoError(payload.fieldErrors.photo[0]);
+          if (err.fieldErrors.photo?.[0]) {
+            setPhotoError(err.fieldErrors.photo[0]);
           }
+        } else {
+          toast.error("Update failed", { description: err.message });
         }
-        throw new Error(payload.error ?? "Could not save profile");
-      }
-
-      toast.success("Profile updated", {
-        description: payload.message ?? "Your account details are now complete.",
-      });
-      router.push(dashboardRoutes.home);
-      router.refresh();
-    } catch (err) {
-      toast.error("Update failed", {
-        description: err instanceof Error ? err.message : "Please try again.",
-      });
-    } finally {
-      setSubmitting(false);
-    }
+      },
+    });
   };
 
   return (
     <form className="space-y-8" onSubmit={handleSubmit(onSubmit)} noValidate>
-      {needsPhoto ? (
-        <FormSection
-          title="Profile photo"
-          description="Required for player verification — same rules as registration."
-        >
-          <PhotoUploadField
-            error={photoError}
-            onChange={(file) => {
-              setPhoto(file);
-              if (file) setPhotoError(undefined);
-            }}
-          />
-        </FormSection>
-      ) : null}
+      <FormSection
+        title="Profile photo"
+        description="Optional — add a photo so other players can recognize you."
+      >
+        <PhotoUploadField
+          error={photoError}
+          onChange={(file) => {
+            setPhoto(file);
+            if (file) setPhotoError(undefined);
+          }}
+        />
+      </FormSection>
 
       <FormSection
         title="Identity"
         description="Use the name shown on your government ID."
-        className={needsPhoto ? "border-t border-cp-border pt-8" : undefined}
+        className="border-t border-cp-border pt-8"
       >
         <AuthField
           label="Full name (as shown on ID)"
@@ -182,6 +158,43 @@ export function CompleteProfileForm({
           register={register}
           countryError={errors.phoneCountryCode?.message}
           phoneError={errors.phone?.message}
+        />
+      </FormSection>
+
+      <FormSection
+        title="Gender"
+        description="Required for official tournaments with Male or Female categories."
+        className="border-t border-cp-border pt-8"
+      >
+        <Controller
+          control={control}
+          name="gender"
+          render={({ field }) => (
+            <GenderSelectField
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              required
+              error={errors.gender?.message}
+            />
+          )}
+        />
+      </FormSection>
+
+      <FormSection
+        title="Sports you follow"
+        description="Pick at least one sport — other players can see your interests on your profile."
+        className="border-t border-cp-border pt-8"
+      >
+        <Controller
+          control={control}
+          name="sportInterestSlugs"
+          render={({ field }) => (
+            <SportInterestsField
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.sportInterestSlugs?.message}
+            />
+          )}
         />
       </FormSection>
 

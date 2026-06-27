@@ -6,6 +6,7 @@ import { sports, wikiEntities } from "@/db/schema";
 import { formatPlayerTierLabel, normalizePlayerTier } from "@/lib/player/tier";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import { getPlayerCareerStats } from "@/lib/wiki/player-career-stats";
+import { resolvePlayerCareerStats } from "@/lib/account/player-performance/resolve-career-stats";
 import { parsePlayerEditableAttributes } from "@/lib/wiki/player-profile-fields";
 import type { PublicPlayersListQuery } from "@/lib/validations/public-wiki";
 
@@ -109,6 +110,8 @@ export async function listPublishedPlayersPaginated(
       primaryImageStorageKey: wikiEntities.primaryImageStorageKey,
       attributes: wikiEntities.attributes,
       performance: wikiEntities.performance,
+      ownerUserId: wikiEntities.ownerUserId,
+      sportId: wikiEntities.sportId,
       rank: rankExpr,
     })
     .from(wikiEntities)
@@ -118,42 +121,47 @@ export async function listPublishedPlayersPaginated(
     .limit(pageSize)
     .offset(offset);
 
-  const items: PublicPlayerListItem[] = rows.map((row) => {
-    const attributes = (row.attributes ?? {}) as Record<string, unknown>;
-    const performance = (row.performance ?? {}) as Record<string, unknown>;
-    const editable = parsePlayerEditableAttributes(attributes);
-    const career = getPlayerCareerStats({
-      id: row.slug,
-      attributes,
-      performance,
-    });
+  const items: PublicPlayerListItem[] = await Promise.all(
+    rows.map(async (row) => {
+      const attributes = (row.attributes ?? {}) as Record<string, unknown>;
+      const performance = (row.performance ?? {}) as Record<string, unknown>;
+      const editable = parsePlayerEditableAttributes(attributes);
+      const career = await resolvePlayerCareerStats({
+        entity: {
+          id: row.slug,
+          attributes,
+          performance,
+        },
+        ownerUserId: row.ownerUserId,
+        sportId: row.sportId,
+      });
 
-    const tierLevel =
-      career.tierLevel ??
-      normalizePlayerTier(readPlayerField(attributes, "tier")) ??
-      "pemula";
-    const tier =
-      career.tier ?? formatPlayerTierLabel(tierLevel) ?? "Pemula";
+      const tierLevel =
+        career.tierLevel ??
+        normalizePlayerTier(readPlayerField(attributes, "tier")) ??
+        "pemula";
+      const tier = career.tier ?? formatPlayerTierLabel(tierLevel) ?? "Pemula";
 
-    return {
-      rank: Number(row.rank) || 1,
-      slug: row.slug,
-      displayName: row.displayName,
-      nickname: row.nickname,
-      avatarUrl: resolveWikiImageUrl(row.primaryImageUrl, row.primaryImageStorageKey),
-      nationality: editable.nationality ?? readPlayerField(attributes, "nationality"),
-      province: readPlayerField(attributes, "province"),
-      age: editable.age ?? null,
-      points: career.totalPoints,
-      tier,
-      tierLevel,
-      playingStyle: readPlayerField(attributes, "playingStyle"),
-      winRate: career.winRate,
-      worldRank: career.worldRank,
-      yearsActive: career.yearsActive,
-      summary: stripRichTextSummary(row.summary),
-    };
-  });
+      return {
+        rank: Number(row.rank) || 1,
+        slug: row.slug,
+        displayName: row.displayName,
+        nickname: row.nickname,
+        avatarUrl: resolveWikiImageUrl(row.primaryImageUrl, row.primaryImageStorageKey),
+        nationality: editable.nationality ?? readPlayerField(attributes, "nationality"),
+        province: readPlayerField(attributes, "province"),
+        age: editable.age ?? null,
+        points: career.totalPoints,
+        tier,
+        tierLevel,
+        playingStyle: readPlayerField(attributes, "playingStyle"),
+        winRate: career.winRate,
+        worldRank: career.worldRank ?? (Number(row.rank) || 1),
+        yearsActive: career.yearsActive,
+        summary: stripRichTextSummary(row.summary),
+      };
+    }),
+  );
 
   return {
     items,

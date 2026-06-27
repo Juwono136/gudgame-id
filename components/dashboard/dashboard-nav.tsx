@@ -8,7 +8,6 @@ import {
   CreditCard,
   LayoutDashboard,
   Settings,
-  Swords,
   Trophy,
   Users,
 } from "lucide-react";
@@ -44,14 +43,8 @@ const PLAYER_ITEMS: NavItem[] = [
     mobileLabel: "Events",
     icon: Trophy,
     match: (p) =>
-      p.startsWith(dashboardRoutes.tournaments) && !p.startsWith(dashboardRoutes.host),
-  },
-  {
-    href: dashboardRoutes.matches,
-    label: "Match log",
-    mobileLabel: "Matches",
-    icon: Swords,
-    match: (p) => p.startsWith(dashboardRoutes.matches),
+      p.startsWith(dashboardRoutes.tournaments) ||
+      p.startsWith(dashboardRoutes.matches),
   },
   {
     href: dashboardRoutes.payments,
@@ -92,11 +85,11 @@ const HOST_ITEMS: NavItem[] = [
     match: (p) => p.startsWith(dashboardRoutes.hostPayments),
   },
   {
-    href: dashboardRoutes.settings,
+    href: dashboardRoutes.hostSettings,
     label: "Settings",
     mobileLabel: "Settings",
     icon: Settings,
-    match: (p) => p.startsWith(dashboardRoutes.settings),
+    match: (p) => p.startsWith(dashboardRoutes.hostSettings),
   },
 ];
 

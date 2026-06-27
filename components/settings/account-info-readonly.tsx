@@ -28,7 +28,6 @@ export function AccountInfoReadonly({ settings }: AccountInfoReadonlyProps) {
         <ReadOnlyRow label="Email" value={account.email} />
         <ReadOnlyRow label="Roles" value={roleLabels.join(", ")} />
         <ReadOnlyRow label="Nickname" value={account.nickname} />
-        <ReadOnlyRow label="Club" value={account.clubName} />
         <ReadOnlyRow
           label="Member since"
           value={new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(

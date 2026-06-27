@@ -11,6 +11,14 @@ import {
 } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { buildPaginatedResult } from "@/lib/account/player-competition/paginate";
+
+/** Matches fun_match rows and legacy recreational before migration backfill. */
+function funMatchTypeCondition() {
+  return or(
+    eq(tournaments.tournamentType, "fun_match"),
+    eq(tournaments.tournamentType, "recreational"),
+  );
+}
 import type {
   PaginatedListResult,
   PlayerTournamentListItem,
@@ -33,7 +41,7 @@ function mapOfficialRow(
 ): UnifiedTournamentRow {
   return {
     id: `${row.isOfficial ? "official" : "reclub"}-${row.id}`,
-    source: row.isOfficial ? "official" : "recreational",
+    source: row.isOfficial ? "official" : "fun_match",
     tournamentId: row.tournamentId,
     year: row.year,
     tournamentName: row.tournamentName,
@@ -180,7 +188,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
     .where(
       and(
         eq(tournamentTeamMembers.userId, userId),
-        eq(tournaments.tournamentType, "recreational"),
+        funMatchTypeCondition(),
       ),
     );
 
@@ -201,7 +209,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
     .where(
       and(
         eq(tournamentRegistrations.registeredByUserId, userId),
-        eq(tournaments.tournamentType, "recreational"),
+        funMatchTypeCondition(),
         inArray(tournamentRegistrations.status, ["confirmed"]),
       ),
     );
@@ -222,7 +230,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
     .where(
       and(
         eq(tournaments.createdBy, userId),
-        eq(tournaments.tournamentType, "recreational"),
+        funMatchTypeCondition(),
       ),
     );
 
@@ -259,7 +267,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
 
     byTournamentId.set(row.tournamentId, {
       id: `reclub-${row.tournamentId}`,
-      source: "recreational",
+      source: "fun_match",
       tournamentId: row.tournamentId,
       year,
       tournamentName: row.tournamentName,
@@ -286,7 +294,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
 
     byTournamentId.set(row.tournamentId, {
       id: `reclub-${row.tournamentId}`,
-      source: "recreational",
+      source: "fun_match",
       tournamentId: row.tournamentId,
       year,
       tournamentName: row.tournamentName,
@@ -371,7 +379,7 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
     const isOfficial = row.tournamentType === "official";
     return {
       id: `${isOfficial ? "official" : "reclub"}-${row.tournamentId}`,
-      source: isOfficial ? "official" : "recreational",
+      source: isOfficial ? "official" : "fun_match",
       tournamentId: row.tournamentId,
       year,
       tournamentName: row.tournamentName,
@@ -429,7 +437,7 @@ export async function listPlayerTournaments(
   query: PlayerTournamentsListQuery,
 ): Promise<PaginatedListResult<PlayerTournamentListItem>> {
   const db = getDb();
-  const { page, pageSize, search, year, placement, sortBy, sortDir, scope } = query;
+  const { page, pageSize, search, year, placement, sortBy, sortDir, scope, type } = query;
 
   const officialConditions = [eq(playerTournamentResults.userId, userId)];
 
@@ -526,6 +534,13 @@ export async function listPlayerTournaments(
     const p = placement.trim().toLowerCase();
     merged = merged.filter((r) => r.placement.toLowerCase().includes(p));
   }
+  if (type && type !== "all") {
+    merged = merged.filter((r) => {
+      if (type === "official") return r.source === "official";
+      if (type === "fun_match" || type === "recreational") return r.source === "fun_match";
+      return true;
+    });
+  }
 
   merged = sortRows(merged, sortBy, sortDir);
 
@@ -545,6 +560,7 @@ export async function listDistinctTournamentYears(
     page: 1,
     pageSize: 500,
     scope: "all",
+    type: "all",
     sortBy: "year",
     sortDir: "desc",
   });

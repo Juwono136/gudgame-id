@@ -7,6 +7,17 @@ import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
+function parseSportInterestSlugs(raw: FormDataEntryValue | null): string[] | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function PATCH(request: Request) {
   try {
     await requireAccountSettingsAccess();
@@ -17,10 +28,14 @@ export async function PATCH(request: Request) {
 
     const formData = await request.formData();
     const photoFile = formData.get("photo");
+    const sportInterestSlugs = parseSportInterestSlugs(formData.get("sportInterestSlugs"));
+
     const parsed = staffProfileUpdateSchema.safeParse({
       fullNameKtp: formData.get("fullNameKtp"),
       phoneCountryCode: formData.get("phoneCountryCode"),
       phone: formData.get("phone"),
+      sportInterestSlugs,
+      gender: formData.get("gender"),
     });
 
     if (!parsed.success) {

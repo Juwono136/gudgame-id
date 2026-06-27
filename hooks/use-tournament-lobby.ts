@@ -31,8 +31,19 @@ export type LobbyPayload = {
   userId: string | null;
 };
 
+import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
+
 function lobbyKey(sportSlug: string, slug: string) {
-  return ["tournaments", "lobby", sportSlug, slug] as const;
+  return tournamentQueryKeys.lobby(sportSlug, slug);
+}
+
+function invalidateLobbyAndLive(
+  qc: ReturnType<typeof useQueryClient>,
+  sportSlug: string,
+  slug: string,
+) {
+  void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+  void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
 }
 
 export function useTournamentLobby(sportSlug: string, slug: string) {
@@ -73,7 +84,7 @@ export function useSwitchTeam(sportSlug: string, slug: string) {
       }
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+      invalidateLobbyAndLive(qc, sportSlug, slug);
       toast.success("Team updated");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -100,7 +111,7 @@ export function useStartReclubRound(sportSlug: string, slug: string) {
       return json.data.match;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+      invalidateLobbyAndLive(qc, sportSlug, slug);
       toast.success("Round started!");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -125,7 +136,7 @@ export function useRenameReclubTeam(sportSlug: string, slug: string) {
       }
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+      invalidateLobbyAndLive(qc, sportSlug, slug);
       toast.success("Squad renamed");
     },
   });
@@ -146,7 +157,7 @@ export function useCreateReclubTeam(sportSlug: string, slug: string) {
       }
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+      invalidateLobbyAndLive(qc, sportSlug, slug);
       toast.success("Squad created!");
     },
   });
@@ -204,7 +215,7 @@ export function useLeaveReclubTournament(sportSlug: string, slug: string) {
       }
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+      invalidateLobbyAndLive(qc, sportSlug, slug);
       toast.success("You left the session");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -237,7 +248,7 @@ export function useCompleteReclubRound(sportSlug: string, slug: string) {
       return json.data.match;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
+      invalidateLobbyAndLive(qc, sportSlug, slug);
       toast.success("Round completed — scores saved to player history");
     },
     onError: (err: Error) => toast.error(err.message),

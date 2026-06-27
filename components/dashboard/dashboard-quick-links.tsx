@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  CreditCard,
   Gamepad2,
   Plus,
   Settings,
@@ -18,7 +19,8 @@ export type DashboardQuickLinkIcon =
   | "swords"
   | "settings"
   | "trophy"
-  | "plus";
+  | "plus"
+  | "creditCard";
 
 const ICONS: Record<DashboardQuickLinkIcon, LucideIcon> = {
   gamepad2: Gamepad2,
@@ -27,6 +29,7 @@ const ICONS: Record<DashboardQuickLinkIcon, LucideIcon> = {
   settings: Settings,
   trophy: Trophy,
   plus: Plus,
+  creditCard: CreditCard,
 };
 
 export type DashboardQuickLink = {

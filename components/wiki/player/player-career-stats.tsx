@@ -28,7 +28,7 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
       title="Career performance"
       description={
         hasAnyStat
-          ? "Official tournament statistics"
+          ? "Rankings from recorded tournament and Fun Match results"
           : "Stats will appear here once tournament results are recorded."
       }
     >
@@ -39,7 +39,7 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
           </p>
           <p className="mt-1 text-2xl font-bold text-foreground">{stats.tier}</p>
           <p className="mt-1 text-xs text-cp-muted">
-            Pemula · Menengah · Pro · Gold — updated from official tournament results
+            Pemula · Menengah · Pro · Gold — based on ranking points from match results
           </p>
         </div>
       ) : null}

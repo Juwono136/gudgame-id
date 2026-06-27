@@ -25,6 +25,7 @@ import {
   cpSelectItemClass,
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
+import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import type { PublicTournamentsListQuery } from "@/lib/validations/tournaments";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,13 @@ export function PublicTournamentsDirectory({
   const [page, setPage] = useState(1);
   const [bucket, setBucket] = useState<PublicTournamentsListQuery["bucket"]>("all");
   const [type, setType] = useState<PublicTournamentsListQuery["type"]>("all");
+  const [officialBilling, setOfficialBilling] = useState<
+    NonNullable<PublicTournamentsListQuery["officialBilling"]>
+  >("all");
+  const [format, setFormat] = useState<NonNullable<PublicTournamentsListQuery["format"]>>("all");
+  const [category, setCategory] = useState<NonNullable<PublicTournamentsListQuery["category"]>>(
+    "all",
+  );
   const [sortBy, setSortBy] = useState<PublicTournamentsListQuery["sortBy"]>("startsAt");
   const [sortDir, setSortDir] = useState<PublicTournamentsListQuery["sortDir"]>("desc");
 
@@ -52,11 +60,14 @@ export function PublicTournamentsDirectory({
       search: debouncedSearch || undefined,
       bucket,
       type,
+      officialBilling,
+      format,
+      category,
       status: "all",
       sortBy,
       sortDir,
     }),
-    [page, debouncedSearch, bucket, type, sortBy, sortDir],
+    [page, debouncedSearch, bucket, type, officialBilling, format, category, sortBy, sortDir],
   );
 
   const { data, isLoading, isFetching, error } = usePublicTournamentsList(
@@ -92,7 +103,7 @@ export function PublicTournamentsDirectory({
                 className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9 text-foreground sm:h-11"
               />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:shrink-0 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:shrink-0 lg:grid-cols-3 xl:grid-cols-6">
               <Select
                 value={bucket}
                 onValueChange={(v) => {
@@ -135,8 +146,77 @@ export function PublicTournamentsDirectory({
                   <SelectItem value="official" className={cpSelectItemClass}>
                     Official
                   </SelectItem>
-                  <SelectItem value="recreational" className={cpSelectItemClass}>
-                    Reclub
+                  <SelectItem value="fun_match" className={cpSelectItemClass}>
+                    Fun Match
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={officialBilling}
+                onValueChange={(v) => {
+                  setOfficialBilling(v as NonNullable<PublicTournamentsListQuery["officialBilling"]>);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                  <SelectValue placeholder="Billing" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All billing
+                  </SelectItem>
+                  <SelectItem value="paid" className={cpSelectItemClass}>
+                    {OFFICIAL_BILLING_LABELS.paid}
+                  </SelectItem>
+                  <SelectItem value="free" className={cpSelectItemClass}>
+                    {OFFICIAL_BILLING_LABELS.free}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={format}
+                onValueChange={(v) => {
+                  setFormat(v as NonNullable<PublicTournamentsListQuery["format"]>);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                  <SelectValue placeholder="Format" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All formats
+                  </SelectItem>
+                  <SelectItem value="americano" className={cpSelectItemClass}>
+                    Americano
+                  </SelectItem>
+                  <SelectItem value="single_elimination" className={cpSelectItemClass}>
+                    Elimination
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={category}
+                onValueChange={(v) => {
+                  setCategory(v as NonNullable<PublicTournamentsListQuery["category"]>);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All categories
+                  </SelectItem>
+                  <SelectItem value="Male" className={cpSelectItemClass}>
+                    Male
+                  </SelectItem>
+                  <SelectItem value="Female" className={cpSelectItemClass}>
+                    Female
+                  </SelectItem>
+                  <SelectItem value="Mix" className={cpSelectItemClass}>
+                    Mix
                   </SelectItem>
                 </SelectContent>
               </Select>

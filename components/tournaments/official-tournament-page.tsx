@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
-import { OfficialScoringStaffPanel } from "@/components/tournaments/official-scoring-staff-panel";
+import { TournamentHostToolsPanel } from "@/components/tournaments/tournament-host-tools-panel";
+import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
+import { isTournamentManageMode, tournamentManageTabUrl, tournamentTabUrl } from "@/lib/tournaments/manage-mode";
+import { TournamentBreadcrumbs } from "@/components/tournaments/tournament-breadcrumbs";
+import { useTournamentLive } from "@/hooks/use-tournament-live";
+import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
 import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
 import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
@@ -26,6 +32,7 @@ import {
 import { VenueMapsPreview } from "@/components/tournaments/venue-maps-preview";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { Badge } from "@/components/ui/badge";
+import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
 import {
   getTournamentStatusBadgeClass,
   getTournamentTypeBadgeClass,
@@ -36,7 +43,6 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
-import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
@@ -83,7 +89,8 @@ type OfficialTournamentPageProps = {
   gearItems?: TournamentGearRuleItem[];
 };
 
-const TABS = ["Overview", "Players", "Bracket", "Stats"] as const;
+const TABS = ["Overview", "Live Score", "Players", "Bracket", "Stats"] as const;
+type OfficialTab = (typeof TABS)[number] | "Manage";
 
 export function OfficialTournamentPage({
   tournament,
@@ -96,18 +103,45 @@ export function OfficialTournamentPage({
   gearItems = [],
 }: OfficialTournamentPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const showManage = isTournamentManageMode(searchParams) && canManage;
+  const isFreeOfficial = tournament.officialBilling === "free";
+  const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
+  const livePhase =
+    liveData?.phase ??
+    (tournament.status === "live"
+      ? "live"
+      : tournament.status === "completed"
+        ? "completed"
+        : "not_started");
+
+  useEffect(() => {
+    if (searchParams.get("created") === "1") {
+      toast.success("Tournament created", {
+        description: "Share the public page or open display mode for venue screens.",
+      });
+    }
+  }, [searchParams]);
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  const [tab, setTab] = useState<OfficialTab>("Overview");
   const registerHref = `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}/register`;
   const tournamentPublicHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+  const manageRegistrationsHref = tournamentManageTabUrl(
+    tournament.sportSlug,
+    tournament.slug,
+    "Manage",
+  );
   const [publicUrl, setPublicUrl] = useState("");
   const [resumingPayment, setResumingPayment] = useState(false);
   const [editRegistrationOpen, setEditRegistrationOpen] = useState(false);
   const isElimination = tournament.format !== "americano";
-  const visibleTabs = useMemo(
-    () => TABS.filter((item) => isElimination || item !== "Bracket"),
-    [isElimination],
-  );
+  const visibleTabs = useMemo((): OfficialTab[] => {
+    const items = TABS.filter((item) => isElimination || item !== "Bracket");
+    if (showManage) {
+      return [items[0], "Manage", ...items.slice(1)];
+    }
+    return [...items];
+  }, [isElimination, showManage]);
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
   const scoringTypeLabel = getScoringTypeLabel(getTournamentScoringType(tournament));
   const pointsPerMatch = getTournamentPointsPerMatch(tournament);
@@ -120,6 +154,58 @@ export function OfficialTournamentPage({
       setTab("Overview");
     }
   }, [isElimination, tab]);
+
+  const navigateTab = useCallback(
+    (next: OfficialTab) => {
+      if (!isElimination && next === "Bracket") return;
+      setTab(next);
+      const url = showManage
+        ? tournamentTabUrl(tournament.sportSlug, tournament.slug, next, true)
+        : next === "Overview"
+          ? tournamentPublicHref
+          : tournamentTabUrl(tournament.sportSlug, tournament.slug, next, false);
+      router.replace(url, { scroll: false });
+    },
+    [
+      isElimination,
+      router,
+      showManage,
+      tournament.slug,
+      tournament.sportSlug,
+      tournamentPublicHref,
+    ],
+  );
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    const valid = new Set(visibleTabs);
+    if (tabParam && valid.has(tabParam as OfficialTab)) {
+      setTab(tabParam as OfficialTab);
+      return;
+    }
+    if (showManage && !tabParam) {
+      setTab("Manage");
+      return;
+    }
+    if (!tabParam) {
+      setTab("Overview");
+    }
+  }, [searchParams, showManage, visibleTabs]);
+
+  const handleManageClick = useCallback(() => {
+    navigateTab("Manage");
+    if (!showManage) {
+      router.push(publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug));
+    }
+  }, [navigateTab, showManage, router, tournament.sportSlug, tournament.slug]);
+
+  const openManageRegistrations = useCallback(() => {
+    if (showManage) {
+      navigateTab("Manage");
+      return;
+    }
+    router.push(manageRegistrationsHref);
+  }, [manageRegistrationsHref, navigateTab, router, showManage]);
 
   const { data: regStatus } = useRegistrationStatus(
     tournament.sportSlug,
@@ -224,14 +310,28 @@ export function OfficialTournamentPage({
 
   return (
     <TournamentDetailPageShell>
+      {canManage ? (
+        <TournamentSessionChrome
+          sportSlug={tournament.sportSlug}
+          slug={tournament.slug}
+          tournamentId={tournament.id}
+          name={tournament.name}
+          phase={livePhase}
+          canManage={canManage}
+          canEdit
+          editHref={tournamentEditUrl(tournament.id, "host")}
+          listHref={dashboardRoutes.hostTournaments}
+          manageActive={showManage}
+          onManageClick={handleManageClick}
+        />
+      ) : null}
       <TournamentHeroBanner coverImageUrl={tournament.coverImageUrl} variant="official">
-        <Link
-          href={publicSportRoutes.tournaments(tournament.sportSlug)}
-          className={tournamentHeroStyles.backLink}
-        >
-          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-          {tournament.sportName} tournaments
-        </Link>
+        <TournamentBreadcrumbs
+          sportSlug={tournament.sportSlug}
+          sportName={tournament.sportName}
+          tournamentName={tournament.name}
+          className="mb-3"
+        />
 
         <FadeInView className="mt-5 flex flex-col gap-6 sm:mt-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0 flex-1">
@@ -250,7 +350,7 @@ export function OfficialTournamentPage({
                 {tournament.status}
               </Badge>
               <Badge className={cn("border-0", getTournamentTypeBadgeClass("official"))}>
-                Official — paid
+                {getOfficialBillingLabel(tournament.officialBilling)}
               </Badge>
             </div>
             <h1 className={tournamentHeroStyles.title}>{tournament.name}</h1>
@@ -298,13 +398,13 @@ export function OfficialTournamentPage({
             <div className="min-w-0">
               <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
                 <Radio className="h-4 w-4 animate-pulse" />
-                Live score resmi
+                Official live score
               </p>
               <h2 className="mt-2 text-lg font-bold text-foreground sm:text-xl">
                 {activeOfficialMatch.teamAName} vs {activeOfficialMatch.teamBName}
               </h2>
               <p className="mt-1 text-sm text-cp-muted">
-                Ronde {activeOfficialMatch.roundNumber} · Match{" "}
+                Round {activeOfficialMatch.roundNumber} · Match{" "}
                 {activeOfficialMatch.matchNumber}
               </p>
             </div>
@@ -320,9 +420,9 @@ export function OfficialTournamentPage({
               <Button
                 variant="outline"
                 className="border-cp-primary/30 bg-cp-card/70"
-                onClick={() => setTab("Bracket")}
+                onClick={() => navigateTab("Bracket")}
               >
-                Lihat bracket
+                View bracket
               </Button>
             </div>
           </div>
@@ -331,7 +431,56 @@ export function OfficialTournamentPage({
 
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8 lg:px-8">
         <div className="order-2 min-w-0 space-y-6 lg:order-1">
-          <TournamentTabNav tabs={visibleTabs} active={tab} onChange={setTab} variant="official" />
+          <TournamentTabNav<OfficialTab>
+            tabs={visibleTabs}
+            active={tab}
+            onChange={navigateTab}
+            variant="official"
+          />
+
+          {tab === "Manage" && showManage ? (
+            <div className="space-y-6">
+              <TournamentHostToolsPanel
+                sportSlug={tournament.sportSlug}
+                slug={tournament.slug}
+                variant="official"
+              />
+              <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Registrations & teams</h2>
+                    <p className="mt-1 text-sm text-cp-muted">
+                      Review confirmed teams, payment status, and roster details before publishing
+                      the bracket.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button asChild variant="outline" className="border-cp-border">
+                      <Link href={tournamentEditUrl(tournament.id, "host")}>Edit tournament</Link>
+                    </Button>
+                    {isElimination ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-cp-border"
+                        onClick={() => navigateTab("Bracket")}
+                      >
+                        Open bracket & scoring
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <TournamentParticipantsPanel
+                    sportSlug={tournament.sportSlug}
+                    slug={tournament.slug}
+                    tournamentType="official"
+                    variant="official"
+                  />
+                </div>
+              </section>
+            </div>
+          ) : null}
 
           {tab === "Overview" ? (
             <>
@@ -387,7 +536,7 @@ export function OfficialTournamentPage({
                   variant="outline"
                   size="sm"
                   className="mt-4 border-cp-border"
-                  onClick={() => setTab("Players")}
+                  onClick={() => navigateTab("Players")}
                 >
                   View full player list
                 </Button>
@@ -403,7 +552,7 @@ export function OfficialTournamentPage({
                     ? "No match results yet. Seeded bracket matches will appear here as play progresses."
                     : "The host will publish the bracket after registration closes. Results will show here once matches are played."
                 }
-                onViewAll={isElimination ? () => setTab("Bracket") : undefined}
+                onViewAll={isElimination ? () => navigateTab("Bracket") : undefined}
               />
               {tournament.description ? (
                 <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
@@ -429,6 +578,100 @@ export function OfficialTournamentPage({
             </>
           ) : null}
 
+          {tab === "Live Score" ? (
+            <div className="space-y-6">
+              {activeOfficialMatch ? (
+                <section className="rounded-2xl border border-cp-primary/25 bg-cp-card p-4 sm:p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
+                        <Radio className="h-4 w-4 animate-pulse" />
+                        Live now
+                      </p>
+                      <h2 className="mt-2 text-xl font-bold text-foreground">
+                        {activeOfficialMatch.teamAName} vs {activeOfficialMatch.teamBName}
+                      </h2>
+                      <p className="mt-1 text-sm text-cp-muted">
+                        Round {activeOfficialMatch.roundNumber}
+                        {activeOfficialMatch.matchNumber
+                          ? ` · Match ${activeOfficialMatch.matchNumber}`
+                          : ""}
+                      </p>
+                    </div>
+                    {canManage ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 border-cp-primary/30"
+                        onClick={() =>
+                          router.push(
+                            publicSportRoutes.tournamentDisplayMatch(
+                              tournament.sportSlug,
+                              tournament.slug,
+                              activeOfficialMatch.id,
+                            ),
+                          )
+                        }
+                      >
+                        Open display mode
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="mt-6 text-center text-4xl font-bold tabular-nums text-foreground sm:text-5xl">
+                    {activeOfficialMatch.scoreA ?? 0} : {activeOfficialMatch.scoreB ?? 0}
+                  </p>
+                  {isElimination ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4 border-cp-primary/30"
+                      onClick={() => navigateTab("Bracket")}
+                    >
+                      View bracket
+                    </Button>
+                  ) : null}
+                </section>
+              ) : (
+                <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
+                  <Radio className="mx-auto h-8 w-8 text-cp-primary/80" />
+                  <h2 className="mt-3 text-lg font-semibold text-foreground">No live match right now</h2>
+                  <p className="mx-auto mt-2 max-w-md text-sm text-cp-muted">
+                    {liveData?.message ??
+                      (bracket?.generated
+                        ? "Official scores appear here when a bracket match is in progress."
+                        : "The host will publish the bracket after registration closes. Live scores follow once play starts.")}
+                  </p>
+                </section>
+              )}
+
+              {liveData?.matches && liveData.matches.length > 0 ? (
+                <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
+                  <h3 className="font-semibold text-foreground">All matches</h3>
+                  <ul className="mt-3 divide-y divide-cp-border/60">
+                    {liveData.matches.map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+                      >
+                        <span className="min-w-0 font-medium text-foreground">
+                          {m.teamAName ?? "TBD"} vs {m.teamBName ?? "TBD"}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-cp-muted">
+                          {m.status === "in_progress"
+                            ? `${m.scoreA ?? 0} : ${m.scoreB ?? 0} · Live`
+                            : m.status === "completed"
+                              ? `${m.scoreA ?? 0} : ${m.scoreB ?? 0} · Final`
+                              : "Scheduled"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+
           {tab === "Players" ? (
             <TournamentParticipantsPanel
               sportSlug={tournament.sportSlug}
@@ -445,35 +688,31 @@ export function OfficialTournamentPage({
               <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-5 text-center sm:p-8">
                 <Trophy className="mx-auto h-8 w-8 text-cp-primary" />
                 <h2 className="mt-3 text-lg font-semibold text-foreground">
-                  Bracket belum dipublish
+                  Bracket not published yet
                 </h2>
                 <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-cp-muted">
-                  Live score resmi akan aktif setelah host membuat bracket dari tim yang sudah
-                  terkonfirmasi. Peserta tetap bisa melihat detail turnamen dan daftar pemain.
+                  Official live scoring starts after the host publishes the bracket from confirmed
+                  teams. Use the Manage tab to invite scoring staff.
                 </p>
                 {canManage ? (
-                  <Button asChild className="mt-5 bg-cp-primary hover:bg-cp-primary-light">
-                    <Link href={dashboardRoutes.hostTournament(tournament.id)}>
-                      Open host workspace
-                    </Link>
+                  <Button
+                    type="button"
+                    className="mt-5 bg-cp-primary hover:bg-cp-primary-light"
+                    onClick={handleManageClick}
+                  >
+                    Open manage tools
                   </Button>
                 ) : null}
               </section>
             ) : (
-              <div className="space-y-8">
-                <OfficialScoringStaffPanel
-                  sportSlug={tournament.sportSlug}
-                  slug={tournament.slug}
-                  enabled={canManage}
-                />
-                <OfficialBracketLive
-                  sportSlug={tournament.sportSlug}
-                  slug={tournament.slug}
-                  matches={bracket?.matches ?? []}
-                  participant={participant}
-                  officialScoringEnabled={tournament.status === "live"}
-                />
-              </div>
+              <OfficialBracketLive
+                sportSlug={tournament.sportSlug}
+                slug={tournament.slug}
+                matches={bracket?.matches ?? []}
+                participant={participant}
+                officialScoringEnabled={tournament.status === "live"}
+                pointsPerMatch={pointsPerMatch}
+              />
             )
           ) : null}
 
@@ -497,11 +736,13 @@ export function OfficialTournamentPage({
         <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
           <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-[0_8px_32px_rgba(0,71,255,0.12)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
-              Registration fee
+              {isFreeOfficial ? "Entry" : "Registration fee"}
             </p>
             <p className="mt-2 text-3xl font-bold text-foreground">
-              {formatIdr(tournament.registrationFeeIdr)}
-              <span className="ml-1 text-base font-medium text-cp-muted">/ team</span>
+              {isFreeOfficial ? "Free" : formatIdr(tournament.registrationFeeIdr)}
+              {!isFreeOfficial ? (
+                <span className="ml-1 text-base font-medium text-cp-muted">/ team</span>
+              ) : null}
             </p>
 
             {summary.registrationClosesAt ? (
@@ -582,11 +823,14 @@ export function OfficialTournamentPage({
               />
             ) : null}
 
-            {canManage ? (
-              <Button asChild variant="outline" className="mt-3 w-full border-cp-border">
-                <Link href={dashboardRoutes.hostTournament(tournament.id)}>
-                  Manage registrations
-                </Link>
+            {canManage && !showManage ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full border-cp-border"
+                onClick={openManageRegistrations}
+              >
+                Manage registrations
               </Button>
             ) : null}
           </div>

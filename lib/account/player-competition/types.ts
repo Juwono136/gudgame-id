@@ -17,7 +17,7 @@ export type PlayerMatchListItem = {
   round: string | null;
   playedAt: string;
   isOfficial: boolean;
-  tournamentType: "official" | "recreational";
+  tournamentType: "official" | "fun_match";
   sportName: string | null;
   sportSlug: string | null;
   tournamentSlug: string | null;
@@ -41,16 +41,35 @@ export type PlayerMatchSourceDetail = {
 
 export type PlayerMatchDetail = PlayerMatchListItem & {
   userTeamName: string | null;
+  statsTier: string | null;
   tournamentStatus: string | null;
   tournamentStartsAt: string | null;
   tournamentEndsAt: string | null;
   recordedAt: string;
   source: PlayerMatchSourceDetail | null;
+  tournamentContext: {
+    userWins: number;
+    userLosses: number;
+    userMatches: number;
+    userWinRate: number | null;
+    pointsEarned: number;
+    placement: string | null;
+  };
+  careerSnapshot: {
+    totalPoints: number;
+    winRate: number | null;
+    tier: string | null;
+    tierLevel: string | null;
+    totalMatches: number;
+    wins: number;
+    losses: number;
+    worldRank: number | null;
+  };
 };
 
 export type PlayerTournamentListItem = {
   id: string;
-  source: "official" | "recreational";
+  source: "official" | "fun_match";
   tournamentId: string | null;
   year: number;
   tournamentName: string;

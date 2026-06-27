@@ -11,6 +11,9 @@ import {
   playerSocialLinksSchema,
 } from "@/lib/wiki/player-profile-fields";
 
+import { sportInterestSlugsSchema } from "@/lib/validations/profile-completion";
+import { USER_GENDERS } from "@/lib/constants/user-gender";
+
 export const staffProfileUpdateSchema = z.object({
   fullNameKtp: z.string().trim().min(2, "Name must be at least 2 characters").max(150),
   phoneCountryCode: z.string().trim().min(1, "Country code is required").max(8),
@@ -20,6 +23,8 @@ export const staffProfileUpdateSchema = z.object({
     .min(8, "Phone number must be at least 8 digits")
     .max(20)
     .regex(/^\d+$/, "Phone must contain digits only"),
+  sportInterestSlugs: sportInterestSlugsSchema.optional(),
+  gender: z.enum(USER_GENDERS, { message: "Select your gender" }),
 });
 
 export type StaffProfileUpdateInput = z.infer<typeof staffProfileUpdateSchema>;

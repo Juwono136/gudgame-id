@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -32,6 +33,11 @@ export const user = pgTable(
     nickname: varchar("nickname", { length: 50 }).unique(),
     clubName: varchar("club_name", { length: 100 }),
     fullNameKtp: varchar("full_name_ktp", { length: 150 }),
+    /** Slugs from PLAYER_SPORT_INTEREST_OPTIONS — player preference tags */
+    sportInterestSlugs: jsonb("sport_interest_slugs").$type<string[]>().default([]).notNull(),
+    /** male | female — used for official tournament category eligibility */
+    gender: varchar("gender", { length: 16 }),
+    profileOnboardingCompletedAt: timestamp("profile_onboarding_completed_at"),
     /** Admin-created accounts must set a new password on first sign-in */
     mustChangePassword: boolean("must_change_password").default(false).notNull(),
     invitedByAdmin: boolean("invited_by_admin").default(false).notNull(),

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Camera, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AuthField } from "@/components/auth/auth-field";
@@ -11,6 +11,8 @@ import { AuthInput } from "@/components/auth/auth-form-controls";
 import { AuthPhoneFieldGroup } from "@/components/auth/auth-phone-field-group";
 import { Button } from "@/components/ui/button";
 import { SettingsSectionCard } from "@/components/settings/settings-section-card";
+import { SportInterestsField } from "@/components/settings/sport-interests-field";
+import { GenderSelectField } from "@/components/auth/gender-select-field";
 import type { AccountSettingsView } from "@/lib/account/settings/get-settings";
 import { defaultPhoneCountry, phoneCountries } from "@/lib/constants/phone-countries";
 import {
@@ -47,6 +49,8 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
       fullNameKtp: settings.account.fullNameKtp ?? settings.account.name ?? "",
       phoneCountryCode: resolveCountryIso(settings.account.phoneCountryCode),
       phone: settings.account.phone ?? "",
+      sportInterestSlugs: (settings.account.sportInterestSlugs ?? []) as StaffProfileUpdateInput["sportInterestSlugs"],
+      gender: (settings.account.gender ?? "male") as StaffProfileUpdateInput["gender"],
     },
   });
 
@@ -74,6 +78,8 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
     formData.set("fullNameKtp", values.fullNameKtp);
     formData.set("phoneCountryCode", values.phoneCountryCode);
     formData.set("phone", values.phone);
+    formData.set("sportInterestSlugs", JSON.stringify(values.sportInterestSlugs ?? []));
+    formData.set("gender", values.gender);
     if (photo) formData.set("photo", photo);
 
     try {
@@ -90,7 +96,7 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
     <SettingsSectionCard
       id="profile"
       title="Profile"
-      description="Update your display name, profile photo, and phone number. Your profile photo is also used on your public player page."
+      description="Update your display name, profile photo, contact details, and sport interests."
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -146,6 +152,31 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
             register={register}
             countryError={errors.phoneCountryCode?.message}
             phoneError={errors.phone?.message}
+          />
+
+          <Controller
+            control={control}
+            name="gender"
+            render={({ field }) => (
+              <GenderSelectField
+                value={field.value}
+                onChange={field.onChange}
+                required
+                error={errors.gender?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="sportInterestSlugs"
+            render={({ field }) => (
+              <SportInterestsField
+                value={field.value ?? []}
+                onChange={field.onChange}
+                error={errors.sportInterestSlugs?.message}
+              />
+            )}
           />
         </div>
 

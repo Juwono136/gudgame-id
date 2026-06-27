@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar,
@@ -12,7 +12,6 @@ import {
   Gamepad2,
   Info,
   Loader2,
-  LogOut,
   MapPin,
   Play,
   Swords,
@@ -30,7 +29,8 @@ import { TournamentRecentMatchesSection } from "@/components/tournaments/tournam
 import { mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
 import { ReclubBracketPanel } from "@/components/tournaments/reclub-bracket-panel";
 import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
-import { ReclubLobbyDnd } from "@/components/tournaments/reclub-lobby-dnd";
+import { ReclubSquadLobby } from "@/components/tournaments/reclub/reclub-squad-lobby";
+import { isTournamentManageMode } from "@/lib/tournaments/manage-mode";
 import { ReclubSessionStatusBanner } from "@/components/tournaments/reclub/reclub-session-status-banner";
 import { ReclubRulesPanel } from "@/components/tournaments/reclub-rules-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
@@ -58,7 +58,6 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import {
   useCompleteReclubRound,
-  useCreateReclubTeam,
   useLeaveReclubTournament,
   useRenameReclubTeam,
   useStartReclubRound,
@@ -68,7 +67,14 @@ import {
 } from "@/hooks/use-tournament-lobby";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { useReclubSessionPhase } from "@/hooks/use-reclub-session-phase";
-import { authRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { FunMatchJoinDialog } from "@/components/tournaments/fun-match-join-dialog";
+import { TournamentHostToolsPanel } from "@/components/tournaments/tournament-host-tools-panel";
+import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
+import { TournamentBreadcrumbs } from "@/components/tournaments/tournament-breadcrumbs";
+import { useTournamentLive } from "@/hooks/use-tournament-live";
+import { getPhaseLabel } from "@/lib/tournaments/ui/labels";
+import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import {
   getMaxRounds,
   getScoringTypeLabel,
@@ -91,13 +97,22 @@ import {
 } from "@/lib/tournaments/participant-access";
 import { cn } from "@/lib/utils";
 
-const TABS = ["Overview", "Lobby", "Players", "Bracket", "History", "Stats"] as const;
+const TABS = [
+  "Overview",
+  "Live Score",
+  "Lobby",
+  "Players",
+  "Bracket",
+  "History",
+  "Stats",
+] as const;
 
 type ReclubTournamentPageProps = {
   tournament: TournamentDetail;
   summary: TournamentRegistrationSummary;
   isAuthenticated: boolean;
   initialUserTeamId?: string | null;
+  canManage?: boolean;
 };
 
 function formatDuration(seconds: number): string {
@@ -127,11 +142,48 @@ export function ReclubTournamentPage({
   summary: initialSummary,
   isAuthenticated,
   initialUserTeamId = null,
+  canManage: canManageProp = false,
 }: ReclubTournamentPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { confirm } = useConfirmDialog();
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
   const [publicUrl, setPublicUrl] = useState("");
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [joinPreselectedTeamId, setJoinPreselectedTeamId] = useState<string | null>(null);
+  const showManage = isTournamentManageMode(searchParams) && (canManageProp || false);
+
+  const handleManageClick = useCallback(() => {
+    setTab("Lobby");
+    if (!showManage) {
+      router.push(publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug));
+    }
+  }, [showManage, router, tournament.sportSlug, tournament.slug]);
+
+  const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
+  const livePhase =
+    liveData?.phase ??
+    (tournament.status === "live"
+      ? "live"
+      : tournament.status === "completed"
+        ? "completed"
+        : "not_started");
+  const liveMessage = liveData?.message;
+  const phaseEmptyMessage =
+    liveMessage ??
+    (livePhase === "completed"
+      ? getReclubSessionEndedMessage()
+      : livePhase === "not_started"
+        ? getReclubSessionNotLiveMessage()
+        : null);
+
+  useEffect(() => {
+    if (searchParams.get("created") === "1") {
+      toast.success("Fun Match created", {
+        description: "Share the public page or invite players from the lobby.",
+      });
+    }
+  }, [searchParams]);
 
   const { data, isLoading, isFetching, refetch } = useTournamentLobby(
     tournament.sportSlug,
@@ -139,7 +191,6 @@ export function ReclubTournamentPage({
   );
 
   const switchTeam = useSwitchTeam(tournament.sportSlug, tournament.slug);
-  const createTeam = useCreateReclubTeam(tournament.sportSlug, tournament.slug);
   const renameTeam = useRenameReclubTeam(tournament.sportSlug, tournament.slug);
   const startRound = useStartReclubRound(tournament.sportSlug, tournament.slug);
   const completeRound = useCompleteReclubRound(tournament.sportSlug, tournament.slug);
@@ -158,7 +209,7 @@ export function ReclubTournamentPage({
   const matches = data?.matches ?? [];
   const activeMatch = data?.activeMatch ?? null;
   const userTeamId = data?.userTeamId ?? initialUserTeamId;
-  const canManage = data?.canManage ?? false;
+  const canManage = data?.canManage ?? canManageProp;
   const currentUserId = data?.userId ?? null;
   const teamsInActiveBracket = useMemo(
     () => new Set(data?.teamsInActiveBracket ?? []),
@@ -279,31 +330,19 @@ export function ReclubTournamentPage({
       router.push(`${authRoutes.register}?callbackUrl=${encodeURIComponent(callback)}`);
       return;
     }
-    const ok = await confirm({
-      title: "Join this Fun Match?",
-      description: "You'll be placed on a squad. Switch freely until a round starts.",
-      confirmLabel: "Join lobby",
-      cancelLabel: "Cancel",
-    });
-    if (!ok) return;
-    setJoining(true);
-    try {
-      const res = await fetch(
-        `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/join`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message ?? "Could not join");
-      toast.success("You're in the lobby!");
-      void refetch();
-      router.refresh();
-      setTab("Lobby");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Join failed");
-    } finally {
-      setJoining(false);
-    }
+    setJoinPreselectedTeamId(null);
+    void refetch();
+    setJoinDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (searchParams.get("created") === "1") {
+      toast.success("Fun Match created");
+    }
+    if (searchParams.get("join") === "1" && isAuthenticated && !userTeamId) {
+      setJoinDialogOpen(true);
+    }
+  }, [searchParams, isAuthenticated, userTeamId]);
 
   const handleLeave = async () => {
     const ok = await confirm({
@@ -385,23 +424,70 @@ export function ReclubTournamentPage({
 
   const teamOptions = useMemo(() => teams.filter((t) => t.memberCount > 0), [teams]);
   const recentRoundRows = useMemo(() => mapReclubMatchesToRecentRows(matches), [matches]);
+  const captainUserIdByTeam = useMemo(
+    () =>
+      Object.fromEntries(
+        teams.map((t) => [t.id, t.members.find((m) => m.role === "captain")?.userId ?? t.members[0]?.userId ?? null]),
+      ),
+    [teams],
+  );
 
   return (
     <TournamentDetailPageShell>
       <LoadingOverlay show={busy} label="Updating…" />
 
+      {canManage ? (
+        <TournamentSessionChrome
+          sportSlug={tournament.sportSlug}
+          slug={tournament.slug}
+          tournamentId={tournament.id}
+          name={tournament.name}
+          phase={tournament.status === "live" ? "live" : tournament.status === "completed" ? "completed" : "not_started"}
+          canManage={canManage}
+          canEdit
+          editHref={tournamentEditUrl(tournament.id, canManageProp ? "host" : "player")}
+          listHref={canManageProp ? dashboardRoutes.hostTournaments : dashboardRoutes.tournaments}
+          manageActive={showManage}
+          onManageClick={handleManageClick}
+        />
+      ) : null}
+
+      <FunMatchJoinDialog
+        open={joinDialogOpen}
+        onOpenChange={(open) => {
+          setJoinDialogOpen(open);
+          if (!open) setJoinPreselectedTeamId(null);
+        }}
+        sportSlug={tournament.sportSlug}
+        slug={tournament.slug}
+        maxTeams={data?.tournament.maxTeams ?? tournament.maxTeams}
+        playersPerTeam={data?.tournament.playersPerTeam ?? tournament.playersPerTeam}
+        squads={teams.map((t) => ({
+          id: t.id,
+          name: t.name,
+          memberCount: t.memberCount,
+          maxMembers: tournament.playersPerTeam,
+        }))}
+        preselectedTeamId={joinPreselectedTeamId}
+        userAlreadyInSquad={Boolean(userTeamId)}
+        onJoined={() => {
+          void refetch();
+          router.refresh();
+          setTab("Lobby");
+        }}
+      />
+
       <TournamentHeroBanner coverImageUrl={tournament.coverImageUrl} variant="reclub">
-        <Link
-          href={publicSportRoutes.tournaments(tournament.sportSlug)}
-          className={tournamentHeroStyles.backLink}
-        >
-          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-          {tournament.sportName} tournaments
-        </Link>
+        <TournamentBreadcrumbs
+          sportSlug={tournament.sportSlug}
+          sportName={tournament.sportName}
+          tournamentName={tournament.name}
+          className="mb-3"
+        />
 
         <FadeInView className="mt-5 sm:mt-6">
           <div className="flex flex-wrap gap-2">
-            <Badge className={cn("border-0", getTournamentTypeBadgeClass("recreational"))}>
+            <Badge className={cn("border-0", getTournamentTypeBadgeClass("fun_match"))}>
               <Gamepad2 className="mr-1 h-3 w-3" />
               Fun Match — free play
             </Badge>
@@ -411,7 +497,7 @@ export function ReclubTournamentPage({
                 getTournamentStatusBadgeClass(tournament.status),
               )}
             >
-              {tournament.status}
+              {getPhaseLabel(livePhase)}
             </Badge>
             {isFetching && !isLoading ? <Badge variant="muted">Syncing…</Badge> : null}
           </div>
@@ -530,6 +616,7 @@ export function ReclubTournamentPage({
                   }}
                   disabled={updateLiveScore.isPending}
                   status={scoreStatus}
+                  maxScore={pointsPerMatch}
                 />
                 <Button
                   className="w-full bg-amber-600 hover:bg-amber-500 sm:w-auto"
@@ -668,64 +755,142 @@ export function ReclubTournamentPage({
               </div>
             ) : null}
 
-            {tab === "Lobby" ? (
-              <div>
-                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Team lobby</h2>
-                    <p className="text-sm text-cp-muted">
-                      Drag your avatar to switch squads · rename before play starts
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {userTeamId ? (
-                      <Badge variant="success">
-                        You&apos;re on a squad
-                      </Badge>
-                    ) : null}
-                    {canLeaveSession ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                        disabled={leaveTournament.isPending}
-                        onClick={() => void handleLeave()}
-                      >
-                        <LogOut className="mr-1.5 h-3.5 w-3.5" />
-                        Leave session
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-
-                {isLoading ? (
-                  <div className="flex justify-center py-16">
-                    <LoadingSpinner label="Loading lobby…" />
-                  </div>
+            {tab === "Live Score" ? (
+              <div className="space-y-6">
+                {activeMatch ? (
+                  <section className="rounded-2xl border border-amber-500/25 bg-cp-card p-4 sm:p-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+                          Round {activeMatch.roundNumber} · Live
+                        </p>
+                        <h2 className="mt-1 text-xl font-bold text-foreground">
+                          {activeMatch.teamAName} vs {activeMatch.teamBName}
+                        </h2>
+                        <p className="mt-1 inline-flex items-center gap-2 text-sm text-cp-muted">
+                          <Timer className="h-4 w-4" />
+                          {formatDuration(liveElapsed)}
+                        </p>
+                      </div>
+                      {canManage ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 border-emerald-500/30"
+                          onClick={() =>
+                            router.push(
+                              publicSportRoutes.tournamentDisplayMatch(
+                                tournament.sportSlug,
+                                tournament.slug,
+                                activeMatch.id,
+                              ),
+                            )
+                          }
+                        >
+                          Open display mode
+                        </Button>
+                      ) : null}
+                    </div>
+                    {canUseHostControls ? (
+                      <div className="mt-6">
+                        <LiveScoreboard
+                          teamAName={activeMatch.teamAName ?? "Squad A"}
+                          teamBName={activeMatch.teamBName ?? "Squad B"}
+                          scoreA={Number(scoreA) || 0}
+                          scoreB={Number(scoreB) || 0}
+                          onScoreAChange={(n) => {
+                            setScoreA(String(n));
+                            persistLiveScore(n, Number(scoreB) || 0, "a", "set");
+                          }}
+                          onScoreBChange={(n) => {
+                            setScoreB(String(n));
+                            persistLiveScore(Number(scoreA) || 0, n, "b", "set");
+                          }}
+                          maxScore={pointsPerMatch}
+                          disabled={completeRound.isPending}
+                          status={scoreStatus}
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-6 text-center text-4xl font-bold tabular-nums text-foreground sm:text-5xl">
+                        {activeMatch.scoreA ?? 0} : {activeMatch.scoreB ?? 0}
+                      </p>
+                    )}
+                  </section>
                 ) : (
-                  <ReclubLobbyDnd
-                    teams={teams}
-                    playersPerTeam={tournament.playersPerTeam}
-                    maxTeams={data?.tournament.maxTeams ?? tournament.maxTeams}
-                    session={tournament}
-                    userTeamId={userTeamId}
-                    currentUserId={currentUserId}
-                    activeMatch={Boolean(activeMatch)}
-                    canManage={canManage}
-                    onSwitchTeam={(teamId) => void handleSwitch(teamId)}
-                    onCreateTeam={(name) => createTeam.mutateAsync(name)}
-                    onRenameTeam={(teamId, name) =>
-                      renameTeam.mutateAsync({ teamId, name })
-                    }
-                    canLeave={canLeaveSession}
-                    onLeave={() => void handleLeave()}
-                    leaving={leaveTournament.isPending}
-                    creating={createTeam.isPending}
-                    renamingTeamId={
-                      renameTeam.isPending ? renameTeam.variables?.teamId ?? null : null
-                    }
-                  />
+                  <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
+                    <Trophy className="mx-auto h-8 w-8 text-emerald-400/80" />
+                    <h2 className="mt-3 text-lg font-semibold text-foreground">No live match right now</h2>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-cp-muted">
+                      {phaseEmptyMessage ??
+                        "Scores will appear here when the host starts a round or bracket match."}
+                    </p>
+                  </section>
                 )}
+
+                {liveData?.matches && liveData.matches.length > 0 ? (
+                  <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
+                    <h3 className="font-semibold text-foreground">All matches</h3>
+                    <ul className="mt-3 divide-y divide-cp-border/60">
+                      {liveData.matches.map((m) => (
+                        <li
+                          key={m.id}
+                          className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+                        >
+                          <span className="min-w-0 font-medium text-foreground">
+                            {m.teamAName ?? "TBD"} vs {m.teamBName ?? "TBD"}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-cp-muted">
+                            {m.status === "in_progress"
+                              ? `${m.scoreA ?? 0} : ${m.scoreB ?? 0} · Live`
+                              : m.status === "completed"
+                                ? `${m.scoreA ?? 0} : ${m.scoreB ?? 0} · Final`
+                                : "Scheduled"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
+
+            {tab === "Lobby" ? (
+              <div className="space-y-6">
+                {showManage ? (
+                  <TournamentHostToolsPanel
+                    sportSlug={tournament.sportSlug}
+                    slug={tournament.slug}
+                    variant="fun_match"
+                  />
+                ) : null}
+
+                <ReclubSquadLobby
+                  teams={teams}
+                  playersPerTeam={tournament.playersPerTeam}
+                  maxTeams={data?.tournament.maxTeams ?? tournament.maxTeams}
+                  session={tournament}
+                  userTeamId={userTeamId}
+                  currentUserId={currentUserId}
+                  activeMatch={Boolean(activeMatch)}
+                  canManage={canManage}
+                  isLoading={isLoading}
+                  onJoinClick={(teamId) => {
+                    setJoinPreselectedTeamId(teamId ?? null);
+                    void refetch();
+                    setJoinDialogOpen(true);
+                  }}
+                  onSwitchTeam={(teamId) => void handleSwitch(teamId)}
+                  onRenameTeam={(teamId, name) => renameTeam.mutateAsync({ teamId, name })}
+                  canLeave={canLeaveSession}
+                  onLeave={() => void handleLeave()}
+                  leaving={leaveTournament.isPending}
+                  renamingTeamId={
+                    renameTeam.isPending ? renameTeam.variables?.teamId ?? null : null
+                  }
+                  captainUserIdByTeam={captainUserIdByTeam}
+                />
 
                 {canUseHostControls && canPlaySession && !activeMatch && teamOptions.length >= 2 ? (
                   <section className="mt-10 rounded-2xl border border-cp-border bg-cp-card p-6">
@@ -775,7 +940,7 @@ export function ReclubTournamentPage({
                   </section>
                 ) : canUseHostControls && sessionPhase === "upcoming" ? (
                   <p className="mt-10 rounded-xl border border-sky-500/25 bg-sky-500/5 px-4 py-3 text-sm text-sky-200/90">
-                    {getReclubSessionNotLiveMessage()}
+                    {phaseEmptyMessage ?? getReclubSessionNotLiveMessage()}
                   </p>
                 ) : canUseHostControls && sessionPhase === "ended" ? (
                   <p className="mt-10 rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
@@ -789,7 +954,7 @@ export function ReclubTournamentPage({
               <TournamentParticipantsPanel
                 sportSlug={tournament.sportSlug}
                 slug={tournament.slug}
-                tournamentType="recreational"
+                tournamentType="fun_match"
                 variant="reclub"
               />
             ) : null}
@@ -805,6 +970,7 @@ export function ReclubTournamentPage({
                 userTeamId={userTeamId}
                 tournamentStatus={tournament.status}
                 session={tournament}
+                pointsPerMatch={pointsPerMatch}
               />
             ) : null}
 

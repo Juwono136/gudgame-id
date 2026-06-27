@@ -10,6 +10,7 @@ import { assertTournamentEditable } from "@/lib/tournaments/manage-policy";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { tournamentListUrl } from "@/lib/tournaments/edit-routes";
 import { dashboardRoutes } from "@/lib/constants/routes";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { getTournamentById } from "@/lib/tournaments/workspace/service";
 
 type PageProps = {
@@ -33,11 +34,11 @@ export default async function HostEditTournamentPage({ params }: PageProps) {
     redirect(tournamentListUrl("host"));
   }
 
-  const isReclub = tournament.tournamentType === "recreational";
+  const isFunMatch = isFunMatchType(tournament.tournamentType);
 
   return (
     <PageShell showGridBackground={false}>
-      {isReclub ? (
+      {isFunMatch ? (
         <ReclubTournamentWizard
           sports={[{ slug: tournament.sportSlug, name: tournament.sportName }]}
           defaultSportSlug={tournament.sportSlug}
@@ -65,7 +66,7 @@ export default async function HostEditTournamentPage({ params }: PageProps) {
               tournamentId={tournamentId}
               mode="host"
               workspace="host"
-              showTopBack={false}
+              showTopBack
             />
           </div>
         </div>

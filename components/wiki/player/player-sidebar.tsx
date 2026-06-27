@@ -6,6 +6,8 @@ import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
 import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
 import type { PlayerSocialLink } from "@/lib/wiki/player-profile-fields";
 import { resolveWikiImageUrl } from "@/lib/media/client";
+import { SportInterestsDisplay } from "@/components/shared/sport-interests-display";
+import type { SportInterestItem } from "@/lib/account/player-performance/sport-interests";
 import { cn } from "@/lib/utils";
 
 type PlayerSidebarProps = {
@@ -14,6 +16,7 @@ type PlayerSidebarProps = {
   nationality?: string | null;
   age?: number | null;
   yearsActive?: string | null;
+  sportInterests?: SportInterestItem[];
   signatureGear: PlayerEquipmentItem | null;
   socialLinks: PlayerSocialLink[];
   equipment: PlayerEquipmentItem[];
@@ -35,6 +38,7 @@ export function PlayerSidebar({
   nationality,
   age,
   yearsActive,
+  sportInterests = [],
   signatureGear,
   socialLinks,
   equipment,
@@ -49,6 +53,11 @@ export function PlayerSidebar({
           {age != null ? <BiodataRow label="Age" value={String(age)} /> : null}
           {yearsActive ? <BiodataRow label="Years active" value={yearsActive} /> : null}
         </dl>
+        {sportInterests.length > 0 ? (
+          <div className="mt-4 border-t border-cp-border pt-4">
+            <SportInterestsDisplay items={sportInterests} compact />
+          </div>
+        ) : null}
         <div className="mt-4 border-t border-cp-border pt-4">
           <PlayerShareButton title={displayName} />
         </div>

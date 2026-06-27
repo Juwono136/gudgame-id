@@ -8,6 +8,7 @@ import { uploadProfilePhoto } from "@/lib/auth/upload-profile-photo";
 import { validateProfilePhoto } from "@/lib/validations/auth";
 import { deleteStoredObjectIfReplaced } from "@/lib/storage/object-lifecycle";
 import { getDialByCountryCode } from "@/lib/constants/phone-countries";
+import { normalizeSportInterestSlugs } from "@/lib/auth/profile-completion";
 import type { StaffProfileUpdateInput } from "@/lib/validations/account-settings";
 
 export async function updateStaffProfile(
@@ -54,18 +55,22 @@ export async function updateStaffProfile(
   const phoneDialCode =
     getDialByCountryCode(data.phoneCountryCode) ?? data.phoneCountryCode;
 
-  await getDb()
-    .update(user)
-    .set({
-      fullNameKtp: data.fullNameKtp,
-      name: data.fullNameKtp,
-      phone: data.phone,
-      phoneCountryCode: phoneDialCode,
-      image: imageUrl,
-      imageStorageKey,
-      updatedAt: new Date(),
-    })
-    .where(eq(user.id, userId));
+  const updatePayload: Partial<typeof user.$inferInsert> = {
+    fullNameKtp: data.fullNameKtp,
+    name: data.fullNameKtp,
+    phone: data.phone,
+    phoneCountryCode: phoneDialCode,
+    image: imageUrl,
+    imageStorageKey,
+    gender: data.gender,
+    updatedAt: new Date(),
+  };
+
+  if (data.sportInterestSlugs) {
+    updatePayload.sportInterestSlugs = normalizeSportInterestSlugs(data.sportInterestSlugs);
+  }
+
+  await getDb().update(user).set(updatePayload).where(eq(user.id, userId));
 
   const { syncPlayerPrimaryPhotoFromUser } = await import(
     "@/lib/account/player-profile/sync-primary-photo"

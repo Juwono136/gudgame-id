@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, Pencil, Plus, Search, Trash2, Trophy } from "lucide-react";
+import { Gamepad2, LayoutDashboard, Pencil, Plus, Search, Swords, Trash2, Trophy } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
+import { PlayerMatchHistoryPanel } from "@/components/dashboard/player/competition/player-match-history-panel";
 import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
 import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
 import { Button } from "@/components/ui/button";
@@ -30,8 +31,10 @@ import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerTournamentsListQuery } from "@/lib/validations/player-competition";
 import type { PlayerTournamentListItem } from "@/lib/account/player-competition/types";
+import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
 import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
+import { WorkspaceScopeTabs } from "@/components/dashboard/workspace-scope-tabs";
 
 type PlayerTournamentsListPageProps = {
   roles: AppRole[];
@@ -74,10 +77,12 @@ function TournamentListRow({
   onDelete,
 }: TournamentListRowProps) {
   const href =
-    scope === "created" && row.tournamentId
-      ? dashboardRoutes.tournament(row.tournamentId)
-      : row.sportSlug && row.slug
-        ? publicSportRoutes.tournament(row.sportSlug, row.slug)
+    row.sportSlug && row.slug
+      ? scope === "created"
+        ? `${publicSportRoutes.tournament(row.sportSlug, row.slug)}?manage=1`
+        : publicSportRoutes.tournament(row.sportSlug, row.slug)
+      : scope === "created" && row.tournamentId
+        ? dashboardRoutes.tournament(row.tournamentId)
         : null;
 
   const statusLabel = row.registrationStatus
@@ -112,12 +117,12 @@ function TournamentListRow({
       />
     ) : null;
 
-  const isReclubCreated =
-    scope === "created" && row.source === "recreational" && Boolean(row.tournamentId);
+  const isFunMatchCreated =
+    scope === "created" && row.source === "fun_match" && Boolean(row.tournamentId);
 
   const hostActions = (
     <>
-      {isReclubCreated ? (
+      {isFunMatchCreated ? (
         <Button
           asChild
           size="icon"
@@ -164,10 +169,10 @@ function TournamentListRow({
     <Badge
       className={cn(
         "w-fit shrink-0 border-0 text-[10px] uppercase",
-        getTournamentTypeBadgeClass(row.source === "recreational" ? "recreational" : "official"),
+        getTournamentTypeBadgeClass(row.source === "official" ? "official" : "fun_match"),
       )}
     >
-      {row.source === "recreational" ? "Reclub" : "Official"}
+      {getPublicTournamentTypeLabel(row.source)}
     </Badge>
   );
 
@@ -218,7 +223,7 @@ function TournamentListRow({
           </div>
         </dl>
 
-        {registrationActions || isReclubCreated || row.canEdit || row.canDelete ? (
+        {registrationActions || isFunMatchCreated || row.canEdit || row.canDelete ? (
           <div className="flex flex-wrap items-center justify-end gap-1 border-t border-cp-border/60 pt-3">
             {registrationActions}
             {hostActions}
@@ -248,12 +253,15 @@ function TournamentListRow({
   );
 }
 
+type PlayerTournamentsViewScope = "created" | "history";
+
 export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const scopeParam = searchParams.get("scope");
-  const scope: PlayerTournamentsListQuery["scope"] =
-    scopeParam === "joined" || scopeParam === "all" ? scopeParam : "created";
+  const viewScope: PlayerTournamentsViewScope =
+    scopeParam === "history" ? "history" : "created";
+  const scope: PlayerTournamentsListQuery["scope"] = "created";
 
   const { confirm } = useConfirmDialog();
   const deleteTournament = useDeleteManageTournament();
@@ -261,6 +269,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
   const [year, setYear] = useState<string>("all");
+  const [type, setType] = useState<PlayerTournamentsListQuery["type"]>("all");
   const [sortBy, setSortBy] = useState<PlayerTournamentsListQuery["sortBy"]>("year");
   const [sortDir, setSortDir] = useState<PlayerTournamentsListQuery["sortDir"]>("desc");
   const [editRegistration, setEditRegistration] = useState<{
@@ -276,11 +285,12 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
       pageSize: 10,
       scope,
       search: debouncedSearch || undefined,
+      type,
       year: year === "all" ? undefined : Number(year),
       sortBy,
       sortDir,
     }),
-    [page, debouncedSearch, year, sortBy, sortDir, scope],
+    [page, debouncedSearch, year, type, sortBy, sortDir, scope],
   );
 
   const { data, isLoading, isFetching, error, refetch } = usePlayerTournamentsList(queryParams, {
@@ -289,20 +299,27 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
 
   const yearOptions = data?.years ?? [];
 
-  const scopeTabs: { id: PlayerTournamentsListQuery["scope"]; label: string; hint: string }[] = [
+  const scopeTabs: {
+    id: PlayerTournamentsViewScope;
+    label: string;
+    hint: string;
+    icon: typeof Trophy;
+  }[] = [
     {
       id: "created",
-      label: "I host",
-      hint: "Fun Match sessions and community events you created",
+      label: "Events I organize",
+      hint: "Fun Match sessions you created — manage squads, scores, and invites",
+      icon: Gamepad2,
     },
     {
-      id: "joined",
-      label: "I joined",
-      hint: "Tournaments you participated in as a player",
+      id: "history",
+      label: "Match history",
+      hint: "Every match you played with scores, opponents, and full statistics",
+      icon: Swords,
     },
   ];
 
-  const activeTab = scopeTabs.find((t) => t.id === scope);
+  const activeTab = scopeTabs.find((t) => t.id === viewScope);
 
   const handleDeleteTournament = async (tournamentId: string) => {
     const ok = await confirm({
@@ -322,14 +339,17 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
     <DashboardWorkspaceShell
       roles={roles}
       variant="player"
-      title={scope === "created" ? "My tournaments" : "Joined tournaments"}
-      description={activeTab?.hint}
+      title={viewScope === "created" ? "My events" : "Match history"}
+      description={
+        activeTab?.hint ??
+        "Manage your sessions and browse every match you have played."
+      }
       breadcrumbs={[
         { label: "Player", href: dashboardRoutes.home },
         { label: "Tournaments" },
       ]}
       actions={
-        scope === "created" ? (
+        viewScope === "created" ? (
           <Button
             asChild
             size="sm"
@@ -343,29 +363,25 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
         ) : null
       }
     >
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        {scopeTabs.map((tab) => (
-          <Button
-            key={tab.id}
-            type="button"
-            size="sm"
-            variant={scope === tab.id ? "default" : "outline"}
-            className={cn(
-              "h-10 w-full sm:w-auto",
-              scope === tab.id
-                ? "bg-cp-primary hover:bg-cp-primary-light"
-                : "border-cp-border",
-            )}
-            onClick={() => {
-              setPage(1);
-              router.push(`${dashboardRoutes.tournaments}?scope=${tab.id}`);
-            }}
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </div>
+      <WorkspaceScopeTabs
+        className="mb-6"
+        tabs={scopeTabs.map((t) => ({
+          id: t.id,
+          label: t.label,
+          shortLabel: t.id === "created" ? "Organize" : "History",
+          hint: t.hint,
+          icon: t.icon,
+        }))}
+        active={viewScope}
+        onChange={(id) => {
+          setPage(1);
+          router.push(`${dashboardRoutes.tournaments}?scope=${id}`);
+        }}
+      />
 
+      {viewScope === "history" ? (
+        <PlayerMatchHistoryPanel />
+      ) : (
       <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
         <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:p-5 md:flex-row md:items-stretch md:gap-4">
           <div className="relative min-w-0 w-full flex-1">
@@ -381,7 +397,24 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
             />
           </div>
 
-          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:min-w-[17rem] md:shrink-0">
+          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:min-w-[26rem] md:shrink-0 md:grid-cols-3">
+            <Select
+              value={type}
+              onValueChange={(v) => {
+                setType(v as PlayerTournamentsListQuery["type"]);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="official">Official</SelectItem>
+                <SelectItem value="fun_match">Fun Match</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select
               value={year}
               onValueChange={(v) => {
@@ -491,8 +524,9 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
           />
         ) : null}
       </div>
+      )}
 
-      {editRegistration ? (
+      {viewScope === "created" && editRegistration ? (
         <OfficialRegistrationEditDialog
           open
           onOpenChange={(open) => {

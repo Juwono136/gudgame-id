@@ -6,6 +6,7 @@ import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
 
@@ -22,7 +23,7 @@ export async function assignTeamToBracketSlot(
     });
   }
 
-  if (tournament.tournamentType === "recreational") {
+  if (isFunMatchType(tournament.tournamentType)) {
     assertReclubSessionPlayable(tournament);
   }
 

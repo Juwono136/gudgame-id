@@ -1,4 +1,6 @@
 import type { WikiEntityDetail } from "@/lib/wiki/service";
+import type { PlayerCareerStats } from "@/lib/wiki/player-career-stats";
+import type { SportInterestItem } from "@/lib/account/player-performance/sport-interests";
 import { WikiPageShell } from "@/components/wiki/wiki-page-shell";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { PlayerHero } from "@/components/wiki/player/player-hero";
@@ -14,7 +16,6 @@ import { WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
 import { resolveWikiImageUrl } from "@/lib/media/client";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
 import {
-  getPlayerCareerStats,
   getSignatureGearItem,
 } from "@/lib/wiki/player-career-stats";
 import {
@@ -25,11 +26,19 @@ import {
 type PlayerDetailLayoutProps = {
   entity: WikiEntityDetail;
   sportName: string;
+  careerStats: PlayerCareerStats;
+  sportInterests?: SportInterestItem[];
+  genderLabel?: string | null;
 };
 
-export function PlayerDetailLayout({ entity, sportName }: PlayerDetailLayoutProps) {
+export function PlayerDetailLayout({
+  entity,
+  sportName,
+  careerStats: playerCareer,
+  sportInterests = [],
+  genderLabel = null,
+}: PlayerDetailLayoutProps) {
   const playerEditable = parsePlayerEditableAttributes(entity.attributes);
-  const playerCareer = getPlayerCareerStats(entity);
   const playerEquipment = equipmentFromAttributes(entity.attributes);
   const signatureGear = getSignatureGearItem(entity.attributes);
   const socialLinks = parseSocialLinks(entity.attributes.socialLinks);
@@ -55,6 +64,12 @@ export function PlayerDetailLayout({ entity, sportName }: PlayerDetailLayoutProp
     badges.push({
       label: playerEditable.nationality.toUpperCase(),
       variant: "nationality",
+    });
+  }
+  if (genderLabel) {
+    badges.push({
+      label: genderLabel.toUpperCase(),
+      variant: "default",
     });
   }
 
@@ -100,6 +115,7 @@ export function PlayerDetailLayout({ entity, sportName }: PlayerDetailLayoutProp
             nationality={playerEditable.nationality}
             age={playerEditable.age}
             yearsActive={playerCareer.yearsActive}
+            sportInterests={sportInterests}
             signatureGear={signatureGear}
             socialLinks={socialLinks}
             equipment={

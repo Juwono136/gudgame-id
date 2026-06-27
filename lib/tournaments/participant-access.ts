@@ -1,6 +1,6 @@
 import type { AppRole } from "@/lib/roles/constants";
 import { AppError } from "@/lib/errors";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { canManageLiveScoring } from "@/lib/tournaments/permissions";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 
 export type TournamentParticipantContext = {
@@ -18,16 +18,19 @@ export function buildTournamentParticipantContext(input: {
   userId: string | null;
   userTeamId: string | null;
   roles: AppRole[];
-  tournamentCreatedBy: string | null;
-  canManageRuntime?: boolean;
+  tournament?: Pick<{ createdBy: string | null }, "createdBy">;
+  /** @deprecated Pass tournament instead */
+  tournamentCreatedBy?: string | null;
+  grantRole?: string | null;
 }): TournamentParticipantContext {
+  const createdBy = input.tournament?.createdBy ?? input.tournamentCreatedBy ?? null;
+  const tournamentStub = { createdBy } as import("@/lib/tournaments/service").TournamentDetail;
   const isAuthenticated = Boolean(input.userId);
   const userTeamId = input.userTeamId;
   const isParticipant = Boolean(userTeamId);
-  const isOwnerOrAdmin = input.userId
-    ? canManageTournament(input.roles, input.tournamentCreatedBy, input.userId)
+  const isRuntimeManager = input.userId
+    ? canManageLiveScoring(input.roles, tournamentStub, input.userId, input.grantRole)
     : false;
-  const isRuntimeManager = isOwnerOrAdmin || Boolean(input.canManageRuntime);
 
   return {
     isAuthenticated,
@@ -36,7 +39,7 @@ export function buildTournamentParticipantContext(input: {
     isHost: isRuntimeManager,
     isParticipant,
     isRuntimeManager,
-    canUseCourtsideScoring: isAuthenticated && (isParticipant || isRuntimeManager),
+    canUseCourtsideScoring: isAuthenticated && isRuntimeManager,
     canUseHostControls: isAuthenticated && isRuntimeManager,
   };
 }
@@ -48,8 +51,8 @@ export function assertCourtsideScoringAccess(ctx: TournamentParticipantContext):
       statusCode: 401,
     });
   }
-  if (!ctx.isParticipant && !ctx.isHost) {
-    throw new AppError("Join a team or use a host account to access courtside scoring", {
+  if (!ctx.isRuntimeManager) {
+    throw new AppError("Only the tournament owner or invited staff can score matches", {
       code: "FORBIDDEN",
       statusCode: 403,
     });
@@ -64,7 +67,7 @@ export function assertHostControlsAccess(ctx: TournamentParticipantContext): voi
     });
   }
   if (!ctx.isHost) {
-    throw new AppError("Only the host can use session controls", {
+    throw new AppError("Only the tournament owner or invited staff can use session controls", {
       code: "FORBIDDEN",
       statusCode: 403,
     });
@@ -73,12 +76,9 @@ export function assertHostControlsAccess(ctx: TournamentParticipantContext): voi
 
 export function canScoreBracketMatch(
   ctx: TournamentParticipantContext,
-  match: Pick<BracketMatchView, "teamAId" | "teamBId">,
+  _match: Pick<BracketMatchView, "teamAId" | "teamBId">,
 ): boolean {
-  if (ctx.isHost) return true;
-  if (!ctx.canUseCourtsideScoring) return false;
-  if (!ctx.userTeamId) return false;
-  return match.teamAId === ctx.userTeamId || match.teamBId === ctx.userTeamId;
+  return ctx.isRuntimeManager;
 }
 
 export function assertCanScoreBracketMatch(
@@ -87,7 +87,7 @@ export function assertCanScoreBracketMatch(
 ): void {
   assertCourtsideScoringAccess(ctx);
   if (!canScoreBracketMatch(ctx, match)) {
-    throw new AppError("You can only score matches your squad is playing in", {
+    throw new AppError("You do not have permission to score this match", {
       code: "FORBIDDEN",
       statusCode: 403,
     });

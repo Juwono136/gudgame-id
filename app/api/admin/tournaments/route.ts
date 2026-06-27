@@ -37,7 +37,11 @@ export async function POST(request: Request) {
       });
     }
 
-    assertCanCreateTournamentType(ctx.roles, parsed.data.tournamentType);
+    assertCanCreateTournamentType(
+      ctx.roles,
+      parsed.data.tournamentType,
+      parsed.data.officialBilling,
+    );
 
     const tournament = await createTournament(ctx.sportId, ctx.userId, parsed.data);
     return jsonSuccess({ tournament }, 201);

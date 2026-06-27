@@ -13,6 +13,7 @@ import { tournaments } from "@/db/schema/tournaments";
 import { sports } from "@/db/schema/sports";
 import { AppError } from "@/lib/errors";
 import { canManageTournament } from "@/lib/tournaments/permissions";
+import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import type { AppRole } from "@/lib/roles/constants";
 import {
   getTournamentBySlug,
@@ -65,6 +66,7 @@ export async function listHostTournaments(
       summary: tournaments.summary,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      officialBilling: tournaments.officialBilling,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
       registrationFeeIdr: tournaments.registrationFeeIdr,
@@ -86,7 +88,8 @@ export async function listHostTournaments(
     name: r.name,
     summary: r.summary,
     status: r.status as TournamentListItem["status"],
-    tournamentType: r.tournamentType as TournamentListItem["tournamentType"],
+    tournamentType: normalizeTournamentType(r.tournamentType) as TournamentListItem["tournamentType"],
+    officialBilling: (r.officialBilling as TournamentListItem["officialBilling"]) ?? null,
     venue: r.venue,
     categoryLabel: r.categoryLabel,
     registrationFeeIdr: r.registrationFeeIdr,
@@ -128,7 +131,7 @@ export async function getHostTournamentWorkspace(
     tournament.registrationClosesAt ? new Date(tournament.registrationClosesAt) : null,
     tournament.registrationOpensAt ? new Date(tournament.registrationOpensAt) : null,
     tournament.startsAt ? new Date(tournament.startsAt) : null,
-    tournament.tournamentType,
+    normalizeTournamentType(tournament.tournamentType),
   );
 
   const teams = await listLobbyTeamsDetailed(tournament.id);

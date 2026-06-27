@@ -2,13 +2,22 @@ export type ProfileMissingField =
   | "phone"
   | "phoneCountryCode"
   | "fullNameKtp"
-  | "photo";
+  | "sportInterests"
+  | "gender";
+
+/** Serializable profile completion state for SSR + client components. */
+export type ProfileCompletionSnapshot = {
+  profileComplete: boolean;
+  profileCompletionPercent: number;
+  missingProfileFields: ProfileMissingField[];
+};
 
 const FIELD_LABELS: Record<ProfileMissingField, string> = {
   fullNameKtp: "Legal full name",
   phone: "Phone / WhatsApp number",
   phoneCountryCode: "Phone country code",
-  photo: "Profile photo",
+  sportInterests: "Sports you follow",
+  gender: "Gender",
 };
 
 export function getProfileMissingFieldLabels(

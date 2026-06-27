@@ -6,9 +6,11 @@ import { user } from "@/db/schema/auth";
 import { sports } from "@/db/schema/sports";
 import {
   tournaments,
+  type OfficialBillingType,
   type TournamentStatus,
   type TournamentType,
 } from "@/db/schema/tournaments";
+import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { withCache } from "@/lib/cache/redis-cache";
 import { AppError } from "@/lib/errors";
 import {
@@ -47,7 +49,8 @@ export type TournamentListItem = {
   name: string;
   summary: string | null;
   status: TournamentStatus;
-  tournamentType: TournamentType;
+  tournamentType: string;
+  officialBilling: OfficialBillingType | null;
   venue: string | null;
   categoryLabel: string | null;
   registrationFeeIdr: number | null;
@@ -92,6 +95,7 @@ function mapListRow(row: {
   summary: string | null;
   status: string;
   tournamentType: string;
+  officialBilling?: string | null;
   venue: string | null;
   categoryLabel?: string | null;
   registrationFeeIdr?: number | null;
@@ -113,7 +117,8 @@ function mapListRow(row: {
     name: row.name,
     summary: row.summary,
     status,
-    tournamentType: row.tournamentType as TournamentType,
+    tournamentType: normalizeTournamentType(row.tournamentType) as TournamentType,
+    officialBilling: (row.officialBilling as OfficialBillingType | null) ?? null,
     venue: row.venue,
     categoryLabel: row.categoryLabel ?? null,
     registrationFeeIdr: row.registrationFeeIdr ?? null,
@@ -160,6 +165,18 @@ export async function listTournaments(
   if (status !== "all") {
     conditions.push(eq(tournaments.status, status));
   }
+  if (query.tournamentType && query.tournamentType !== "all") {
+    conditions.push(eq(tournaments.tournamentType, query.tournamentType));
+  }
+  if (query.officialBilling && query.officialBilling !== "all") {
+    conditions.push(eq(tournaments.officialBilling, query.officialBilling));
+  }
+  if (query.format && query.format !== "all") {
+    conditions.push(eq(tournaments.format, query.format));
+  }
+  if (query.category && query.category !== "all") {
+    conditions.push(eq(tournaments.categoryLabel, query.category));
+  }
 
   const whereClause = and(...conditions);
 
@@ -182,6 +199,7 @@ export async function listTournaments(
       summary: tournaments.summary,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      officialBilling: tournaments.officialBilling,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
       registrationFeeIdr: tournaments.registrationFeeIdr,
@@ -296,7 +314,17 @@ export async function listPublicTournamentsPaginated(
   }
 
   if (type !== "all") {
-    conditions.push(eq(tournaments.tournamentType, type));
+    const normalizedType = type === "recreational" ? "fun_match" : type;
+    conditions.push(eq(tournaments.tournamentType, normalizedType));
+  }
+  if (query.officialBilling && query.officialBilling !== "all") {
+    conditions.push(eq(tournaments.officialBilling, query.officialBilling));
+  }
+  if (query.format && query.format !== "all") {
+    conditions.push(eq(tournaments.format, query.format));
+  }
+  if (query.category && query.category !== "all") {
+    conditions.push(eq(tournaments.categoryLabel, query.category));
   }
 
   if (search?.trim()) {
@@ -325,6 +353,7 @@ export async function listPublicTournamentsPaginated(
       summary: tournaments.summary,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      officialBilling: tournaments.officialBilling,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
       registrationFeeIdr: tournaments.registrationFeeIdr,
@@ -389,6 +418,7 @@ const tournamentListSelect = {
   summary: tournaments.summary,
   status: tournaments.status,
   tournamentType: tournaments.tournamentType,
+  officialBilling: tournaments.officialBilling,
   venue: tournaments.venue,
   categoryLabel: tournaments.categoryLabel,
   registrationFeeIdr: tournaments.registrationFeeIdr,
@@ -517,6 +547,8 @@ export async function createTournament(
       description: rich.description,
       status,
       tournamentType: input.tournamentType,
+      officialBilling:
+        input.tournamentType === "official" ? (input.officialBilling ?? null) : null,
       format: input.format,
       categoryLabel: input.categoryLabel || null,
       rules: rich.matchFormatRules || rich.rules,
@@ -524,8 +556,13 @@ export async function createTournament(
       maxTeams: input.maxTeams ?? null,
       playersPerTeam: input.playersPerTeam,
       registrationFeeIdr:
-        input.tournamentType === "official" ? (input.registrationFeeIdr ?? null) : null,
-      prizePoolIdr: input.prizePoolIdr ?? null,
+        input.tournamentType === "official" && input.officialBilling === "paid"
+          ? (input.registrationFeeIdr ?? null)
+          : null,
+      prizePoolIdr:
+        input.tournamentType === "official" && input.officialBilling === "free"
+          ? (input.prizePoolIdr ?? null)
+          : input.prizePoolIdr ?? null,
       registrationOpensAt: parseOptionalDate(input.registrationOpensAt),
       registrationClosesAt:
         parseOptionalDate(input.registrationClosesAt) ?? startsAt,
@@ -570,7 +607,7 @@ export async function createTournament(
     });
   }
 
-  if (detail.tournamentType === "recreational") {
+  if (isFunMatchType(detail.tournamentType)) {
     await syncReclubParticipation({ tournament: detail, userId, role: "organizer" });
   }
 
@@ -672,6 +709,8 @@ export async function updateTournament(
       description: rich.description,
       status,
       tournamentType: input.tournamentType,
+      officialBilling:
+        input.tournamentType === "official" ? (input.officialBilling ?? null) : null,
       format: input.format,
       categoryLabel: input.categoryLabel || null,
       rules: rich.matchFormatRules || rich.rules,
@@ -679,8 +718,13 @@ export async function updateTournament(
       maxTeams: input.maxTeams ?? null,
       playersPerTeam: input.playersPerTeam,
       registrationFeeIdr:
-        input.tournamentType === "official" ? (input.registrationFeeIdr ?? null) : null,
-      prizePoolIdr: input.prizePoolIdr ?? null,
+        input.tournamentType === "official" && input.officialBilling === "paid"
+          ? (input.registrationFeeIdr ?? null)
+          : null,
+      prizePoolIdr:
+        input.tournamentType === "official" && input.officialBilling === "free"
+          ? (input.prizePoolIdr ?? null)
+          : input.prizePoolIdr ?? null,
       registrationOpensAt,
       registrationClosesAt,
       startsAt,
@@ -716,6 +760,17 @@ export async function updateTournament(
       statusCode: 500,
     });
   }
+
+  if (
+    (status === "completed" || status === "cancelled") &&
+    current?.status !== status
+  ) {
+    const { archiveTournamentSnapshot } = await import(
+      "@/lib/tournaments/archives/service"
+    );
+    await archiveTournamentSnapshot(detail, status === "cancelled");
+  }
+
   await invalidateTournamentCaches(detail.sportSlug, detail.slug);
   return detail;
 }

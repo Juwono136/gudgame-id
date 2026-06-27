@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { htmlExcerpt } from "@/lib/html/strip-html";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentListItem } from "@/lib/tournaments/service";
+import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
+import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES = {
@@ -14,11 +16,6 @@ const STATUS_STYLES = {
   completed: "bg-cp-elevated text-cp-muted",
   cancelled: "bg-cp-elevated text-cp-muted",
   draft: "bg-cp-elevated text-cp-muted",
-} as const;
-
-const TYPE_STYLES = {
-  official: "border-cp-primary/30 bg-cp-primary/10 text-cp-primary",
-  recreational: "border-cp-border bg-cp-elevated text-cp-muted",
 } as const;
 
 function formatDate(starts: string | null, ends: string | null) {
@@ -71,10 +68,10 @@ export function PublicTournamentsTable({ sportSlug, items }: PublicTournamentsTa
                 <Badge
                   className={cn(
                     "border text-[10px] font-medium",
-                    TYPE_STYLES[tournament.tournamentType],
+                    getTournamentTypeBadgeClass(tournament.tournamentType),
                   )}
                 >
-                  {tournament.tournamentType === "official" ? "Official" : "Reclub"}
+                  {getPublicTournamentTypeLabel(tournament.tournamentType)}
                 </Badge>
                 {tournament.categoryLabel ? (
                   <span className="text-[10px] font-medium uppercase tracking-wide text-cp-muted">

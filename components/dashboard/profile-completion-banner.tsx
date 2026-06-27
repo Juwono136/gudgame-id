@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dashboardRoutes } from "@/lib/constants/routes";
@@ -12,16 +13,24 @@ type ProfileCompletionBannerProps = {
   completionPercent: number;
   missingFields: ProfileMissingField[];
   className?: string;
+  settingsHref?: string;
 };
 
 export function ProfileCompletionBanner({
   completionPercent,
   missingFields,
   className,
+  settingsHref,
 }: ProfileCompletionBannerProps) {
+  const pathname = usePathname();
   if (missingFields.length === 0) return null;
 
   const labels = getProfileMissingFieldLabels(missingFields);
+  const profileSettingsHref =
+    settingsHref ??
+    (pathname.startsWith(dashboardRoutes.host)
+      ? `${dashboardRoutes.hostSettings}#profile`
+      : `${dashboardRoutes.settings}#profile`);
 
   return (
     <div
@@ -41,8 +50,8 @@ export function ProfileCompletionBanner({
               Complete your profile ({completionPercent}%)
             </p>
             <p className="mt-1 text-xs leading-relaxed text-cp-muted">
-              A few details are still missing so we can verify your player identity and
-              unlock the full TandingBase experience.
+              A few details are still missing. Update them in Settings to verify your player
+              identity and unlock the full experience.
             </p>
             <ul className="mt-2 list-inside list-disc text-xs text-cp-muted">
               {labels.map((label) => (
@@ -56,8 +65,8 @@ export function ProfileCompletionBanner({
           size="sm"
           className="shrink-0 rounded-lg bg-cp-primary text-primary-foreground hover:bg-[#0033C0]"
         >
-          <Link href={dashboardRoutes.completeProfile}>
-            Complete now
+          <Link href={profileSettingsHref}>
+            Update in settings
             <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Link>
         </Button>

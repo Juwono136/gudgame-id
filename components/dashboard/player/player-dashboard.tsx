@@ -6,6 +6,7 @@ import { PlayerDashboardToolbar } from "@/components/dashboard/player/player-das
 import { PlayerPageCompletionPrompt } from "@/components/dashboard/player/player-page-completion-prompt";
 import { DashboardQuickLinks } from "@/components/dashboard/dashboard-quick-links";
 import { DashboardWelcomeCard } from "@/components/dashboard/dashboard-welcome-card";
+import { SportInterestsDisplay } from "@/components/shared/sport-interests-display";
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
 import { PlayerCareerStatsSection } from "@/components/wiki/player/player-career-stats";
 import {
@@ -32,6 +33,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
     playerPageCompletion,
     recentMatches,
     recentTournaments,
+    sportInterests,
   } = data;
 
   const heroName = playerProfile?.displayName || account.displayName || account.name || "Player";
@@ -71,33 +73,43 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
         }
       />
 
+      {sportInterests.length > 0 ? (
+        <div className="rounded-2xl border border-cp-border bg-cp-card/60 px-4 py-3 sm:px-5 sm:py-4">
+          <SportInterestsDisplay
+            items={sportInterests}
+            title="Sports you follow"
+            description="Visible on your public player profile"
+          />
+        </div>
+      ) : null}
+
       <DashboardQuickLinks
         items={[
           {
             href: `${dashboardRoutes.tournaments}?scope=created`,
             label: "My sessions",
-            description: "Tournaments you created",
+            description: "Fun Match events you organize",
             icon: "gamepad2",
             accent: "emerald",
           },
           {
-            href: `${dashboardRoutes.tournaments}?scope=joined`,
-            label: "Joined",
-            description: "Events you played in",
-            icon: "users",
+            href: `${dashboardRoutes.tournaments}?scope=history`,
+            label: "Match history",
+            description: "Scores, opponents, and stats",
+            icon: "swords",
+            accent: "primary",
           },
           {
-            href: dashboardRoutes.matches,
-            label: "Match log",
-            description: "Scores and results",
-            icon: "swords",
+            href: dashboardRoutes.tournamentsNew,
+            label: "Create Fun Match",
+            description: "Start a community session",
+            icon: "plus",
           },
           {
             href: dashboardRoutes.settings,
             label: "Settings",
             description: "Profile & account",
             icon: "settings",
-            accent: "primary",
           },
         ]}
       />
@@ -153,7 +165,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
                 Host a free Fun Match
               </h2>
               <p className="mt-1 text-sm text-cp-muted">
-                Create a recreational tournament for friends and club mates. No registration
+                Create a Fun Match for friends and club mates. No registration
                 fee, no official ranking impact.
               </p>
               <Button asChild size="sm" className="mt-4 bg-emerald-600 hover:bg-emerald-500">
@@ -166,7 +178,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
 
             <PlayerRecentMatchesSection
               matches={recentMatches}
-              viewAllHref={dashboardRoutes.matches}
+              viewAllHref={`${dashboardRoutes.tournaments}?scope=history`}
             />
             <PlayerTournamentHistorySection
               tournaments={recentTournaments}
@@ -182,6 +194,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
               nationality={playerProfile.nationality}
               age={playerProfile.age}
               yearsActive={playerProfile.yearsActive}
+              sportInterests={sportInterests}
               signatureGear={signatureGear}
               socialLinks={playerProfile.socialLinks}
               equipment={equipment}

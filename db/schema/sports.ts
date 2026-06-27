@@ -21,6 +21,27 @@ export type SportModules = {
   rules: boolean;
 };
 
+export type SportTournamentConfig = {
+  formats: ("americano" | "single_elimination")[];
+  matchTypes: string[];
+  scoringTypes: ("points" | "timed")[];
+  pointsPerMatch: number[];
+  courtCounts: number[];
+  categories: ("Male" | "Female" | "Mix")[];
+  defaultPlayersPerTeam: number;
+};
+
+/** Default tournament config for sports without explicit config */
+export const DEFAULT_SPORT_TOURNAMENT_CONFIG: SportTournamentConfig = {
+  formats: ["americano", "single_elimination"],
+  matchTypes: ["Americano", "Elimination"],
+  scoringTypes: ["points", "timed"],
+  pointsPerMatch: [11, 15, 21, 25, 30],
+  courtCounts: [1, 2, 3, 4, 5, 6, 8, 10, 12],
+  categories: ["Male", "Female", "Mix"],
+  defaultPlayersPerTeam: 2,
+};
+
 /** Key order matches PostgreSQL jsonb default normalization (drizzle-kit push diff). */
 export const DEFAULT_SPORT_MODULES: SportModules = {
   gear: true,
@@ -48,6 +69,7 @@ export const sports = pgTable(
     accentColor: varchar("accent_color", { length: 32 }),
     visibility: varchar("visibility", { length: 20 }).default("coming_soon").notNull(),
     modules: jsonb("modules").$type<SportModules>().default(DEFAULT_SPORT_MODULES).notNull(),
+    tournamentConfig: jsonb("tournament_config").$type<SportTournamentConfig>(),
     isActive: boolean("is_active").default(true).notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

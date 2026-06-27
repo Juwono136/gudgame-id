@@ -1,28 +1,25 @@
-import { PageShell } from "@/components/layout/page-shell";
-import { HostTournamentWorkspace } from "@/components/dashboard/host/host-tournament-workspace";
+import { redirect, notFound } from "next/navigation";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
+import { canManageTournament } from "@/lib/tournaments/permissions";
+import { publicSportRoutes } from "@/lib/constants/routes";
+import { getTournamentById } from "@/lib/tournaments/workspace/service";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-export async function generateMetadata({ params }: PageProps) {
-  const { id } = await params;
-  return {
-    title: `Tournament #${id}`,
-    description: "Host tournament workspace on TandingBase.",
-  };
-}
-
 export default async function HostTournamentWorkspacePage({ params }: PageProps) {
-  await requireHostDashboardAccess();
-  const { id } = await params;
-  const tournamentId = parseEntityIdParam(id, "tournament id");
+  const { userId, roles } = await requireHostDashboardAccess();
+  const tournamentId = parseEntityIdParam((await params).id, "tournament id");
+  const tournament = await getTournamentById(tournamentId);
+  if (!tournament) notFound();
 
-  return (
-    <PageShell showGridBackground={false}>
-      <HostTournamentWorkspace tournamentId={tournamentId} />
-    </PageShell>
+  if (!canManageTournament(roles, tournament.createdBy, userId)) {
+    redirect(publicSportRoutes.tournament(tournament.sportSlug, tournament.slug));
+  }
+
+  redirect(
+    `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}?manage=1`,
   );
 }

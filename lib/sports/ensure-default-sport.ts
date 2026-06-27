@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sports } from "@/db/schema";
 import { DEFAULT_SPORT_SEEDS } from "@/lib/sports/default-sport-data";
+import { DEFAULT_SPORT_TOURNAMENT_CONFIG } from "@/db/schema/sports";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ module: "sports", action: "ensure-default" });
@@ -29,6 +30,7 @@ export async function ensureDefaultSports(): Promise<void> {
           visibility: sport.visibility,
           tagline: sport.tagline,
           description: sport.description,
+          tournamentConfig: sport.tournamentConfig ?? DEFAULT_SPORT_TOURNAMENT_CONFIG,
           isActive: true,
         })
         .where(eq(sports.slug, sport.slug));
@@ -41,6 +43,7 @@ export async function ensureDefaultSports(): Promise<void> {
       visibility: sport.visibility,
       tagline: sport.tagline,
       description: sport.description,
+      tournamentConfig: sport.tournamentConfig ?? DEFAULT_SPORT_TOURNAMENT_CONFIG,
       isActive: true,
     });
     log.info("Auto-provisioned default sport", { slug: sport.slug });

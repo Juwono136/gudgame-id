@@ -2,14 +2,10 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
-import { joinReclubTournament } from "@/lib/tournaments/registration/service";
-import { z } from "zod";
+import { joinFunMatchTournament } from "@/lib/tournaments/registration/service";
+import { funMatchJoinSchema } from "@/lib/validations/tournaments";
 
 export const runtime = "nodejs";
-
-const bodySchema = z.object({
-  teamName: z.string().trim().max(120).optional(),
-});
 
 export async function POST(
   request: Request,
@@ -24,11 +20,16 @@ export async function POST(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    const json = await request.json().catch(() => ({}));
-    const parsed = bodySchema.safeParse(json);
-    const teamName = parsed.success ? parsed.data.teamName : undefined;
+    const json = await request.json();
+    const parsed = funMatchJoinSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new AppError("Choose to join an existing squad or create a new one.", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
 
-    const result = await joinReclubTournament(tournament, userId, teamName);
+    const result = await joinFunMatchTournament(tournament, userId, parsed.data);
     return jsonSuccess(result, 201);
   } catch (error) {
     return jsonError(error);

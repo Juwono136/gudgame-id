@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Gamepad2, Plus, Trophy } from "lucide-react";
+import { ExternalLink, Gamepad2, Plus, Trophy, UserRound } from "lucide-react";
 import { DashboardQuickLinks } from "@/components/dashboard/dashboard-quick-links";
 import { DashboardWelcomeCard } from "@/components/dashboard/dashboard-welcome-card";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
@@ -17,6 +17,9 @@ import {
   getTournamentTypeBadgeClass,
   tournamentStatusBadgeClass,
 } from "@/lib/styles/status-badges";
+import { SportInterestsDisplay } from "@/components/shared/sport-interests-display";
+import type { SportInterestItem } from "@/lib/account/player-performance/sport-interests";
+import type { ProfileCompletionSnapshot } from "@/lib/auth/profile-completion-shared";
 import { cn } from "@/lib/utils";
 
 type HostDashboardProps = {
@@ -24,6 +27,9 @@ type HostDashboardProps = {
   userEmail: string;
   userImageUrl?: string | null;
   roles: AppRole[];
+  publicPageUrl?: string | null;
+  sportInterests?: SportInterestItem[];
+  profileCompletion?: ProfileCompletionSnapshot;
 };
 
 const STATUS_BADGE_STYLES = tournamentStatusBadgeClass;
@@ -33,7 +39,7 @@ function TournamentTypeBadge({ tournamentType }: { tournamentType: string }) {
   return (
     <Badge className={cn("gap-1 border-0 text-[10px] uppercase", getTournamentTypeBadgeClass(tournamentType))}>
       {isOfficial ? <Trophy className="h-3 w-3" /> : <Gamepad2 className="h-3 w-3" />}
-      {isOfficial ? "Official" : "Reclub"}
+      {isOfficial ? "Official" : "Fun Match"}
     </Badge>
   );
 }
@@ -53,7 +59,8 @@ function TournamentStatusBadge({ status }: { status: string }) {
 }
 
 type HostOverviewTournament = {
-  id: string; name: string;
+  id: string;
+  name: string;
   sportName: string;
   sportSlug: string;
   slug: string;
@@ -68,7 +75,7 @@ function HostOverviewTournamentRow({ tournament }: { tournament: HostOverviewTou
     <li className="group px-4 py-4 transition-colors hover:bg-cp-elevated/40 sm:px-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <Link
-          href={dashboardRoutes.hostTournament(tournament.id)}
+          href={`${publicHref}?manage=1`}
           className="min-w-0 flex-1 rounded-lg outline-offset-2 focus-visible:outline focus-visible:outline-cp-primary/50"
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -99,7 +106,15 @@ function HostOverviewTournamentRow({ tournament }: { tournament: HostOverviewTou
   );
 }
 
-export function HostDashboard({ userName, userEmail, userImageUrl, roles }: HostDashboardProps) {
+export function HostDashboard({
+  userName,
+  userEmail,
+  userImageUrl,
+  roles,
+  publicPageUrl,
+  sportInterests = [],
+  profileCompletion,
+}: HostDashboardProps) {
   const { data: tournaments = [], isLoading } = useHostTournamentsList();
   const recent = tournaments.slice(0, 5);
   const canOpenAdmin = userCanAccessAdmin(roles);
@@ -111,24 +126,26 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
       title="Overview"
       description="Manage official events, Fun Match sessions, registrations, and payouts."
       actions={
-        <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:flex md:w-auto md:flex-wrap md:justify-end">
+        <div className="flex w-full flex-col gap-2 min-[400px]:flex-row md:w-auto">
+          {publicPageUrl ? (
+            <Button
+              asChild
+              variant="outline"
+              className="h-10 w-full border-cp-border md:w-auto"
+            >
+              <Link href={publicPageUrl} target="_blank" rel="noopener noreferrer">
+                <UserRound className="mr-2 h-4 w-4" />
+                Public profile
+              </Link>
+            </Button>
+          ) : null}
           <Button
             asChild
             className="h-10 w-full bg-cp-primary hover:bg-cp-primary-light md:w-auto"
           >
-            <Link href={`${dashboardRoutes.host}/tournaments/new`}>
+            <Link href={dashboardRoutes.hostTournamentsNew}>
               <Plus className="mr-2 h-4 w-4" />
-              Create official
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="h-10 w-full border-emerald-500/40 text-emerald-300 md:w-auto"
-          >
-            <Link href={dashboardRoutes.hostTournamentsNewReclub}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Fun Match
+              Create tournament
             </Link>
           </Button>
         </div>
@@ -143,6 +160,16 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
         className="cp-shadow-card"
       />
 
+      {sportInterests.length > 0 ? (
+        <div className="rounded-2xl border border-cp-border bg-cp-card/60 px-4 py-3 sm:px-5 sm:py-4">
+          <SportInterestsDisplay
+            items={sportInterests}
+            title="Sports you follow"
+            description="Shown on your public player profile"
+          />
+        </div>
+      ) : null}
+
       <DashboardQuickLinks
         items={[
           {
@@ -153,28 +180,27 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
             accent: "primary",
           },
           {
-            href: `${dashboardRoutes.host}/tournaments/new`,
-            label: "Create official",
-            description: "Paid ranked events",
+            href: dashboardRoutes.hostTournamentsNew,
+            label: "Create tournament",
+            description: "Official or Fun Match",
             icon: "plus",
           },
           {
-            href: dashboardRoutes.hostTournamentsNewReclub,
-            label: "Create Fun Match",
-            description: "Free community play",
-            icon: "gamepad2",
-            accent: "emerald",
+            href: dashboardRoutes.hostPayments,
+            label: "Payments & payout",
+            description: "Registrations and earnings",
+            icon: "creditCard",
           },
           {
-            href: dashboardRoutes.settings,
+            href: dashboardRoutes.hostSettings,
             label: "Settings",
-            description: "Account & payout",
+            description: "Account & payout details",
             icon: "settings",
           },
         ]}
       />
 
-      <ProfileCompletionSection />
+      <ProfileCompletionSection snapshot={profileCompletion} />
 
       <section className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
         <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
@@ -196,21 +222,14 @@ export function HostDashboard({ userName, userEmail, userImageUrl, roles }: Host
             <Trophy className="h-10 w-10 text-cp-muted" />
             <p className="font-medium text-foreground">No tournaments yet</p>
             <p className="max-w-sm text-sm text-cp-muted">
-              Official events require a host account. Fun Match sessions are free community play.
+              Create your first official event or Fun Match session — choose the format when you start.
             </p>
-            <div className="mt-2 grid w-full max-w-xs grid-cols-1 gap-2 min-[360px]:grid-cols-2">
-              <Button asChild size="sm" className="h-10 w-full bg-cp-primary">
-                <Link href={`${dashboardRoutes.host}/tournaments/new`}>Create official</Link>
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                className="h-10 w-full border-emerald-500/40 text-emerald-300"
-              >
-                <Link href={dashboardRoutes.hostTournamentsNewReclub}>Create Fun Match</Link>
-              </Button>
-            </div>
+            <Button asChild size="sm" className="mt-2 h-10 bg-cp-primary">
+              <Link href={dashboardRoutes.hostTournamentsNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create tournament
+              </Link>
+            </Button>
           </div>
         ) : (
           <ul className="divide-y divide-cp-border">

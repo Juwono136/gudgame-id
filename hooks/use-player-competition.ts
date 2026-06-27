@@ -117,6 +117,7 @@ export function usePlayerTournamentsList(
           pageSize: params.pageSize,
           scope: params.scope,
           search: params.search,
+          type: params.type,
           year: params.year,
           placement: params.placement,
           sortBy: params.sortBy,

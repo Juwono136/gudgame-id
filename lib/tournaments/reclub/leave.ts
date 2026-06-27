@@ -14,6 +14,7 @@ import {
 import { AppError } from "@/lib/errors";
 import { clearTeamFromBracketSlots } from "@/lib/tournaments/brackets/clear-team";
 import { assertReclubSessionJoinable } from "@/lib/tournaments/reclub/session-guard";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 async function getUserTeamId(tournamentId: string, userId: string): Promise<string | null> {
@@ -33,7 +34,7 @@ export async function leaveReclubTournament(
   tournament: TournamentDetail,
   userId: string,
 ): Promise<void> {
-  if (tournament.tournamentType !== "recreational") {
+  if (!isFunMatchType(tournament.tournamentType)) {
     throw new AppError("Leave is only available for Fun Match sessions", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,

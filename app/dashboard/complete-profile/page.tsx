@@ -1,5 +1,7 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 import { PageShell } from "@/components/layout/page-shell";
 import { CompleteProfileForm } from "@/components/dashboard/complete-profile-form";
 import { requireAccountSettingsAccess } from "@/lib/auth/role-guard";
@@ -9,7 +11,6 @@ import { getDefaultDashboardUrl } from "@/lib/roles/route-access";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { dashboardRoutes } from "@/lib/constants/routes";
-import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Complete Profile",
@@ -26,12 +27,15 @@ export default async function CompleteProfilePage() {
 
   if (!dbUser) redirect(dashboardRoutes.home);
 
+  if (dbUser.profileOnboardingCompletedAt) {
+    redirect(`${dashboardRoutes.settings}#profile`);
+  }
+
   const status = getProfileCompletionStatus(dbUser);
   if (status.isComplete) {
     redirect(getDefaultDashboardUrl(roles));
   }
 
-  const needsPhoto = status.missingFields.includes("photo");
   const missingLabels = getProfileMissingFieldLabels(status.missingFields);
 
   return (
@@ -49,8 +53,8 @@ export default async function CompleteProfilePage() {
             Complete your profile
           </h1>
           <p className="max-w-prose text-sm leading-relaxed text-cp-muted">
-            A few details are still needed to verify your player identity and unlock the
-            full TandingBase experience.
+            Welcome to TandingBase! Add a few details so we can verify your player identity.
+            You can update these anytime later in Settings.
           </p>
 
           <div className="rounded-xl border border-cp-border bg-cp-card cp-shadow-card p-4 dark:bg-cp-elevated/50">
@@ -88,10 +92,7 @@ export default async function CompleteProfilePage() {
         </header>
 
         <div className="mt-6 rounded-2xl border border-cp-border bg-cp-card cp-shadow-card p-5 sm:mt-8 sm:p-8">
-          <CompleteProfileForm
-            initialFullName={dbUser.fullNameKtp ?? dbUser.name}
-            needsPhoto={needsPhoto}
-          />
+          <CompleteProfileForm initialFullName={dbUser.fullNameKtp ?? dbUser.name} />
         </div>
       </div>
     </PageShell>

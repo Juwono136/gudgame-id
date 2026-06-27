@@ -8,6 +8,7 @@ import { user } from "./schema/auth";
 import { userRoleAssignments } from "./schema/roles";
 import { sports } from "./schema";
 import { DEFAULT_SPORT_SEEDS } from "@/lib/sports/default-sport-data";
+import { DEFAULT_SPORT_TOURNAMENT_CONFIG } from "@/db/schema/sports";
 import {
   normalizeLegacyRole,
   type AppRole,
@@ -80,6 +81,7 @@ export async function seedDatabase(): Promise<boolean> {
       visibility: sport.visibility,
       tagline: sport.tagline,
       description: sport.description,
+      tournamentConfig: sport.tournamentConfig ?? DEFAULT_SPORT_TOURNAMENT_CONFIG,
       isActive: true,
     });
     inserted = true;

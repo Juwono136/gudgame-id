@@ -4,7 +4,10 @@ import { getServerSession } from "@/lib/auth/session";
 import { uploadProfilePhoto } from "@/lib/auth/upload-profile-photo";
 import { getNicknameFormatError } from "@/lib/auth/nickname-rules";
 import { isNicknameAvailable, normalizeNickname } from "@/lib/auth/nickname";
-import { getProfileCompletionStatus } from "@/lib/auth/profile-completion";
+import {
+  getProfileCompletionStatus,
+  normalizeSportInterestSlugs,
+} from "@/lib/auth/profile-completion";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { getDialByCountryCode } from "@/lib/constants/phone-countries";
@@ -15,6 +18,16 @@ import { logger } from "@/lib/logger";
 const log = logger.child({ route: "/api/account/complete-profile" });
 
 export const runtime = "nodejs";
+
+function parseSportInterestSlugs(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -35,12 +48,9 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const photoFile = formData.get("photo");
-    const needsPhoto = !existing.image?.trim() && !existing.imageStorageKey?.trim();
 
-    if (needsPhoto) {
-      const photoValidation = validateProfilePhoto(
-        photoFile instanceof File ? photoFile : null,
-      );
+    if (photoFile instanceof File && photoFile.size > 0) {
+      const photoValidation = validateProfilePhoto(photoFile);
       if (!photoValidation.ok) {
         return NextResponse.json(
           {
@@ -57,6 +67,8 @@ export async function POST(request: Request) {
       phoneCountryCode: formData.get("phoneCountryCode"),
       phone: formData.get("phone"),
       nickname: formData.get("nickname") || "",
+      sportInterestSlugs: parseSportInterestSlugs(formData.get("sportInterestSlugs")),
+      gender: formData.get("gender"),
     });
 
     if (!parsed.success) {
@@ -98,24 +110,28 @@ export async function POST(request: Request) {
     let imageUrl = existing.image;
     let imageStorageKey = existing.imageStorageKey;
 
-    if (needsPhoto && photoFile instanceof File && photoFile.size > 0) {
-      const upload = await uploadProfilePhoto(photoFile, existing.email);
-      if (!upload.ok) {
-        return NextResponse.json({ error: upload.error }, { status: 500 });
+    if (photoFile instanceof File && photoFile.size > 0) {
+      const photoValidation = validateProfilePhoto(photoFile);
+      if (photoValidation.ok) {
+        const upload = await uploadProfilePhoto(photoValidation.file, existing.email);
+        if (!upload.ok) {
+          return NextResponse.json({ error: upload.error }, { status: 500 });
+        }
+        const { deleteStoredObjectIfReplaced } = await import(
+          "@/lib/storage/object-lifecycle"
+        );
+        await deleteStoredObjectIfReplaced(
+          existing.imageStorageKey ?? existing.image,
+          upload.storageKey,
+        );
+        imageUrl = upload.url;
+        imageStorageKey = upload.storageKey;
       }
-      const { deleteStoredObjectIfReplaced } = await import(
-        "@/lib/storage/object-lifecycle"
-      );
-      await deleteStoredObjectIfReplaced(
-        existing.imageStorageKey ?? existing.image,
-        upload.storageKey,
-      );
-      imageUrl = upload.url;
-      imageStorageKey = upload.storageKey;
     }
 
     const phoneDialCode =
       getDialByCountryCode(data.phoneCountryCode) ?? data.phoneCountryCode;
+    const sportInterestSlugs = normalizeSportInterestSlugs(data.sportInterestSlugs);
 
     await getDb()
       .update(user)
@@ -127,6 +143,9 @@ export async function POST(request: Request) {
         name: data.fullNameKtp,
         image: imageUrl,
         imageStorageKey,
+        sportInterestSlugs,
+        gender: data.gender,
+        profileOnboardingCompletedAt: existing.profileOnboardingCompletedAt ?? new Date(),
         updatedAt: new Date(),
       })
       .where(eq(user.id, existing.id));
@@ -135,15 +154,15 @@ export async function POST(request: Request) {
       fullNameKtp: data.fullNameKtp,
       phone: data.phone,
       phoneCountryCode: phoneDialCode,
-      image: imageUrl,
-      imageStorageKey,
+      sportInterestSlugs,
+      gender: data.gender,
     });
 
     return NextResponse.json({
       success: true,
       message: status.isComplete
         ? "Your profile is now complete."
-        : "Profile saved. A few optional details can still be added later.",
+        : "Profile saved. You can update details anytime in Settings.",
       profileComplete: status.isComplete,
     });
   } catch (err) {

@@ -8,6 +8,7 @@ import { getProfileCompletionStatus } from "@/lib/auth/profile-completion";
 import { getPlayerWikiProfileForUser } from "@/lib/account/player-profile/service";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 import { getMediaProxyPath, resolveUserImageUrl } from "@/lib/storage/media-url";
+import { resolveSportInterestItems } from "@/lib/account/player-performance/sport-interests";
 import { resolvePlayerDisplayNameFromAccount } from "@/lib/wiki/player-profile-fields";
 import { listPlayerMatches } from "@/lib/account/player-competition/list-matches";
 import { listPlayerTournaments } from "@/lib/account/player-competition/list-tournaments";
@@ -19,6 +20,7 @@ import {
   getPlayerPageCompletionStatus,
   type PlayerPageCompletionStatus,
 } from "@/lib/account/player-dashboard/player-page-completion";
+import type { SportInterestItem } from "@/lib/account/player-performance/sport-interests";
 import type { ProfileCompletionStatus } from "@/lib/auth/profile-completion";
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
 import type { AppRole } from "@/lib/roles/constants";
@@ -38,6 +40,7 @@ export type PlayerDashboardView = {
   playerPageCompletion: PlayerPageCompletionStatus;
   recentMatches: PlayerMatchListItem[];
   recentTournaments: PlayerTournamentListItem[];
+  sportInterests: SportInterestItem[];
 };
 
 export async function getPlayerDashboardData(userId: string): Promise<PlayerDashboardView> {
@@ -49,6 +52,8 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       fullNameKtp: user.fullNameKtp,
       phone: user.phone,
       phoneCountryCode: user.phoneCountryCode,
+      sportInterestSlugs: user.sportInterestSlugs,
+      gender: user.gender,
       image: user.image,
       imageStorageKey: user.imageStorageKey,
     })
@@ -76,10 +81,13 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       page: 1,
       pageSize: 3,
       scope: "all",
+      type: "all",
       sortBy: "year",
       sortDir: "desc",
     }),
   ]);
+
+  const sportInterests = resolveSportInterestItems(dbUser.sportInterestSlugs ?? []);
 
   return {
     account: {
@@ -98,5 +106,6 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
     playerPageCompletion: getPlayerPageCompletionStatus(playerProfile),
     recentMatches: recentMatchesResult.items,
     recentTournaments: recentTournamentsResult.items,
+    sportInterests,
   };
 }

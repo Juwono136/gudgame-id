@@ -15,6 +15,7 @@ export const dashboardRoutes = {
   home: "/dashboard",
   settings: "/dashboard/settings",
   matches: "/dashboard/matches",
+  match: (id: number | string) => `/dashboard/matches/${id}`,
   tournaments: "/dashboard/tournaments",
   tournamentsNew: "/dashboard/tournaments/new",
   tournament: (id: string) => `/dashboard/tournaments/${id}`,
@@ -24,10 +25,13 @@ export const dashboardRoutes = {
   completeProfile: "/dashboard/complete-profile",
   host: "/dashboard/host",
   hostTournaments: "/dashboard/host/tournaments",
+  hostTournamentsNew: "/dashboard/host/tournaments/new",
   hostTournamentsNewReclub: "/dashboard/host/tournaments/new/reclub",
+  /** @deprecated Redirect shim only — prefer publicSportRoutes.tournamentManage when slug is known */
   hostTournament: (id: string) => `/dashboard/host/tournaments/${id}`,
   hostTournamentEdit: (id: string) => `/dashboard/host/tournaments/${id}/edit`,
   hostPayments: "/dashboard/host/payments",
+  hostSettings: "/dashboard/host/settings",
   /** @deprecated Renamed to host — use dashboardRoutes.host */
   contributor: "/dashboard/host",
 } as const;
@@ -64,7 +68,22 @@ export const publicSportRoutes = {
   tournaments: (sportSlug: string) => `/sports/${sportSlug}/tournaments`,
   tournament: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}`,
+  /** Opens host management tools on the public tournament page (`?manage=1` = mode on, not an ID). */
+  tournamentManage: (sportSlug: string, slug: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}?manage=1`,
+  tournamentDisplay: (sportSlug: string, slug: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}/display`,
+  tournamentDisplayMatch: (sportSlug: string, slug: string, matchId: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}/display?matchId=${encodeURIComponent(matchId)}`,
+  tournamentInvite: (sportSlug: string, slug: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}/invite`,
   rules: (sportSlug: string) => `/sports/${sportSlug}/rules`,
+} as const;
+
+/** Legacy invite URLs from backend buildInviteUrl */
+export const legacyTournamentRoutes = {
+  invite: (sportSlug: string, slug: string) =>
+    `/tournaments/${sportSlug}/${slug}/invite`,
 } as const;
 
 export const ADMIN_PATH_PREFIX = "/admin" as const;

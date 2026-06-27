@@ -8,7 +8,7 @@ const listBaseSchema = z.object({
 
 export const playerMatchesListQuerySchema = listBaseSchema.extend({
   result: z.enum(["all", "win", "loss"]).default("all"),
-  type: z.enum(["all", "official", "recreational"]).default("all"),
+  type: z.enum(["all", "official", "recreational", "fun_match"]).default("all"),
   year: z.preprocess(
     (val) => (val === "" || val == null ? undefined : val),
     z.coerce.number().int().min(1990).max(2100).optional(),
@@ -21,6 +21,7 @@ export type PlayerMatchesListQuery = z.infer<typeof playerMatchesListQuerySchema
 
 export const playerTournamentsListQuerySchema = listBaseSchema.extend({
   scope: z.enum(["all", "created", "joined"]).default("created"),
+  type: z.enum(["all", "official", "recreational", "fun_match"]).default("all"),
   year: z.preprocess(
     (val) => (val === "" || val == null ? undefined : val),
     z.coerce.number().int().min(1990).max(2100).optional(),

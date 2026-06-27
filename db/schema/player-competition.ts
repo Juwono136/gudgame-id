@@ -17,6 +17,9 @@ import { wikiEntities } from "./wiki";
 export const MATCH_RESULT_TYPES = ["win", "loss"] as const;
 export type MatchResultType = (typeof MATCH_RESULT_TYPES)[number];
 
+export const STATS_TIERS = ["official_paid", "official_free", "fun_match"] as const;
+export type StatsTier = (typeof STATS_TIERS)[number];
+
 /** Recorded match results for a player (populated by the tournament module). */
 export const playerMatches = pgTable(
   "player_matches",
@@ -33,6 +36,7 @@ export const playerMatches = pgTable(
       onDelete: "set null",
     }),
     isOfficial: boolean("is_official").default(true).notNull(),
+    statsTier: varchar("stats_tier", { length: 20 }),
     tournamentName: varchar("tournament_name", { length: 200 }).notNull(),
     opponents: varchar("opponents", { length: 300 }).notNull(),
     resultType: varchar("result_type", { length: 10 }).notNull(),
@@ -45,6 +49,7 @@ export const playerMatches = pgTable(
     index("player_matches_user_idx").on(table.userId),
     index("player_matches_played_at_idx").on(table.playedAt),
     index("player_matches_tournament_idx").on(table.tournamentName),
+    index("player_matches_stats_tier_idx").on(table.statsTier),
   ],
 );
 
@@ -64,6 +69,7 @@ export const playerTournamentResults = pgTable(
       onDelete: "set null",
     }),
     isOfficial: boolean("is_official").default(true).notNull(),
+    statsTier: varchar("stats_tier", { length: 20 }),
     year: integer("year").notNull(),
     tournamentName: varchar("tournament_name", { length: 200 }).notNull(),
     category: varchar("category", { length: 80 }),
@@ -76,5 +82,6 @@ export const playerTournamentResults = pgTable(
     index("player_tournament_results_user_idx").on(table.userId),
     index("player_tournament_results_year_idx").on(table.year),
     index("player_tournament_results_tournament_idx").on(table.tournamentName),
+    index("player_tournament_results_stats_tier_idx").on(table.statsTier),
   ],
 );

@@ -1,4 +1,4 @@
-type ApiErrorBody = {
+export type ApiErrorBody = {
   error?: string | { message?: string; code?: string } | unknown;
   message?: string;
   fieldErrors?: Record<string, string[]>;

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 type TournamentParticipantsPanelProps = {
   sportSlug: string;
   slug: string;
-  tournamentType: "official" | "recreational";
+  tournamentType: "official" | "fun_match";
   variant?: "official" | "reclub";
 };
 
@@ -175,6 +175,7 @@ export function TournamentParticipantsPanel({
               <thead>
                 <tr className="border-b border-cp-border bg-cp-elevated/50 text-xs uppercase tracking-wider text-cp-muted">
                   <th className="px-4 py-3 font-semibold sm:px-6">Player</th>
+                  <th className="px-4 py-3 font-semibold">Gender</th>
                   <th className="px-4 py-3 font-semibold">Team / squad</th>
                   <th className="px-4 py-3 font-semibold">Role</th>
                   {isOfficial ? (
@@ -196,6 +197,9 @@ export function TournamentParticipantsPanel({
                   >
                     <td className="px-4 py-3 sm:px-6">
                       <ParticipantPlayerCell row={row} variant={variant} />
+                    </td>
+                    <td className="px-4 py-3 text-cp-muted">
+                      {row.genderLabel ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-foreground">{row.teamName}</td>
                     <td className="px-4 py-3 capitalize text-cp-muted">{row.role}</td>
@@ -241,6 +245,7 @@ export function TournamentParticipantsPanel({
                   avatarClassName="h-10 w-10"
                 />
                 <p className="text-sm text-cp-muted">
+                  {row.genderLabel ? `${row.genderLabel} · ` : ""}
                   {row.teamName} · <span className="capitalize">{row.role}</span>
                 </p>
                 {isOfficial ? (

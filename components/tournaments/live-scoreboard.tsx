@@ -128,3 +128,50 @@ export function LiveScoreboard({
     </div>
   );
 }
+
+/** Fullscreen TV/monitor scoreboard — read-only display. */
+export function LiveScoreboardDisplay({
+  teamAName,
+  teamBName,
+  scoreA,
+  scoreB,
+  subtitle,
+  className,
+}: {
+  teamAName: string;
+  teamBName: string;
+  scoreA: number;
+  scoreB: number;
+  subtitle?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-dvh flex-col items-center justify-center bg-[#0a0f1a] px-6 py-10 text-white",
+        className,
+      )}
+    >
+      {subtitle ? (
+        <p className="mb-6 text-center text-sm uppercase tracking-[0.2em] text-white/60 sm:text-base">
+          {subtitle}
+        </p>
+      ) : null}
+      <div className="grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-8">
+        <div className="text-center">
+          <p className="mb-4 line-clamp-2 text-lg font-medium text-white/80 sm:text-2xl">
+            {teamAName}
+          </p>
+          <p className="text-7xl font-bold tabular-nums sm:text-8xl md:text-9xl">{scoreA}</p>
+        </div>
+        <span className="text-4xl font-light text-white/40 sm:text-6xl">:</span>
+        <div className="text-center">
+          <p className="mb-4 line-clamp-2 text-lg font-medium text-white/80 sm:text-2xl">
+            {teamBName}
+          </p>
+          <p className="text-7xl font-bold tabular-nums sm:text-8xl md:text-9xl">{scoreB}</p>
+        </div>
+      </div>
+    </div>
+  );
+}

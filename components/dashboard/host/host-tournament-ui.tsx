@@ -21,6 +21,7 @@ import {
   getTournamentTypeBadgeClass,
   tournamentStatusBadgeClass,
 } from "@/lib/styles/status-badges";
+import { getPublicTournamentTypeLabel } from "@/lib/tournaments/ui/labels";
 import { cn } from "@/lib/utils";
 
 export const STATUS_BADGE_STYLES = tournamentStatusBadgeClass;
@@ -33,12 +34,13 @@ const MOBILE_TOOLBAR_ACTION_CLASS =
 
 export function TournamentTypeBadge({ tournamentType }: { tournamentType: string }) {
   const isOfficial = tournamentType === "official";
+  const label = getPublicTournamentTypeLabel(tournamentType);
   return (
     <Badge
-      className={cn("gap-1 border-0 text-[10px] uppercase", getTournamentTypeBadgeClass(tournamentType))}
+      className={cn("gap-1 border-0 text-[10px] uppercase", getTournamentTypeBadgeClass(isOfficial ? "official" : "fun_match"))}
     >
       {isOfficial ? <Trophy className="h-3 w-3" /> : <Gamepad2 className="h-3 w-3" />}
-      {isOfficial ? "Official" : "Reclub"}
+      {label}
     </Badge>
   );
 }
@@ -148,7 +150,6 @@ export function HostTournamentIconActions({
   showWorkspaceLink = false,
   className,
 }: HostTournamentIconActionsProps) {
-  const workspaceHref = dashboardRoutes.hostTournament(tournamentId);
   const publicHref = publicSportRoutes.tournament(sportSlug, slug);
   const editHref = dashboardRoutes.hostTournamentEdit(tournamentId);
 
@@ -230,9 +231,12 @@ export function HostTournamentIconActions({
           size="icon"
           variant="outline"
           className={cn(ICON_ACTION_CLASS, "hidden sm:inline-flex")}
-          title="Open workspace"
+          title="Manage session"
         >
-          <Link href={workspaceHref} aria-label="Open tournament workspace">
+          <Link
+            href={publicSportRoutes.tournamentManage(sportSlug, slug)}
+            aria-label="Manage session"
+          >
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>

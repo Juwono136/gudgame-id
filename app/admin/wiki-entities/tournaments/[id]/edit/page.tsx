@@ -6,6 +6,7 @@ import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
 import { adminRoutes } from "@/lib/constants/routes";
 import { assertTournamentEditable } from "@/lib/tournaments/manage-policy";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { getTournamentById } from "@/lib/tournaments/workspace/service";
 
 type PageProps = {
@@ -25,7 +26,7 @@ export default async function AdminEditTournamentPage({ params }: PageProps) {
     redirect(adminRoutes.wikiEntities);
   }
 
-  const isReclub = tournament.tournamentType === "recreational";
+  const isFunMatch = isFunMatchType(tournament.tournamentType);
 
   return (
     <AdminShell
@@ -38,7 +39,7 @@ export default async function AdminEditTournamentPage({ params }: PageProps) {
     >
       <p className="text-sm text-cp-muted">{tournament.name}</p>
       <div className="mt-6">
-        {isReclub ? (
+        {isFunMatch ? (
           <ReclubTournamentWizard
             sports={[{ slug: ctx.sportSlug, name: tournament.sportName }]}
             defaultSportSlug={ctx.sportSlug}

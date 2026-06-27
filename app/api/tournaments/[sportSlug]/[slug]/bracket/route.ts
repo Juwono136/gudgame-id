@@ -3,6 +3,8 @@ import { AppError } from "@/lib/errors";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { listBracketMatches, hasBracket } from "@/lib/tournaments/brackets/service";
 import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboard";
+import { shouldExposeLivePublicData } from "@/lib/tournaments/lifecycle-guards";
+import { TOURNAMENT_NOT_STARTED_MESSAGE } from "@/lib/tournaments/core/types";
 
 export const runtime = "nodejs";
 
@@ -20,6 +22,15 @@ export async function GET(
 
     if (tournament.format === "americano") {
       return jsonSuccess({ matches: [], leaderboard: [], generated: false });
+    }
+
+    if (!shouldExposeLivePublicData(tournament)) {
+      return jsonSuccess({
+        matches: [],
+        leaderboard: [],
+        generated: false,
+        message: TOURNAMENT_NOT_STARTED_MESSAGE,
+      });
     }
 
     const bracketExists = await hasBracket(tournament.id);

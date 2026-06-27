@@ -12,6 +12,7 @@ import { tournamentPayments } from "@/db/schema/tournament-payments";
 import type { TournamentType } from "@/db/schema/tournaments";
 import { wikiEntities } from "@/db/schema/wiki";
 import { publicSportRoutes } from "@/lib/constants/routes";
+import { formatUserGender } from "@/lib/constants/user-gender";
 import {
   clampPaginationParams,
   DEFAULT_PAGE_SIZE,
@@ -33,6 +34,8 @@ export type TournamentParticipantRow = {
   paymentStatus: string | null;
   paidAt: string | null;
   amountIdr: number | null;
+  gender: string | null;
+  genderLabel: string | null;
 };
 
 export type TournamentParticipantsResult = {
@@ -60,6 +63,7 @@ function mapRow(
     paymentStatus: string | null;
     paidAt: Date | null;
     amountIdr: number | null;
+    gender: string | null;
   },
   sportSlug: string,
 ): TournamentParticipantRow {
@@ -79,6 +83,8 @@ function mapRow(
     paymentStatus: row.paymentStatus,
     paidAt: row.paidAt?.toISOString() ?? null,
     amountIdr: row.amountIdr,
+    gender: row.gender,
+    genderLabel: formatUserGender(row.gender),
   };
 }
 
@@ -139,6 +145,7 @@ async function listReclubParticipants(
       userId: tournamentTeamMembers.userId,
       displayName: displayNameSql,
       image: user.image,
+      gender: user.gender,
       profileSlug: wikiEntities.slug,
       teamId: tournamentTeams.id,
       teamName: tournamentTeams.name,
@@ -174,6 +181,7 @@ async function listOfficialParticipants(
       userId: tournamentTeamMembers.userId,
       displayName: displayNameSql,
       image: user.image,
+      gender: user.gender,
       profileSlug: wikiEntities.slug,
       teamId: tournamentTeams.id,
       teamName: tournamentTeams.name,
@@ -223,15 +231,16 @@ export async function queryTournamentParticipants(input: {
   const pageSize = input.pageSize ?? DEFAULT_PAGE_SIZE;
   const { limit, offset } = clampPaginationParams(pageSize, toOffset(page, pageSize));
 
-  const total =
-    input.tournamentType === "recreational"
+  const isFunMatch = input.tournamentType === "fun_match";
+
+  const total = isFunMatch
       ? await countReclubParticipants(input.tournamentId)
       : await countOfficialParticipants(input.tournamentId);
 
   const items =
     total === 0
       ? []
-      : input.tournamentType === "recreational"
+      : isFunMatch
         ? await listReclubParticipants(
             input.tournamentId,
             input.sportId,

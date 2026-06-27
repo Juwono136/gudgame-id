@@ -1,13 +1,21 @@
 import { z } from "zod";
 import {
+  OFFICIAL_BILLING_TYPES,
+  TOURNAMENT_CATEGORIES,
   TOURNAMENT_FORMATS,
   TOURNAMENT_STATUSES,
   TOURNAMENT_TYPES,
 } from "@/db/schema/tournaments";
+import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import {
   TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
   TOURNAMENT_SCORING_TYPES,
 } from "@/lib/tournaments/settings";
+
+const tournamentTypeInput = z
+  .string()
+  .transform((v) => normalizeTournamentType(v))
+  .pipe(z.enum(TOURNAMENT_TYPES));
 
 export const tournamentUpsertSchema = z
   .object({
@@ -23,9 +31,13 @@ export const tournamentUpsertSchema = z
     summary: z.string().trim().max(500).optional().or(z.literal("")),
     description: z.string().trim().max(20000).optional().or(z.literal("")),
     status: z.enum(TOURNAMENT_STATUSES).default("upcoming"),
-    tournamentType: z.enum(TOURNAMENT_TYPES),
+    tournamentType: tournamentTypeInput,
+    officialBilling: z.enum(OFFICIAL_BILLING_TYPES).optional().nullable(),
     format: z.enum(TOURNAMENT_FORMATS).default("single_elimination"),
-    categoryLabel: z.string().trim().max(80).optional().or(z.literal("")),
+    categoryLabel: z
+      .enum(TOURNAMENT_CATEGORIES)
+      .optional()
+      .or(z.literal("")),
     rules: z.string().trim().max(50000).optional().or(z.literal("")),
     venue: z.string().trim().max(200).optional().or(z.literal("")),
     venueMapsUrl: z.string().trim().url().max(2000).optional().or(z.literal("")),
@@ -63,23 +75,58 @@ export const tournamentUpsertSchema = z
         path: ["format"],
       });
     }
+
+    if (data.categoryLabel && !TOURNAMENT_CATEGORIES.includes(data.categoryLabel as never)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Category must be Male, Female, or Mix.",
+        path: ["categoryLabel"],
+      });
+    }
+
     if (data.tournamentType === "official") {
-      if (!data.registrationFeeIdr || data.registrationFeeIdr <= 0) {
+      if (!data.officialBilling) {
         ctx.addIssue({
           code: "custom",
-          message: "Official tournaments require a registration fee (IDR).",
+          message: "Select paid or free for official tournaments.",
+          path: ["officialBilling"],
+        });
+      }
+      if (data.officialBilling === "paid") {
+        if (!data.registrationFeeIdr || data.registrationFeeIdr <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Paid official tournaments require a registration fee (IDR).",
+            path: ["registrationFeeIdr"],
+          });
+        }
+      }
+      if (data.officialBilling === "free") {
+        if (data.registrationFeeIdr && data.registrationFeeIdr > 0) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Free official tournaments cannot have a registration fee.",
+            path: ["registrationFeeIdr"],
+          });
+        }
+      }
+    }
+
+    if (data.tournamentType === "fun_match") {
+      if (data.officialBilling) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Fun Match tournaments do not use official billing.",
+          path: ["officialBilling"],
+        });
+      }
+      if (data.registrationFeeIdr && data.registrationFeeIdr > 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Fun Match tournaments must be free (no registration fee).",
           path: ["registrationFeeIdr"],
         });
       }
-    }
-    if (data.tournamentType === "recreational" && data.registrationFeeIdr && data.registrationFeeIdr > 0) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Fun Match tournaments must be free (no registration fee).",
-        path: ["registrationFeeIdr"],
-      });
-    }
-    if (data.tournamentType === "recreational") {
       if (!data.startsAt?.trim()) {
         ctx.addIssue({
           code: "custom",
@@ -116,6 +163,10 @@ export const tournamentsListQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
   status: z.enum([...TOURNAMENT_STATUSES, "all"] as const).default("all"),
   createdBy: z.string().trim().min(1).optional(),
+  tournamentType: z.enum(["all", ...TOURNAMENT_TYPES] as const).optional(),
+  officialBilling: z.enum(["all", ...OFFICIAL_BILLING_TYPES] as const).optional(),
+  format: z.enum(["all", "americano", "single_elimination"] as const).optional(),
+  category: z.enum(["all", ...TOURNAMENT_CATEGORIES] as const).optional(),
   sortBy: z.enum(["startsAt", "name", "updated"]).default("startsAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });
@@ -124,7 +175,43 @@ export type TournamentsListQuery = z.infer<typeof tournamentsListQuerySchema>;
 
 export const publicTournamentsListQuerySchema = tournamentsListQuerySchema.extend({
   bucket: z.enum(["all", "live", "upcoming", "past"]).default("all"),
-  type: z.enum(["all", ...TOURNAMENT_TYPES] as const).default("all"),
+  type: z.enum(["all", ...TOURNAMENT_TYPES, "recreational"] as const).default("all"),
 });
 
 export type PublicTournamentsListQuery = z.infer<typeof publicTournamentsListQuerySchema>;
+
+export const funMatchJoinSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("join_squad"),
+    teamId: z.string().uuid(),
+  }),
+  z.object({
+    mode: z.literal("create_squad"),
+    teamName: z.string().trim().min(1).max(120).optional(),
+  }),
+]);
+
+export type FunMatchJoinInput = z.infer<typeof funMatchJoinSchema>;
+
+export const bracketGenerateSchema = z.object({
+  seedMode: z.enum(["random", "manual"]).default("manual"),
+});
+
+export const inviteRedeemSchema = z
+  .object({
+    token: z.string().trim().min(1).optional(),
+    code: z.string().trim().min(4).max(12).optional(),
+    tournamentId: z.string().uuid().optional(),
+  })
+  .refine((data) => Boolean(data.token?.trim() || data.code?.trim()), {
+    message: "Provide an invite token or code.",
+  });
+
+export const accessInviteCreateSchema = z.object({
+  email: z.string().trim().email().optional(),
+  role: z.enum(["scorekeeper", "bracket_manager"]),
+});
+
+export const playerInviteCreateSchema = z.object({
+  teamId: z.string().uuid().optional().nullable(),
+});

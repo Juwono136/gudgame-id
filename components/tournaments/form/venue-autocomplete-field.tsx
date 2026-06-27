@@ -26,6 +26,7 @@ type VenueAutocompleteFieldProps = {
   mapsUrl: string;
   onVenueChange: (value: string) => void;
   onMapsUrlChange: (value: string) => void;
+  required?: boolean;
 };
 
 export function VenueAutocompleteField({
@@ -33,6 +34,7 @@ export function VenueAutocompleteField({
   mapsUrl,
   onVenueChange,
   onMapsUrlChange,
+  required = false,
 }: VenueAutocompleteFieldProps) {
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +115,10 @@ export function VenueAutocompleteField({
   return (
     <div className="space-y-4">
       <div ref={containerRef} className="relative">
-        <Label htmlFor="venue-search">Venue</Label>
+        <Label htmlFor="venue-search">
+          Venue
+          {required ? <span className="text-red-400"> *</span> : null}
+        </Label>
         <p className="mt-1 text-xs text-cp-muted">
           Start typing to search Google Maps. Pick a location to fill the venue and map preview
           automatically.
@@ -133,6 +138,8 @@ export function VenueAutocompleteField({
             onFocus={() => setOpen(true)}
             placeholder="Search venue or address…"
             className="border-cp-border bg-cp-bg-input pl-9"
+            required={required}
+            aria-required={required}
             role="combobox"
             aria-expanded={open}
             aria-controls={listId}

@@ -15,6 +15,7 @@ import {
   assertReclubSessionJoinable,
   assertReclubSessionPlayable,
 } from "@/lib/tournaments/reclub/session-guard";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type LobbyMemberView = {
@@ -94,13 +95,33 @@ export async function createNamedTeam(
 
   const existingTeamId = await getUserTeamId(tournament.id, userId);
 
+  const trimmed = teamName.trim();
+  if (trimmed.length < 2) {
+    throw new AppError("Team name must be at least 2 characters", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
+
+  const teams = await db
+    .select({ id: tournamentTeams.id, name: tournamentTeams.name })
+    .from(tournamentTeams)
+    .where(eq(tournamentTeams.tournamentId, tournament.id));
+
+  if (teams.some((team) => team.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+    throw new AppError("A squad with this name already exists", {
+      code: "CONFLICT",
+      statusCode: 409,
+    });
+  }
+
   let team;
   try {
     [team] = await db
       .insert(tournamentTeams)
       .values({
         tournamentId: tournament.id,
-        name: teamName.trim(),
+        name: trimmed,
         captainUserId: userId,
       })
       .returning();
@@ -150,7 +171,7 @@ export async function renameReclubTeam(
   teamId: string,
   newName: string,
 ): Promise<void> {
-  if (tournament.tournamentType !== "recreational") {
+  if (!isFunMatchType(tournament.tournamentType)) {
     throw new AppError("Team rename is only for Fun Match tournaments", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,

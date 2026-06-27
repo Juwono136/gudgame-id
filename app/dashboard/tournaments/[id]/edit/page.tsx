@@ -12,6 +12,7 @@ import {
   tournamentListUrl,
 } from "@/lib/tournaments/edit-routes";
 import { getTournamentById } from "@/lib/tournaments/workspace/service";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { listPublicSports } from "@/lib/sports/service";
 
 type PageProps = {
@@ -50,12 +51,12 @@ export default async function EditTournamentPage({ params, searchParams }: PageP
     redirect(`/dashboard/host/tournaments/${tournamentId}/edit`);
   }
 
-  const isReclub = tournament.tournamentType === "recreational";
+  const isFunMatch = isFunMatchType(tournament.tournamentType);
   const sports = await listPublicSports();
 
   return (
     <PageShell showGridBackground={false}>
-      {isReclub ? (
+      {isFunMatch ? (
         <ReclubTournamentWizard
           sports={sports.map((s) => ({ slug: s.slug, name: s.name }))}
           defaultSportSlug={tournament.sportSlug}

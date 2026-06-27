@@ -1,7 +1,7 @@
 import "server-only";
 
 import { AppError } from "@/lib/errors";
-import type { TournamentDetail } from "@/lib/tournaments/service";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import {
   canJoinReclubSession,
   canPlayReclubSession,
@@ -9,9 +9,10 @@ import {
   getReclubSessionEndedMessage,
   getReclubSessionNotLiveMessage,
 } from "@/lib/tournaments/reclub/session-lifecycle";
+import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export function assertReclubTournament(tournament: TournamentDetail): void {
-  if (tournament.tournamentType !== "recreational") {
+  if (!isFunMatchType(tournament.tournamentType)) {
     throw new AppError("This action is only available for Fun Match sessions", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,

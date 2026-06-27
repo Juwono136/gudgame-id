@@ -9,18 +9,21 @@ type PlayerCreateReclubWizardProps = {
   sports: SportOption[];
   defaultSportSlug?: string;
   workspace?: TournamentEditWorkspace;
+  onBack?: () => void;
 };
 
 export function PlayerCreateReclubWizard({
   sports,
   defaultSportSlug = "padel",
   workspace = "player",
+  onBack,
 }: PlayerCreateReclubWizardProps) {
   return (
     <ReclubTournamentWizard
       sports={sports}
       defaultSportSlug={defaultSportSlug}
       workspace={workspace}
+      onBack={onBack}
     />
   );
 }

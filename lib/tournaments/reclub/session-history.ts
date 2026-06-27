@@ -12,6 +12,7 @@ import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
 import type { ReclubMatchView, ReclubMatchesListQuery } from "@/lib/tournaments/reclub/types";
 import { parseReclubMatchMetadata } from "@/lib/tournaments/reclub/score-events";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 type BracketRow = typeof tournamentBracketMatches.$inferSelect;
@@ -202,7 +203,7 @@ export async function recordBracketMatchInSessionHistory(
   bracketMatch: BracketRow,
   userId: string,
 ): Promise<void> {
-  if (tournament.tournamentType !== "recreational") return;
+  if (!isFunMatchType(tournament.tournamentType)) return;
 
   const db = getDb();
   const [existing] = await db

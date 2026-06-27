@@ -4,6 +4,7 @@ import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { getTournamentById } from "@/lib/tournaments/workspace/service";
+import { isFunMatchType, isOfficialType } from "@/lib/tournaments/core/types";
 import { generateTournamentBracket } from "@/lib/tournaments/brackets/generate";
 
 export const runtime = "nodejs";
@@ -26,8 +27,8 @@ export async function POST(
       throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
     }
 
-    if (tournament.tournamentType !== "official" && tournament.tournamentType !== "recreational") {
-      throw new AppError("Brackets are only for official or reclub tournaments", {
+    if (!isOfficialType(tournament.tournamentType) && !isFunMatchType(tournament.tournamentType)) {
+      throw new AppError("Brackets are only for official or Fun Match tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
       });

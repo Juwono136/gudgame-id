@@ -39,21 +39,25 @@ export async function getUserRoleAssignments(userId: string): Promise<AppRole[]>
 export async function setUserRoles(
   userId: string,
   roles: AppRole[],
-  assignedBy?: string,
+  assignedBy?: string | null,
 ): Promise<AppRole[]> {
   const db = getDb();
   const unique = [...new Set(roles.length > 0 ? roles : DEFAULT_REGISTRATION_ROLES)];
+  const assignedByUserId = assignedBy?.trim() || null;
 
   await db.delete(userRoleAssignments).where(eq(userRoleAssignments.userId, userId));
 
   if (unique.length > 0) {
     await db.insert(userRoleAssignments).values(
-      unique.map((role) => ({
-        id: randomUUID(),
-        userId,
-        role,
-        assignedBy: assignedBy ?? null,
-      })),
+      unique.map((role) => {
+        const row = {
+          id: randomUUID(),
+          userId,
+          role,
+          ...(assignedByUserId ? { assignedBy: assignedByUserId } : {}),
+        };
+        return row;
+      }),
     );
   }
 
@@ -67,8 +71,14 @@ export async function setUserRoles(
 }
 
 export async function ensureDefaultPlayerRole(userId: string): Promise<void> {
-  const existing = await getUserRoleAssignments(userId);
-  if (existing.length === 0) {
-    await setUserRoles(userId, DEFAULT_REGISTRATION_ROLES);
-  }
+  const db = getDb();
+  const [existing] = await db
+    .select({ role: userRoleAssignments.role })
+    .from(userRoleAssignments)
+    .where(eq(userRoleAssignments.userId, userId))
+    .limit(1);
+
+  if (existing) return;
+
+  await setUserRoles(userId, DEFAULT_REGISTRATION_ROLES);
 }

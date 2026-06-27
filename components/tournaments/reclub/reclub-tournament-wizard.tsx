@@ -18,6 +18,7 @@ import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { ReclubWizardReview } from "@/components/tournaments/reclub/reclub-wizard-review";
 import { ReclubWizardStepper } from "@/components/tournaments/reclub/reclub-wizard-stepper";
 import { TournamentCoverUpload, type TournamentCoverValue } from "@/components/tournaments/form/tournament-cover-upload";
+import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { TOURNAMENT_FIELD_LIMITS } from "@/lib/tournaments/form/field-limits";
 import {
@@ -286,7 +287,7 @@ export function ReclubTournamentWizard({
       venue: venue.trim() || undefined,
       venueMapsUrl: venueMapsUrl.trim() || undefined,
       coverImageStorageKey: coverKey,
-      tournamentType: "recreational" as const,
+      tournamentType: "fun_match" as const,
       status: (isEdit ? initial?.status : "upcoming") as TournamentStatus,
       playersPerTeam: Number(playersPerTeam) || 2,
       maxTeams: Number(maxTeams) || 8,
@@ -327,11 +328,12 @@ export function ReclubTournamentWizard({
               router.push(adminRoutes.wikiEntities);
               return;
             }
-            if (isEdit && tournamentId) {
-              router.push(tournamentAfterCreateUrl(workspace, { id: tournamentId, sportSlug, slug }));
-            } else {
-              router.push(tournamentAfterSaveUrl(workspace));
-            }
+            router.push(
+              tournamentAfterSaveUrl(workspace, {
+                sportSlug,
+                slug: initial?.slug ?? slug,
+              }),
+            );
           },
         });
       } else if (workspace === "admin") {
@@ -481,6 +483,7 @@ export function ReclubTournamentWizard({
                 mapsUrl={venueMapsUrl}
                 onVenueChange={(v) => setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue))}
                 onMapsUrlChange={(v) => setVenueMapsUrl(v.slice(0, 2000))}
+                required
               />
             </div>
           ) : null}
@@ -528,17 +531,12 @@ export function ReclubTournamentWizard({
                     className="mt-1.5 max-w-[120px] border-cp-border bg-cp-bg-input disabled:opacity-70"
                   />
                 </div>
-                <div>
-                  <Label>Match type</Label>
-                  <Select value={matchType} onValueChange={setMatchType}>
-                    <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="americano">Americano</SelectItem>
-                      <SelectItem value="single_elimination">Elimination</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="sm:col-span-2">
+                  <FormatTypeSelect
+                    value={matchType as "americano" | "single_elimination"}
+                    onChange={setMatchType}
+                    sportSlug={sportSlug}
+                  />
                 </div>
                 <div>
                   <Label>Scoring type</Label>

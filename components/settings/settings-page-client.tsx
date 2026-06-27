@@ -16,6 +16,7 @@ import {
 } from "@/components/settings/settings-tab-nav";
 import { useAccountSettings } from "@/hooks/use-account-settings";
 import type { AppRole } from "@/lib/roles/constants";
+import type { ProfileCompletionSnapshot } from "@/lib/auth/profile-completion-shared";
 import { resolvePlayerDisplayNameFromAccount } from "@/lib/wiki/player-profile-fields";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ type SettingsPageClientProps = {
   email: string;
   roles: AppRole[];
   workspaceVariant: "player" | "host";
+  profileCompletion?: ProfileCompletionSnapshot;
 };
 
 const ALL_TABS: SettingsTab[] = [
@@ -43,6 +45,7 @@ export function SettingsPageClient({
   email,
   roles,
   workspaceVariant,
+  profileCompletion,
 }: SettingsPageClientProps) {
   const { data, isLoading, isError, refetch } = useAccountSettings();
 
@@ -124,7 +127,7 @@ export function SettingsPageClient({
           >
             {activeTab === "profile" ? (
               <div className="space-y-6">
-                <ProfileCompletionSection />
+                <ProfileCompletionSection snapshot={profileCompletion} />
                 <StaffProfileForm settings={data} />
                 <AccountInfoReadonly settings={data} />
               </div>

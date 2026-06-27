@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth/client";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import { extractApiErrorMessage, type ApiErrorBody } from "@/lib/api/extract-api-error";
+import { sanitizeRegistrationErrorMessage } from "@/lib/auth/sanitize-registration-error";
 import { signInWithGooglePopup } from "@/lib/firebase/client";
 import {
   ACCOUNT_INACTIVE_MESSAGE,
@@ -97,6 +99,7 @@ export function useLoginMutation() {
           data?: {
             roles?: AppRole[];
             mustChangePassword?: boolean;
+            profileComplete?: boolean;
             accountInactive?: boolean;
           };
         };
@@ -179,7 +182,7 @@ async function finishAuthRedirect(
       });
     }
 
-    if (options?.profileComplete === false || json.data?.profileComplete === false) {
+    if (options?.isNewUser && options?.profileComplete === false) {
       toast.info("Complete your profile", {
         description: "Add your phone and other details to unlock the full experience.",
         duration: 8000,
@@ -193,7 +196,7 @@ async function finishAuthRedirect(
 
   if (mustChangePassword) {
     router.push(authRoutes.changePasswordRequired);
-  } else if (options?.profileComplete === false) {
+  } else if (options?.isNewUser && options?.profileComplete === false) {
     router.push(dashboardRoutes.completeProfile);
   } else {
     invalidateSessionContext(queryClient);
@@ -270,21 +273,25 @@ export function useRegisterMutation(callbackUrl?: string | null) {
       });
 
       const payload = await parseJsonResponse<{
-        error?: string;
+        success?: boolean;
+        data?: { message?: string; redirectTo?: string };
+        error?: string | { message?: string };
         fieldErrors?: Record<string, string[]>;
-        redirectTo?: string;
         message?: string;
+        redirectTo?: string;
       }>(response);
 
       if (!response.ok) {
-        const err = new Error(payload.error ?? "Registration failed") as Error & {
+        const raw = extractApiErrorMessage(payload as ApiErrorBody, "Registration failed");
+        const message = sanitizeRegistrationErrorMessage(raw);
+        const err = new Error(message) as Error & {
           fieldErrors?: Record<string, string[]>;
         };
         err.fieldErrors = payload.fieldErrors;
         throw err;
       }
 
-      return payload;
+      return payload.data ?? payload;
     },
     onMutate: () => setSubmitting(true),
     onSettled: () => setSubmitting(false),

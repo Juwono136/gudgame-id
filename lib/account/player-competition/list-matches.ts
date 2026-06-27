@@ -10,6 +10,7 @@ import type {
   PaginatedListResult,
   PlayerMatchListItem,
 } from "@/lib/account/player-competition/types";
+import { normalizePlayerCompetitionType } from "@/lib/tournaments/core/types";
 import type { PlayerMatchesListQuery } from "@/lib/validations/player-competition";
 
 export type PlayerMatchListSummary = {
@@ -38,12 +39,7 @@ type MatchListRow = {
 
 function mapMatchRow(row: MatchListRow): PlayerMatchListItem {
   const isOfficial = row.isOfficial;
-  const tournamentType =
-    row.tournamentType === "official" || row.tournamentType === "recreational"
-      ? row.tournamentType
-      : isOfficial
-        ? "official"
-        : "recreational";
+  const tournamentType = normalizePlayerCompetitionType(row.tournamentType, isOfficial);
 
   return {
     id: row.id,
@@ -90,7 +86,7 @@ function buildMatchConditions(userId: string, query: PlayerMatchesListQuery) {
 
   if (type === "official") {
     conditions.push(eq(playerMatches.isOfficial, true));
-  } else if (type === "recreational") {
+  } else if (type === "recreational" || type === "fun_match") {
     conditions.push(eq(playerMatches.isOfficial, false));
   }
 

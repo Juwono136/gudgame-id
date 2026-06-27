@@ -161,8 +161,8 @@ export function firebaseGooglePlugin() {
             fullNameKtp: displayName,
             phone: null,
             phoneCountryCode: null,
-            image: importedPhoto?.publicUrl ?? picture,
-            imageStorageKey: importedPhoto?.storageKey ?? null,
+            sportInterestSlugs: [],
+            gender: null,
           });
 
           return ctx.json({

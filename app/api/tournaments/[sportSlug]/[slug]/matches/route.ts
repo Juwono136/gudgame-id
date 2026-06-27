@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { listReclubMatchesPaginated } from "@/lib/tournaments/reclub/matches";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
@@ -25,7 +26,7 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (tournament.tournamentType !== "recreational") {
+    if (!isFunMatchType(tournament.tournamentType)) {
       throw new AppError("Match history is only available for Fun Match sessions", {
         code: "VALIDATION_ERROR",
         statusCode: 422,

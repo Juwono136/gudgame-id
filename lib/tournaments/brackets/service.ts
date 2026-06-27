@@ -6,7 +6,8 @@ import { user } from "@/db/schema/auth";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
-import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
+import { assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type BracketMatchView = {
@@ -115,19 +116,7 @@ export async function submitBracketMatchScore(
     throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
-  if (tournament.tournamentType === "official" && tournament.status !== "live") {
-    throw new AppError("Official scores can only be submitted while the tournament is live", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
-  }
-
-  if (
-    tournament.tournamentType === "recreational" &&
-    match.status !== "in_progress"
-  ) {
-    assertReclubSessionPlayable(tournament);
-  }
+  assertTournamentLiveForScoring(tournament);
 
   if (match.status === "completed" || match.status === "bye") {
     throw new AppError("Match already completed", { code: "CONFLICT", statusCode: 409 });
@@ -194,12 +183,11 @@ export async function submitBracketMatchScore(
   }
 
   const { getTeamMemberUserIds } = await import("@/lib/tournaments/brackets/leaderboard");
-  const { syncOfficialPlacement, syncReclubBracketResult } = await import(
-    "@/lib/tournaments/stats/sync"
-  );
+  const { syncOfficialPlacement, syncOfficialMatchToPlayerHistory, syncReclubBracketResult } =
+    await import("@/lib/tournaments/stats/sync");
   const { getBracketRoundLabel } = await import("@/lib/tournaments/brackets/round-labels");
 
-  if (tournament.tournamentType === "recreational") {
+  if (isFunMatchType(tournament.tournamentType)) {
     const teamAIds = match.teamAId ? await getTeamMemberUserIds(match.teamAId) : [];
     const teamBIds = match.teamBId ? await getTeamMemberUserIds(match.teamBId) : [];
     const totalRounds = await db
@@ -207,9 +195,10 @@ export async function submitBracketMatchScore(
       .from(tournamentBracketMatches)
       .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
     const maxRound = Math.max(...totalRounds.map((r) => r.roundNumber), 1);
+    const roundLabel = getBracketRoundLabel(match.roundNumber, maxRound);
     await syncReclubBracketResult({
       tournament,
-      roundLabel: getBracketRoundLabel(match.roundNumber, maxRound),
+      roundLabel,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       teamAId: match.teamAId,
@@ -224,15 +213,36 @@ export async function submitBracketMatchScore(
       "@/lib/tournaments/reclub/session-history"
     );
     await recordBracketMatchInSessionHistory(tournament, updated, userId);
-  } else if (isFinal && winnerTeamId) {
-    const memberIds = await getTeamMemberUserIds(winnerTeamId);
-    for (const uid of memberIds) {
-      await syncOfficialPlacement({
-        tournament,
-        userId: uid,
-        placement: "Champion",
-        placementRank: 1,
-      });
+  } else {
+    const teamAIds = match.teamAId ? await getTeamMemberUserIds(match.teamAId) : [];
+    const teamBIds = match.teamBId ? await getTeamMemberUserIds(match.teamBId) : [];
+    const totalRounds = await db
+      .select({ roundNumber: tournamentBracketMatches.roundNumber })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    const maxRound = Math.max(...totalRounds.map((r) => r.roundNumber), 1);
+    await syncOfficialMatchToPlayerHistory({
+      tournament,
+      roundLabel: getBracketRoundLabel(match.roundNumber, maxRound),
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      scoreA,
+      scoreB,
+      participantUserIds: [...teamAIds, ...teamBIds],
+    });
+
+    if (isFinal && winnerTeamId) {
+      const memberIds = await getTeamMemberUserIds(winnerTeamId);
+      for (const uid of memberIds) {
+        await syncOfficialPlacement({
+          tournament,
+          userId: uid,
+          placement: "Champion",
+          placementRank: 1,
+        });
+      }
     }
   }
 
@@ -284,19 +294,7 @@ export async function updateBracketLiveScore(
     throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
-  if (tournament.tournamentType === "official" && tournament.status !== "live") {
-    throw new AppError("Official live scores can only be updated while the tournament is live", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
-  }
-
-  if (
-    tournament.tournamentType === "recreational" &&
-    match.status !== "in_progress"
-  ) {
-    assertReclubSessionPlayable(tournament);
-  }
+  assertTournamentLiveForScoring(tournament);
 
   if (match.status === "completed" || match.status === "bye") {
     throw new AppError("Match already finished", { code: "CONFLICT", statusCode: 409 });

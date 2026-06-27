@@ -8,6 +8,7 @@ import type { TournamentListItem, TournamentDetail } from "@/lib/tournaments/ser
 import type { HostTournamentWorkspace } from "@/lib/tournaments/workspace/service";
 import type { TournamentStatus } from "@/db/schema/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
+import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 
 export function useHostTournamentsList() {
   return useQuery({
@@ -96,8 +97,9 @@ export function useCreateHostTournament() {
       }
       return json.data.tournament;
     },
-    onSuccess: () => {
+    onSuccess: (tournament) => {
       void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
+      invalidateTournamentQueries(qc, tournament.sportSlug, tournament.slug);
       toast.success("Tournament created");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -123,11 +125,12 @@ export function useUpdateHostTournament(tournamentId: string) {
       }
       return json.data.tournament;
     },
-    onSuccess: () => {
+    onSuccess: (tournament) => {
       void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
       void qc.invalidateQueries({
         queryKey: ["host", "tournaments", tournamentId, "workspace"],
       });
+      invalidateTournamentQueries(qc, tournament.sportSlug, tournament.slug);
       toast.success("Tournament updated");
     },
     onError: (err: Error) => toast.error(err.message),

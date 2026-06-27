@@ -2,6 +2,7 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
+import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { createNamedTeam } from "@/lib/tournaments/reclub/teams";
 import { z } from "zod";
 
@@ -24,7 +25,7 @@ export async function POST(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (tournament.tournamentType !== "recreational") {
+    if (!isFunMatchType(tournament.tournamentType)) {
       throw new AppError("Named teams are only for Fun Match tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,

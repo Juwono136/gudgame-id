@@ -2,36 +2,38 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ArrowRight, Search } from "lucide-react";
 import { FadeIn } from "@/components/motion/fade-in";
+import { GlobalSearchBox } from "@/components/search/global-search-box";
 
 export default function Hero() {
   const pathname = usePathname();
 
   return (
-    <section className="relative min-h-[min(42vh,380px)] overflow-hidden sm:min-h-[min(44vh,420px)]">
-      <Image
-        src="/images/bg-03.jpg"
-        alt=""
-        fill
-        priority
-        className="object-cover object-center"
-        sizes="100vw"
-      />
-      <div
-        className="absolute inset-0 bg-linear-to-b from-black/70 via-black/55 to-cp-bg"
-        aria-hidden
-      />
-      <div
-        className="absolute inset-0 bg-[var(--cp-hero-overlay)]/25"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.22),transparent)]"
-        aria-hidden
-      />
+    <section className="relative z-10 min-h-[min(42vh,380px)] sm:min-h-[min(44vh,420px)]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <Image
+          src="/images/bg-03.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover object-center"
+          sizes="100vw"
+        />
+        <div
+          className="absolute inset-0 bg-linear-to-b from-black/70 via-black/55 to-cp-bg"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 bg-[var(--cp-hero-overlay)]/25"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.22),transparent)]"
+          aria-hidden
+        />
+      </div>
 
-      <div className="relative z-10 flex min-h-[inherit] items-center">
+      <div className="relative flex min-h-[inherit] items-center overflow-visible">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
             <div className="max-w-xl text-center lg:text-left">
@@ -60,28 +62,9 @@ export default function Hero() {
               </FadeIn>
             </div>
 
-            <div className="w-full lg:max-w-md lg:shrink-0">
+            <div className="relative z-20 w-full lg:max-w-md lg:shrink-0">
               <FadeIn mountKey={`hero-search-${pathname}`} delay={0.18}>
-                <form
-                  onSubmit={(e) => e.preventDefault()}
-                  className="flex w-full flex-col gap-2 rounded-xl border border-cp-border bg-cp-card/70 p-1.5 backdrop-blur-md sm:flex-row sm:items-center sm:p-2"
-                >
-                  <div className="relative flex-1">
-                    <Search className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-                    <input
-                      type="search"
-                      placeholder="Search athletes, gear, tournaments..."
-                      className="w-full rounded-lg bg-transparent py-2.5 pr-3 pl-10 text-sm text-foreground placeholder:text-cp-muted focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="btn-interactive inline-flex items-center justify-center gap-1.5 rounded-lg bg-cp-primary px-4 py-2.5 text-xs font-semibold text-white shadow-[0_4px_20px_rgba(0,71,255,0.4)] hover:bg-[#0033C0] hover:shadow-[0_6px_24px_rgba(0,71,255,0.5)] sm:text-sm"
-                  >
-                    Search
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </form>
+                <GlobalSearchBox variant="hero" />
               </FadeIn>
             </div>
           </div>

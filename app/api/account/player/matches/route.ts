@@ -31,7 +31,12 @@ export async function GET(request: Request) {
       ? await listDistinctMatchYears(userId)
       : undefined;
     const summary = url.searchParams.get("includeSummary") === "1"
-      ? await getPlayerMatchListSummary(userId, parsed.data)
+      ? await getPlayerMatchListSummary(userId, {
+          search: parsed.data.search,
+          result: parsed.data.result,
+          type: parsed.data.type,
+          year: parsed.data.year,
+        })
       : undefined;
 
     return jsonSuccess({ ...list, years, summary });
