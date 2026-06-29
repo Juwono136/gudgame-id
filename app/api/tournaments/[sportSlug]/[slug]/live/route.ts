@@ -4,6 +4,7 @@ import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { buildTournamentLivePayload } from "@/lib/tournaments/live/build-payload";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: Request,

@@ -19,6 +19,8 @@ type TournamentParticipantsPanelProps = {
   tournamentType: "official" | "fun_match";
   variant?: "official" | "reclub";
   officialBilling?: string | null;
+  /** Fun match: squad points from session stats keyed by team name */
+  teamScoreByName?: Record<string, { pointsFor: number; wins: number }>;
 };
 
 function formatIdr(amount: number | null) {
@@ -102,6 +104,7 @@ export function TournamentParticipantsPanel({
   tournamentType,
   variant = tournamentType === "official" ? "official" : "reclub",
   officialBilling,
+  teamScoreByName,
 }: TournamentParticipantsPanelProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -189,10 +192,9 @@ export function TournamentParticipantsPanel({
                     <>
                       <th className="px-4 py-3 font-semibold">Registration</th>
                       <th className="px-4 py-3 font-semibold">Payment</th>
-                      <th className="px-4 py-3 font-semibold">Paid</th>
                     </>
                   ) : (
-                    <th className="px-4 py-3 font-semibold">Joined</th>
+                    <th className="px-4 py-3 font-semibold">Score</th>
                   )}
                 </tr>
               </thead>
@@ -228,13 +230,25 @@ export function TournamentParticipantsPanel({
                             <p className="mt-1 text-xs text-cp-muted">{formatIdr(row.amountIdr)}</p>
                           ) : null}
                         </td>
-                        <td className="px-4 py-3 text-xs text-cp-muted">
-                          {row.paidAt ? formatJoinedAt(row.paidAt) : "—"}
-                        </td>
                       </>
                     ) : (
-                      <td className="px-4 py-3 text-xs text-cp-muted">
-                        {formatJoinedAt(row.joinedAt)}
+                      <td className="px-4 py-3 text-sm tabular-nums text-foreground">
+                        {(() => {
+                          const stat = teamScoreByName?.[row.teamName];
+                          if (!stat || (stat.pointsFor === 0 && stat.wins === 0)) {
+                            return <span className="text-cp-muted">—</span>;
+                          }
+                          return (
+                            <span>
+                              {stat.pointsFor} pts
+                              {stat.wins > 0 ? (
+                                <span className="ml-1.5 text-xs text-cp-muted">
+                                  · {stat.wins}W
+                                </span>
+                              ) : null}
+                            </span>
+                          );
+                        })()}
                       </td>
                     )}
                   </tr>
@@ -266,7 +280,20 @@ export function TournamentParticipantsPanel({
                     </Badge>
                   </div>
                 ) : (
-                  <p className="text-xs text-cp-muted">Joined {formatJoinedAt(row.joinedAt)}</p>
+                  <p className="text-sm tabular-nums text-foreground">
+                    {(() => {
+                      const stat = teamScoreByName?.[row.teamName];
+                      if (!stat || (stat.pointsFor === 0 && stat.wins === 0)) {
+                        return <span className="text-cp-muted">No score yet</span>;
+                      }
+                      return (
+                        <>
+                          Score: {stat.pointsFor} pts
+                          {stat.wins > 0 ? ` · ${stat.wins} wins` : ""}
+                        </>
+                      );
+                    })()}
+                  </p>
                 )}
               </article>
             ))}

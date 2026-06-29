@@ -1,4 +1,6 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { TournamentCreateWizard } from "@/components/admin/tournaments/tournament-create-wizard";
 import { ReclubTournamentWizard } from "@/components/tournaments/reclub/reclub-tournament-wizard";
@@ -66,7 +68,14 @@ export default async function EditTournamentPage({ params, searchParams }: PageP
         />
       ) : (
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Edit tournament</h1>
+          <Link
+            href={tournamentListUrl(workspace)}
+            className="inline-flex items-center text-sm text-cp-muted transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            My tournaments
+          </Link>
+          <h1 className="mt-6 text-2xl font-bold text-foreground sm:text-3xl">Edit tournament</h1>
           <p className="mt-1 text-sm text-cp-muted">{tournament.name}</p>
           <div className="mt-6">
             <TournamentCreateWizard
@@ -75,6 +84,7 @@ export default async function EditTournamentPage({ params, searchParams }: PageP
               tournamentId={tournamentId}
               mode="host"
               workspace="player"
+              showTopBack={false}
             />
           </div>
         </div>

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { wikiEntities } from "@/db/schema";
 import { mapGearEntityToListItem, type GearSearchListItem } from "@/lib/wiki/gear/mapper";
@@ -44,6 +44,34 @@ export async function searchPublishedGear(
     )
     .orderBy(asc(wikiEntities.displayName))
     .limit(limit);
+
+  return rows.map((row) => mapGearEntityToListItem(row));
+}
+
+export async function listPublishedGearByIds(
+  sportId: string,
+  ids: string[],
+): Promise<GearSearchListItem[]> {
+  if (!ids.length) return [];
+  const unique = [...new Set(ids)];
+  const rows = await getDb()
+    .select({
+      id: wikiEntities.id,
+      slug: wikiEntities.slug,
+      displayName: wikiEntities.displayName,
+      primaryImageUrl: wikiEntities.primaryImageUrl,
+      primaryImageStorageKey: wikiEntities.primaryImageStorageKey,
+      attributes: wikiEntities.attributes,
+    })
+    .from(wikiEntities)
+    .where(
+      and(
+        eq(wikiEntities.sportId, sportId),
+        eq(wikiEntities.entityType, "gear"),
+        eq(wikiEntities.status, "published"),
+        inArray(wikiEntities.id, unique),
+      ),
+    );
 
   return rows.map((row) => mapGearEntityToListItem(row));
 }

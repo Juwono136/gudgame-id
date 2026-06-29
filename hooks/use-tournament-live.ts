@@ -24,9 +24,9 @@ export function useTournamentLive(sportSlug: string, slug: string, enabled = tru
     enabled: Boolean(sportSlug && slug && enabled),
     refetchInterval: (query) => {
       const phase = query.state.data?.phase;
-      if (phase === "live") return 5000;
-      if (phase === "not_started") return 30000;
-      return 15000;
+      if (phase === "live") return 1500;
+      if (phase === "not_started") return 8000;
+      return 5000;
     },
   });
 }

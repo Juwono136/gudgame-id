@@ -7,9 +7,14 @@ import { tournamentReclubMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertTeamsNotInActiveBracket } from "@/lib/tournaments/brackets/active-teams";
+import { assertTeamsAvailableForCourt } from "@/lib/tournaments/reclub/active-court-lock-server";
+import { assertCourtAvailable, listTournamentCourts } from "@/lib/tournaments/courts/service";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
-import { getMaxRounds } from "@/lib/tournaments/settings";
-import { syncReclubMatchToPlayerHistory } from "@/lib/tournaments/stats/sync";
+import { getMaxRounds, getTournamentRoundDurationMinutes, getTournamentScoringType } from "@/lib/tournaments/settings";
+import { computeTimerEndsAt } from "@/lib/tournaments/scoring/engine";
+import { syncOfficialMatchToPlayerHistory, syncReclubMatchToPlayerHistory } from "@/lib/tournaments/stats/sync";
+import { isOfficialType } from "@/lib/tournaments/core/types";
+import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
 export type { ReclubMatchView, ReclubMatchesListQuery } from "@/lib/tournaments/reclub/types";
@@ -43,7 +48,12 @@ export async function listReclubMatchesPaginated(
 export async function getActiveReclubMatch(
   tournamentId: string,
 ): Promise<ReclubMatchView | null> {
-  const [row] = await getDb()
+  const matches = await getActiveReclubMatches(tournamentId);
+  return matches[0] ?? null;
+}
+
+export async function getActiveReclubMatches(tournamentId: string): Promise<ReclubMatchView[]> {
+  const rows = await getDb()
     .select()
     .from(tournamentReclubMatches)
     .where(
@@ -52,10 +62,9 @@ export async function getActiveReclubMatch(
         eq(tournamentReclubMatches.status, "in_progress"),
       ),
     )
-    .limit(1);
+    .orderBy(desc(tournamentReclubMatches.roundNumber));
 
-  if (!row) return null;
-  return mapReclubMatchRow(row);
+  return rows.map(mapReclubMatchRow);
 }
 
 async function getTeamPlayerNames(teamId: string): Promise<string[]> {
@@ -74,14 +83,24 @@ export async function startReclubRound(
   userId: string,
   teamAId: string,
   teamBId: string,
+  courtId?: string,
 ): Promise<ReclubMatchView> {
   assertReclubSessionPlayable(tournament);
 
   const db = getDb();
-  const active = await getActiveReclubMatch(tournament.id);
-  if (active) {
-    throw new AppError("A round is already in progress", { code: "CONFLICT", statusCode: 409 });
+  let resolvedCourtId = courtId;
+  if (!resolvedCourtId) {
+    const courts = await listTournamentCourts(tournament.id);
+    const available = courts.find((c) => !c.activeMatchId);
+    if (!available) {
+      throw new AppError("All courts are busy — wait for a match to finish or add more courts", {
+        code: "CONFLICT",
+        statusCode: 409,
+      });
+    }
+    resolvedCourtId = available.id;
   }
+  await assertCourtAvailable(tournament.id, resolvedCourtId);
 
   const [maxRound] = await db
     .select({ max: max(tournamentReclubMatches.roundNumber) })
@@ -119,22 +138,34 @@ export async function startReclubRound(
 
   await assertTeamsNotInActiveBracket(tournament.id, teamAId, teamBId);
 
+  const activeOnCourts = await getActiveReclubMatches(tournament.id);
+  await assertTeamsAvailableForCourt(activeOnCourts, teamAId, teamBId, resolvedCourtId);
+
   const [teamAPlayers, teamBPlayers] = await Promise.all([
     getTeamPlayerNames(teamAId),
     getTeamPlayerNames(teamBId),
   ]);
+
+  const startedAt = new Date();
+  const scoringType = getTournamentScoringType(tournament);
+  const timerEndsAt =
+    scoringType === "timed"
+      ? computeTimerEndsAt(startedAt, getTournamentRoundDurationMinutes(tournament))
+      : null;
 
   const [created] = await db
     .insert(tournamentReclubMatches)
     .values({
       tournamentId: tournament.id,
       roundNumber,
+      courtId: resolvedCourtId,
       teamAId,
       teamBId,
       teamAName: teamA.name,
       teamBName: teamB.name,
       status: "in_progress",
-      startedAt: new Date(),
+      startedAt,
+      timerEndsAt,
       recordedByUserId: userId,
       metadata: {
         teamAPlayers,
@@ -205,6 +236,22 @@ export async function completeReclubRound(
     match: updated,
     participantUserIds: participantIds,
   });
+
+  if (isOfficialType(tournament.tournamentType)) {
+    await syncOfficialMatchToPlayerHistory({
+      tournament,
+      roundLabel: `Round ${updated.roundNumber}`,
+      teamAName: updated.teamAName,
+      teamBName: updated.teamBName,
+      teamAId: updated.teamAId,
+      teamBId: updated.teamBId,
+      scoreA: updated.scoreA ?? 0,
+      scoreB: updated.scoreB ?? 0,
+      participantUserIds: participantIds,
+    });
+  }
+
+  await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   return mapReclubMatchRow(updated);
 }

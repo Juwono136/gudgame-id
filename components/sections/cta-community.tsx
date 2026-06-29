@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, LayoutDashboard, LogIn, Search, UserPlus } from "lucide-react";
 import { FadeInView } from "@/components/motion/fade-in";
@@ -11,9 +12,14 @@ import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/
 export default function CTACommunity() {
   const { data: session } = useSession();
   const { data: sessionCtx } = useSessionContext(Boolean(session?.user));
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const isAuthenticated =
-    Boolean(session?.user) || sessionCtx?.authenticated === true;
+    hydrated && (Boolean(session?.user) || sessionCtx?.authenticated === true);
   const displayName =
     session?.user?.name?.split(" ")[0] ??
     session?.user?.email?.split("@")[0] ??

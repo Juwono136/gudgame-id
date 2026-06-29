@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { user } from "@/db/schema/auth";
 import { tournamentPlayerInvites } from "@/db/schema/tournament-invitations";
 import { tournaments } from "@/db/schema/tournaments";
 import { AppError } from "@/lib/errors";
@@ -21,6 +22,9 @@ export type PlayerInviteView = {
   expiresAt: string;
   inviteUrl: string;
   inviteCode?: string;
+  redeemedByUserId?: string | null;
+  redeemedByName?: string | null;
+  redeemedAt?: string | null;
 };
 
 export async function createPlayerInvite(input: {
@@ -149,8 +153,19 @@ export async function listPlayerInvites(
   tournament: Pick<TournamentDetail, "id" | "sportSlug" | "slug">,
 ): Promise<PlayerInviteView[]> {
   const rows = await getDb()
-    .select()
+    .select({
+      id: tournamentPlayerInvites.id,
+      teamId: tournamentPlayerInvites.teamId,
+      status: tournamentPlayerInvites.status,
+      expiresAt: tournamentPlayerInvites.expiresAt,
+      inviteToken: tournamentPlayerInvites.inviteToken,
+      redeemedByUserId: tournamentPlayerInvites.redeemedByUserId,
+      redeemedAt: tournamentPlayerInvites.redeemedAt,
+      redeemedByName: user.name,
+      redeemedByNickname: user.nickname,
+    })
     .from(tournamentPlayerInvites)
+    .leftJoin(user, eq(tournamentPlayerInvites.redeemedByUserId, user.id))
     .where(eq(tournamentPlayerInvites.tournamentId, tournament.id));
 
   return rows
@@ -169,6 +184,10 @@ export async function listPlayerInvites(
               kind: "player",
             })
           : "",
+      redeemedByUserId: row.redeemedByUserId,
+      redeemedByName:
+        row.redeemedByNickname?.trim() || row.redeemedByName?.trim() || null,
+      redeemedAt: row.redeemedAt?.toISOString() ?? null,
     }));
 }
 

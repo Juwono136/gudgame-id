@@ -8,6 +8,7 @@ import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { HostTournamentWorkspace } from "@/lib/tournaments/workspace/service";
+import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 
 export function useManageTournamentWorkspace(tournamentId: string) {
@@ -49,13 +50,14 @@ export function useUpdateManageTournament(tournamentId: string) {
       }
       return json.data.tournament;
     },
-    onSuccess: () => {
+    onSuccess: (tournament) => {
       void qc.invalidateQueries({ queryKey: ["account", "player", "tournaments"] });
       void qc.invalidateQueries({ queryKey: ["host", "tournaments"] });
       void qc.invalidateQueries({ queryKey: ["public", "tournaments"] });
       void qc.invalidateQueries({
         queryKey: ["manage", "tournaments", tournamentId, "workspace"],
       });
+      invalidateTournamentQueries(qc, tournament.sportSlug, tournament.slug);
       toast.success("Tournament updated");
     },
     onError: (err: Error) => toast.error(err.message),

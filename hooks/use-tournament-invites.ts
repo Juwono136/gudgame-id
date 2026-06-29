@@ -26,6 +26,9 @@ export type PlayerInviteView = {
   inviteUrl?: string;
   teamId?: string | null;
   expiresAt?: string | null;
+  redeemedByUserId?: string | null;
+  redeemedByName?: string | null;
+  redeemedAt?: string | null;
 };
 
 export type InvitePreviewView = {

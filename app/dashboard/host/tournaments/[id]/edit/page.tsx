@@ -66,7 +66,7 @@ export default async function HostEditTournamentPage({ params }: PageProps) {
               tournamentId={tournamentId}
               mode="host"
               workspace="host"
-              showTopBack
+              showTopBack={false}
             />
           </div>
         </div>

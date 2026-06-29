@@ -3,6 +3,8 @@ export const tournamentQueryKeys = {
     ["tournaments", "live", sportSlug, slug] as const,
   lobby: (sportSlug: string, slug: string) =>
     ["tournaments", "lobby", sportSlug, slug] as const,
+  courts: (sportSlug: string, slug: string) =>
+    ["tournaments", "courts", sportSlug, slug] as const,
   bracket: (sportSlug: string, slug: string) =>
     ["tournaments", "bracket", sportSlug, slug] as const,
   accessInvites: (sportSlug: string, slug: string) =>
@@ -13,6 +15,7 @@ export const tournamentQueryKeys = {
     [
       ["tournaments", "live", sportSlug, slug],
       ["tournaments", "lobby", sportSlug, slug],
+      ["tournaments", "courts", sportSlug, slug],
       ["tournaments", "bracket", sportSlug, slug],
     ] as const,
 };
@@ -25,4 +28,6 @@ export function invalidateTournamentQueries(
   for (const key of tournamentQueryKeys.allForTournament(sportSlug, slug)) {
     qc.invalidateQueries({ queryKey: key });
   }
+  void qc.invalidateQueries({ queryKey: ["tournaments", "manage-detail", sportSlug, slug] });
+  void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
 }

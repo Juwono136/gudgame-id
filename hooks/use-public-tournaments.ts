@@ -11,7 +11,21 @@ export function usePublicTournamentsList(
   query: PublicTournamentsListQuery,
 ) {
   return useQuery({
-    queryKey: ["public", "tournaments", sportSlug, query],
+    queryKey: [
+      "public",
+      "tournaments",
+      sportSlug,
+      query.page,
+      query.pageSize,
+      query.search ?? "",
+      query.bucket,
+      query.type,
+      query.officialBilling ?? "all",
+      query.format ?? "all",
+      query.category ?? "all",
+      query.sortBy,
+      query.sortDir,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", String(query.page));
@@ -45,6 +59,5 @@ export function usePublicTournamentsList(
       }
       return json.data;
     },
-    placeholderData: (prev) => prev,
   });
 }

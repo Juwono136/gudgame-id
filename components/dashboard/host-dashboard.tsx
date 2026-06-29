@@ -75,7 +75,7 @@ function HostOverviewTournamentRow({ tournament }: { tournament: HostOverviewTou
     <li className="group px-4 py-4 transition-colors hover:bg-cp-elevated/40 sm:px-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <Link
-          href={`${publicHref}?manage=1`}
+          href={publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}
           className="min-w-0 flex-1 rounded-lg outline-offset-2 focus-visible:outline focus-visible:outline-cp-primary/50"
         >
           <div className="flex flex-wrap items-center gap-2">

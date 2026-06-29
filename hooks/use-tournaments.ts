@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { adminRoutes } from "@/lib/constants/routes";
+import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type {
   TournamentUpsertInput,
@@ -63,9 +64,10 @@ export function useUpdateAdminTournament(tournamentId: string) {
       }
       return json.data.tournament;
     },
-    onSuccess: () => {
+    onSuccess: (tournament) => {
       void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
       void qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+      invalidateTournamentQueries(qc, tournament.sportSlug, tournament.slug);
       toast.success("Tournament updated");
     },
     onError: (err: Error) => toast.error(err.message),

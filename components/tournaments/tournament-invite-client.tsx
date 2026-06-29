@@ -147,7 +147,7 @@ export function TournamentInviteClient({
   const redirectAfterRedeem = (resolvedKind: "player" | "access") => {
     const base = publicSportRoutes.tournament(sportSlug, slug);
     router.replace(
-      resolvedKind === "player" ? `${base}?join=1&tab=Lobby` : `${base}?manage=1&tab=Manage`,
+      resolvedKind === "player" ? `${base}?join=1&tab=Lobby` : publicSportRoutes.tournamentManage(sportSlug, slug),
     );
   };
 

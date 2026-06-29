@@ -15,6 +15,9 @@ import {
 import { listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
+import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
+import { getTournamentDisplayConfig } from "@/lib/tournaments/settings";
+import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
 import { computeTournamentSessionStats } from "@/lib/tournaments/stats/compute";
 import type { StatsMatchInput, TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -32,6 +35,8 @@ function mapReclubToLiveMatch(m: ReclubMatchView) {
     status: m.status,
     startedAt: m.startedAt,
     endedAt: m.endedAt,
+    courtId: m.courtId,
+    timerEndsAt: m.timerEndsAt,
   };
 }
 
@@ -95,11 +100,12 @@ export async function buildTournamentLivePayload(
   const includeLobbyRounds = supportsRoundBasedPlay(tournament);
 
   const db = getDb();
-  const [bracketMatches, leaderboard, teams, lobbyMatches] = await Promise.all([
+  const [bracketMatches, leaderboard, teams, lobbyMatches, courts] = await Promise.all([
     includeBracket ? listBracketMatches(tournament.id) : Promise.resolve([]),
     includeBracket ? buildTournamentLeaderboard(tournament.id) : Promise.resolve([]),
     listLobbyTeamsDetailed(tournament.id),
     includeLobbyRounds ? listReclubMatches(tournament.id) : Promise.resolve([]),
+    provisionTournamentCourts(tournament),
   ]);
 
   const teamIds = teams.map((t) => t.id);
@@ -150,11 +156,19 @@ export async function buildTournamentLivePayload(
     .filter((t) => t.memberCount > 0)
     .map((t) => ({ id: t.id, name: t.name, memberCount: t.memberCount }));
 
-  const sessionStats = computeTournamentSessionStats({
-    matches: statsMatches,
-    teams: statsTeams,
-    totalPlayers: members.length,
-  });
+  const sessionStats: TournamentSessionStats = isFunMatch
+    ? computeReclubSessionStatsWithBracket({
+        reclubMatches: lobbyMatches,
+        bracketMatches,
+        teams,
+        totalPlayers: members.length,
+        maxRounds: null,
+      })
+    : computeTournamentSessionStats({
+        matches: statsMatches,
+        teams: statsTeams,
+        totalPlayers: members.length,
+      });
 
   const lobbyHistory = lobbyMatches
     .filter((m) => m.status === "completed")
@@ -192,6 +206,8 @@ export async function buildTournamentLivePayload(
       startsAt: tournament.startsAt,
       endsAt: tournament.endsAt,
     },
+    courts,
+    displayConfig: getTournamentDisplayConfig(tournament),
     players,
     bracket: {
       matches: bracketMatches,

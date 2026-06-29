@@ -332,7 +332,7 @@ export function TournamentCreateWizard({
         toast.error("Choose a match type");
         return false;
       }
-      if (![11, 15, 21, 25, 30].includes(Number(pointsPerMatch))) {
+      if (!TOURNAMENT_POINTS_PER_MATCH_OPTIONS.includes(Number(pointsPerMatch) as (typeof TOURNAMENT_POINTS_PER_MATCH_OPTIONS)[number])) {
         toast.error("Choose a supported point per match value");
         return false;
       }

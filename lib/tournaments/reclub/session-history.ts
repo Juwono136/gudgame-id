@@ -49,6 +49,8 @@ function bracketRowToHistoryView(
     status: row.status === "in_progress" ? "in_progress" : "completed",
     startedAt: completedAt,
     endedAt: completedAt,
+    courtId: row.courtId ?? null,
+    timerEndsAt: row.timerEndsAt?.toISOString() ?? null,
     teamAPlayers,
     teamBPlayers,
     scoreEvents: [],

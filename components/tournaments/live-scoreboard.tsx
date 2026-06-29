@@ -16,6 +16,7 @@ type LiveScoreboardProps = {
   status?: "idle" | "syncing" | "saved" | "error";
   statusText?: string;
   className?: string;
+  variant?: "default" | "compact";
 };
 
 function ScoreColumn({
@@ -67,6 +68,58 @@ function ScoreColumn({
   );
 }
 
+function CompactScoreRow({
+  label,
+  score,
+  onChange,
+  maxScore,
+  disabled,
+}: {
+  label: string;
+  score: number;
+  onChange: (n: number) => void;
+  maxScore: number;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-2 py-2 sm:gap-3 sm:px-3">
+      <p
+        className="min-w-0 flex-1 break-words text-xs font-medium leading-snug text-foreground sm:text-sm"
+        title={label}
+      >
+        {label}
+      </p>
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-9 w-9 shrink-0 rounded-full border-cp-border"
+          disabled={disabled || score <= 0}
+          onClick={() => onChange(Math.max(0, score - 1))}
+          aria-label={`Decrease ${label} score`}
+        >
+          <Minus className="h-4 w-4" />
+        </Button>
+        <span className="w-8 text-center text-2xl font-bold tabular-nums text-foreground sm:w-10 sm:text-3xl">
+          {score}
+        </span>
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-9 w-9 shrink-0 rounded-full border-cp-border"
+          disabled={disabled || score >= maxScore}
+          onClick={() => onChange(Math.min(maxScore, score + 1))}
+          aria-label={`Increase ${label} score`}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Touch-friendly live scoreboard for courtside use (mobile/tablet). */
 export function LiveScoreboard({
   teamAName,
@@ -80,6 +133,7 @@ export function LiveScoreboard({
   status = "idle",
   statusText,
   className,
+  variant = "default",
 }: LiveScoreboardProps) {
   const resolvedStatusText =
     statusText ??
@@ -93,23 +147,42 @@ export function LiveScoreboard({
 
   return (
     <div className={className}>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-cp-border bg-cp-card/80 p-4 sm:gap-6 sm:p-6">
-        <ScoreColumn
-          label={teamAName}
-          score={scoreA}
-          onChange={onScoreAChange}
-          maxScore={maxScore}
-          disabled={disabled}
-        />
-        <span className="pb-6 text-2xl font-light text-cp-muted">:</span>
-        <ScoreColumn
-          label={teamBName}
-          score={scoreB}
-          onChange={onScoreBChange}
-          maxScore={maxScore}
-          disabled={disabled}
-        />
-      </div>
+      {variant === "compact" ? (
+        <div className="space-y-2">
+          <CompactScoreRow
+            label={teamAName}
+            score={scoreA}
+            onChange={onScoreAChange}
+            maxScore={maxScore}
+            disabled={disabled}
+          />
+          <CompactScoreRow
+            label={teamBName}
+            score={scoreB}
+            onChange={onScoreBChange}
+            maxScore={maxScore}
+            disabled={disabled}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-cp-border bg-cp-card/80 p-4 sm:gap-6 sm:p-6">
+          <ScoreColumn
+            label={teamAName}
+            score={scoreA}
+            onChange={onScoreAChange}
+            maxScore={maxScore}
+            disabled={disabled}
+          />
+          <span className="pb-6 text-2xl font-light text-cp-muted">:</span>
+          <ScoreColumn
+            label={teamBName}
+            score={scoreB}
+            onChange={onScoreBChange}
+            maxScore={maxScore}
+            disabled={disabled}
+          />
+        </div>
+      )}
       {resolvedStatusText ? (
         <p
           className={cn(
@@ -148,7 +221,7 @@ export function LiveScoreboardDisplay({
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col items-center justify-center bg-[#0a0f1a] px-6 py-10 text-white",
+        "flex min-h-dvh flex-col items-center justify-center px-6 py-10 text-white",
         className,
       )}
     >

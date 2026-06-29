@@ -2,8 +2,13 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { getServerSession } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
+import {
+  assertCourtsideScoringAccess,
+  buildTournamentParticipantContext,
+} from "@/lib/tournaments/participant-access";
 import { updateReclubLiveScore } from "@/lib/tournaments/reclub/live-score";
+import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
 
@@ -30,12 +35,16 @@ export async function PATCH(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Only the host can update live scores", {
-        code: "FORBIDDEN",
-        statusCode: 403,
-      });
-    }
+    const userTeamId = await getUserTeamInTournament(tournament.id, userId);
+    const grantRole = await getActiveAccessGrantRole(tournament.id, userId);
+    const participant = buildTournamentParticipantContext({
+      userId,
+      userTeamId,
+      roles,
+      tournamentCreatedBy: tournament.createdBy,
+      grantRole,
+    });
+    assertCourtsideScoringAccess(participant);
 
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {

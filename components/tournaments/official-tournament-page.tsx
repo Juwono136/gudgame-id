@@ -9,14 +9,13 @@ import { FadeInView } from "@/components/motion/fade-in";
 import { OfficialAmericanoScoringPanel } from "@/components/tournaments/official-americano-scoring-panel";
 import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
 import { PaymentReceiptActions } from "@/components/payments/payment-receipt-actions";
-import { TournamentHostToolsPanel } from "@/components/tournaments/tournament-host-tools-panel";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
-import { isTournamentManageMode, tournamentManageTabUrl, tournamentTabUrl } from "@/lib/tournaments/manage-mode";
+import { tournamentTabUrl } from "@/lib/tournaments/manage-mode";
 import { TournamentBreadcrumbs } from "@/components/tournaments/tournament-breadcrumbs";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
-import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
+import { TournamentPlayersLiveStatsPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
 import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
 import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
 import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
@@ -96,7 +95,7 @@ type OfficialTournamentPageProps = {
 };
 
 const TABS = ["Overview", "Live Score", "Players", "Bracket", "Stats"] as const;
-type OfficialTab = (typeof TABS)[number] | "Manage";
+type OfficialTab = (typeof TABS)[number];
 
 export function OfficialTournamentPage({
   tournament,
@@ -110,7 +109,6 @@ export function OfficialTournamentPage({
 }: OfficialTournamentPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const showManage = isTournamentManageMode(searchParams) && canManage;
   const isFreeOfficial = tournament.officialBilling === "free";
   const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
   const livePhase =
@@ -157,22 +155,13 @@ export function OfficialTournamentPage({
 
   const [tab, setTab] = useState<OfficialTab>("Overview");
   const registerHref = `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}/register`;
-  const manageRegistrationsHref = tournamentManageTabUrl(
-    tournament.sportSlug,
-    tournament.slug,
-    "Manage",
-  );
   const [publicUrl, setPublicUrl] = useState("");
   const [resumingPayment, setResumingPayment] = useState(false);
   const [editRegistrationOpen, setEditRegistrationOpen] = useState(false);
   const isElimination = tournament.format !== "americano";
   const visibleTabs = useMemo((): OfficialTab[] => {
-    const items = TABS.filter((item) => isElimination || item !== "Bracket");
-    if (showManage) {
-      return [items[0], "Manage", ...items.slice(1)];
-    }
-    return [...items];
-  }, [isElimination, showManage]);
+    return TABS.filter((item) => isElimination || item !== "Bracket");
+  }, [isElimination]);
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
   const scoringTypeLabel = getScoringTypeLabel(getTournamentScoringType(tournament));
   const pointsPerMatch = getTournamentPointsPerMatch(tournament);
@@ -190,21 +179,13 @@ export function OfficialTournamentPage({
     (next: OfficialTab) => {
       if (!isElimination && next === "Bracket") return;
       setTab(next);
-      const url = showManage
-        ? tournamentTabUrl(tournament.sportSlug, tournament.slug, next, true)
-        : next === "Overview"
+      const url =
+        next === "Overview"
           ? tournamentPublicHref
           : tournamentTabUrl(tournament.sportSlug, tournament.slug, next, false);
       router.replace(url, { scroll: false });
     },
-    [
-      isElimination,
-      router,
-      showManage,
-      tournament.slug,
-      tournament.sportSlug,
-      tournamentPublicHref,
-    ],
+    [isElimination, router, tournament.slug, tournament.sportSlug, tournamentPublicHref],
   );
 
   useEffect(() => {
@@ -214,29 +195,20 @@ export function OfficialTournamentPage({
       setTab(tabParam as OfficialTab);
       return;
     }
-    if (showManage && !tabParam) {
-      setTab("Manage");
-      return;
-    }
     if (!tabParam) {
       setTab("Overview");
     }
-  }, [searchParams, showManage, visibleTabs]);
+  }, [searchParams, visibleTabs]);
 
   const handleManageClick = useCallback(() => {
-    navigateTab("Manage");
-    if (!showManage) {
-      router.push(publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug));
-    }
-  }, [navigateTab, showManage, router, tournament.sportSlug, tournament.slug]);
+    router.push(publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug));
+  }, [router, tournament.sportSlug, tournament.slug]);
 
   const openManageRegistrations = useCallback(() => {
-    if (showManage) {
-      navigateTab("Manage");
-      return;
-    }
-    router.push(manageRegistrationsHref);
-  }, [manageRegistrationsHref, navigateTab, router, showManage]);
+    router.push(
+      `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=registrations`,
+    );
+  }, [router, tournament.sportSlug, tournament.slug]);
 
   const { data: bracket, isLoading: bracketLoading } = useTournamentBracket(
     tournament.sportSlug,
@@ -273,7 +245,7 @@ export function OfficialTournamentPage({
     tournament.slug,
     1,
     200,
-    { enabled: tab === "Stats" || tab === "Players" || tab === "Manage" },
+    { enabled: tab === "Stats" },
   );
 
   const sessionStats = useMemo(() => {
@@ -389,19 +361,20 @@ export function OfficialTournamentPage({
 
   return (
     <TournamentDetailPageShell>
-      {canManage ? (
+      {participant.isRuntimeManager ? (
         <TournamentSessionChrome
           sportSlug={tournament.sportSlug}
           slug={tournament.slug}
           tournamentId={tournament.id}
           name={tournament.name}
           phase={livePhase}
-          canManage={canManage}
-          canEdit
-          editHref={tournamentEditUrl(tournament.id, "host")}
+          canManage={participant.isRuntimeManager}
+          canEdit={canManage}
+          editHref={canManage ? tournamentEditUrl(tournament.id, "host") : undefined}
           listHref={dashboardRoutes.hostTournaments}
-          manageActive={showManage}
           onManageClick={handleManageClick}
+          showCreateActions={isAuthenticated}
+          canCreateOfficial={canManage}
         />
       ) : null}
       <TournamentHeroBanner coverImageUrl={tournament.coverImageUrl} variant="official">
@@ -516,68 +489,6 @@ export function OfficialTournamentPage({
             onChange={navigateTab}
             variant="official"
           />
-
-          {tab === "Manage" && showManage ? (
-            <div className="space-y-6">
-              <TournamentHostToolsPanel
-                sportSlug={tournament.sportSlug}
-                slug={tournament.slug}
-                variant="official"
-              />
-              <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">Registrations & teams</h2>
-                    <p className="mt-1 text-sm text-cp-muted">
-                      Review confirmed teams, payment status, and roster details before publishing
-                      the bracket.
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button asChild variant="outline" className="border-cp-border">
-                      <Link href={tournamentEditUrl(tournament.id, "host")}>Edit tournament</Link>
-                    </Button>
-                    {isElimination ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-cp-border"
-                        onClick={() => navigateTab("Bracket")}
-                      >
-                        Open bracket & scoring
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-cp-border"
-                        onClick={() => navigateTab("Live Score")}
-                      >
-                        Open round scoring
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-6">
-                  <TournamentParticipantsPanel
-                    sportSlug={tournament.sportSlug}
-                    slug={tournament.slug}
-                    tournamentType="official"
-                    variant="official"
-                    officialBilling={tournament.officialBilling}
-                  />
-                </div>
-              </section>
-              {!isElimination ? (
-                <OfficialAmericanoScoringPanel
-                  tournament={tournament}
-                  participant={participant}
-                  livePhase={livePhase}
-                  variant="manage"
-                />
-              ) : null}
-            </div>
-          ) : null}
 
           {tab === "Overview" ? (
             <>
@@ -779,12 +690,10 @@ export function OfficialTournamentPage({
           ) : null}
 
           {tab === "Players" ? (
-            <TournamentParticipantsPanel
-              sportSlug={tournament.sportSlug}
-              slug={tournament.slug}
-              tournamentType="official"
+            <TournamentPlayersLiveStatsPanel
+              stats={sessionStats}
               variant="official"
-              officialBilling={tournament.officialBilling}
+              emptyMessage="Stats appear once matches are played and finalized in Manage → Live scoring."
             />
           ) : null}
 
@@ -799,9 +708,9 @@ export function OfficialTournamentPage({
                 </h2>
                 <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-cp-muted">
                   Official live scoring starts after the host publishes the bracket from confirmed
-                  teams. Use the Manage tab to invite scoring staff.
+                  teams. Open Manage to invite scoring staff.
                 </p>
-                {canManage ? (
+                {participant.isRuntimeManager ? (
                   <Button
                     type="button"
                     className="mt-5 bg-cp-primary hover:bg-cp-primary-light"
@@ -943,7 +852,7 @@ export function OfficialTournamentPage({
               />
             ) : null}
 
-            {canManage && !showManage ? (
+            {participant.isRuntimeManager ? (
               <Button
                 type="button"
                 variant="outline"

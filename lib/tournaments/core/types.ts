@@ -24,6 +24,15 @@ export function isOfficialType(value: string | null | undefined): boolean {
   return normalizeTournamentType(value) === "official";
 }
 
+/** Player invite links — Fun Match and free official events. */
+export function supportsPlayerInvites(input: {
+  tournamentType: string | null | undefined;
+  officialBilling?: OfficialBillingType | string | null;
+}): boolean {
+  if (isFunMatchType(input.tournamentType)) return true;
+  return isOfficialType(input.tournamentType) && input.officialBilling === "free";
+}
+
 /** Round-robin lobby scoring (Fun Match or Official Americano). */
 export function supportsRoundBasedPlay(input: {
   tournamentType: string | null | undefined;

@@ -12,6 +12,24 @@ import {
   type ReclubScoreEvent,
 } from "@/lib/tournaments/reclub/score-events";
 import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
+import {
+  getTournamentDeuceConfig,
+  getTournamentPointsPerMatch,
+  getTournamentScoringType,
+} from "@/lib/tournaments/settings";
+import {
+  applyScoreDelta as engineApplyDelta,
+  isMatchComplete,
+  type ScoringRules,
+} from "@/lib/tournaments/scoring/engine";
+
+function buildScoringRules(tournament: TournamentDetail): ScoringRules {
+  return {
+    pointsPerMatch: getTournamentPointsPerMatch(tournament),
+    deuceConfig: getTournamentDeuceConfig(tournament),
+    scoringType: getTournamentScoringType(tournament),
+  };
+}
 
 export async function updateReclubLiveScore(
   tournament: TournamentDetail,
@@ -42,8 +60,35 @@ export async function updateReclubLiveScore(
     throw new AppError("Active match not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
-  const scoreA = Math.max(0, Math.min(99, input.scoreA));
-  const scoreB = Math.max(0, Math.min(99, input.scoreB));
+  const rules = buildScoringRules(tournament);
+  let scoreA = Math.max(0, existing.scoreA ?? 0);
+  let scoreB = Math.max(0, existing.scoreB ?? 0);
+
+  if (input.action === "increment" && input.side) {
+    const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
+    if (!next) {
+      throw new AppError("Cannot increase score — match may be complete or at cap", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    scoreA = next.scoreA;
+    scoreB = next.scoreB;
+  } else if (input.action === "decrement" && input.side) {
+    const next = engineApplyDelta(scoreA, scoreB, input.side, -1, rules);
+    if (!next) {
+      throw new AppError("Score cannot go below zero", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    scoreA = next.scoreA;
+    scoreB = next.scoreB;
+  } else {
+    scoreA = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreA));
+    scoreB = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreB));
+  }
+
   const prevMeta = parseReclubMatchMetadata(existing.metadata);
   const event: ReclubScoreEvent = {
     at: new Date().toISOString(),
@@ -67,4 +112,12 @@ export async function updateReclubLiveScore(
   }
 
   return mapReclubMatchRow(updated);
+}
+
+export function getReclubMatchCompletion(
+  tournament: TournamentDetail,
+  scoreA: number,
+  scoreB: number,
+) {
+  return isMatchComplete(scoreA, scoreB, buildScoringRules(tournament));
 }

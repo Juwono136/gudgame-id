@@ -20,6 +20,7 @@ export * from "./schema/tournaments";
 export * from "./schema/tournament-registration";
 export * from "./schema/tournament-payments";
 export * from "./schema/tournament-matches";
+export * from "./schema/tournament-courts";
 export * from "./schema/tournament-invitations";
 export * from "./schema/tournament-archives";
 export * from "./schema/user-sport-interests";

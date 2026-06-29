@@ -19,7 +19,5 @@ export default async function HostTournamentWorkspacePage({ params }: PageProps)
     redirect(publicSportRoutes.tournament(tournament.sportSlug, tournament.slug));
   }
 
-  redirect(
-    `${publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}?manage=1`,
-  );
+  redirect(publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug));
 }

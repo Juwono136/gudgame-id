@@ -16,7 +16,7 @@ export const cpSelectTriggerClass = cn(
 );
 
 export const cpSelectContentClass = cn(
-  "z-[200] max-h-[min(280px,50vh)] overflow-y-auto rounded-xl border border-cp-border bg-cp-card p-1 text-foreground shadow-lg",
+  "z-[300] max-h-[min(280px,50vh)] overflow-y-auto rounded-xl border border-cp-border bg-cp-card p-1 text-foreground shadow-lg",
 );
 
 export const cpSelectItemClass = cn(

@@ -118,13 +118,13 @@ export function TournamentInviteListItem({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:justify-end">
         {canViewDetails ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-8"
+            className="h-9 w-full sm:w-auto"
             disabled={viewingDetails}
             onClick={onViewDetails}
           >
@@ -133,7 +133,13 @@ export function TournamentInviteListItem({
           </Button>
         ) : null}
         {canCopy ? (
-          <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void copyLink()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-9 w-full sm:w-auto"
+            onClick={() => void copyLink()}
+          >
             <Copy className="mr-1 h-3.5 w-3.5" />
             Copy link
           </Button>
@@ -143,7 +149,7 @@ export function TournamentInviteListItem({
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            className="h-9 w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 sm:w-auto"
             disabled={removing}
             onClick={onRemove}
             title={status === "accepted" ? "Revoke staff access" : "Remove this invite"}

@@ -9,7 +9,7 @@ import {
   revokePlayerInvite,
 } from "@/lib/tournaments/invitations/player-invites";
 import { playerInviteCreateSchema } from "@/lib/validations/tournaments";
-import { isFunMatchType } from "@/lib/tournaments/core/types";
+import { supportsPlayerInvites } from "@/lib/tournaments/core/types";
 
 export const runtime = "nodejs";
 
@@ -26,7 +26,10 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
     if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
+      throw new AppError("Only the tournament host can manage player invites", {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      });
     }
 
     const invites = await listPlayerInvites(tournament);
@@ -48,8 +51,8 @@ export async function POST(
     if (!tournament) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!isFunMatchType(tournament.tournamentType)) {
-      throw new AppError("Player invites are only for Fun Match tournaments", {
+    if (!supportsPlayerInvites(tournament)) {
+      throw new AppError("Player invites are only for Fun Match and free official tournaments", {
         code: "INVALID_TOURNAMENT_TYPE",
         statusCode: 400,
       });

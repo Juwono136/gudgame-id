@@ -17,5 +17,9 @@ export default async function PlayerTournamentWorkspacePage({ params }: PageProp
 
   const canManage = canManageTournament(roles, tournament.createdBy, userId);
   const url = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
-  redirect(canManage ? `${url}?manage=1` : url);
+  redirect(
+    canManage
+      ? publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)
+      : url,
+  );
 }

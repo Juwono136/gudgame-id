@@ -64,7 +64,13 @@ export function TournamentAccessInvitesPanel({
 
   const selectedRole = ACCESS_GRANT_ROLES.find((r) => r.value === role);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    const ok = await confirm({
+      title: "Generate staff invite?",
+      description: `Create a ${selectedRole?.label ?? role} invite link for this tournament.`,
+      confirmLabel: "Generate",
+    });
+    if (!ok) return;
     createInvite.mutate(
       { role },
       {
@@ -118,46 +124,46 @@ export function TournamentAccessInvitesPanel({
               Scorekeepers update live scores. Bracket managers can also set up and edit the bracket.
             </p>
           </div>
-        ) : (
-          <p className="text-xs font-semibold uppercase tracking-wide text-cp-muted">
-            Staff access
-          </p>
-        )}
+        ) : null}
 
-        <div className="space-y-2">
-          <Label htmlFor="staff-role">Role</Label>
-          <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
-            <SelectTrigger id="staff-role" className="h-10 border-cp-border bg-cp-elevated">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ACCESS_GRANT_ROLES.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedRole ? (
-            <p className="text-[11px] leading-relaxed text-cp-muted">{selectedRole.description}</p>
-          ) : null}
+        <div className="rounded-xl border border-cp-border bg-cp-elevated/20 p-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div className="space-y-2">
+              <Label htmlFor="staff-role">Role</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as typeof role)} modal={false}>
+                <SelectTrigger id="staff-role" className="h-11 w-full border-cp-border bg-cp-elevated">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[300] border-cp-border bg-cp-card" position="popper">
+                  {ACCESS_GRANT_ROLES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedRole ? (
+                <p className="text-xs leading-relaxed text-cp-muted">{selectedRole.description}</p>
+              ) : null}
+            </div>
+
+            <Button
+              type="button"
+              className="h-11 w-full shrink-0 bg-cp-primary hover:bg-cp-primary-light lg:min-w-[220px] lg:w-auto"
+              disabled={createInvite.isPending}
+              onClick={() => void handleCreate()}
+            >
+            {createInvite.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <UserPlus className="mr-1.5 h-4 w-4" />
+                Generate staff invite
+              </>
+            )}
+          </Button>
+          </div>
         </div>
-
-        <Button
-          type="button"
-          className="h-10 w-full bg-cp-primary hover:bg-cp-primary-light sm:w-auto"
-          disabled={createInvite.isPending}
-          onClick={handleCreate}
-        >
-          {createInvite.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <UserPlus className="mr-1.5 h-4 w-4" />
-              Generate staff invite
-            </>
-          )}
-        </Button>
 
         {isLoading ? (
           <p className="text-sm text-cp-muted">Loading…</p>

@@ -1,27 +1,24 @@
-/**
- * Host management UI is toggled with `?manage=1` on the public tournament URL.
- *
- * The value `1` is a boolean flag (mode on), not a tournament ID — the tournament
- * is already identified by `/sports/{sportSlug}/tournaments/{slug}` in the path.
- */
+/** @deprecated Legacy query flag — redirects to `/manage` route */
 export const TOURNAMENT_MANAGE_PARAM = "manage";
 export const TOURNAMENT_MANAGE_ACTIVE_VALUE = "1";
 
+export function tournamentManagePath(sportSlug: string, slug: string, section?: string): string {
+  const base = `/sports/${sportSlug}/tournaments/${slug}/manage`;
+  if (!section) return base;
+  return `${base}?section=${encodeURIComponent(section)}`;
+}
+
+/** @deprecated Use tournamentManagePath — kept for redirect detection */
 export function isTournamentManageMode(searchParams: Pick<URLSearchParams, "get">): boolean {
   return searchParams.get(TOURNAMENT_MANAGE_PARAM) === TOURNAMENT_MANAGE_ACTIVE_VALUE;
 }
 
-export function withTournamentManageMode(url: string): string {
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}${TOURNAMENT_MANAGE_PARAM}=${TOURNAMENT_MANAGE_ACTIVE_VALUE}`;
+export function withTournamentManageMode(sportSlug: string, slug: string): string {
+  return tournamentManagePath(sportSlug, slug);
 }
 
-export function tournamentManageTabUrl(
-  sportSlug: string,
-  slug: string,
-  tab: string,
-): string {
-  return tournamentTabUrl(sportSlug, slug, tab, true);
+export function tournamentManageTabUrl(sportSlug: string, slug: string, section: string): string {
+  return tournamentManagePath(sportSlug, slug, section);
 }
 
 export function tournamentTabUrl(

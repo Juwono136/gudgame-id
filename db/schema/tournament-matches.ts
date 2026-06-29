@@ -9,6 +9,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
+import { tournamentCourts } from "./tournament-courts";
 import { tournamentTeams } from "./tournament-registration";
 import { tournaments } from "./tournaments";
 import { uuidFk, uuidPrimaryKey } from "./uuid";
@@ -40,12 +41,17 @@ export const tournamentReclubMatches = pgTable(
     recordedByUserId: text("recorded_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    courtId: uuidFk("court_id").references(() => tournamentCourts.id, {
+      onDelete: "set null",
+    }),
+    timerEndsAt: timestamp("timer_ends_at"),
     metadata: jsonb("metadata").default({}).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     index("tournament_reclub_matches_tournament_idx").on(table.tournamentId),
     index("tournament_reclub_matches_round_idx").on(table.tournamentId, table.roundNumber),
+    index("tournament_reclub_matches_court_idx").on(table.tournamentId, table.courtId),
   ],
 );
 
@@ -85,6 +91,11 @@ export const tournamentBracketMatches = pgTable(
     recordedByUserId: text("recorded_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    courtId: uuidFk("court_id").references(() => tournamentCourts.id, {
+      onDelete: "set null",
+    }),
+    timerEndsAt: timestamp("timer_ends_at"),
+    metadata: jsonb("metadata").default({}).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -104,5 +115,6 @@ export const tournamentBracketMatches = pgTable(
       table.roundNumber,
       table.matchNumber,
     ),
+    index("tournament_bracket_matches_court_idx").on(table.tournamentId, table.courtId),
   ],
 );

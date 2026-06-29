@@ -46,7 +46,25 @@ export type TournamentLivePayload = {
     status?: string;
     startedAt?: string | null;
     endedAt?: string | null;
+    courtId?: string | null;
+    timerEndsAt?: string | null;
   }>;
+  courts?: Array<{
+    id: string;
+    courtNumber: number;
+    name: string;
+    sortOrder: number;
+    activeMatchId: string | null;
+  }>;
+  displayConfig?: {
+    layout: string;
+    courtIds?: string[];
+    rotationIntervalSec?: number;
+    autoRotate?: boolean;
+    rotationLayouts?: string[];
+    showUpcoming?: boolean;
+    showHighlights?: boolean;
+  };
   matchHistory: Array<{
     id: string;
     label: string;

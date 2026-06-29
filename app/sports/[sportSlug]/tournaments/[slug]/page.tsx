@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { TournamentPageRouter } from "@/components/tournaments/tournament-page-router";
 import { getSportBySlug } from "@/lib/wiki/public";
@@ -6,6 +6,7 @@ import { getTournamentBySlug } from "@/lib/tournaments/service";
 
 type PageProps = {
   params: Promise<{ sportSlug: string; slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({ params }: PageProps) {
@@ -14,8 +15,12 @@ export async function generateMetadata({ params }: PageProps) {
   return { title: tournament ? tournament.name : "Tournament" };
 }
 
-export default async function TournamentDetailPage({ params }: PageProps) {
+export default async function TournamentDetailPage({ params, searchParams }: PageProps) {
   const { sportSlug, slug } = await params;
+  const sp = await searchParams;
+  if (sp.manage === "1") {
+    redirect(`/sports/${sportSlug}/tournaments/${slug}/manage`);
+  }
   const sport = await getSportBySlug(sportSlug);
   if (!sport || sport.visibility !== "live") notFound();
 

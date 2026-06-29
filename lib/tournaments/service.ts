@@ -611,6 +611,9 @@ export async function createTournament(
     await syncReclubParticipation({ tournament: detail, userId, role: "organizer" });
   }
 
+  const { provisionTournamentCourts } = await import("@/lib/tournaments/courts/service");
+  await provisionTournamentCourts(detail);
+
   await invalidateTournamentCaches(detail.sportSlug, detail.slug);
   return detail;
 }
@@ -770,6 +773,9 @@ export async function updateTournament(
     );
     await archiveTournamentSnapshot(detail, status === "cancelled");
   }
+
+  const { provisionTournamentCourts } = await import("@/lib/tournaments/courts/service");
+  await provisionTournamentCourts(detail);
 
   await invalidateTournamentCaches(detail.sportSlug, detail.slug);
   return detail;

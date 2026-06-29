@@ -24,6 +24,8 @@ export function mapReclubMatchRow(
     status: row.status,
     startedAt: row.startedAt?.toISOString() ?? null,
     endedAt: row.endedAt?.toISOString() ?? null,
+    courtId: row.courtId ?? null,
+    timerEndsAt: row.timerEndsAt?.toISOString() ?? null,
     teamAPlayers: meta.teamAPlayers ?? [],
     teamBPlayers: meta.teamBPlayers ?? [],
     scoreEvents: meta.scoreEvents ?? [],

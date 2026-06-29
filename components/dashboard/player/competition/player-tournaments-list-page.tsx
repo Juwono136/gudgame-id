@@ -79,7 +79,7 @@ function TournamentListRow({
   const href =
     row.sportSlug && row.slug
       ? scope === "created"
-        ? `${publicSportRoutes.tournament(row.sportSlug, row.slug)}?manage=1`
+        ? publicSportRoutes.tournamentManage(row.sportSlug, row.slug)
         : publicSportRoutes.tournament(row.sportSlug, row.slug)
       : scope === "created" && row.tournamentId
         ? dashboardRoutes.tournament(row.tournamentId)

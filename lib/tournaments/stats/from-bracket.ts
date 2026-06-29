@@ -95,6 +95,8 @@ function buildPlayers(
       teamWins: teamStat?.wins ?? 0,
       teamLosses: teamStat?.losses ?? 0,
       teamPlayed: teamStat?.played ?? 0,
+      teamPointsFor: teamStat?.pointsFor ?? 0,
+      teamPointsAgainst: teamStat?.pointsAgainst ?? 0,
       profileUrl: participant.profileUrl,
       image: participant.image,
     };

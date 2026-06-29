@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 const bodySchema = z.object({
   teamAId: z.string().uuid(),
   teamBId: z.string().uuid(),
+  courtId: z.string().uuid().optional(),
 });
 
 export async function POST(
@@ -57,6 +58,7 @@ export async function POST(
       userId,
       parsed.data.teamAId,
       parsed.data.teamBId,
+      parsed.data.courtId,
     );
     return jsonSuccess({ match }, 201);
   } catch (error) {

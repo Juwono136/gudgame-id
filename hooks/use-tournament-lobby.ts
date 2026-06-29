@@ -23,6 +23,8 @@ export type LobbyPayload = {
   teams: LobbyTeamView[];
   matches: ReclubMatchView[];
   activeMatch: ReclubMatchView | null;
+  activeMatches?: ReclubMatchView[];
+  courts?: import("@/hooks/use-tournament-courts").TournamentCourtView[];
   userTeamId: string | null;
   canManage: boolean;
   participant: TournamentParticipantContext;
@@ -44,6 +46,7 @@ function invalidateLobbyAndLive(
 ) {
   void qc.invalidateQueries({ queryKey: lobbyKey(sportSlug, slug) });
   void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+  void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
 }
 
 export function useTournamentLobby(sportSlug: string, slug: string, enabled = true) {
@@ -64,7 +67,7 @@ export function useTournamentLobby(sportSlug: string, slug: string, enabled = tr
     enabled,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (data?.activeMatch) return 5000;
+      if (data?.activeMatches?.length || data?.activeMatch) return 5000;
       return 15000;
     },
   });
@@ -95,7 +98,7 @@ export function useSwitchTeam(sportSlug: string, slug: string) {
 export function useStartReclubRound(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { teamAId: string; teamBId: string }) => {
+    mutationFn: async (input: { teamAId: string; teamBId: string; courtId?: string }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/matches/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -192,12 +195,28 @@ export function useUpdateReclubLiveScore(sportSlug: string, slug: string) {
     onSuccess: (match) => {
       qc.setQueryData<LobbyPayload>(lobbyKey(sportSlug, slug), (prev) => {
         if (!prev) return prev;
+        const activeMatches = (prev.activeMatches ?? []).map((m) =>
+          m.id === match.id ? match : m,
+        );
         return {
           ...prev,
-          activeMatch: match,
+          activeMatch: prev.activeMatch?.id === match.id ? match : prev.activeMatch,
+          activeMatches,
           matches: prev.matches.map((m) => (m.id === match.id ? match : m)),
         };
       });
+      qc.setQueryData(
+        ["tournaments", "manage-scoring", sportSlug, slug],
+        (prev: import("@/hooks/use-tournament-manage-scoring").ManageScoringPayload | undefined) => {
+          if (!prev) return prev;
+          const patchMatch = (m: ReclubMatchView) => (m.id === match.id ? match : m);
+          return {
+            ...prev,
+            activeReclubMatches: prev.activeReclubMatches.map(patchMatch),
+            reclubMatches: prev.reclubMatches.map(patchMatch),
+          };
+        },
+      );
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -248,9 +267,24 @@ export function useCompleteReclubRound(sportSlug: string, slug: string) {
       }
       return json.data.match;
     },
-    onSuccess: () => {
+    onSuccess: (match) => {
       invalidateLobbyAndLive(qc, sportSlug, slug);
-      toast.success("Round completed — scores saved to player history");
+      qc.setQueryData(
+        ["tournaments", "manage-scoring", sportSlug, slug],
+        (prev: import("@/hooks/use-tournament-manage-scoring").ManageScoringPayload | undefined) => {
+          if (!prev) return prev;
+          const activeReclubMatches = prev.activeReclubMatches.filter((m) => m.id !== match.id);
+          const reclubMatches = prev.reclubMatches.map((m) => (m.id === match.id ? match : m));
+          const hasMatch = prev.reclubMatches.some((m) => m.id === match.id);
+          return {
+            ...prev,
+            activeReclubMatches,
+            reclubMatches: hasMatch ? reclubMatches : [match, ...prev.reclubMatches],
+          };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      toast.success("Match finalized — stats updated on the public page");
     },
     onError: (err: Error) => toast.error(err.message),
   });

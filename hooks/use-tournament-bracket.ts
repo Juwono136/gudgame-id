@@ -10,6 +10,7 @@ import type {
   OfficialTournamentStaffMember,
   OfficialTournamentStaffRole,
 } from "@/lib/tournaments/settings";
+import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 type UseTournamentBracketOptions = {
   enabled?: boolean;
@@ -143,7 +144,41 @@ export function useAssignBracketTeam(sportSlug: string, slug: string) {
           };
         },
       );
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
       toast.success("Squad placed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useGeneratePublicBracket(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (seedMode: "random" | "manual" = "manual") => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seedMode }),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { matchCount: number };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not generate bracket"));
+      }
+      return json.data;
+    },
+    onSuccess: (_data, seedMode) => {
+      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      toast.success(
+        seedMode === "random"
+          ? "Bracket generated with random seeding"
+          : "Bracket generated — assign teams to round one",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -202,6 +237,7 @@ export function useSubmitBracketScore(sportSlug: string, slug: string) {
       void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["reclub", "matches", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "lobby", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
       toast.success("Score saved — session history updated");
     },
     onError: (e: Error) => toast.error(e.message),

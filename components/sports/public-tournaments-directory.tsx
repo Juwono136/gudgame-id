@@ -4,14 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { PublicTournamentsTable } from "@/components/sports/public-tournaments-table";
+import { TournamentFilterMenu } from "@/components/sports/tournament-filter-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
 import {
   CompetitionListFetchingOverlay,
@@ -20,14 +14,7 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePublicTournamentsList } from "@/hooks/use-public-tournaments";
 import { publicSportRoutes } from "@/lib/constants/routes";
-import {
-  cpSelectContentClass,
-  cpSelectItemClass,
-  cpSelectTriggerClass,
-} from "@/lib/styles/surface-classes";
-import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import type { PublicTournamentsListQuery } from "@/lib/validations/tournaments";
-import { cn } from "@/lib/utils";
 
 type PublicTournamentsDirectoryProps = {
   sportSlug: string;
@@ -88,7 +75,7 @@ export function PublicTournamentsDirectory({
         Official paid events and free Fun Match sessions for {sportName}.
       </p>
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+      <div className="mt-8 rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
         <div className="border-b border-cp-border p-3 sm:p-4 lg:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
             <div className="relative min-w-0 flex-1">
@@ -103,160 +90,25 @@ export function PublicTournamentsDirectory({
                 className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9 text-foreground sm:h-11"
               />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:w-auto lg:shrink-0 lg:grid-cols-3 xl:grid-cols-6">
-              <Select
-                value={bucket}
-                onValueChange={(v) => {
-                  setBucket(v as PublicTournamentsListQuery["bucket"]);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className={cpSelectContentClass}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All statuses
-                  </SelectItem>
-                  <SelectItem value="live" className={cpSelectItemClass}>
-                    Live
-                  </SelectItem>
-                  <SelectItem value="upcoming" className={cpSelectItemClass}>
-                    Upcoming
-                  </SelectItem>
-                  <SelectItem value="past" className={cpSelectItemClass}>
-                    Past
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={type}
-                onValueChange={(v) => {
-                  setType(v as PublicTournamentsListQuery["type"]);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent className={cpSelectContentClass}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All types
-                  </SelectItem>
-                  <SelectItem value="official" className={cpSelectItemClass}>
-                    Official
-                  </SelectItem>
-                  <SelectItem value="fun_match" className={cpSelectItemClass}>
-                    Fun Match
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={officialBilling}
-                onValueChange={(v) => {
-                  setOfficialBilling(v as NonNullable<PublicTournamentsListQuery["officialBilling"]>);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
-                  <SelectValue placeholder="Billing" />
-                </SelectTrigger>
-                <SelectContent className={cpSelectContentClass}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All billing
-                  </SelectItem>
-                  <SelectItem value="paid" className={cpSelectItemClass}>
-                    {OFFICIAL_BILLING_LABELS.paid}
-                  </SelectItem>
-                  <SelectItem value="free" className={cpSelectItemClass}>
-                    {OFFICIAL_BILLING_LABELS.free}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={format}
-                onValueChange={(v) => {
-                  setFormat(v as NonNullable<PublicTournamentsListQuery["format"]>);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
-                  <SelectValue placeholder="Format" />
-                </SelectTrigger>
-                <SelectContent className={cpSelectContentClass}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All formats
-                  </SelectItem>
-                  <SelectItem value="americano" className={cpSelectItemClass}>
-                    Americano
-                  </SelectItem>
-                  <SelectItem value="single_elimination" className={cpSelectItemClass}>
-                    Elimination
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={category}
-                onValueChange={(v) => {
-                  setCategory(v as NonNullable<PublicTournamentsListQuery["category"]>);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11")}>
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent className={cpSelectContentClass}>
-                  <SelectItem value="all" className={cpSelectItemClass}>
-                    All categories
-                  </SelectItem>
-                  <SelectItem value="Male" className={cpSelectItemClass}>
-                    Male
-                  </SelectItem>
-                  <SelectItem value="Female" className={cpSelectItemClass}>
-                    Female
-                  </SelectItem>
-                  <SelectItem value="Mix" className={cpSelectItemClass}>
-                    Mix
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={`${sortBy}-${sortDir}`}
-                onValueChange={(v) => {
-                  const [sb, sd] = v.split("-") as [
-                    PublicTournamentsListQuery["sortBy"],
-                    PublicTournamentsListQuery["sortDir"],
-                  ];
-                  setSortBy(sb);
-                  setSortDir(sd);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger
-                  className={cn(cpSelectTriggerClass, "h-10 w-full sm:h-11 sm:col-span-2 lg:col-span-1")}
-                >
-                  <SelectValue placeholder="Sort" />
-                </SelectTrigger>
-                <SelectContent className={cpSelectContentClass}>
-                  <SelectItem value="startsAt-desc" className={cpSelectItemClass}>
-                    Date (newest)
-                  </SelectItem>
-                  <SelectItem value="startsAt-asc" className={cpSelectItemClass}>
-                    Date (oldest)
-                  </SelectItem>
-                  <SelectItem value="name-asc" className={cpSelectItemClass}>
-                    Name (A–Z)
-                  </SelectItem>
-                  <SelectItem value="updated-desc" className={cpSelectItemClass}>
-                    Recently updated
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="relative shrink-0">
+              <TournamentFilterMenu
+              value={{ bucket, type, officialBilling, format, category, sortBy, sortDir }}
+              onChange={(next) => {
+                setBucket(next.bucket);
+                setType(next.type);
+                setOfficialBilling(next.officialBilling);
+                setFormat(next.format);
+                setCategory(next.category);
+                setSortBy(next.sortBy);
+                setSortDir(next.sortDir);
+                setPage(1);
+              }}
+            />
             </div>
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative overflow-hidden rounded-b-2xl">
           {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
 
           {error ? (

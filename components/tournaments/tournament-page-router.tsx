@@ -47,6 +47,7 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
     const gearItems = await getGearEntitiesForTournamentRules(
       tournament.sportId,
       ruleSections.gearEntityIds,
+      tournament.sportSlug,
     );
 
     const userTeamId =
@@ -66,7 +67,7 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
         tournament={tournament}
         summary={summary}
         isAuthenticated={isAuthenticated}
-        canManage={canManage}
+        canManage={participant.isRuntimeManager}
         participant={participant}
         venueMapsUrl={getVenueMapsUrl(tournament)}
         ruleSections={ruleSections}
@@ -77,6 +78,15 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
 
   const userTeamId =
     userId != null ? await getUserTeamInTournament(tournament.id, userId) : null;
+  const grantRole =
+    userId != null ? await getActiveAccessGrantRole(tournament.id, userId) : null;
+  const participant = buildTournamentParticipantContext({
+    userId,
+    userTeamId,
+    roles,
+    tournamentCreatedBy: tournament.createdBy,
+    grantRole,
+  });
 
   return (
     <ReclubTournamentPage
@@ -84,7 +94,8 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       summary={summary}
       isAuthenticated={isAuthenticated}
       initialUserTeamId={userTeamId}
-      canManage={canManage}
+      canManage={participant.isRuntimeManager}
+      participant={participant}
     />
   );
 }

@@ -58,10 +58,10 @@ function ScoreCell({ row }: { row: RecentMatchRow }) {
 function MatchTeams({ row }: { row: RecentMatchRow }) {
   return (
     <div className="min-w-0">
-      <p className="truncate font-medium text-foreground">
-        {row.teamAName}
-        <span className="mx-1.5 font-normal text-cp-muted">vs</span>
-        {row.teamBName}
+      <p className="font-medium leading-snug text-foreground">
+        <span className="break-words">{row.teamAName}</span>
+        <span className="mx-1.5 shrink-0 font-normal text-cp-muted">vs</span>
+        <span className="break-words">{row.teamBName}</span>
       </p>
       {row.matchNumber != null ? (
         <p className="mt-0.5 text-xs text-cp-muted">Match {row.matchNumber}</p>
@@ -179,24 +179,24 @@ export function TournamentRecentMatchesSection({
         ))}
       </div>
 
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[640px] text-left text-sm">
+      <div className="hidden md:block">
+        <table className="w-full table-fixed text-left text-sm">
           <thead>
             <tr className="border-b border-cp-border bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              <th className="px-4 py-3 sm:px-6">Round</th>
-              <th className="px-4 py-3">Match</th>
-              {!isOfficial ? <th className="px-4 py-3">Players</th> : null}
-              {isOfficial ? <th className="px-4 py-3">Winner</th> : null}
-              <th className="px-4 py-3 text-center">Score</th>
-              {!isOfficial ? <th className="px-4 py-3">Duration</th> : null}
-              {isOfficial ? <th className="px-4 py-3">Played</th> : null}
-              <th className="px-4 py-3 text-right sm:px-6">Status</th>
+              <th className="w-[12%] px-4 py-3 sm:px-6">Round</th>
+              <th className="w-[28%] px-4 py-3">Match</th>
+              {!isOfficial ? <th className="w-[24%] px-4 py-3">Players</th> : null}
+              {isOfficial ? <th className="w-[16%] px-4 py-3">Winner</th> : null}
+              <th className="w-[10%] px-4 py-3 text-center">Score</th>
+              {!isOfficial ? <th className="w-[10%] px-4 py-3">Duration</th> : null}
+              {isOfficial ? <th className="w-[14%] px-4 py-3">Played</th> : null}
+              <th className="w-[16%] px-4 py-3 text-right sm:px-6">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-cp-border/70">
             {rows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-cp-elevated/25">
-                <td className="px-4 py-3.5 sm:px-6">
+                <td className="px-4 py-3.5 align-top sm:px-6">
                   <span className={cn("text-xs font-bold uppercase tracking-wide", roundAccent)}>
                     {row.roundLabel}
                   </span>
@@ -204,15 +204,15 @@ export function TournamentRecentMatchesSection({
                     <p className="mt-0.5 text-[10px] text-cp-muted">M{row.matchNumber}</p>
                   ) : null}
                 </td>
-                <td className="max-w-[200px] px-4 py-3.5">
+                <td className="px-4 py-3.5 align-top">
                   <MatchTeams row={row} />
                   {row.playedAt && !isOfficial ? (
                     <p className="mt-1 text-xs text-cp-muted">{formatWhen(row.playedAt)}</p>
                   ) : null}
                 </td>
                 {!isOfficial ? (
-                  <td className="max-w-[180px] px-4 py-3.5 text-xs text-cp-muted">
-                    <span className="line-clamp-2">{row.playersSummary ?? "—"}</span>
+                  <td className="px-4 py-3.5 align-top text-xs leading-relaxed text-cp-muted">
+                    {row.playersSummary ?? "—"}
                   </td>
                 ) : null}
                 {isOfficial ? (

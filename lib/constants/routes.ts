@@ -68,9 +68,8 @@ export const publicSportRoutes = {
   tournaments: (sportSlug: string) => `/sports/${sportSlug}/tournaments`,
   tournament: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}`,
-  /** Opens host management tools on the public tournament page (`?manage=1` = mode on, not an ID). */
   tournamentManage: (sportSlug: string, slug: string) =>
-    `/sports/${sportSlug}/tournaments/${slug}?manage=1`,
+    `/sports/${sportSlug}/tournaments/${slug}/manage`,
   tournamentDisplay: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/display`,
   tournamentDisplayMatch: (sportSlug: string, slug: string, matchId: string) =>

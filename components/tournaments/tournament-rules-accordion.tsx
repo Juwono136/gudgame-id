@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { TournamentGearRuleCards } from "@/components/tournaments/tournament-gear-rule-cards";
 import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
 import { cn } from "@/lib/utils";
 
@@ -85,33 +84,16 @@ export function TournamentRulesAccordion({
                   >
                     <div className="bg-cp-elevated/20 px-4 py-3">
                       <RichHtmlContent html={item.html} variant="article" />
-                      {item.gearItems?.length ? (
-                        <ul className="mt-4 space-y-2 border-t border-cp-border pt-4">
+                      {item.gearItems?.length && sportSlug ? (
+                        <div className="border-t border-cp-border pt-4">
                           <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
                             Approved equipment from wiki
                           </p>
-                          {item.gearItems.map((gear) => (
-                            <li key={gear.id}>
-                              {sportSlug ? (
-                                <Link
-                                  href={publicSportRoutes.gearItem(sportSlug, gear.slug)}
-                                  className="text-sm font-medium text-cp-primary hover:underline"
-                                >
-                                  {gear.displayName}
-                                </Link>
-                              ) : (
-                                <span className="text-sm font-medium text-foreground">
-                                  {gear.displayName}
-                                </span>
-                              )}
-                              {gear.summary ? (
-                                <p className="mt-0.5 text-xs text-cp-muted line-clamp-2">
-                                  {gear.summary}
-                                </p>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
+                          <TournamentGearRuleCards
+                            items={item.gearItems}
+                            sportSlug={sportSlug}
+                          />
+                        </div>
                       ) : null}
                     </div>
                   </motion.div>

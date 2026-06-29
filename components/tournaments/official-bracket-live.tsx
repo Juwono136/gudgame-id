@@ -297,6 +297,15 @@ export function OfficialBracketLive({
           <Info className="mt-0.5 h-5 w-5 shrink-0" />
           <p>Official score input opens when the tournament status is live.</p>
         </div>
+      ) : participant.canUseCourtsideScoring && allPlayable.length === 0 && matches.some((m) => m.status === "completed") ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-5 text-sm text-cp-muted">
+          <Trophy className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>
+            {isOfficial
+              ? "All bracket matches are finalized. Standings and history are updated on the public tournament page."
+              : "All bracket matches are finalized. Use the multi-court section below to run extra friendly rounds while the session is still live."}
+          </p>
+        </div>
       ) : participant.canUseCourtsideScoring && allPlayable.length > 0 && !scorableMatches.length ? (
         <div className="flex items-start gap-3 rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-5 text-sm text-cp-muted">
           <Swords className="mt-0.5 h-5 w-5 shrink-0" />

@@ -7,6 +7,7 @@ import type {
 } from "@/lib/tournaments/stats/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import {
+  bracketMatchToReclubView,
   getReclubMatchHistoryKey,
   type ReclubMatchView,
 } from "@/lib/tournaments/reclub/types";
@@ -52,6 +53,9 @@ function buildPlayers(teams: LobbyTeamView[], stats: TournamentSessionStats): To
         teamWins: teamStat?.wins ?? 0,
         teamLosses: teamStat?.losses ?? 0,
         teamPlayed: teamStat?.played ?? 0,
+        teamPointsFor: teamStat?.pointsFor ?? 0,
+        teamPointsAgainst: teamStat?.pointsAgainst ?? 0,
+        image: member.image ?? null,
       });
     }
   }
@@ -90,4 +94,30 @@ export function computeReclubSessionStats(input: {
     ...base,
     players: buildPlayers(input.teams, base),
   };
+}
+
+/** Lobby rounds plus bracket finals for fun-match elimination stats. */
+export function computeReclubSessionStatsWithBracket(input: {
+  reclubMatches: ReclubMatchView[];
+  bracketMatches: import("@/lib/tournaments/reclub/types").BracketMatchStatsSource[];
+  teams: LobbyTeamView[];
+  totalPlayers: number;
+  maxRounds: number | null;
+}): TournamentSessionStats {
+  const seen = new Set<string>();
+  const merged: ReclubMatchView[] = [];
+
+  for (const match of [...input.reclubMatches, ...input.bracketMatches.map(bracketMatchToReclubView)]) {
+    const key = getReclubMatchHistoryKey(match);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(match);
+  }
+
+  return computeReclubSessionStats({
+    matches: merged,
+    teams: input.teams,
+    totalPlayers: input.totalPlayers,
+    maxRounds: input.maxRounds,
+  });
 }

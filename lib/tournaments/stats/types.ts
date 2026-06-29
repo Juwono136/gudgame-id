@@ -18,6 +18,8 @@ export type TournamentPlayerStatRow = {
   teamWins: number;
   teamLosses: number;
   teamPlayed: number;
+  teamPointsFor: number;
+  teamPointsAgainst: number;
   profileUrl?: string | null;
   image?: string | null;
 };

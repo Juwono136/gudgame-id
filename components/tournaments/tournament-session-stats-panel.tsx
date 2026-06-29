@@ -224,6 +224,7 @@ function PlayerActivityTable({
                 <th className="px-4 py-3">{teamLabel}</th>
                 <th className="px-4 py-3 text-center">Wins</th>
                 <th className="px-4 py-3 text-center">Losses</th>
+                <th className="px-4 py-3 text-center">Points</th>
                 <th className="px-4 py-3 text-center">Matches</th>
               </tr>
             </thead>
@@ -255,6 +256,9 @@ function PlayerActivityTable({
                     {player.teamWins}
                   </td>
                   <td className="px-4 py-3 text-center text-red-300/90">{player.teamLosses}</td>
+                  <td className={cn("px-4 py-3 text-center font-semibold tabular-nums", winColor)}>
+                    {player.teamPointsFor}
+                  </td>
                   <td className="px-4 py-3 text-center tabular-nums text-foreground">
                     {player.teamPlayed}
                   </td>
@@ -290,7 +294,7 @@ function PlayerActivityTable({
                   {player.teamWins} win{player.teamWins === 1 ? "" : "s"}
                 </p>
                 <p className="text-cp-muted">
-                  {player.teamPlayed} match{player.teamPlayed === 1 ? "" : "es"}
+                  {player.teamPointsFor} pts · {player.teamPlayed} match{player.teamPlayed === 1 ? "" : "es"}
                 </p>
               </div>
             </article>

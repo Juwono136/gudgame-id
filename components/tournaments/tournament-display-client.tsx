@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Maximize2, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LiveScoreboardDisplay } from "@/components/tournaments/live-scoreboard";
+import {
+  MultiCourtDisplayCard,
+  MultiCourtDisplayGrid,
+} from "@/components/tournaments/display-multi-court-grid";
+import { DisplayVenueShell } from "@/components/tournaments/display-venue-shell";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { isOfficialType } from "@/lib/tournaments/core/types";
+import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
 
 type TournamentDisplayClientProps = {
   sportSlug: string;
@@ -26,7 +32,15 @@ type LiveMatchView = {
   scoreA?: number | null;
   scoreB?: number | null;
   status?: string;
+  courtId?: string | null;
 };
+
+const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
+  "single",
+  "multi_court",
+  "leaderboard",
+  "bracket",
+];
 
 function pickActiveMatch(
   matches: LiveMatchView[],
@@ -78,11 +92,53 @@ export function TournamentDisplayClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const matchId = searchParams.get("matchId");
+  const layoutParam = searchParams.get("layout") as TournamentDisplayLayout | null;
   const { data, isLoading, isError, refetch, isFetching } = useTournamentLive(
     sportSlug,
     slug,
   );
   const containerRef = useRef<HTMLDivElement>(null);
+  const [rotationIndex, setRotationIndex] = useState(0);
+
+  const layout: TournamentDisplayLayout = useMemo(() => {
+    const cfg = data?.displayConfig;
+    if (cfg?.autoRotate || cfg?.layout === "rotation") return "rotation";
+    if (layoutParam) return layoutParam;
+    return (cfg?.layout as TournamentDisplayLayout | undefined) ?? "single";
+  }, [data?.displayConfig, layoutParam]);
+
+  const rotationLayouts = useMemo((): TournamentDisplayLayout[] => {
+    const fromCfg = data?.displayConfig?.rotationLayouts;
+    if (fromCfg?.length) {
+      return fromCfg.filter((l): l is TournamentDisplayLayout =>
+        ROTATION_LAYOUTS.includes(l as TournamentDisplayLayout),
+      );
+    }
+    return ROTATION_LAYOUTS;
+  }, [data?.displayConfig?.rotationLayouts]);
+
+  const effectiveLayout = useMemo(() => {
+    if (layout !== "rotation") return layout;
+    return rotationLayouts[rotationIndex % rotationLayouts.length] ?? "single";
+  }, [layout, rotationIndex, rotationLayouts]);
+
+  useEffect(() => {
+    if (layout !== "rotation") return;
+    const intervalSec = data?.displayConfig?.rotationIntervalSec ?? 15;
+    const id = setInterval(() => {
+      setRotationIndex((i) => i + 1);
+    }, intervalSec * 1000);
+    return () => clearInterval(id);
+  }, [data?.displayConfig?.rotationIntervalSec, layout, rotationLayouts.length]);
+
+  useEffect(() => {
+    setRotationIndex(0);
+  }, [
+    data?.displayConfig?.layout,
+    data?.displayConfig?.autoRotate,
+    data?.displayConfig?.rotationIntervalSec,
+    data?.displayConfig?.rotationLayouts?.join(","),
+  ]);
 
   const enterFullscreen = async () => {
     const el = containerRef.current;
@@ -112,6 +168,14 @@ export function TournamentDisplayClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [exitDisplay]);
 
+  const activeMatches = useMemo(
+    () =>
+      (data?.matches ?? []).filter(
+        (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
+      ) as LiveMatchView[],
+    [data?.matches],
+  );
+
   const activeMatch = useMemo(
     () => pickActiveMatch(data?.matches ?? [], matchId),
     [data?.matches, matchId],
@@ -119,17 +183,44 @@ export function TournamentDisplayClient({
 
   const isOfficial = isOfficialType(data?.tournament.tournamentType);
 
+  const displayControls = (
+    <div className="fixed bottom-4 right-4 flex gap-2 opacity-80 transition-opacity hover:opacity-100">
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className="shadow-lg"
+        onClick={() => void refetch()}
+      >
+        {isFetching ? "…" : "Refresh"}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className="shadow-lg"
+        onClick={() => void enterFullscreen()}
+      >
+        <Maximize2 className="mr-1.5 h-4 w-4" />
+        Fullscreen
+      </Button>
+      <Button type="button" size="sm" variant="secondary" className="shadow-lg" onClick={exitDisplay}>
+        Exit
+      </Button>
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[#0a0f1a] text-white/70">
+      <DisplayVenueShell className="flex min-h-dvh items-center justify-center text-white/70">
         <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+      </DisplayVenueShell>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#0a0f1a] px-6 text-white">
+      <DisplayVenueShell className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-white">
         <p className="text-sm text-white/70">Could not load scoreboard.</p>
         <Button type="button" variant="outline" onClick={() => void refetch()}>
           Retry
@@ -137,18 +228,184 @@ export function TournamentDisplayClient({
         <Button asChild variant="ghost">
           <Link href={tournamentUrl}>Back to tournament</Link>
         </Button>
-      </div>
+      </DisplayVenueShell>
     );
+  }
+
+  const slideKey = `${effectiveLayout}-${rotationIndex}`;
+
+  const shellContent = (() => {
+    switch (effectiveLayout) {
+      case "multi_court": {
+        const courtList = data.courts ?? [];
+        const matchesOnCourts = activeMatches;
+        return (
+          <div ref={containerRef} className="animate-in fade-in min-h-dvh duration-700 p-3 sm:p-6" key={slideKey}>
+            {matchesOnCourts.length > 0 ? (
+              <MultiCourtDisplayGrid
+                tournamentName={data.tournament.name}
+                courtCount={matchesOnCourts.length}
+              >
+                {matchesOnCourts.map((m) => {
+                  const court = courtList.find((c) => c.id === m.courtId);
+                  const courtLabel =
+                    court?.name ??
+                    (m.type === "bracket"
+                      ? `Bracket · R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` M${m.matchNumber}` : ""}`
+                      : "Court");
+                  return (
+                    <MultiCourtDisplayCard
+                      key={m.id}
+                      courtName={courtLabel}
+                      teamAName={m.teamAName!}
+                      teamBName={m.teamBName!}
+                      scoreA={m.scoreA ?? 0}
+                      scoreB={m.scoreB ?? 0}
+                      subtitle={buildSubtitle(data.tournament.name, m, isOfficial)}
+                    />
+                  );
+                })}
+              </MultiCourtDisplayGrid>
+            ) : courtList.length > 0 ? (
+              <MultiCourtDisplayGrid
+                tournamentName={data.tournament.name}
+                courtCount={courtList.length}
+              >
+                {courtList.map((court) => (
+                  <div
+                    key={court.id}
+                    className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.04] p-6 text-center"
+                  >
+                    <p className="text-sm font-semibold uppercase tracking-wider text-white/60">
+                      {court.name}
+                    </p>
+                    <p className="mt-2 text-xs text-white/40">Waiting for match</p>
+                  </div>
+                ))}
+              </MultiCourtDisplayGrid>
+            ) : (
+              <p className="text-center text-sm text-white/60">No courts configured yet.</p>
+            )}
+            {displayControls}
+          </div>
+        );
+      }
+
+      case "leaderboard": {
+        const teamRows = [...(data.playerStats?.teams ?? [])].sort(
+          (a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor,
+        );
+        const playerRows = [...(data.playerStats?.players ?? [])].sort(
+          (a, b) => b.teamPointsFor - a.teamPointsFor || b.teamWins - a.teamWins,
+        );
+        return (
+          <div ref={containerRef} className="animate-in fade-in duration-700 p-6" key={slideKey}>
+            <h1 className="text-2xl font-bold text-white">{data.tournament.name}</h1>
+            <p className="mt-1 text-sm text-white/60">Session leaderboard</p>
+            {teamRows.length > 0 ? (
+              <ul className="mt-8 space-y-2">
+                {teamRows.slice(0, 12).map((t, i) => (
+                  <li
+                    key={t.teamId ?? t.name}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm"
+                  >
+                    <span className="text-white">
+                      <span className="mr-3 text-white/40">#{i + 1}</span>
+                      {t.name}
+                    </span>
+                    <span className="font-mono text-lg text-white">
+                      {t.wins}W · {t.pointsFor} pts
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : playerRows.length > 0 ? (
+              <ul className="mt-8 space-y-2">
+                {playerRows.slice(0, 12).map((p, i) => (
+                  <li
+                    key={p.userId}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm"
+                  >
+                    <span className="min-w-0 break-words text-white">
+                      <span className="mr-3 text-white/40">#{i + 1}</span>
+                      {p.displayName}
+                      <span className="ml-2 text-sm text-white/50">({p.teamName})</span>
+                    </span>
+                    <span className="shrink-0 font-mono text-lg text-white">{p.teamPointsFor} pts</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-12 text-center text-sm text-white/50">
+                Standings appear after the first match is scored.
+              </p>
+            )}
+            {displayControls}
+          </div>
+        );
+      }
+
+      case "bracket": {
+        const bracketMatches = (data.bracket?.matches as LiveMatchView[]) ?? [];
+        return (
+          <div ref={containerRef} className="animate-in fade-in duration-700 p-6" key={slideKey}>
+            <h1 className="text-2xl font-bold text-white">{data.tournament.name}</h1>
+            <p className="mt-1 text-sm text-white/60">
+              Bracket · {bracketMatches.filter((m) => m.status === "in_progress").length} live
+            </p>
+            {bracketMatches.length > 0 ? (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {bracketMatches.slice(0, 16).map((m) => (
+                  <div
+                    key={m.id}
+                    className={
+                      m.status === "in_progress"
+                        ? "rounded-xl border border-red-500/40 bg-red-950/30 p-4 backdrop-blur-sm"
+                        : "rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+                    }
+                  >
+                    <p className="text-xs text-white/50">
+                      R{m.roundNumber} · M{m.matchNumber}
+                    </p>
+                    <p className="mt-1 font-medium text-white">
+                      {m.teamAName ?? "TBD"} <span className="text-white/40">vs</span>{" "}
+                      {m.teamBName ?? "TBD"}
+                    </p>
+                    <p className="mt-2 font-mono text-2xl text-white">
+                      {m.scoreA ?? 0} – {m.scoreB ?? 0}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-12 text-center text-sm text-white/50">
+                Bracket matches will appear here once generated.
+              </p>
+            )}
+            {displayControls}
+          </div>
+        );
+      }
+
+      case "single":
+      default:
+        break;
+    }
+    return null;
+  })();
+
+  if (shellContent) {
+    return <DisplayVenueShell>{shellContent}</DisplayVenueShell>;
   }
 
   if (!activeMatch?.teamAName || !activeMatch?.teamBName) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#0a0f1a] px-6 text-center text-white">
+      <DisplayVenueShell className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center text-white">
         <Radio className="h-10 w-10 text-white/40" />
         <p className="text-lg font-medium">{data.tournament.name}</p>
         <p className="max-w-md text-sm text-white/60">
           {data.phase === "live"
-            ? "No active match on the scoreboard yet. Start a lobby round or bracket match, then refresh this screen."
+            ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
             : (data.message ??
               "No live match to display yet. Check back when the tournament is live.")}
         </p>
@@ -161,7 +418,7 @@ export function TournamentDisplayClient({
             Back
           </Button>
         </div>
-      </div>
+      </DisplayVenueShell>
     );
   }
 
@@ -169,44 +426,24 @@ export function TournamentDisplayClient({
   const isLiveNow = activeMatch.status === "in_progress";
 
   return (
-    <div ref={containerRef} className="relative min-h-dvh bg-[#0a0f1a]">
-      {isLiveNow ? (
-        <div className="pointer-events-none absolute left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-500/40 bg-red-950/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-red-200">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-          Live
-        </div>
-      ) : null}
-      <LiveScoreboardDisplay
-        teamAName={activeMatch.teamAName}
-        teamBName={activeMatch.teamBName}
-        scoreA={activeMatch.scoreA ?? 0}
-        scoreB={activeMatch.scoreB ?? 0}
-        subtitle={subtitle}
-      />
-      <div className="fixed bottom-4 right-4 flex gap-2 opacity-80 transition-opacity hover:opacity-100">
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="shadow-lg"
-          onClick={() => void refetch()}
-        >
-          {isFetching ? "…" : "Refresh"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="shadow-lg"
-          onClick={() => void enterFullscreen()}
-        >
-          <Maximize2 className="mr-1.5 h-4 w-4" />
-          Fullscreen
-        </Button>
-        <Button type="button" size="sm" variant="secondary" className="shadow-lg" onClick={exitDisplay}>
-          Exit
-        </Button>
+    <DisplayVenueShell>
+      <div ref={containerRef} className="relative animate-in fade-in duration-700" key={slideKey}>
+        {isLiveNow ? (
+          <div className="pointer-events-none absolute left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-500/40 bg-red-950/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-red-200">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+            Live
+          </div>
+        ) : null}
+        <LiveScoreboardDisplay
+          teamAName={activeMatch.teamAName}
+          teamBName={activeMatch.teamBName}
+          scoreA={activeMatch.scoreA ?? 0}
+          scoreB={activeMatch.scoreB ?? 0}
+          subtitle={subtitle}
+          className="bg-transparent"
+        />
+        {displayControls}
       </div>
-    </div>
+    </DisplayVenueShell>
   );
 }

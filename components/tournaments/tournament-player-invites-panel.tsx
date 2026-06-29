@@ -21,6 +21,8 @@ type TournamentPlayerInvitesPanelProps = {
   teamId?: string | null;
   enabled?: boolean;
   embedded?: boolean;
+  /** Fun Match vs free official — adjusts helper copy only */
+  variant?: "fun_match" | "official_free";
 };
 
 export function TournamentPlayerInvitesPanel({
@@ -29,6 +31,7 @@ export function TournamentPlayerInvitesPanel({
   teamId,
   enabled = true,
   embedded = false,
+  variant = "fun_match",
 }: TournamentPlayerInvitesPanelProps) {
   const { confirm } = useConfirmDialog();
   const { data: invites, isLoading } = usePlayerInvites(sportSlug, slug, enabled);
@@ -41,7 +44,13 @@ export function TournamentPlayerInvitesPanel({
     [invites],
   );
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    const ok = await confirm({
+      title: "Generate player invite?",
+      description: "Share the link or code so players can join this tournament.",
+      confirmLabel: "Generate",
+    });
+    if (!ok) return;
     createInvite.mutate(teamId ? { teamId } : {}, {
       onSuccess: (invite) => setCreatedInvite(invite),
     });
@@ -73,21 +82,19 @@ export function TournamentPlayerInvitesPanel({
           <div>
             <h3 className="text-sm font-semibold text-foreground">Player invites</h3>
             <p className="mt-1 text-xs text-cp-muted">
-              Let friends join this Fun Match via link or code through the lobby.
+              {variant === "official_free"
+                ? "Let players join this free official tournament via link or code."
+                : "Let friends join this Fun Match via link or code through the lobby."}
             </p>
           </div>
-        ) : (
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400/90">
-            Player invites
-          </p>
-        )}
+        ) : null}
 
         <Button
           type="button"
           size="sm"
           className="h-10 w-full bg-emerald-600 hover:bg-emerald-500 sm:w-auto"
           disabled={createInvite.isPending}
-          onClick={handleCreate}
+          onClick={() => void handleCreate()}
         >
           {createInvite.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

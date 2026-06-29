@@ -12,6 +12,31 @@ export type TournamentRuleSections = {
   gearEntityIds?: string[];
 };
 
+export type TournamentDeuceConfig = {
+  deuceEnabled: boolean;
+  deuceThreshold: number;
+  winBy: number;
+  maxScore: number;
+};
+
+export type TournamentDisplayLayout =
+  | "single"
+  | "multi_court"
+  | "bracket"
+  | "leaderboard"
+  | "rotation";
+
+export type TournamentDisplayConfig = {
+  layout: TournamentDisplayLayout;
+  courtIds?: string[];
+  rotationIntervalSec?: number;
+  /** When true, venue display cycles through rotationLayouts automatically. */
+  autoRotate?: boolean;
+  rotationLayouts?: TournamentDisplayLayout[];
+  showUpcoming?: boolean;
+  showHighlights?: boolean;
+};
+
 export type TournamentSettings = TournamentRuleSections & {
   venueMapsUrl?: string;
   /** Max playable rounds for reclub sessions (set at creation). */
@@ -19,14 +44,86 @@ export type TournamentSettings = TournamentRuleSections & {
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
   courtCount?: number;
+  deuceConfig?: TournamentDeuceConfig;
+  roundDurationMinutes?: number;
+  displayConfig?: TournamentDisplayConfig;
   officialStaff?: OfficialTournamentStaffMember[];
 };
 
 export const TOURNAMENT_SCORING_TYPES = ["points", "timed"] as const;
 export type TournamentScoringType = (typeof TOURNAMENT_SCORING_TYPES)[number];
 
-export const TOURNAMENT_POINTS_PER_MATCH_OPTIONS = [11, 15, 21, 25, 30] as const;
+export const TOURNAMENT_POINTS_PER_MATCH_OPTIONS = [
+  11, 15, 21, 25, 30, 35, 40,
+] as const;
 export const TOURNAMENT_COURT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12] as const;
+
+export const DEFAULT_SUDDEN_DEATH_EXTENSION_MINUTES = 3;
+
+export function defaultDeuceConfig(pointsPerMatch: number): TournamentDeuceConfig {
+  return {
+    deuceEnabled: true,
+    deuceThreshold: Math.max(1, pointsPerMatch - 1),
+    winBy: 2,
+    maxScore: Math.max(30, pointsPerMatch + 9),
+  };
+}
+
+function parseDeuceConfig(raw: unknown, pointsPerMatch: number): TournamentDeuceConfig | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const v = raw as Record<string, unknown>;
+  const defaults = defaultDeuceConfig(pointsPerMatch);
+  return {
+    deuceEnabled: typeof v.deuceEnabled === "boolean" ? v.deuceEnabled : defaults.deuceEnabled,
+    deuceThreshold:
+      typeof v.deuceThreshold === "number" && v.deuceThreshold > 0
+        ? Math.floor(v.deuceThreshold)
+        : defaults.deuceThreshold,
+    winBy:
+      typeof v.winBy === "number" && v.winBy > 0 ? Math.floor(v.winBy) : defaults.winBy,
+    maxScore:
+      typeof v.maxScore === "number" && v.maxScore > 0
+        ? Math.floor(v.maxScore)
+        : defaults.maxScore,
+  };
+}
+
+function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const v = raw as Record<string, unknown>;
+  const layout = v.layout;
+  const validLayouts: TournamentDisplayLayout[] = [
+    "single",
+    "multi_court",
+    "bracket",
+    "leaderboard",
+    "rotation",
+  ];
+  if (typeof layout !== "string" || !validLayouts.includes(layout as TournamentDisplayLayout)) {
+    return undefined;
+  }
+  const courtIds = Array.isArray(v.courtIds)
+    ? v.courtIds.filter((id): id is string => typeof id === "string" && isUuid(id))
+    : undefined;
+  const rotationLayouts = Array.isArray(v.rotationLayouts)
+    ? v.rotationLayouts.filter(
+        (l): l is TournamentDisplayLayout =>
+          typeof l === "string" && validLayouts.includes(l as TournamentDisplayLayout),
+      )
+    : undefined;
+  return {
+    layout: layout as TournamentDisplayLayout,
+    courtIds: courtIds?.length ? courtIds : undefined,
+    rotationIntervalSec:
+      typeof v.rotationIntervalSec === "number" && v.rotationIntervalSec >= 5
+        ? Math.floor(v.rotationIntervalSec)
+        : undefined,
+    autoRotate: typeof v.autoRotate === "boolean" ? v.autoRotate : undefined,
+    rotationLayouts: rotationLayouts?.length ? rotationLayouts : undefined,
+    showUpcoming: typeof v.showUpcoming === "boolean" ? v.showUpcoming : undefined,
+    showHighlights: typeof v.showHighlights === "boolean" ? v.showHighlights : undefined,
+  };
+}
 
 export function getTournamentFormatLabel(format: string | null | undefined): string {
   return format === "americano" ? "Americano" : "Elimination";
@@ -62,6 +159,14 @@ export function parseTournamentSettings(
   const pointsPerMatch = raw.pointsPerMatch;
   const courtCount = raw.courtCount;
   const officialStaff = raw.officialStaff;
+  const deuceConfig = raw.deuceConfig;
+  const roundDurationMinutes = raw.roundDurationMinutes;
+  const displayConfig = raw.displayConfig;
+
+  const parsedPoints =
+    typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
+      ? Math.floor(pointsPerMatch)
+      : undefined;
 
   const parsedGearIds = Array.isArray(gearEntityIds)
     ? gearEntityIds
@@ -88,14 +193,19 @@ export function parseTournamentSettings(
         : undefined,
     scoringType:
       scoringType === "points" || scoringType === "timed" ? scoringType : undefined,
-    pointsPerMatch:
-      typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
-        ? Math.floor(pointsPerMatch)
-        : undefined,
+    pointsPerMatch: parsedPoints,
     courtCount:
       typeof courtCount === "number" && Number.isFinite(courtCount) && courtCount > 0
         ? Math.floor(courtCount)
         : undefined,
+    deuceConfig: parseDeuceConfig(deuceConfig, parsedPoints ?? 21),
+    roundDurationMinutes:
+      typeof roundDurationMinutes === "number" &&
+      Number.isFinite(roundDurationMinutes) &&
+      roundDurationMinutes > 0
+        ? Math.floor(roundDurationMinutes)
+        : undefined,
+    displayConfig: parseDisplayConfig(displayConfig),
     officialStaff: parseOfficialTournamentStaff(officialStaff),
   };
 }
@@ -167,6 +277,26 @@ export function getTournamentCourtCount(tournament: TournamentDetail): number {
   return parseTournamentSettings(tournament.settings).courtCount ?? 1;
 }
 
+export function getTournamentDeuceConfig(tournament: TournamentDetail): TournamentDeuceConfig {
+  const settings = parseTournamentSettings(tournament.settings);
+  const points = settings.pointsPerMatch ?? 21;
+  return settings.deuceConfig ?? defaultDeuceConfig(points);
+}
+
+export function getTournamentRoundDurationMinutes(tournament: TournamentDetail): number {
+  return parseTournamentSettings(tournament.settings).roundDurationMinutes ?? 15;
+}
+
+export function getTournamentDisplayConfig(tournament: TournamentDetail): TournamentDisplayConfig {
+  return (
+    parseTournamentSettings(tournament.settings).displayConfig ?? {
+      layout: "single",
+      showUpcoming: true,
+      showHighlights: true,
+    }
+  );
+}
+
 export function getTournamentRuleSections(
   tournament: TournamentDetail,
 ): TournamentRuleSections {
@@ -189,6 +319,9 @@ export type TournamentSettingsInput = {
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
   courtCount?: number;
+  deuceConfig?: TournamentDeuceConfig;
+  roundDurationMinutes?: number;
+  displayConfig?: TournamentDisplayConfig;
 };
 
 export type TournamentSettingsUpsertFields = {
@@ -202,6 +335,9 @@ export type TournamentSettingsUpsertFields = {
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
   courtCount?: number;
+  deuceConfig?: TournamentDeuceConfig;
+  roundDurationMinutes?: number;
+  displayConfig?: TournamentDisplayConfig;
 };
 
 export function settingsInputFromUpsert(
@@ -217,6 +353,9 @@ export function settingsInputFromUpsert(
     scoringType: input.scoringType,
     pointsPerMatch: input.pointsPerMatch,
     courtCount: input.courtCount,
+    deuceConfig: input.deuceConfig,
+    roundDurationMinutes: input.roundDurationMinutes,
+    displayConfig: input.displayConfig,
   };
 }
 
@@ -275,6 +414,24 @@ export function buildTournamentSettings(
     next.courtCount = Math.floor(input.courtCount);
   } else if ("courtCount" in input) {
     delete next.courtCount;
+  }
+
+  if (input.deuceConfig) {
+    next.deuceConfig = input.deuceConfig;
+  } else if ("deuceConfig" in input) {
+    delete next.deuceConfig;
+  }
+
+  if (input.roundDurationMinutes != null && input.roundDurationMinutes > 0) {
+    next.roundDurationMinutes = Math.floor(input.roundDurationMinutes);
+  } else if ("roundDurationMinutes" in input) {
+    delete next.roundDurationMinutes;
+  }
+
+  if (input.displayConfig) {
+    next.displayConfig = input.displayConfig;
+  } else if ("displayConfig" in input) {
+    delete next.displayConfig;
   }
 
   return next;

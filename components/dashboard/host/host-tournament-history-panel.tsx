@@ -168,7 +168,7 @@ export function HostTournamentHistoryPanel() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button asChild size="sm" variant="outline" className="h-9">
-                      <Link href={`${publicHref}?manage=1`}>
+                      <Link href={publicHref}>
                         <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                         Open
                       </Link>
