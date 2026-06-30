@@ -28,3 +28,7 @@ export const cpSelectItemClass = cn(
 export const cpPopoverSurfaceClass = "border-cp-border bg-cp-card text-foreground shadow-lg";
 
 export const cpCardSurfaceClass = "rounded-2xl border border-cp-border bg-cp-card text-foreground";
+
+/** Responsive multi-court manage grid — 2×2 on laptop, up to 4 cols on very wide screens. */
+export const manageCourtGridClassName =
+  "grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 2xl:grid-cols-3 min-[1700px]:grid-cols-4 [&>*]:h-full";

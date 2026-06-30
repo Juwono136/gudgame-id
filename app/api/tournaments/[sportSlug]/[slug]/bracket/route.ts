@@ -3,8 +3,8 @@ import { AppError } from "@/lib/errors";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { listBracketMatches, hasBracket } from "@/lib/tournaments/brackets/service";
 import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboard";
-import { shouldExposeLivePublicData } from "@/lib/tournaments/lifecycle-guards";
-import { TOURNAMENT_NOT_STARTED_MESSAGE } from "@/lib/tournaments/core/types";
+import { shouldExposeBracketPublicData } from "@/lib/tournaments/lifecycle-guards";
+import { isBracketSeedingFinalized } from "@/lib/tournaments/settings";
 
 export const runtime = "nodejs";
 
@@ -20,22 +20,13 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (tournament.format === "americano") {
-      return jsonSuccess({ matches: [], leaderboard: [], generated: false });
-    }
-
-    if (!shouldExposeLivePublicData(tournament)) {
-      return jsonSuccess({
-        matches: [],
-        leaderboard: [],
-        generated: false,
-        message: TOURNAMENT_NOT_STARTED_MESSAGE,
-      });
+    if (!shouldExposeBracketPublicData(tournament)) {
+      return jsonSuccess({ matches: [], leaderboard: [], generated: false, seedingFinalized: false });
     }
 
     const bracketExists = await hasBracket(tournament.id);
     if (!bracketExists) {
-      return jsonSuccess({ matches: [], leaderboard: [], generated: false });
+      return jsonSuccess({ matches: [], leaderboard: [], generated: false, seedingFinalized: false });
     }
 
     const [matches, leaderboard] = await Promise.all([
@@ -43,7 +34,14 @@ export async function GET(
       buildTournamentLeaderboard(tournament.id),
     ]);
 
-    return jsonSuccess({ matches, leaderboard, generated: true });
+    const seedingFinalized = isBracketSeedingFinalized(tournament);
+
+    return jsonSuccess({
+      matches,
+      leaderboard,
+      generated: true,
+      seedingFinalized,
+    });
   } catch (error) {
     return jsonError(error);
   }

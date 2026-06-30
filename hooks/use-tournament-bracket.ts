@@ -34,6 +34,7 @@ export function useTournamentBracket(
           matches: BracketMatchView[];
           leaderboard: LeaderboardEntry[];
           generated: boolean;
+          seedingFinalized?: boolean;
         };
         error?: unknown;
       }>(res);
@@ -91,9 +92,11 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
 export function useGenerateReclubBracket(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (_tournamentId: string) => {
+    mutationFn: async (seedMode: "random" | "manual" = "manual") => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/generate`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seedMode }),
       });
       const json = await parseJsonResponse<{
         success: boolean;
@@ -105,10 +108,15 @@ export function useGenerateReclubBracket(sportSlug: string, slug: string) {
       }
       return json.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, seedMode) => {
       void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "lobby", sportSlug, slug] });
-      toast.success("Bracket generated — drag squads to seed round one");
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      toast.success(
+        seedMode === "random"
+          ? "Bracket generated with random seeding"
+          : "Bracket generated — place squads in round one, then save",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -141,6 +149,7 @@ export function useAssignBracketTeam(sportSlug: string, slug: string) {
           return {
             ...prev,
             matches: prev.matches.map((m) => (m.id === match.id ? match : m)),
+            seedingFinalized: false,
           };
         },
       );
@@ -177,8 +186,90 @@ export function useGeneratePublicBracket(sportSlug: string, slug: string) {
       toast.success(
         seedMode === "random"
           ? "Bracket generated with random seeding"
-          : "Bracket generated — assign teams to round one",
+          : "Bracket structure created — assign teams, then save seeding",
       );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useFinalizeBracketSeeding(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/finalize`, {
+        method: "POST",
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { finalized: boolean };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not save bracket seeding"));
+      }
+      return json.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      toast.success("Bracket seeding saved — ready for live scoring");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useResetBracket(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/reset`, {
+        method: "POST",
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { reset: boolean };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not reset bracket"));
+      }
+      return json.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      toast.success("Bracket reset — you can generate again");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useStartBracketMatchOnCourt(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { matchId: string; courtId: string }) => {
+      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { match: BracketMatchView };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not start match on court"));
+      }
+      return json.data.match;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
     },
     onError: (e: Error) => toast.error(e.message),
   });

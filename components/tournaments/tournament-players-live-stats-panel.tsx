@@ -26,6 +26,7 @@ type ManageScoringHistoryPanelProps = {
   matches: import("@/lib/tournaments/reclub/types").ReclubMatchView[];
   bracketMatches?: BracketMatchView[];
   variant: "official" | "reclub";
+  standingsMode?: "americano" | "elimination";
   isLoading?: boolean;
 };
 
@@ -77,6 +78,7 @@ export function ManageScoringHistoryPanel({
   matches,
   bracketMatches = [],
   variant,
+  standingsMode = "americano",
   isLoading,
 }: ManageScoringHistoryPanelProps) {
   const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
@@ -135,13 +137,15 @@ export function ManageScoringHistoryPanel({
 
         {sessionStats?.teams.length ? (
           <div className="mt-4 overflow-hidden rounded-xl border border-cp-border">
-            <table className="w-full min-w-[480px] text-left text-sm">
+            <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-cp-border bg-cp-elevated/50 text-[10px] uppercase tracking-wider text-cp-muted">
                   <th className="px-3 py-2 font-semibold">Team</th>
                   <th className="px-3 py-2 text-center font-semibold">W</th>
                   <th className="px-3 py-2 text-center font-semibold">L</th>
-                  <th className="px-3 py-2 text-center font-semibold">Pts</th>
+                  {standingsMode === "americano" ? (
+                    <th className="px-3 py-2 text-center font-semibold">Pts</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -150,10 +154,12 @@ export function ManageScoringHistoryPanel({
                     <td className="px-3 py-2 font-medium text-foreground">{team.name}</td>
                     <td className={cn("px-3 py-2 text-center font-semibold", accent)}>{team.wins}</td>
                     <td className="px-3 py-2 text-center text-red-300/90">{team.losses}</td>
-                    <td className="px-3 py-2 text-center tabular-nums text-foreground">
-                      {team.pointsFor}
-                      <span className="text-cp-muted">–{team.pointsAgainst}</span>
-                    </td>
+                    {standingsMode === "americano" ? (
+                      <td className="px-3 py-2 text-center tabular-nums text-foreground">
+                        {team.pointsFor}
+                        <span className="text-cp-muted">–{team.pointsAgainst}</span>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

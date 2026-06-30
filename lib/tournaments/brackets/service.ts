@@ -11,7 +11,8 @@ import { assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guar
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type BracketMatchView = {
-  id: string; roundNumber: number;
+  id: string;
+  roundNumber: number;
   matchNumber: number;
   teamAId: string | null;
   teamBId: string | null;
@@ -24,6 +25,8 @@ export type BracketMatchView = {
   winnerTeamId: string | null;
   status: string;
   nextMatchId: string | null;
+  courtId: string | null;
+  startedAt: string | null;
 };
 
 async function getBracketTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
@@ -83,6 +86,11 @@ export async function listBracketMatches(tournamentId: string): Promise<BracketM
     winnerTeamId: r.winnerTeamId,
     status: r.status,
     nextMatchId: r.nextMatchId,
+    courtId: r.courtId,
+    startedAt:
+      r.status === "in_progress" && r.scheduledAt
+        ? r.scheduledAt.toISOString()
+        : null,
   }));
 }
 
@@ -261,6 +269,11 @@ export async function submitBracketMatchScore(
     winnerTeamId: updated.winnerTeamId,
     status: updated.status,
     nextMatchId: updated.nextMatchId,
+    courtId: updated.courtId,
+    startedAt:
+      updated.status === "in_progress" && updated.scheduledAt
+        ? updated.scheduledAt.toISOString()
+        : null,
   };
 }
 
@@ -337,6 +350,11 @@ export async function updateBracketLiveScore(
     winnerTeamId: updated.winnerTeamId,
     status: updated.status,
     nextMatchId: updated.nextMatchId,
+    courtId: updated.courtId,
+    startedAt:
+      updated.status === "in_progress" && updated.scheduledAt
+        ? updated.scheduledAt.toISOString()
+        : null,
   };
 }
 

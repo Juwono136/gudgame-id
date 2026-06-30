@@ -9,9 +9,13 @@ import {
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
-import { assertBracketSetupAllowed, assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
+import {
+  assertBracketInitialGenerationAllowed,
+} from "@/lib/tournaments/lifecycle-guards";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
+import { applyRoundOneSeeding } from "@/lib/tournaments/brackets/round-one";
+import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 function shuffleTeams<T>(items: T[]): T[] {
@@ -32,8 +36,8 @@ function nextPowerOfTwo(n: number): number {
 export async function generateTournamentBracket(
   tournament: TournamentDetail,
   options?: { seedMode?: "random" | "manual" },
-): Promise<{ matchCount: number }> {
-  assertBracketSetupAllowed(tournament);
+): Promise<{ matchCount: number; seedMode: "random" | "manual" }> {
+  assertBracketInitialGenerationAllowed(tournament);
 
   if (tournament.format === "americano") {
     throw new AppError("Americano tournaments do not use brackets", {
@@ -42,10 +46,7 @@ export async function generateTournamentBracket(
     });
   }
 
-  if (isFunMatchType(tournament.tournamentType)) {
-    assertBracketSetupAllowed(tournament);
-  }
-
+  const seedMode = options?.seedMode ?? "manual";
   const db = getDb();
 
   const existing = await db
@@ -55,7 +56,10 @@ export async function generateTournamentBracket(
     .limit(1);
 
   if (existing.length) {
-    throw new AppError("Bracket already generated", { code: "CONFLICT", statusCode: 409 });
+    throw new AppError("Bracket already generated. Reset the bracket first to regenerate.", {
+      code: "CONFLICT",
+      statusCode: 409,
+    });
   }
 
   let teams =
@@ -77,10 +81,6 @@ export async function generateTournamentBracket(
             ),
           )
           .orderBy(tournamentTeams.sortOrder);
-
-  if (options?.seedMode === "random") {
-    teams = shuffleTeams(teams);
-  }
 
   if (teams.length < 2) {
     throw new AppError(
@@ -178,87 +178,21 @@ export async function generateTournamentBracket(
   }
 
   const round1 = allMatchIds[0]!;
-  const seeded: { id: string | null; name: string }[] = [...teams];
-  while (seeded.length < bracketSize) {
-    seeded.push({ id: null, name: "BYE" });
-  }
 
-  for (let i = 0; i < round1.length; i++) {
-    const teamA = seeded[i * 2];
-    const teamB = seeded[i * 2 + 1];
-    const matchId = round1[i]!;
-
-    if (teamA?.id == null || teamB?.id == null) {
-      const winner = teamA?.id != null ? teamA : teamB;
-      if (winner?.id != null) {
-        await db
-          .update(tournamentBracketMatches)
-          .set({
-            teamAId: winner.id,
-            teamAName: winner.name,
-            teamBId: null,
-            teamBName: "BYE",
-            winnerTeamId: winner.id,
-            status: "bye",
-            completedAt: new Date(),
-          })
-          .where(eq(tournamentBracketMatches.id, matchId));
-        await advanceWinnerToNextMatch(tournament.id, matchId, winner.id, winner.name);
-      }
-      continue;
-    }
-
-    await db
-      .update(tournamentBracketMatches)
-      .set({
-        teamAId: teamA?.id ?? null,
-        teamAName: teamA?.name ?? null,
-        teamBId: teamB?.id ?? null,
-        teamBName: teamB?.name ?? null,
-        status: "pending",
-      })
-      .where(eq(tournamentBracketMatches.id, matchId));
+  if (seedMode === "random") {
+    teams = shuffleTeams(teams);
+    await applyRoundOneSeeding(tournament.id, round1, teams);
+    await patchTournamentBracketSettings(tournament, {
+      bracketSeedMode: "random",
+      bracketSeedingFinalized: true,
+    });
+  } else {
+    await patchTournamentBracketSettings(tournament, {
+      bracketSeedMode: "manual",
+      bracketSeedingFinalized: false,
+    });
   }
 
   const totalMatches = allMatchIds.flat().length;
-  return { matchCount: totalMatches };
-}
-
-async function advanceWinnerToNextMatch(
-  tournamentId: string,
-  matchId: string,
-  winnerTeamId: string,
-  winnerName: string,
-) {
-  const db = getDb();
-  const [match] = await db
-    .select()
-    .from(tournamentBracketMatches)
-    .where(
-      and(
-        eq(tournamentBracketMatches.id, matchId),
-        eq(tournamentBracketMatches.tournamentId, tournamentId),
-      ),
-    )
-    .limit(1);
-
-  if (!match?.nextMatchId) return;
-
-  const [next] = await db
-    .select()
-    .from(tournamentBracketMatches)
-    .where(eq(tournamentBracketMatches.id, match.nextMatchId))
-    .limit(1);
-
-  if (!next) return;
-
-  const slotA = next.teamAId == null;
-  await db
-    .update(tournamentBracketMatches)
-    .set(
-      slotA
-        ? { teamAId: winnerTeamId, teamAName: winnerName }
-        : { teamBId: winnerTeamId, teamBName: winnerName },
-    )
-    .where(eq(tournamentBracketMatches.id, next.id));
+  return { matchCount: totalMatches, seedMode };
 }

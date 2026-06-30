@@ -40,7 +40,7 @@ type TournamentWizardReviewProps = {
   matchFormatRules: string;
   equipmentStandardsRules: string;
   rules: string;
-  gearCount: number;
+  gearCount?: number;
   matchTypeLabel: string;
   scoringTypeLabel: string;
   pointsPerMatch: string;
@@ -260,10 +260,6 @@ export function TournamentWizardReview({
             <div className="grid gap-3 lg:grid-cols-2">
               <TournamentReviewRichBlock label="Match format" html={matchFormatRules} />
               <TournamentReviewRichBlock label="Equipment standards" html={equipmentStandardsRules} />
-              <ReviewItem
-                label="Approved equipment"
-                value={gearCount > 0 ? `${gearCount} item${gearCount === 1 ? "" : "s"} selected` : "None selected"}
-              />
             </div>
           </ReviewSection>
         ) : (

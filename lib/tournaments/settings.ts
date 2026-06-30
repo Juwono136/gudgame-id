@@ -48,6 +48,8 @@ export type TournamentSettings = TournamentRuleSections & {
   roundDurationMinutes?: number;
   displayConfig?: TournamentDisplayConfig;
   officialStaff?: OfficialTournamentStaffMember[];
+  bracketSeedMode?: "random" | "manual";
+  bracketSeedingFinalized?: boolean;
 };
 
 export const TOURNAMENT_SCORING_TYPES = ["points", "timed"] as const;
@@ -162,6 +164,8 @@ export function parseTournamentSettings(
   const deuceConfig = raw.deuceConfig;
   const roundDurationMinutes = raw.roundDurationMinutes;
   const displayConfig = raw.displayConfig;
+  const bracketSeedMode = raw.bracketSeedMode;
+  const bracketSeedingFinalized = raw.bracketSeedingFinalized;
 
   const parsedPoints =
     typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
@@ -207,6 +211,12 @@ export function parseTournamentSettings(
         : undefined,
     displayConfig: parseDisplayConfig(displayConfig),
     officialStaff: parseOfficialTournamentStaff(officialStaff),
+    bracketSeedMode:
+      bracketSeedMode === "random" || bracketSeedMode === "manual"
+        ? bracketSeedMode
+        : undefined,
+    bracketSeedingFinalized:
+      typeof bracketSeedingFinalized === "boolean" ? bracketSeedingFinalized : undefined,
   };
 }
 
@@ -285,6 +295,20 @@ export function getTournamentDeuceConfig(tournament: TournamentDetail): Tourname
 
 export function getTournamentRoundDurationMinutes(tournament: TournamentDetail): number {
   return parseTournamentSettings(tournament.settings).roundDurationMinutes ?? 15;
+}
+
+export function getBracketSeedMode(
+  tournament: TournamentDetail,
+): "random" | "manual" | null {
+  return parseTournamentSettings(tournament.settings).bracketSeedMode ?? null;
+}
+
+export function isBracketSeedingFinalized(tournament: TournamentDetail): boolean {
+  const settings = parseTournamentSettings(tournament.settings);
+  if (settings.bracketSeedingFinalized != null) {
+    return settings.bracketSeedingFinalized;
+  }
+  return settings.bracketSeedMode === "random";
 }
 
 export function getTournamentDisplayConfig(tournament: TournamentDetail): TournamentDisplayConfig {

@@ -159,11 +159,11 @@ export const ManageCourtCard = memo(function ManageCourtCard({
   return (
     <article
       className={cn(
-        "flex min-w-0 flex-col rounded-2xl border bg-cp-card p-3 sm:p-4",
+        "flex h-full min-h-[17rem] min-w-0 flex-col rounded-2xl border bg-cp-card p-3 sm:min-h-[18rem] sm:p-4",
         match ? "border-cp-primary/40 ring-1 ring-cp-primary/20" : "border-cp-border",
       )}
     >
-      <div className="mb-3 flex items-center gap-2 border-b border-cp-border pb-3">
+      <div className="mb-3 flex shrink-0 items-center gap-2 border-b border-cp-border pb-3">
         {editingName ? (
           <div className="flex w-full flex-col gap-2">
             <Input
@@ -215,7 +215,7 @@ export const ManageCourtCard = memo(function ManageCourtCard({
       </div>
 
       {match ? (
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           {timerRemaining != null ? (
             <div className="h-1 overflow-hidden rounded-full bg-cp-elevated">
               <div
@@ -256,7 +256,7 @@ export const ManageCourtCard = memo(function ManageCourtCard({
           </div>
         </div>
       ) : canScore && !busy ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs text-cp-muted">Team A</Label>
             <Select
@@ -323,7 +323,7 @@ export const ManageCourtCard = memo(function ManageCourtCard({
           </div>
           <Button
             type="button"
-            className="h-10 w-full"
+            className="mt-auto h-10 w-full"
             disabled={starting || !teamAId || !teamBId}
             onClick={onStart}
           >

@@ -262,7 +262,7 @@ export function TournamentManageShell({
                   <li className="font-medium text-foreground">Quick start</li>
                   <li className="mt-2">1. Open Live scoring → assign courts and start matches</li>
                   {isElimination ? (
-                    <li>2. Generate bracket → publish → score on courts</li>
+                    <li>2. Bracket tab → generate & save seeding → set status Live</li>
                   ) : (
                     <li>2. Use round planner for Americano rotations across courts</li>
                   )}

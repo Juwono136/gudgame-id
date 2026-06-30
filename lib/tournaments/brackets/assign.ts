@@ -1,10 +1,13 @@
 import "server-only";
 
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
+import { assertBracketSetupAllowed } from "@/lib/tournaments/lifecycle-guards";
+import { assertBracketPlayNotStarted } from "@/lib/tournaments/brackets/play-guard";
+import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -51,26 +54,11 @@ export async function assignTeamToBracketSlot(
     });
   }
 
+  assertBracketSetupAllowed(tournament);
+  await assertBracketPlayNotStarted(tournament.id);
+
   if (match.status !== "pending") {
     throw new AppError("This match has already started or finished", {
-      code: "CONFLICT",
-      statusCode: 409,
-    });
-  }
-
-  const [anyStarted] = await db
-    .select({ id: tournamentBracketMatches.id })
-    .from(tournamentBracketMatches)
-    .where(
-      and(
-        eq(tournamentBracketMatches.tournamentId, tournament.id),
-        inArray(tournamentBracketMatches.status, ["in_progress", "completed"]),
-      ),
-    )
-    .limit(1);
-
-  if (anyStarted) {
-    throw new AppError("Bracket seeding is locked once play has started", {
       code: "CONFLICT",
       statusCode: 409,
     });
@@ -158,5 +146,8 @@ export async function assignTeamToBracketSlot(
   if (!hydrated) {
     throw new AppError("Could not reload bracket slot", { code: "DATABASE_ERROR", statusCode: 500 });
   }
+
+  await patchTournamentBracketSettings(tournament, { bracketSeedingFinalized: false });
+
   return hydrated;
 }

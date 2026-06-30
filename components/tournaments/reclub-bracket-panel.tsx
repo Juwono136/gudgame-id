@@ -14,16 +14,19 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { motion } from "framer-motion";
-import { GitBranch, GripVertical, Loader2, Sparkles, Users } from "lucide-react";
+import { GitBranch, GripVertical, Loader2, Shuffle, Sparkles, Users } from "lucide-react";
 import { BracketTreeView } from "@/components/tournaments/bracket-tree-view";
-import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
+import { PublicEliminationBracketTab } from "@/components/tournaments/public-elimination-bracket-tab";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   useAssignBracketTeam,
+  useFinalizeBracketSeeding,
   useGenerateReclubBracket,
+  useResetBracket,
   useTournamentBracket,
 } from "@/hooks/use-tournament-bracket";
+import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import {
@@ -44,7 +47,6 @@ type ReclubBracketPanelProps = {
   userTeamId: string | null;
   tournamentStatus: string;
   session: ReclubSessionSchedule;
-  pointsPerMatch?: number;
 };
 
 export function ReclubBracketPanel({
@@ -57,10 +59,12 @@ export function ReclubBracketPanel({
   userTeamId,
   tournamentStatus,
   session,
-  pointsPerMatch = 21,
 }: ReclubBracketPanelProps) {
-  const { data, isLoading, isFetching } = useTournamentBracket(sportSlug, slug);
+  const { confirm } = useConfirmDialog();
+  const { data, isLoading, isFetching, refetch } = useTournamentBracket(sportSlug, slug);
   const generate = useGenerateReclubBracket(sportSlug, slug);
+  const finalize = useFinalizeBracketSeeding(sportSlug, slug);
+  const resetBracket = useResetBracket(sportSlug, slug);
   const assign = useAssignBracketTeam(sportSlug, slug);
 
   const sessionPhase = computeReclubSessionPhase(session);
@@ -68,9 +72,12 @@ export function ReclubBracketPanel({
 
   const matches = data?.matches ?? [];
   const generated = data?.generated ?? false;
-  const seedingLocked = matches.some(
+  const seedingFinalized = data?.seedingFinalized ?? false;
+  const playStarted = matches.some(
     (m) => m.status === "in_progress" || m.status === "completed",
   );
+  const seedingLocked = playStarted || tournamentStatus === "completed";
+  const resetLocked = seedingLocked || tournamentStatus === "live";
   const canSeed = canManage && generated && !seedingLocked && canPlay;
 
   const placedTeamIds = useMemo(() => {
@@ -138,22 +145,98 @@ export function ReclubBracketPanel({
                 : "The host will generate the bracket when squads are ready."}
           </p>
           {canGenerate ? (
-            <Button
-              className="mt-4 bg-emerald-600 hover:bg-emerald-500"
-              disabled={generate.isPending}
-              onClick={() => generate.mutate(tournamentId)}
-            >
-              {generate.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <GitBranch className="mr-2 h-4 w-4" />
-              )}
-              Generate bracket
-            </Button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-500"
+                disabled={generate.isPending}
+                onClick={async () => {
+                  try {
+                    await generate.mutateAsync("random");
+                    await refetch();
+                  } catch {
+                    /* toast via mutation onError */
+                  }
+                }}
+              >
+                {generate.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Shuffle className="mr-2 h-4 w-4" />
+                )}
+                Random seed
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={generate.isPending}
+                onClick={async () => {
+                  try {
+                    await generate.mutateAsync("manual");
+                    await refetch();
+                  } catch {
+                    /* toast via mutation onError */
+                  }
+                }}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Manual seed
+              </Button>
+            </div>
           ) : null}
         </motion.div>
       ) : (
         <>
+          {canManage && !seedingLocked ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cp-border bg-cp-card/60 px-4 py-3">
+              {!seedingFinalized && unplacedSquads.length === 0 && activeSquads >= 2 ? (
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-500"
+                  disabled={finalize.isPending}
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Save bracket seeding?",
+                      description: "BYE slots are processed and the bracket is ready for play.",
+                      confirmLabel: "Save bracket",
+                    });
+                    if (!ok) return;
+                    try {
+                      await finalize.mutateAsync();
+                      await refetch();
+                    } catch {
+                      /* toast via mutation onError */
+                    }
+                  }}
+                >
+                  Save bracket
+                </Button>
+              ) : null}
+              {!resetLocked ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={resetBracket.isPending}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Reset bracket?",
+                    description: "Remove the current tree and generate again.",
+                    confirmLabel: "Reset",
+                    variant: "destructive",
+                  });
+                  if (!ok) return;
+                  try {
+                    await resetBracket.mutateAsync();
+                    await refetch();
+                  } catch {
+                    /* toast via mutation onError */
+                  }
+                }}
+              >
+                Reset bracket
+              </Button>
+              ) : null}
+            </div>
+          ) : null}
+
           {canSeed && unplacedSquads.length > 0 ? (
             <BracketSeedingPool
               squads={unplacedSquads}
@@ -173,14 +256,14 @@ export function ReclubBracketPanel({
             />
           </section>
 
-          <OfficialBracketLive
+          <PublicEliminationBracketTab
             sportSlug={sportSlug}
             slug={slug}
             matches={matches}
             participant={participant}
-            showBracketTree={false}
             variant="reclub"
-            pointsPerMatch={pointsPerMatch}
+            tournamentStatus={tournamentStatus}
+            showBracketTree={false}
           />
         </>
       )}

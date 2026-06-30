@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Play, Radio } from "lucide-react";
 import { toast } from "sonner";
+import { TournamentRoundHistorySection } from "@/components/tournaments/tournament-round-history-section";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -333,28 +334,18 @@ export function OfficialAmericanoScoringPanel({
       ) : null}
 
       {matches.length > 0 ? (
-        <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
-          <h3 className="font-semibold text-foreground">Round history</h3>
-          <ul className="mt-3 divide-y divide-cp-border/60">
-            {matches.map((m) => (
-              <li
-                key={m.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-              >
-                <span className="min-w-0 font-medium text-foreground">
-                  R{m.roundNumber}: {m.teamAName ?? "TBD"} vs {m.teamBName ?? "TBD"}
-                </span>
-                <span className="shrink-0 tabular-nums text-cp-muted">
-                  {m.status === "in_progress"
-                    ? `${m.scoreA ?? 0} : ${m.scoreB ?? 0} · Live`
-                    : m.status === "completed"
-                      ? `${m.scoreA ?? 0} : ${m.scoreB ?? 0} · Final`
-                      : "Scheduled"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <TournamentRoundHistorySection
+          variant="official"
+          items={matches.map((m) => ({
+            id: m.id,
+            roundLabel: `R${m.roundNumber}`,
+            teamAName: m.teamAName ?? null,
+            teamBName: m.teamBName ?? null,
+            scoreA: m.scoreA ?? null,
+            scoreB: m.scoreB ?? null,
+            status: m.status,
+          }))}
+        />
       ) : null}
     </div>
   );

@@ -32,13 +32,6 @@ function formatIdr(amount: number | null) {
   }).format(amount);
 }
 
-function formatJoinedAt(iso: string) {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(iso));
-}
-
 function initials(name: string) {
   return name
     .split(/\s+/)
@@ -53,14 +46,21 @@ function paymentBadgeVariant(status: string | null): "success" | "warning" | "mu
   return "muted";
 }
 
+function formatRegistrationStatus(status: string | null | undefined) {
+  if (!status) return "—";
+  return status.replace(/_/g, " ");
+}
+
 function ParticipantPlayerCell({
   row,
   variant,
   avatarClassName,
+  compact = false,
 }: {
   row: TournamentParticipantRow;
   variant: "official" | "reclub";
   avatarClassName?: string;
+  compact?: boolean;
 }) {
   const hoverAccent =
     variant === "official"
@@ -68,7 +68,12 @@ function ParticipantPlayerCell({
       : "group-hover:text-emerald-300";
 
   const avatar = (
-    <Avatar className={cn("border border-cp-border", avatarClassName ?? "h-9 w-9")}>
+    <Avatar
+      className={cn(
+        "shrink-0 border border-cp-border",
+        avatarClassName ?? (compact ? "h-10 w-10" : "h-11 w-11"),
+      )}
+    >
       <AvatarImage src={row.image ?? undefined} alt="" />
       <AvatarFallback className="bg-cp-elevated text-xs">
         {initials(row.displayName)}
@@ -76,25 +81,66 @@ function ParticipantPlayerCell({
     </Avatar>
   );
 
-  if (!row.profileUrl) {
-    return (
-      <div className="flex items-center gap-3">
-        {avatar}
-        <span className="font-medium text-foreground">{row.displayName}</span>
-      </div>
-    );
-  }
+  const nameBlock = (
+    <div className="min-w-0">
+      {row.profileUrl ? (
+        <Link
+          href={row.profileUrl}
+          className={cn(
+            "group block truncate font-semibold text-foreground transition-colors",
+            hoverAccent,
+          )}
+        >
+          {row.displayName}
+        </Link>
+      ) : (
+        <p className="truncate font-semibold text-foreground">{row.displayName}</p>
+      )}
+      {!compact && row.genderLabel ? (
+        <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p>
+      ) : null}
+    </div>
+  );
 
   return (
-    <Link
-      href={row.profileUrl}
-      className="group inline-flex min-w-0 items-center gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-cp-primary/50"
-    >
+    <div className="flex min-w-0 items-center gap-3">
       {avatar}
-      <span className={cn("font-medium text-foreground transition-colors", hoverAccent)}>
-        {row.displayName}
-      </span>
-    </Link>
+      {nameBlock}
+    </div>
+  );
+}
+
+function OfficialStatusBadges({ row }: { row: TournamentParticipantRow }) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5 sm:justify-start lg:justify-end">
+      <Badge variant="muted" className="capitalize">
+        {formatRegistrationStatus(row.registrationStatus)}
+      </Badge>
+      <Badge variant={paymentBadgeVariant(row.paymentStatus)} className="capitalize">
+        <CreditCard className="mr-1 h-3 w-3" />
+        {row.paymentStatus ?? "—"}
+      </Badge>
+      {row.amountIdr != null ? (
+        <span className="w-full text-right text-[11px] tabular-nums text-cp-muted sm:w-auto lg:text-right">
+          {formatIdr(row.amountIdr)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function FunMatchScore({ row, teamScoreByName }: { row: TournamentParticipantRow; teamScoreByName?: Record<string, { pointsFor: number; wins: number }> }) {
+  const stat = teamScoreByName?.[row.teamName];
+  if (!stat || (stat.pointsFor === 0 && stat.wins === 0)) {
+    return <span className="text-sm text-cp-muted">—</span>;
+  }
+  return (
+    <span className="text-sm font-semibold tabular-nums text-foreground">
+      {stat.pointsFor} pts
+      {stat.wins > 0 ? (
+        <span className="ml-1.5 text-xs font-normal text-cp-muted">· {stat.wins}W</span>
+      ) : null}
+    </span>
   );
 }
 
@@ -118,6 +164,8 @@ export function TournamentParticipantsPanel({
   const isOfficial = tournamentType === "official";
   const isFreeOfficial = officialBilling === "free";
   const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
+  const teamAccent =
+    variant === "official" ? "text-amber-300/95" : "text-emerald-300/95";
 
   if (isLoading) {
     return (
@@ -145,10 +193,11 @@ export function TournamentParticipantsPanel({
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const uniqueTeams = new Set(items.map((row) => row.teamId)).size;
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Users className={cn("h-5 w-5", accent)} />
@@ -167,6 +216,31 @@ export function TournamentParticipantsPanel({
         ) : null}
       </div>
 
+      {total > 0 ? (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+          {[
+            { label: "Players", value: String(total) },
+            { label: isOfficial ? "Teams" : "Squads", value: String(uniqueTeams) },
+            {
+              label: "Page",
+              value: `${page} / ${Math.max(1, data?.totalPages ?? 1)}`,
+            },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-xl border border-cp-border/80 bg-cp-elevated/25 px-3 py-2.5"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                {stat.label}
+              </p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                {stat.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {total === 0 ? (
         <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-6 py-14 text-center">
           <UserRound className="mx-auto h-8 w-8 text-cp-muted/70" />
@@ -180,124 +254,48 @@ export function TournamentParticipantsPanel({
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-cp-border bg-cp-elevated/50 text-xs uppercase tracking-wider text-cp-muted">
-                  <th className="px-4 py-3 font-semibold sm:px-6">Player</th>
-                  <th className="px-4 py-3 font-semibold">Gender</th>
-                  <th className="px-4 py-3 font-semibold">Team / squad</th>
-                  <th className="px-4 py-3 font-semibold">Role</th>
-                  {isOfficial ? (
-                    <>
-                      <th className="px-4 py-3 font-semibold">Registration</th>
-                      <th className="px-4 py-3 font-semibold">Payment</th>
-                    </>
-                  ) : (
-                    <th className="px-4 py-3 font-semibold">Score</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((row) => (
-                  <tr
-                    key={`${row.teamId}-${row.userId}`}
-                    className="border-b border-cp-border/60 transition-colors last:border-0 hover:bg-cp-elevated/30"
-                  >
-                    <td className="px-4 py-3 sm:px-6">
-                      <ParticipantPlayerCell row={row} variant={variant} />
-                    </td>
-                    <td className="px-4 py-3 text-cp-muted">
-                      {row.genderLabel ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-foreground">{row.teamName}</td>
-                    <td className="px-4 py-3 capitalize text-cp-muted">{row.role}</td>
-                    {isOfficial ? (
-                      <>
-                        <td className="px-4 py-3">
-                          <Badge variant="muted" className="capitalize">
-                            {row.registrationStatus?.replace(/_/g, " ") ?? "—"}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant={paymentBadgeVariant(row.paymentStatus)}
-                            className="capitalize"
-                          >
-                            {row.paymentStatus ?? "—"}
-                          </Badge>
-                          {row.amountIdr != null ? (
-                            <p className="mt-1 text-xs text-cp-muted">{formatIdr(row.amountIdr)}</p>
-                          ) : null}
-                        </td>
-                      </>
-                    ) : (
-                      <td className="px-4 py-3 text-sm tabular-nums text-foreground">
-                        {(() => {
-                          const stat = teamScoreByName?.[row.teamName];
-                          if (!stat || (stat.pointsFor === 0 && stat.wins === 0)) {
-                            return <span className="text-cp-muted">—</span>;
-                          }
-                          return (
-                            <span>
-                              {stat.pointsFor} pts
-                              {stat.wins > 0 ? (
-                                <span className="ml-1.5 text-xs text-cp-muted">
-                                  · {stat.wins}W
-                                </span>
-                              ) : null}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="hidden border-b border-cp-border/80 bg-cp-elevated/40 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)] lg:gap-4 lg:px-5">
+            <span>Player</span>
+            <span>Team / squad</span>
+            <span>Role</span>
+            <span className="text-right">{isOfficial ? "Status" : "Score"}</span>
           </div>
 
-          <div className="divide-y divide-cp-border md:hidden">
+          <ul className="divide-y divide-cp-border/70">
             {items.map((row) => (
-              <article key={`${row.teamId}-${row.userId}`} className="space-y-2 p-4">
-                <ParticipantPlayerCell
-                  row={row}
-                  variant={variant}
-                  avatarClassName="h-10 w-10"
-                />
-                <p className="text-sm text-cp-muted">
-                  {row.genderLabel ? `${row.genderLabel} · ` : ""}
-                  {row.teamName} · <span className="capitalize">{row.role}</span>
-                </p>
-                {isOfficial ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="muted" className="capitalize">
-                      {row.registrationStatus?.replace(/_/g, " ") ?? "—"}
-                    </Badge>
-                    <Badge variant={paymentBadgeVariant(row.paymentStatus)} className="capitalize">
-                      <CreditCard className="mr-1 h-3 w-3" />
-                      {row.paymentStatus ?? "—"}
-                    </Badge>
-                  </div>
-                ) : (
-                  <p className="text-sm tabular-nums text-foreground">
-                    {(() => {
-                      const stat = teamScoreByName?.[row.teamName];
-                      if (!stat || (stat.pointsFor === 0 && stat.wins === 0)) {
-                        return <span className="text-cp-muted">No score yet</span>;
-                      }
-                      return (
-                        <>
-                          Score: {stat.pointsFor} pts
-                          {stat.wins > 0 ? ` · ${stat.wins} wins` : ""}
-                        </>
-                      );
-                    })()}
+              <li
+                key={`${row.teamId}-${row.userId}`}
+                className="p-4 transition-colors hover:bg-cp-elevated/20 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)] lg:items-center lg:gap-4 lg:px-5 lg:py-3.5"
+              >
+                <ParticipantPlayerCell row={row} variant={variant} />
+
+                <div className="mt-3 min-w-0 lg:mt-0">
+                  <p className={cn("truncate text-sm font-medium", teamAccent)}>{row.teamName}</p>
+                  <p className="mt-0.5 text-xs text-cp-muted lg:hidden">
+                    {row.genderLabel ? `${row.genderLabel} · ` : ""}
+                    <span className="capitalize">{row.role}</span>
                   </p>
-                )}
-              </article>
+                </div>
+
+                <div className="mt-2 hidden lg:block">
+                  <Badge variant="muted" className="capitalize">
+                    {row.role}
+                  </Badge>
+                </div>
+
+                <div className="mt-3 lg:mt-0">
+                  {isOfficial ? (
+                    <OfficialStatusBadges row={row} />
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 lg:justify-end">
+                      <span className="text-xs text-cp-muted lg:hidden">Score</span>
+                      <FunMatchScore row={row} teamScoreByName={teamScoreByName} />
+                    </div>
+                  )}
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
 
           <DataTablePagination
             page={page}

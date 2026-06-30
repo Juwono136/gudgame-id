@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import { toast } from "sonner";
+import { BracketCourtScoringGrid } from "@/components/tournaments/manage/bracket-court-scoring-grid";
+import { BracketScoringLockPanel } from "@/components/tournaments/manage/bracket-scoring-lock-panel";
 import { ManageScoringHistoryPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
-import { OfficialBracketLive } from "@/components/tournaments/official-bracket-live";
 import { ManageCourtCard } from "@/components/tournaments/manage/manage-court-card";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -31,6 +32,7 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import { isFunMatchType, isOfficialType } from "@/lib/tournaments/core/types";
 import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
+import { manageCourtGridClassName } from "@/lib/styles/surface-classes";
 
 type CourtScoringGridProps = {
   tournament: TournamentDetail;
@@ -55,6 +57,7 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
   const matches = data?.reclubMatches ?? [];
   const activeMatches = data?.activeReclubMatches ?? [];
   const bracketMatches = data?.bracketMatches ?? [];
+  const activeBracketMatches = data?.activeBracketMatches ?? [];
   const canScore = participant.canUseCourtsideScoring && livePhase === "live";
   const isOfficial = isOfficialType(tournament.tournamentType);
   const isFunMatch = isFunMatchType(tournament.tournamentType);
@@ -92,12 +95,24 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
     [teams],
   );
 
+  const courtLockMatches = useMemo(() => {
+    const bracketLocks = activeBracketMatches.map((m) => ({
+      id: m.id,
+      teamAId: m.teamAId,
+      teamBId: m.teamBId,
+      courtId: m.courtId,
+      status: "in_progress" as const,
+    }));
+    return [...activeMatches, ...bracketLocks] as ReclubMatchView[];
+  }, [activeBracketMatches, activeMatches]);
+
   const historyPanel = (
     <ManageScoringHistoryPanel
       sessionStats={sessionStats}
       matches={matches}
       bracketMatches={bracketMatches}
       variant={statsVariant}
+      standingsMode={isBracketMode ? "elimination" : "americano"}
       isLoading={isFetching && !sessionStats}
     />
   );
@@ -212,17 +227,24 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
   }
 
   if (isBracketMode) {
+    const completedBracket = bracketMatches.filter((m) => m.status === "completed").length;
+    const liveBracket = bracketMatches.filter((m) => m.status === "in_progress").length;
+
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cp-border bg-cp-card p-4">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Bracket live scoring</h2>
+            <h2 className="text-lg font-semibold text-foreground">Multi-court bracket scoring</h2>
             <p className="text-sm text-cp-muted">
-              {squadsWithPlayers.length} squad{squadsWithPlayers.length === 1 ? "" : "s"} with players
-              {tournament.maxTeams ? ` · max ${tournament.maxTeams}` : ""} · {tournament.playersPerTeam}{" "}
-              per team · {courts.length} court{courts.length === 1 ? "" : "s"}
+              Assign ready bracket matches per court and score in parallel — squads already on a
+              court cannot start elsewhere.
+            </p>
+            <p className="mt-1 text-xs text-cp-muted">
+              {squadsWithPlayers.length} squad{squadsWithPlayers.length === 1 ? "" : "s"} ready
+              {tournament.maxTeams ? ` · capacity ${tournament.maxTeams}` : ""} · {liveBracket} live ·{" "}
+              {completedBracket} finished
               {!isFunMatch && data?.summary
-                ? ` · ${data.summary.registeredTeams} registered · ${bracketMatches.filter((m) => m.status === "completed").length}/${bracketMatches.length} matches done`
+                ? ` · ${data.summary.registeredTeams} registered`
                 : ""}
               {isFetching ? " · Updating…" : ""}
             </p>
@@ -234,20 +256,28 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
         </div>
 
         {livePhase !== "live" ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
-            Set the tournament status to <strong>Live</strong> before scoring bracket matches.
-          </div>
-        ) : null}
-
-        {bracketMatches.length > 0 ? (
-          <OfficialBracketLive
+          <BracketScoringLockPanel
             sportSlug={tournament.sportSlug}
             slug={tournament.slug}
+            tournamentId={tournament.id}
+            tournamentStatus={tournament.status}
+            bracketMatches={bracketMatches}
+            courtCount={courts.length}
+            pointsPerMatch={pointsPerMatch}
+            hasBracket={bracketMatches.length > 0}
+          />
+        ) : bracketMatches.length > 0 ? (
+          <BracketCourtScoringGrid
+            sportSlug={tournament.sportSlug}
+            slug={tournament.slug}
+            courts={courts}
             matches={bracketMatches}
+            teams={teams}
             participant={participant}
             pointsPerMatch={pointsPerMatch}
-            variant={isOfficial ? "official" : "reclub"}
-            officialScoringEnabled={livePhase === "live"}
+            canScore={canScore}
+            tournamentType={tournament.tournamentType}
+            reclubActiveMatches={isFunMatch ? activeMatches : []}
           />
         ) : (
           <div className="rounded-2xl border border-dashed border-cp-border py-12 text-center text-sm text-cp-muted">
@@ -266,7 +296,7 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
               {scoringMeta}
             </div>
 
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))] sm:gap-4">
+            <div className={manageCourtGridClassName}>
               {courts.map((court) => {
                 const match = matchByCourt.get(court.id) ?? null;
                 const busy = Boolean(court.activeMatchId);
@@ -276,7 +306,7 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
                     court={court}
                     match={match}
                     teams={teams}
-                    activeMatches={activeMatches}
+                    activeMatches={courtLockMatches}
                     canScore={canScore}
                     teamAId={teamAByCourt[court.id] ?? ""}
                     teamBId={teamBByCourt[court.id] ?? ""}
@@ -357,7 +387,7 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
         </div>
       ) : null}
 
-      <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))] sm:gap-4">
+      <div className={manageCourtGridClassName}>
         {courts.map((court) => {
           const match = matchByCourt.get(court.id) ?? null;
           const busy = Boolean(court.activeMatchId);

@@ -35,6 +35,36 @@ export function assertBracketSetupAllowed(tournament: TournamentDetail): void {
   }
 }
 
+/** Initial bracket creation — allowed while upcoming or live (before play starts). */
+export function assertBracketInitialGenerationAllowed(tournament: TournamentDetail): void {
+  assertBracketSetupAllowed(tournament);
+}
+
+export function assertBracketSeedingEditable(tournament: TournamentDetail): void {
+  const phase = getTournamentLivePhase(tournament);
+  if (phase === "completed" || phase === "cancelled") {
+    throw new AppError("Bracket seeding cannot be changed after the tournament ends.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+}
+
+export function assertBracketSeedingResetAllowed(tournament: TournamentDetail): void {
+  const phase = getTournamentLivePhase(tournament);
+  if (phase === "live") {
+    throw new AppError(
+      "Bracket cannot be reset while the tournament is live. Finish or cancel active matches first.",
+      { code: "FORBIDDEN", statusCode: 403 },
+    );
+  }
+  assertBracketSeedingEditable(tournament);
+}
+
+export function shouldExposeBracketPublicData(tournament: TournamentDetail): boolean {
+  return tournament.format !== "americano";
+}
+
 export function shouldExposeLivePublicData(tournament: TournamentDetail): boolean {
   return isLiveOrCompletedPhase(getTournamentLivePhase(tournament));
 }

@@ -8,10 +8,10 @@ import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboa
 import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { isFunMatchType, supportsRoundBasedPlay } from "@/lib/tournaments/core/types";
 import {
-  getPublicNotStartedPayload,
   getTournamentLivePhase,
   shouldExposeLivePublicData,
 } from "@/lib/tournaments/lifecycle-guards";
+import { TOURNAMENT_NOT_STARTED_MESSAGE } from "@/lib/tournaments/core/types";
 import { listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
@@ -53,6 +53,8 @@ function mapBracketToLiveMatch(m: BracketMatchView) {
     scoreA: m.scoreA,
     scoreB: m.scoreB,
     status: m.status,
+    courtId: m.courtId,
+    startedAt: m.startedAt,
   };
 }
 
@@ -90,10 +92,7 @@ export async function buildTournamentLivePayload(
   tournament: TournamentDetail,
 ): Promise<TournamentLivePayload> {
   const phase = getTournamentLivePhase(tournament);
-
-  if (!shouldExposeLivePublicData(tournament)) {
-    return getPublicNotStartedPayload(tournament);
-  }
+  const isLiveOrDone = shouldExposeLivePublicData(tournament);
 
   const isFunMatch = isFunMatchType(tournament.tournamentType);
   const includeBracket = tournament.format !== "americano";
@@ -140,8 +139,8 @@ export async function buildTournamentLivePayload(
       })),
   }));
 
-  const lobbyLiveMatches = lobbyMatches.map(mapReclubToLiveMatch);
-  const bracketLiveMatches = bracketMatches.map(mapBracketToLiveMatch);
+  const lobbyLiveMatches = isLiveOrDone ? lobbyMatches.map(mapReclubToLiveMatch) : [];
+  const bracketLiveMatches = isLiveOrDone ? bracketMatches.map(mapBracketToLiveMatch) : [];
 
   const liveMatches = includeLobbyRounds
     ? [...lobbyLiveMatches, ...bracketLiveMatches]
@@ -192,6 +191,7 @@ export async function buildTournamentLivePayload(
 
   return {
     phase,
+    message: isLiveOrDone ? undefined : TOURNAMENT_NOT_STARTED_MESSAGE,
     tournament: {
       id: tournament.id,
       name: tournament.name,

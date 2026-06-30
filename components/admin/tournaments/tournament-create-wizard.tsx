@@ -26,7 +26,6 @@ import {
   type TournamentCoverValue,
 } from "@/components/tournaments/form/tournament-cover-upload";
 import { revokeLocalPreviewUrl } from "@/lib/tournaments/cover-preview-url";
-import { TournamentGearPicker } from "@/components/tournaments/form/tournament-gear-picker";
 import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
 import { uploadTournamentCoverClient } from "@/lib/tournaments/upload-cover-client";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
@@ -184,9 +183,6 @@ export function TournamentCreateWizard({
   const [equipmentStandardsRules, setEquipmentStandardsRules] = useState(
     initialRules?.equipmentStandardsHtml ?? "",
   );
-  const [gearEntityIds, setGearEntityIds] = useState<string[]>(
-    initialRules?.gearEntityIds ?? [],
-  );
   const [startsAt, setStartsAt] = useState(toLocalDatetime(initial?.startsAt));
   const [endsAt, setEndsAt] = useState(toLocalDatetime(initial?.endsAt));
   const [officialBilling, setOfficialBilling] = useState<"paid" | "free">(
@@ -253,7 +249,6 @@ export function TournamentCreateWizard({
     setRules(initial.rules ?? "");
     setMatchFormatRules(sections.matchFormatHtml ?? initial.rules ?? "");
     setEquipmentStandardsRules(sections.equipmentStandardsHtml ?? "");
-    setGearEntityIds(sections.gearEntityIds ?? []);
     setStartsAt(toLocalDatetime(initial.startsAt));
     setEndsAt(toLocalDatetime(initial.endsAt));
     setRegistrationFeeIdr(
@@ -296,7 +291,6 @@ export function TournamentCreateWizard({
       matchFormatRules: isOfficialType(tournamentType) ? matchFormatRules : rules,
       equipmentStandardsRules:
         isOfficialType(tournamentType) ? equipmentStandardsRules : undefined,
-      gearEntityIds: isOfficialType(tournamentType) ? gearEntityIds : undefined,
       venue,
       venueMapsUrl: venueMapsUrl.trim() || undefined,
       coverImageStorageKey: coverStorageKey,
@@ -811,11 +805,6 @@ export function TournamentCreateWizard({
                       maxLength={TOURNAMENT_FIELD_LIMITS.equipmentStandardsRules}
                     />
                   </div>
-                  <TournamentGearPicker
-                    sportSlug={resolvedSportSlug}
-                    selectedIds={gearEntityIds}
-                    onChange={setGearEntityIds}
-                  />
                 </div>
               ) : (
                 <div>
@@ -857,7 +846,6 @@ export function TournamentCreateWizard({
               matchFormatRules={matchFormatRules}
               equipmentStandardsRules={equipmentStandardsRules}
               rules={rules}
-              gearCount={gearEntityIds.length}
               matchTypeLabel={getTournamentFormatLabel(matchType)}
               scoringTypeLabel={getScoringTypeLabel(scoringType)}
               pointsPerMatch={pointsPerMatch}

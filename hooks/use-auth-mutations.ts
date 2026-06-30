@@ -116,7 +116,7 @@ export function useLoginMutation() {
       }
 
       toast.success("Welcome back!", {
-        description: "Redirecting you to the homepage…",
+        description: "Welcome back to TandingBase!",
       });
 
       if (mustChangePassword) {
@@ -178,7 +178,7 @@ async function finishAuthRedirect(
       });
     } else {
       toast.success("Signed in with Google", {
-        description: "Redirecting you to the homepage…",
+        description: "Welcome back to TandingBase!",
       });
     }
 

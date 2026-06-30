@@ -32,6 +32,7 @@ import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament
 import { ReclubSquadLobby } from "@/components/tournaments/reclub/reclub-squad-lobby";
 import { ReclubSessionStatusBanner } from "@/components/tournaments/reclub/reclub-session-status-banner";
 import { ReclubRulesPanel } from "@/components/tournaments/reclub-rules-panel";
+import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
 import { TournamentPlayersLiveStatsPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
 import { TournamentOrganizer } from "@/components/tournaments/tournament-organizer";
 import { TournamentShareCard } from "@/components/tournaments/tournament-share-card";
@@ -872,11 +873,19 @@ export function ReclubTournamentPage({
             ) : null}
 
             {tab === "Players" ? (
-              <TournamentPlayersLiveStatsPanel
-                stats={sessionStats}
-                variant="reclub"
-                emptyMessage="Player stats appear after lobby or bracket matches are finalized."
-              />
+              <div className="space-y-6">
+                <TournamentParticipantsPanel
+                  sportSlug={tournament.sportSlug}
+                  slug={tournament.slug}
+                  tournamentType="fun_match"
+                  variant="reclub"
+                />
+                <TournamentPlayersLiveStatsPanel
+                  stats={sessionStats}
+                  variant="reclub"
+                  emptyMessage="Player stats appear after lobby or bracket matches are finalized."
+                />
+              </div>
             ) : null}
 
             {tab === "Bracket" ? (
@@ -890,7 +899,6 @@ export function ReclubTournamentPage({
                 userTeamId={userTeamId}
                 tournamentStatus={tournament.status}
                 session={tournament}
-                pointsPerMatch={pointsPerMatch}
               />
             ) : null}
 
