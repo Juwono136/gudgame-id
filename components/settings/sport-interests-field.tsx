@@ -50,7 +50,8 @@ export function SportInterestsField({
       <div>
         <Label>Sports you follow</Label>
         <p className="mt-1 text-xs text-cp-muted">
-          Tap to select sports you play or follow. Shown on your public profile.
+          Tap to select sports you play or follow. Published player profiles are created for each
+          sport you follow once that discipline is enabled on TandingBase.
         </p>
       </div>
 

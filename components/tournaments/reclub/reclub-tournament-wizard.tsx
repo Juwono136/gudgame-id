@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
+import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
 import {
   useCreatePlayerReclubTournament,
   useUpdateHostTournament,
@@ -75,11 +76,10 @@ const STEPS = [
   { id: "review", label: "Review", shortLabel: "Review", icon: MapPin },
 ] as const;
 
-type SportOption = { slug: string; name: string };
-
-export type ReclubTournamentWizardProps = {
-  sports: SportOption[];
-  defaultSportSlug?: string;
+type ReclubTournamentWizardProps = {
+  /** Admin workspace — active admin sport from parent */
+  sportSlug?: string;
+  sportName?: string;
   /** Edit mode — existing tournament */
   initial?: TournamentDetail;
   tournamentId?: string;
@@ -124,8 +124,8 @@ function hydrateFromInitial(initial: TournamentDetail) {
 }
 
 export function ReclubTournamentWizard({
-  sports,
-  defaultSportSlug = "padel",
+  sportSlug: sportSlugProp,
+  sportName: sportNameProp,
   initial,
   tournamentId,
   workspace = "player",
@@ -134,6 +134,7 @@ export function ReclubTournamentWizard({
   onBack,
 }: ReclubTournamentWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
+  const dashboardSport = useDashboardSportOptional();
   const router = useRouter();
   const { confirm } = useConfirmDialog();
   const playerReclubCreate = useCreatePlayerReclubTournament();
@@ -153,8 +154,21 @@ export function ReclubTournamentWizard({
 
   const hydrated = initial ? hydrateFromInitial(initial) : null;
 
+  const sportSlug = isEdit
+    ? (initial?.sportSlug ?? "padel")
+    : workspace === "admin"
+      ? (sportSlugProp ?? "padel")
+      : (dashboardSport?.sportSlug ?? sportSlugProp ?? "padel");
+
+  const sportName = isEdit
+    ? (initial?.sportName ?? sportSlug)
+    : workspace === "admin"
+      ? (sportNameProp ?? sportSlug)
+      : (dashboardSport?.availableSports.find((s) => s.slug === sportSlug)?.name ??
+        sportNameProp ??
+        sportSlug);
+
   const [step, setStep] = useState(0);
-  const [sportSlug, setSportSlug] = useState(hydrated?.sportSlug ?? defaultSportSlug);
   const [name, setName] = useState(hydrated?.name ?? "");
   const [summary, setSummary] = useState(hydrated?.summary ?? "");
   const [description, setDescription] = useState(hydrated?.description ?? "");
@@ -184,6 +198,13 @@ export function ReclubTournamentWizard({
   const [startsAt, setStartsAt] = useState(hydrated?.startsAt ?? "");
   const [endsAt, setEndsAt] = useState(hydrated?.endsAt ?? "");
 
+  useEffect(() => {
+    if (isEdit) return;
+    const defaults = getSportTournamentDefaults(sportSlug);
+    setPlayersPerTeam(String(defaults.playersPerTeam));
+    setMaxTeams(String(Math.min(defaults.maxTeams, 16)));
+  }, [sportSlug, isEdit]);
+
   const coverPreviewRef = useRef(cover.previewUrl);
   coverPreviewRef.current = cover.previewUrl;
 
@@ -195,11 +216,6 @@ export function ReclubTournamentWizard({
     () => (isEdit && initial ? initial.slug : slugifyWikiName(name || "fun-match")),
     [isEdit, initial, name],
   );
-
-  const sportName =
-    sports.find((s) => s.slug === sportSlug)?.name ??
-    initial?.sportName ??
-    sportSlug;
 
   const formState: ReclubWizardFormState = {
     name,
@@ -343,14 +359,11 @@ export function ReclubTournamentWizard({
           },
         });
       } else {
-        playerReclubCreate.mutate(
-          { sportSlug, ...payload },
-          {
-            onSuccess: (tournament) => {
-              router.push(tournamentAfterCreateUrl(workspace, tournament));
-            },
+        playerReclubCreate.mutate(payload, {
+          onSuccess: (tournament) => {
+            router.push(tournamentAfterCreateUrl(workspace, tournament));
           },
-        );
+        });
       }
     } catch (uploadErr) {
       toast.error(uploadErr instanceof Error ? uploadErr.message : "Cover upload failed");
@@ -420,27 +433,6 @@ export function ReclubTournamentWizard({
           {step === 0 ? (
             <div className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Label>Sport</Label>
-                  {isEdit || workspace === "admin" ? (
-                    <p className="mt-1.5 rounded-lg border border-cp-border bg-cp-elevated/30 px-3 py-2.5 text-sm capitalize text-foreground">
-                      {sportName}
-                    </p>
-                  ) : (
-                    <Select value={sportSlug} onValueChange={setSportSlug}>
-                      <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sports.map((s) => (
-                          <SelectItem key={s.slug} value={s.slug}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
                 <div className="sm:col-span-2">
                   <Label htmlFor="reclub-name">Fun Match name *</Label>
                   <Input

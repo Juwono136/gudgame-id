@@ -81,12 +81,17 @@ export async function archiveTournamentSnapshot(
 export async function listCreatorTournamentHistory(
   userId: string,
   query: TournamentsListQuery,
+  sportId?: string,
 ) {
   const db = getDb();
   const { page, pageSize, search, status, sortBy, sortDir } = query;
   const offset = (page - 1) * pageSize;
 
   const conditions = [eq(tournaments.createdBy, userId)];
+
+  if (sportId) {
+    conditions.push(eq(tournaments.sportId, sportId));
+  }
 
   if (search?.trim()) {
     const term = `%${search.trim()}%`;

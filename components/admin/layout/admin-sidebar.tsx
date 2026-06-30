@@ -62,10 +62,7 @@ export function AdminSidebar({
       </div>
 
       <div className="shrink-0 border-b border-cp-border px-4 py-4">
-        <AdminSportSelector
-          initialSlug={context.sportSlug}
-          preferNative={embedded}
-        />
+        <AdminSportSelector preferNative={embedded} />
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">

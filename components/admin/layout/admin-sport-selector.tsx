@@ -16,6 +16,7 @@ import {
   cpSelectItemClass,
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
+import { useAdminSport } from "@/providers/admin-sport-provider";
 import { cn } from "@/lib/utils";
 
 type SportRow = {
@@ -25,7 +26,6 @@ type SportRow = {
 };
 
 type AdminSportSelectorProps = {
-  initialSlug: string;
   /** Native select avoids Radix portal issues inside mobile drawer */
   preferNative?: boolean;
 };
@@ -36,10 +36,10 @@ const nativeSelectClass = cn(
 );
 
 export function AdminSportSelector({
-  initialSlug,
   preferNative = false,
 }: AdminSportSelectorProps) {
   const qc = useQueryClient();
+  const { sportSlug, setSportSlug } = useAdminSport();
 
   const { data: sports = [] } = useQuery({
     queryKey: ["admin", "sports"],
@@ -62,18 +62,22 @@ export function AdminSportSelector({
       });
       const json = await parseJsonResponse<{ success: boolean }>(res);
       if (!res.ok) throw new Error("Failed to switch sport context");
-      return json;
+      return slug;
     },
-    onSuccess: () => {
-      void qc.invalidateQueries();
+    onSuccess: (slug) => {
+      setSportSlug(slug);
+      void qc.invalidateQueries({ queryKey: ["admin"] });
       toast.success("Sport context updated");
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const value = sports.some((s) => s.slug === initialSlug)
-    ? initialSlug
-    : sports[0]?.slug ?? initialSlug;
+  const resolvedValue =
+    sports.length > 0
+      ? sports.some((s) => s.slug === sportSlug)
+        ? sportSlug
+        : sports[0]!.slug
+      : "";
 
   if (preferNative) {
     return (
@@ -88,7 +92,7 @@ export function AdminSportSelector({
           <Trophy className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-cp-primary" />
           <select
             id="admin-active-sport"
-            value={value}
+            value={resolvedValue || sportSlug}
             disabled={setSport.isPending || sports.length === 0}
             onChange={(e) => setSport.mutate(e.target.value)}
             className={nativeSelectClass}
@@ -107,13 +111,31 @@ export function AdminSportSelector({
     );
   }
 
+  if (!preferNative && sports.length === 0) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+          Active sport
+        </p>
+        <div
+          className={cn(
+            cpSelectTriggerClass,
+            "flex h-9 w-full items-center px-3 text-sm text-cp-muted",
+          )}
+        >
+          Loading sports…
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
         Active sport
       </p>
       <Select
-        value={value}
+        value={resolvedValue}
         onValueChange={(slug) => setSport.mutate(slug)}
         disabled={setSport.isPending || sports.length === 0}
       >

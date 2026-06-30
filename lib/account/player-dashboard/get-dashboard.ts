@@ -24,6 +24,7 @@ import type { SportInterestItem } from "@/lib/account/player-performance/sport-i
 import type { ProfileCompletionStatus } from "@/lib/auth/profile-completion";
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
 import type { AppRole } from "@/lib/roles/constants";
+import { resolveDashboardSportContext } from "@/lib/dashboard/sport-context";
 
 export type PlayerDashboardView = {
   account: {
@@ -35,6 +36,7 @@ export type PlayerDashboardView = {
     imageUrl: string | null;
   };
   roles: AppRole[];
+  activeSport: { slug: string; name: string };
   accountCompletion: ProfileCompletionStatus;
   playerProfile: PlayerWikiProfileView | null;
   playerPageCompletion: PlayerPageCompletionStatus;
@@ -66,7 +68,16 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
   }
 
   const roles = await getUserRoleAssignments(userId);
-  const playerProfile = await getPlayerWikiProfileForUser(userId);
+  const sportCtx = await resolveDashboardSportContext(userId);
+  const activeSportName =
+    sportCtx.availableSports.find((s) => s.slug === sportCtx.sportSlug)?.name ??
+    sportCtx.sportSlug;
+
+  const playerProfile = sportCtx.sportId
+    ? await getPlayerWikiProfileForUser(userId, sportCtx.sportSlug)
+    : null;
+
+  const sportScope = sportCtx.sportId ? { sportSlug: sportCtx.sportSlug } : undefined;
 
   const [recentMatchesResult, recentTournamentsResult] = await Promise.all([
     listPlayerMatches(userId, {
@@ -76,6 +87,7 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       type: "all",
       sortBy: "playedAt",
       sortDir: "desc",
+      ...sportScope,
     }),
     listPlayerTournaments(userId, roles, {
       page: 1,
@@ -84,6 +96,7 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       type: "all",
       sortBy: "year",
       sortDir: "desc",
+      ...sportScope,
     }),
   ]);
 
@@ -101,6 +114,7 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
         (dbUser.imageStorageKey ? getMediaProxyPath(dbUser.imageStorageKey) : null),
     },
     roles,
+    activeSport: { slug: sportCtx.sportSlug, name: activeSportName },
     accountCompletion: getProfileCompletionStatus(dbUser),
     playerProfile,
     playerPageCompletion: getPlayerPageCompletionStatus(playerProfile),

@@ -28,6 +28,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
   const {
     account,
     roles,
+    activeSport,
     accountCompletion,
     playerProfile,
     playerPageCompletion,
@@ -52,12 +53,14 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
       ? playerProfile.equipment.filter((item) => item.id !== signatureGear.id)
       : (playerProfile?.equipment ?? []);
 
+  const displaySportName = activeSport.name;
+
   return (
     <DashboardWorkspaceShell
       roles={roles}
       variant="player"
       title="Overview"
-      description="Profile, sessions, and match history at a glance."
+      description={`${displaySportName} — profile, sessions, and match history at a glance.`}
       actions={<PlayerDashboardToolbar publicPageUrl={playerProfile?.publicUrl} />}
     >
       <DashboardWelcomeCard

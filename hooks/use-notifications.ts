@@ -80,7 +80,37 @@ export function useMarkNotificationRead() {
       if (!res.ok) throw new Error(extractApiErrorMessage(json as never, "Could not mark as read"));
       return json;
     },
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["notifications"] });
+      const markReadAt = new Date().toISOString();
+
+      const patchItems = (items: NotificationItem[] | undefined) =>
+        items?.map((item) => (item.id === id ? { ...item, readAt: markReadAt } : item));
+
+      queryClient.setQueryData<{ items: NotificationItem[]; total: number } | undefined>(
+        ["notifications", "recent"],
+        (prev) => (prev ? { ...prev, items: patchItems(prev.items) ?? [] } : prev),
+      );
+
+      queryClient.setQueriesData<{ pages: { items: NotificationItem[]; total: number }[] }>(
+        { queryKey: ["notifications", "all"] },
+        (prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pages: prev.pages.map((page) => ({
+              ...page,
+              items: patchItems(page.items) ?? [],
+            })),
+          };
+        },
+      );
+
+      queryClient.setQueryData<number>(["notifications", "unread-count"], (prev) =>
+        Math.max(0, (prev ?? 0) - 1),
+      );
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
@@ -95,7 +125,35 @@ export function useMarkAllNotificationsRead() {
       if (!res.ok) throw new Error(extractApiErrorMessage(json as never, "Could not mark all as read"));
       return json;
     },
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["notifications"] });
+      const readAt = new Date().toISOString();
+
+      const markAll = (items: NotificationItem[] | undefined) =>
+        items?.map((item) => ({ ...item, readAt: item.readAt ?? readAt }));
+
+      queryClient.setQueryData<{ items: NotificationItem[]; total: number } | undefined>(
+        ["notifications", "recent"],
+        (prev) => (prev ? { ...prev, items: markAll(prev.items) ?? [] } : prev),
+      );
+
+      queryClient.setQueriesData<{ pages: { items: NotificationItem[]; total: number }[] }>(
+        { queryKey: ["notifications", "all"] },
+        (prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pages: prev.pages.map((page) => ({
+              ...page,
+              items: markAll(page.items) ?? [],
+            })),
+          };
+        },
+      );
+
+      queryClient.setQueryData<number>(["notifications", "unread-count"], 0);
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });

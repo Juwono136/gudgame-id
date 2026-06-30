@@ -16,19 +16,19 @@ export default function Hero() {
           alt=""
           fill
           priority
-          className="object-cover object-center"
+          className="object-cover object-center brightness-[0.92] contrast-[1.02] saturate-[0.95] dark:brightness-[0.72] dark:contrast-100 dark:saturate-100"
           sizes="100vw"
         />
         <div
-          className="absolute inset-0 bg-linear-to-b from-black/70 via-black/55 to-cp-bg"
+          className="absolute inset-0 bg-linear-to-b from-white/92 via-white/78 to-cp-bg dark:from-black/70 dark:via-black/55 dark:to-cp-bg"
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-[var(--cp-hero-overlay)]/25"
+          className="absolute inset-0 bg-[var(--cp-hero-overlay)]/8 dark:bg-[var(--cp-hero-overlay)]/25"
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.22),transparent)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.12),transparent)] dark:bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.22),transparent)]"
           aria-hidden
         />
       </div>
@@ -38,7 +38,7 @@ export default function Hero() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
             <div className="max-w-xl text-center lg:text-left">
               <FadeIn mountKey={`hero-badge-${pathname}`} delay={0}>
-                <div className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-widest backdrop-blur-sm sm:px-4 sm:text-[11px] border-emerald-600/30 bg-emerald-500/12 text-emerald-800 dark:border-[var(--cp-badge-border)] dark:bg-[#1C352A]/80 dark:text-[var(--cp-badge-green)]">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-600/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-emerald-800 backdrop-blur-sm sm:px-4 sm:text-[11px] dark:border-[var(--cp-badge-border)] dark:bg-[#1C352A]/80 dark:text-[var(--cp-badge-green)]">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-600 opacity-60 dark:bg-[var(--cp-badge-green)]" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-[var(--cp-badge-green)]" />
@@ -48,14 +48,14 @@ export default function Hero() {
               </FadeIn>
 
               <FadeIn mountKey={`hero-title-${pathname}`} delay={0.06}>
-                <h1 className="mt-4 text-2xl font-bold leading-tight tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.85)] sm:text-3xl md:text-[2rem]">
+                <h1 className="mt-4 text-2xl font-bold leading-tight tracking-tight text-cp-text drop-shadow-[0_1px_12px_rgba(255,255,255,0.65)] sm:text-3xl md:text-[2rem] dark:text-white dark:drop-shadow-[0_2px_16px_rgba(0,0,0,0.85)]">
                   Master the Game.{" "}
                   <span className="text-gradient-primary">Know the Data.</span>
                 </h1>
               </FadeIn>
 
               <FadeIn mountKey={`hero-desc-${pathname}`} delay={0.12}>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300 drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)] sm:mt-3 sm:text-[15px]">
+                <p className="mt-2 text-sm leading-relaxed text-cp-muted sm:mt-3 sm:text-[15px] dark:text-slate-300 dark:drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)]">
                   Player profiles, gear specs, and tournament coverage — all in one
                   place.
                 </p>
@@ -64,7 +64,10 @@ export default function Hero() {
 
             <div className="relative z-20 w-full lg:max-w-md lg:shrink-0">
               <FadeIn mountKey={`hero-search-${pathname}`} delay={0.18}>
-                <GlobalSearchBox variant="hero" />
+                <GlobalSearchBox
+                  variant="hero"
+                  className="shadow-[0_12px_40px_rgba(15,23,42,0.08)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
+                />
               </FadeIn>
             </div>
           </div>

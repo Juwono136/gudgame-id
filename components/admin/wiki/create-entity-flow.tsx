@@ -35,8 +35,7 @@ export function CreateEntityFlow({ sportSlug }: CreateEntityFlowProps) {
   if (kind === "tournament" && tournamentKind === "reclub") {
     return (
       <ReclubTournamentWizard
-        sports={[{ slug: sportSlug, name: sportSlug }]}
-        defaultSportSlug={sportSlug}
+        sportSlug={sportSlug}
         workspace="admin"
         onBack={() => setTournamentKind(null)}
       />

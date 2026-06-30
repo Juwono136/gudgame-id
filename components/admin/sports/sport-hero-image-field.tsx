@@ -64,6 +64,7 @@ export function SportHeroImageField({
               src={displayUrl}
               alt=""
               fill
+              sizes="(max-width: 768px) 100vw, 480px"
               className="object-cover"
               unoptimized={displayUrl.startsWith("blob:")}
             />

@@ -53,6 +53,7 @@ export const WIKI_GALLERY_MAX = 5;
 export const PLAYER_GALLERY_MAX = 4;
 
 /** Default sport slug for new self-managed player profiles */
+/** @deprecated Use DEFAULT_PLAYER_SPORT_SLUG from lib/sports/catalog flow — player profiles follow sport interests. */
 export const DEFAULT_PLAYER_SPORT_SLUG = "padel";
 
 export function getPublicWikiPath(

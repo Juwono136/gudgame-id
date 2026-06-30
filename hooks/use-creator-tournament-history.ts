@@ -3,12 +3,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import type { TournamentsListResult } from "@/lib/tournaments/service";
 import type { TournamentsListQuery } from "@/lib/validations/tournaments";
 
 export function useCreatorTournamentHistory(query: TournamentsListQuery) {
+  const { sportSlug } = useDashboardSport();
+
   return useQuery({
-    queryKey: ["account", "tournaments", "created", query],
+    queryKey: ["account", "tournaments", "created", sportSlug, query],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", String(query.page));

@@ -66,8 +66,10 @@ export function getProfileCompletionStatus(
   };
 }
 
+import { filterSportCatalogSlugs } from "@/lib/sports/catalog";
+
 export function normalizeSportInterestSlugs(slugs: string[]): string[] {
-  return [...new Set(slugs.map((s) => s.trim()).filter(Boolean))];
+  return filterSportCatalogSlugs(slugs);
 }
 
 export async function getProfileCompletionSnapshotForUser(

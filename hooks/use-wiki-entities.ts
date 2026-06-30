@@ -38,8 +38,10 @@ function buildWikiFormData(
     clearPrimaryImage?: boolean;
     clearHeroImage?: boolean;
   },
+  options?: { sportSlug?: string },
 ): FormData {
   const fd = new FormData();
+  if (options?.sportSlug) fd.append("sportSlug", options.sportSlug);
   fd.append("entityType", data.entityType);
   fd.append("displayName", data.displayName);
   if (data.nickname) fd.append("nickname", data.nickname);
@@ -72,7 +74,7 @@ function buildWikiFormData(
   return fd;
 }
 
-export function useWikiEntitiesList(query: WikiEntitiesListQuery) {
+export function useWikiEntitiesList(query: WikiEntitiesListQuery, sportSlug: string) {
   const params = new URLSearchParams();
   params.set("page", String(query.page));
   params.set("pageSize", String(query.pageSize));
@@ -83,7 +85,7 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery) {
   params.set("sortDir", query.sortDir);
 
   return useQuery({
-    queryKey: ["admin", "wiki-entities", query],
+    queryKey: ["admin", "wiki-entities", sportSlug, query],
     queryFn: async () => {
       const res = await fetch(`/api/admin/wiki-entities?${params}`);
       const json = await parseJsonResponse<{
@@ -98,6 +100,7 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery) {
             gear: number;
             published: number;
             draft: number;
+            wikiDraft: number;
             tournaments: number;
             tournamentsLive?: number;
             tournamentsUpcoming?: number;
@@ -163,6 +166,8 @@ export function useCreateWikiEntity() {
     mutationFn: async ({
       data,
       files,
+      skipRedirect,
+      sportSlug,
     }: {
       data: WikiEntityUpsertInput;
       files?: {
@@ -172,10 +177,12 @@ export function useCreateWikiEntity() {
         clearPrimaryImage?: boolean;
         clearHeroImage?: boolean;
       };
+      skipRedirect?: boolean;
+      sportSlug: string;
     }) => {
       const res = await fetch("/api/admin/wiki-entities", {
         method: "POST",
-        body: buildWikiFormData(data, files),
+        body: buildWikiFormData(data, files, { sportSlug }),
       });
       const json = await parseJsonResponse<{
         success: boolean;
@@ -190,12 +197,14 @@ export function useCreateWikiEntity() {
         err.fieldErrors = json.fieldErrors;
         throw err;
       }
-      return json.data;
+      return { entity: json.data, skipRedirect: skipRedirect ?? false };
     },
-    onSuccess: (entity) => {
+    onSuccess: ({ entity, skipRedirect }) => {
       void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
-      toast.success("Wiki entity created", { description: entity.displayName });
-      router.push(`${adminRoutes.wikiEntities}/${entity.id}/edit`);
+      if (!skipRedirect) {
+        toast.success("Wiki entity created", { description: entity.displayName });
+        router.push(`${adminRoutes.wikiEntities}/${entity.id}/edit`);
+      }
     },
     onError: (e: Error & { fieldErrors?: Record<string, string[]> }) => {
       const fields = e.fieldErrors
@@ -217,6 +226,7 @@ export function useUpdateWikiEntity(id: WikiEntityId) {
     mutationFn: async ({
       data,
       files,
+      sportSlug,
     }: {
       data: WikiEntityUpsertInput;
       files?: {
@@ -226,10 +236,11 @@ export function useUpdateWikiEntity(id: WikiEntityId) {
         clearPrimaryImage?: boolean;
         clearHeroImage?: boolean;
       };
+      sportSlug: string;
     }) => {
       const res = await fetch(`/api/admin/wiki-entities/${id}`, {
         method: "PATCH",
-        body: buildWikiFormData(data, files),
+        body: buildWikiFormData(data, files, { sportSlug }),
       });
       const json = await parseJsonResponse<{
         success: boolean;
@@ -262,20 +273,145 @@ export function useDeleteWikiEntity() {
   const router = useRouter();
 
   return useMutation({
-    mutationFn: async (id: WikiEntityId) => {
+    mutationFn: async ({
+      id,
+      redirectOnSuccess = true,
+    }: {
+      id: WikiEntityId;
+      redirectOnSuccess?: boolean;
+    }) => {
       const res = await fetch(`/api/admin/wiki-entities/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const json = await parseJsonResponse<{ error?: unknown }>(res);
         throw new Error(extractApiErrorMessage(json, "Delete failed"));
       }
+      return { redirectOnSuccess };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
       toast.success("Entity deleted");
-      router.push(adminRoutes.wikiEntities);
+      if (result.redirectOnSuccess) {
+        router.push(adminRoutes.wikiEntities);
+      }
     },
     onError: (e: Error) => {
       toast.error("Delete failed", { description: e.message });
+    },
+  });
+}
+
+export type BulkDeleteDirectoryPayload =
+  | {
+      mode: "selection";
+      wikiEntityIds: string[];
+      tournamentIds: string[];
+    }
+  | {
+      mode: "filter";
+      filter: WikiEntitiesListQuery;
+    };
+
+export function useBulkDeleteWikiDirectory() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: BulkDeleteDirectoryPayload) => {
+      const res = await fetch("/api/admin/wiki-entities/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: {
+          deletedWikiCount: number;
+          deletedTournamentCount: number;
+          skipped: { displayName: string; reason: string }[];
+          failed: { displayName: string; error: string }[];
+          matched?: number;
+        };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Bulk delete failed"));
+      }
+      return json.data;
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+      const total = data.deletedWikiCount + data.deletedTournamentCount;
+      if (total === 0) {
+        toast.error("No items were deleted", {
+          description: data.skipped[0]?.reason ?? data.failed[0]?.error,
+        });
+        return;
+      }
+      const parts = [
+        total > 0 ? `${total} deleted` : null,
+        data.skipped.length > 0 ? `${data.skipped.length} skipped` : null,
+        data.failed.length > 0 ? `${data.failed.length} failed` : null,
+      ].filter(Boolean);
+      toast.success("Bulk delete complete", { description: parts.join(" · ") });
+    },
+    onError: (e: Error) => {
+      toast.error("Bulk delete failed", { description: e.message });
+    },
+  });
+}
+
+export type BulkPublishDirectoryPayload =
+  | {
+      mode: "selection";
+      wikiEntityIds: string[];
+    }
+  | {
+      mode: "filter";
+      filter: WikiEntitiesListQuery;
+    };
+
+export function useBulkPublishWikiDirectory() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: BulkPublishDirectoryPayload) => {
+      const res = await fetch("/api/admin/wiki-entities/bulk-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: {
+          publishedCount: number;
+          skipped: { displayName: string; reason: string }[];
+          failed: { displayName: string; error: string }[];
+          matched?: number;
+        };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Bulk publish failed"));
+      }
+      return json.data;
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "wiki-entities"] });
+      if (data.publishedCount === 0) {
+        toast.error("No items were published", {
+          description: data.skipped[0]?.reason ?? data.failed[0]?.error,
+        });
+        return;
+      }
+      const parts = [
+        `${data.publishedCount} published`,
+        data.skipped.length > 0 ? `${data.skipped.length} skipped` : null,
+        data.failed.length > 0 ? `${data.failed.length} failed` : null,
+      ].filter(Boolean);
+      toast.success("Bulk publish complete", { description: parts.join(" · ") });
+    },
+    onError: (e: Error) => {
+      toast.error("Bulk publish failed", { description: e.message });
     },
   });
 }

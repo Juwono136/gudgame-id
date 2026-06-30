@@ -33,6 +33,10 @@ import type {
   HostPayoutDisbursementView,
   HostPayoutSummaryView,
 } from "@/lib/payments/host-payout/disbursement/types";
+import {
+  formatSportNamesList,
+  SportDisciplineLabel,
+} from "@/components/shared/sport-discipline-label";
 import { cn } from "@/lib/utils";
 
 function formatDate(iso: string | null): string {
@@ -115,6 +119,11 @@ function DisbursementMobileCard({ item }: { item: HostPayoutDisbursementView }) 
             {item.paymentCount} registration{item.paymentCount === 1 ? "" : "s"} ·{" "}
             {item.maskedAccount}
           </p>
+          {item.sportNames.length > 0 ? (
+            <p className="text-xs text-cp-muted">
+              {formatSportNamesList(item.sportNames)}
+            </p>
+          ) : null}
           <p className="text-xs text-cp-text-dim">
             {formatDate(item.completedAt ?? item.createdAt)}
           </p>
@@ -380,11 +389,12 @@ export function HostPayoutDisbursementsCard({
             </ul>
 
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[820px] text-left text-sm">
                 <thead className="border-b border-cp-border bg-cp-elevated/50 text-xs uppercase tracking-wide text-cp-muted">
                   <tr>
                     <th className="px-5 py-3 font-semibold">Date</th>
                     <th className="px-5 py-3 font-semibold">Amount</th>
+                    <th className="px-5 py-3 font-semibold">Sports</th>
                     <th className="px-5 py-3 font-semibold">Registrations</th>
                     <th className="px-5 py-3 font-semibold">Account</th>
                     <th className="px-5 py-3 font-semibold">Holder</th>
@@ -402,6 +412,17 @@ export function HostPayoutDisbursementsCard({
                       </td>
                       <td className="px-5 py-3 font-semibold text-foreground">
                         {formatIdrDisplay(item.amountIdr)}
+                      </td>
+                      <td className="px-5 py-3">
+                        {item.sportNames.length > 0 ? (
+                          <div className="flex max-w-[12rem] flex-wrap gap-1">
+                            {item.sportNames.map((name) => (
+                              <SportDisciplineLabel key={name} name={name} />
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-cp-muted">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-cp-muted">{item.paymentCount}</td>
                       <td className="px-5 py-3">

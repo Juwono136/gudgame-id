@@ -17,7 +17,7 @@
   --cp-green-soft: #4a6457;
   --cp-green-mint: #daf8e7;
   --cp-gray: #757683;
-  --cp-hero-overlay: #062016;
+  --cp-hero-overlay: #e8eef8;
   --cp-badge-green: #daf8e7;
   --cp-badge-border: rgba(218, 248, 231, 0.35);
   --cp-primary-glow: rgba(0, 71, 255, 0.22);
@@ -66,6 +66,7 @@
 .dark {
   --cp-primary-glow: rgba(0, 71, 255, 0.45);
   --cp-logo-accent: #7eb3ff;
+  --cp-hero-overlay: #062016;
 
   --cp-bg: #0b0e14;
   --cp-bg-card: #191b25;

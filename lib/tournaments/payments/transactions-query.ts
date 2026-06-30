@@ -64,6 +64,7 @@ export async function queryPaymentTransactions(
     conditions.push(
       or(
         ilike(tournaments.name, `%${search}%`),
+        ilike(sports.name, `%${search}%`),
         ilike(tournamentTeams.name, `%${search}%`),
         ilike(tournamentPayments.xenditExternalId, `%${search}%`),
         ilike(user.name, `%${search}%`),
@@ -81,6 +82,7 @@ export async function queryPaymentTransactions(
       tournamentId: tournamentPayments.tournamentId,
       tournamentName: tournaments.name,
       sportSlug: sports.slug,
+      sportName: sports.name,
       tournamentSlug: tournaments.slug,
       tournamentType: tournaments.tournamentType,
       teamName: tournamentTeams.name,
@@ -181,6 +183,7 @@ export async function queryPaymentTransactions(
       tournamentId: r.tournamentId,
       tournamentName: r.tournamentName,
       sportSlug: r.sportSlug,
+      sportName: r.sportName,
       tournamentSlug: r.tournamentSlug,
       tournamentType: r.tournamentType,
       teamName: r.teamName,

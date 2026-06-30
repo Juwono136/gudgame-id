@@ -16,6 +16,12 @@ export async function GET(
     if (!sport || sport.visibility !== "live") {
       throw new AppError("Sport not found", { code: "NOT_FOUND", statusCode: 404 });
     }
+    if (!sport.modules.gear) {
+      throw new AppError("Gear is not enabled for this sport", {
+        code: "NOT_FOUND",
+        statusCode: 404,
+      });
+    }
 
     const url = new URL(request.url);
     const parsed = publicGearListQuerySchema.safeParse(
@@ -29,7 +35,7 @@ export async function GET(
       });
     }
 
-    const list = await listPublishedGearPaginated(sportSlug, parsed.data);
+    const list = await listPublishedGearPaginated(sport.id, parsed.data);
     return jsonSuccess(list);
   } catch (error) {
     return jsonError(error);

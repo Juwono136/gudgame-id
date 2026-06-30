@@ -3,9 +3,18 @@ import type { PayoutSchedule } from "@/lib/payments/host-payout/constants";
 export type PendingHostPaymentRow = {
   paymentId: string;
   tournamentId: string;
+  sportSlug: string;
+  sportName: string;
   hostPayoutIdr: number;
   paidAt: Date | null;
   createdAt: Date;
+};
+
+export type PendingEarningsBySport = {
+  sportSlug: string;
+  sportName: string;
+  amountIdr: number;
+  paymentCount: number;
 };
 
 export type HostPayoutDisbursementView = {
@@ -22,6 +31,7 @@ export type HostPayoutDisbursementView = {
   estimatedArrivalAt: string | null;
   completedAt: string | null;
   createdAt: string;
+  sportNames: string[];
 };
 
 export type HostPayoutSummaryView = {
@@ -34,6 +44,7 @@ export type HostPayoutSummaryView = {
   minimumDisbursementIdr: number;
   xenPlatformLinked: boolean;
   bankConfigured: boolean;
+  pendingBySport: PendingEarningsBySport[];
 };
 
 export type HostPayoutJobHostResult = {

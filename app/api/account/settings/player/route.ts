@@ -4,6 +4,7 @@ import {
   upsertPlayerWikiProfile,
 } from "@/lib/account/player-profile/service";
 import { requireAccountSettingsAccess } from "@/lib/auth/role-guard";
+import { requireDashboardSportContext } from "@/lib/dashboard/sport-context";
 import { getServerSession } from "@/lib/auth/session";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 import { playerProfileUpsertSchema } from "@/lib/validations/account-settings";
@@ -36,8 +37,9 @@ export async function GET() {
     }
 
     await requirePlayerRole(session.user.id);
-    const profile = await getPlayerWikiProfileForUser(session.user.id);
-    return jsonSuccess({ profile });
+    const sportCtx = await requireDashboardSportContext(session.user.id);
+    const profile = await getPlayerWikiProfileForUser(session.user.id, sportCtx.sportSlug);
+    return jsonSuccess({ profile, sportSlug: sportCtx.sportSlug });
   } catch (error) {
     return jsonError(error);
   }

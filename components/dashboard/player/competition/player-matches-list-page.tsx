@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Swords } from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePlayerMatchesList } from "@/hooks/use-player-competition";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerMatchesListQuery } from "@/lib/validations/player-competition";
@@ -37,6 +38,8 @@ type PlayerMatchesListPageProps = {
 };
 
 export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
+  const { sportSlug, availableSports } = useDashboardSport();
+  const sportName = availableSports.find((s) => s.slug === sportSlug)?.name ?? sportSlug;
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
@@ -67,6 +70,10 @@ export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
     includeSummary: true,
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [sportSlug]);
+
   const yearOptions = data?.years ?? [];
 
   const openDetails = (matchId: number) => {
@@ -82,7 +89,7 @@ export function PlayerMatchesListPage({ roles }: PlayerMatchesListPageProps) {
       roles={roles}
       variant="player"
       title="Match log"
-      description="Official and Fun Match tournament matches you have played — with full results and context."
+      description={`${sportName} — official and Fun Match tournament matches you have played.`}
       breadcrumbs={[
         { label: "Overview", href: dashboardRoutes.home },
         { label: "Match log" },

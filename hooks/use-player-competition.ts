@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import type {
   PaginatedListResult,
   PlayerMatchDetail,
@@ -32,17 +33,22 @@ function buildQueryString(
   return qs.toString();
 }
 
-export function playerMatchesQueryKey(params: Partial<PlayerMatchesListQuery>) {
-  return ["account", "player", "matches", params] as const;
+export function playerMatchesQueryKey(
+  sportSlug: string,
+  params: Partial<PlayerMatchesListQuery>,
+) {
+  return ["account", "player", "matches", sportSlug, params] as const;
 }
 
 export function usePlayerMatchesList(
   params: PlayerMatchesListQuery,
   options?: { includeYears?: boolean; includeSummary?: boolean },
 ) {
+  const { sportSlug } = useDashboardSport();
+
   return useQuery({
     queryKey: [
-      ...playerMatchesQueryKey(params),
+      ...playerMatchesQueryKey(sportSlug, params),
       options?.includeYears ?? false,
       options?.includeSummary ?? false,
     ],
@@ -100,16 +106,21 @@ export function usePlayerMatchDetail(matchId: number | null, enabled: boolean) {
   });
 }
 
-export function playerTournamentsQueryKey(params: Partial<PlayerTournamentsListQuery>) {
-  return ["account", "player", "tournaments", params] as const;
+export function playerTournamentsQueryKey(
+  sportSlug: string,
+  params: Partial<PlayerTournamentsListQuery>,
+) {
+  return ["account", "player", "tournaments", sportSlug, params] as const;
 }
 
 export function usePlayerTournamentsList(
   params: PlayerTournamentsListQuery,
   options?: { includeYears?: boolean },
 ) {
+  const { sportSlug } = useDashboardSport();
+
   return useQuery({
-    queryKey: [...playerTournamentsQueryKey(params), options?.includeYears ?? false],
+    queryKey: [...playerTournamentsQueryKey(sportSlug, params), options?.includeYears ?? false],
     queryFn: async () => {
       const qs = buildQueryString(
         {

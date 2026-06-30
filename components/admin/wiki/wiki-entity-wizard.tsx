@@ -33,7 +33,7 @@ import {
 import { WIKI_ENTITY_TYPE_LABELS } from "@/lib/wiki/constants";
 import { DynamicFieldGrid } from "@/components/admin/wiki/dynamic-field-grid";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
-import { GearCatalogImport } from "@/components/admin/wiki/gear-catalog-import";
+import { GearCatalogImport, markGearImportProcessed } from "@/components/admin/wiki/gear-catalog-import";
 import { PlayerProfileStep } from "@/components/admin/wiki/steps/player-profile-step";
 import { PlayerWizardReview } from "@/components/admin/wiki/steps/player-wizard-review";
 import { TeamProfileStep } from "@/components/admin/wiki/steps/team-profile-step";
@@ -103,6 +103,7 @@ export function WikiEntityWizard({
   );
   const [stepIndex, setStepIndex] = useState(skipClassification ? 1 : 0);
   const [gearMode, setGearMode] = useState<GearEntryMode>("manual");
+  const [catalogImportSourceUrl, setCatalogImportSourceUrl] = useState<string | null>(null);
 
   const config = useMemo(() => getEntityWizardConfig(entityType), [entityType]);
   const visibleSteps = useMemo(
@@ -252,12 +253,34 @@ export function WikiEntityWizard({
       setPrimaryRemoved(false);
       setSourceUrl(preview.sourceUrl);
       setSourceType("scraped");
+      setCatalogImportSourceUrl(preview.sourceUrl);
       setGearMode("manual");
       const productStep = getEntityWizardConfig("gear").stepIds.indexOf("product");
       if (productStep >= 0) setStepIndex(productStep);
     },
     [sportSlug],
   );
+
+  const returnToCatalogImport = useCallback(() => {
+    setGearProduct(defaultGearProductValues());
+    setFieldValues({});
+    setPrimaryPreview("");
+    setPrimaryFile(null);
+    setPrimaryRemoved(false);
+    setHeroPreview("");
+    setHeroFile(null);
+    setHeroRemoved(false);
+    setGallerySlots([]);
+    setRelations([]);
+    setFeatures([]);
+    setSourceUrl("");
+    setSourceType("manual");
+    setFieldErrors({});
+    setCatalogImportSourceUrl(null);
+    setGearMode("catalog");
+    const sourceStep = getEntityWizardConfig("gear").stepIds.indexOf("source");
+    if (sourceStep >= 0) setStepIndex(sourceStep);
+  }, []);
 
   const handlePrimaryFile = useCallback(
     (f: File) => {
@@ -469,9 +492,31 @@ export function WikiEntityWizard({
       clearHeroImage: mode === "edit" && heroRemoved && !heroFile,
     };
     if (mode === "create") {
-      createMutation.mutate({ data: payload, files });
+      const returnAfterSave = Boolean(catalogImportSourceUrl);
+      createMutation.mutate(
+        { data: payload, files, skipRedirect: returnAfterSave, sportSlug },
+        {
+          onSuccess: ({ entity }) => {
+            if (!catalogImportSourceUrl) return;
+            markGearImportProcessed(sportSlug, catalogImportSourceUrl, {
+              entityId: entity.id,
+              displayName: entity.displayName,
+              status: entity.status,
+            });
+            toast.message("Returned to import list", {
+              description: "Pick the next product or edit an existing import.",
+              action: {
+                label: "View saved",
+                onClick: () =>
+                  router.push(`${adminRoutes.wikiEntities}/${entity.id}/edit`),
+              },
+            });
+            returnToCatalogImport();
+          },
+        },
+      );
     } else {
-      updateMutation.mutate({ data: payload, files });
+      updateMutation.mutate({ data: payload, files, sportSlug });
     }
   };
 
@@ -493,6 +538,24 @@ export function WikiEntityWizard({
           }}
         />
       </div>
+
+      {catalogImportSourceUrl && entityType === "gear" && gearMode === "manual" ? (
+        <div className="mb-5 flex flex-col gap-3 rounded-xl border border-cp-primary/25 bg-cp-primary/5 px-4 py-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-cp-muted">
+            Editing an imported product. After you save or publish, you will return to the
+            catalog list with this item marked as done.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-cp-border"
+            onClick={returnToCatalogImport}
+          >
+            Back to import list
+          </Button>
+        </div>
+      ) : null}
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -543,7 +606,9 @@ export function WikiEntityWizard({
                 <GearCatalogImport
                   sportSlug={sportSlug}
                   onSelectSingle={applyGearScrape}
-                  onBulkDone={() => router.push(adminRoutes.wikiEntities)}
+                  onBulkDone={() => {
+                    void router.push(adminRoutes.wikiEntities);
+                  }}
                 />
               ) : (
                 <p className="rounded-lg border border-cp-border bg-cp-card p-4 text-sm text-cp-muted">

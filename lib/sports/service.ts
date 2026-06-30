@@ -12,6 +12,7 @@ import {
 import { tournaments } from "@/db/schema/tournaments";
 import { wikiEntities } from "@/db/schema/wiki";
 import { AppError } from "@/lib/errors";
+import { getSportCatalogEntry, isSportCatalogSlug } from "@/lib/sports/catalog";
 import { deleteStoredObject } from "@/lib/storage/object-lifecycle";
 import { slugifyWikiName } from "@/lib/wiki/slug";
 import type { AdminSportsListQuery, SportUpsertInput } from "@/lib/validations/sports-admin";
@@ -211,13 +212,51 @@ async function nextDisplayOrder(): Promise<number> {
   return Number(row?.value ?? -1) + 1;
 }
 
+export async function listProvisionedSportSlugs(): Promise<string[]> {
+  const rows = await getDb().select({ slug: sports.slug }).from(sports);
+  return rows.map((row) => row.slug);
+}
+
 export async function createSport(
   input: SportUpsertInput,
   media?: { heroImageUrl?: string | null; heroImageStorageKey?: string | null },
 ): Promise<SportDetail> {
   const db = getDb();
-  const baseSlug = input.slug?.trim() || slugifyWikiName(input.name);
-  const slug = await ensureUniqueSlug(baseSlug);
+
+  if (!isSportCatalogSlug(input.slug)) {
+    throw new AppError("Sport must be selected from the platform catalog", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+      context: { fieldErrors: { name: ["Select a sport from the catalog list."] } },
+    });
+  }
+
+  const catalogEntry = getSportCatalogEntry(input.slug);
+  if (!catalogEntry || catalogEntry.name !== input.name.trim()) {
+    throw new AppError("Sport name does not match the catalog entry", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+      context: { fieldErrors: { name: ["Invalid sport name for the selected discipline."] } },
+    });
+  }
+
+  const baseSlug = input.slug.trim();
+
+  const [slugConflict] = await db
+    .select({ id: sports.id })
+    .from(sports)
+    .where(eq(sports.slug, baseSlug))
+    .limit(1);
+
+  if (slugConflict) {
+    throw new AppError("This sport discipline is already provisioned on the platform", {
+      code: "CONFLICT",
+      statusCode: 409,
+      context: { fieldErrors: { name: ["This sport already exists in the admin catalog."] } },
+    });
+  }
+
+  const slug = baseSlug;
 
   const [nameConflict] = await db
     .select({ id: sports.id })

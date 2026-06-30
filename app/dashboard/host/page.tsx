@@ -11,6 +11,7 @@ import { getMediaProxyPath, resolveUserImageUrl } from "@/lib/storage/media-url"
 import { getPlayerWikiProfileForUser } from "@/lib/account/player-profile/service";
 import { getUserSportInterests } from "@/lib/account/player-performance/sport-interests";
 import { getProfileCompletionSnapshotForUser } from "@/lib/auth/profile-completion";
+import { resolveDashboardSportContext } from "@/lib/dashboard/sport-context";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -40,8 +41,13 @@ export default async function HostDashboardPage() {
   const userName =
     dbUser?.fullNameKtp ?? dbUser?.name ?? session?.user?.name ?? "Host";
   const userEmail = session?.user?.email ?? "";
+  const sportCtx = await resolveDashboardSportContext(userId);
+  const activeSportName =
+    sportCtx.availableSports.find((s) => s.slug === sportCtx.sportSlug)?.name ??
+    sportCtx.sportSlug;
+
   const playerProfile = roles.includes("player")
-    ? await getPlayerWikiProfileForUser(userId)
+    ? await getPlayerWikiProfileForUser(userId, sportCtx.sportSlug)
     : null;
   const sportInterests = await getUserSportInterests(userId);
   const profileCompletion = await getProfileCompletionSnapshotForUser(userId);
@@ -63,6 +69,7 @@ export default async function HostDashboardPage() {
           publicPageUrl={playerProfile?.publicUrl ?? null}
           sportInterests={sportInterests}
           profileCompletion={profileCompletion}
+          activeSportName={activeSportName}
         />
       </Suspense>
     </PageShell>

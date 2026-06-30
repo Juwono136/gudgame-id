@@ -10,11 +10,13 @@ import { hostBankAccounts } from "@/db/schema/host-bank-accounts";
 import { hostXenditAccounts } from "@/db/schema/host-xendit";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournaments } from "@/db/schema/tournaments";
+import { sports } from "@/db/schema/sports";
 import {
   BLOCKING_DISBURSEMENT_STATUSES,
 } from "@/lib/payments/host-payout/disbursement/constants";
 import type {
   HostPayoutDisbursementView,
+  PendingEarningsBySport,
   PendingHostPaymentRow,
 } from "@/lib/payments/host-payout/disbursement/types";
 import {
@@ -22,7 +24,10 @@ import {
   type PayoutSchedule,
 } from "@/lib/payments/host-payout/constants";
 
-function toView(row: typeof hostPayoutDisbursements.$inferSelect): HostPayoutDisbursementView {
+function toView(
+  row: typeof hostPayoutDisbursements.$inferSelect,
+  sportNames: string[] = [],
+): HostPayoutDisbursementView {
   return {
     id: row.id,
     amountIdr: row.amountIdr,
@@ -37,7 +42,62 @@ function toView(row: typeof hostPayoutDisbursements.$inferSelect): HostPayoutDis
     estimatedArrivalAt: row.estimatedArrivalAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    sportNames,
   };
+}
+
+async function getSportNamesByDisbursementIds(
+  disbursementIds: string[],
+): Promise<Map<string, string[]>> {
+  if (disbursementIds.length === 0) return new Map();
+
+  const rows = await getDb()
+    .select({
+      disbursementId: hostPayoutDisbursementItems.disbursementId,
+      sportName: sports.name,
+    })
+    .from(hostPayoutDisbursementItems)
+    .innerJoin(
+      tournamentPayments,
+      eq(hostPayoutDisbursementItems.tournamentPaymentId, tournamentPayments.id),
+    )
+    .innerJoin(tournaments, eq(tournamentPayments.tournamentId, tournaments.id))
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(inArray(hostPayoutDisbursementItems.disbursementId, disbursementIds));
+
+  const grouped = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const current = grouped.get(row.disbursementId) ?? new Set<string>();
+    current.add(row.sportName);
+    grouped.set(row.disbursementId, current);
+  }
+
+  return new Map(
+    [...grouped.entries()].map(([id, names]) => [id, [...names].sort((a, b) => a.localeCompare(b))]),
+  );
+}
+
+export function aggregatePendingEarningsBySport(
+  rows: PendingHostPaymentRow[],
+): PendingEarningsBySport[] {
+  const bySport = new Map<string, PendingEarningsBySport>();
+
+  for (const row of rows) {
+    const existing = bySport.get(row.sportSlug);
+    if (existing) {
+      existing.amountIdr += row.hostPayoutIdr;
+      existing.paymentCount += 1;
+      continue;
+    }
+    bySport.set(row.sportSlug, {
+      sportSlug: row.sportSlug,
+      sportName: row.sportName,
+      amountIdr: row.hostPayoutIdr,
+      paymentCount: 1,
+    });
+  }
+
+  return [...bySport.values()].sort((a, b) => a.sportName.localeCompare(b.sportName));
 }
 
 export async function listPendingHostPayments(
@@ -74,12 +134,15 @@ export async function listPendingHostPayments(
     .select({
       paymentId: tournamentPayments.id,
       tournamentId: tournamentPayments.tournamentId,
+      sportSlug: sports.slug,
+      sportName: sports.name,
       hostPayoutIdr: tournamentPayments.hostPayoutIdr,
       paidAt: tournamentPayments.paidAt,
       createdAt: tournamentPayments.createdAt,
     })
     .from(tournamentPayments)
     .innerJoin(tournaments, eq(tournamentPayments.tournamentId, tournaments.id))
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
     .where(and(...conditions))
     .orderBy(tournamentPayments.paidAt);
 
@@ -123,8 +186,10 @@ export async function listHostDisbursements(
       .where(eq(hostPayoutDisbursements.hostUserId, hostUserId)),
   ]);
 
+  const sportMap = await getSportNamesByDisbursementIds(items.map((item) => item.id));
+
   return {
-    items: items.map(toView),
+    items: items.map((item) => toView(item, sportMap.get(item.id) ?? [])),
     total: Number(totalRow?.total ?? 0),
   };
 }

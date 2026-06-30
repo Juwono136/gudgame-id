@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Gamepad2, LayoutDashboard, Pencil, Plus, Search, Swords, Trash2, Trophy } from "lucide-react";
@@ -25,6 +25,7 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDeleteManageTournament } from "@/hooks/use-manage-tournament";
 import { usePlayerTournamentsList } from "@/hooks/use-player-competition";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { Badge } from "@/components/ui/badge";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
@@ -258,6 +259,8 @@ type PlayerTournamentsViewScope = "created" | "history";
 export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { sportSlug, availableSports } = useDashboardSport();
+  const sportName = availableSports.find((s) => s.slug === sportSlug)?.name ?? sportSlug;
   const scopeParam = searchParams.get("scope");
   const viewScope: PlayerTournamentsViewScope =
     scopeParam === "history" ? "history" : "created";
@@ -296,6 +299,10 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
   const { data, isLoading, isFetching, error, refetch } = usePlayerTournamentsList(queryParams, {
     includeYears: true,
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [sportSlug]);
 
   const yearOptions = data?.years ?? [];
 
@@ -341,8 +348,9 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
       variant="player"
       title={viewScope === "created" ? "My events" : "Match history"}
       description={
-        activeTab?.hint ??
-        "Manage your sessions and browse every match you have played."
+        activeTab?.hint
+          ? `${sportName} — ${activeTab.hint.toLowerCase()}`
+          : `${sportName} — manage your sessions and browse matches you have played.`
       }
       breadcrumbs={[
         { label: "Player", href: dashboardRoutes.home },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { StatCard } from "@/components/admin/ui/stat-card";
@@ -35,7 +36,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useWikiEntitiesList, useDeleteWikiEntity } from "@/hooks/use-wiki-entities";
+import { toast } from "sonner";
+import {
+  useWikiEntitiesList,
+  useDeleteWikiEntity,
+  useBulkDeleteWikiDirectory,
+  useBulkPublishWikiDirectory,
+} from "@/hooks/use-wiki-entities";
 import { useDeleteAdminTournament } from "@/hooks/use-tournaments";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import type { AdminSessionContext } from "@/lib/admin/types";
@@ -51,6 +58,16 @@ import {
   getWikiDirectoryItemKey,
   type WikiDirectoryListItem,
 } from "@/lib/wiki/directory-types";
+import {
+  countDeletableSelection,
+  countDeletableSelectionOnPage,
+  countPublishableSelection,
+  DIRECTORY_BULK_ACTION_MAX,
+  directorySelectionEntryFromItem,
+  partitionSelectionForBulkDelete,
+  partitionSelectionForBulkPublish,
+  type DirectorySelectionEntry,
+} from "@/lib/wiki/directory-selection";
 import type { WikiDirectoryTypeFilterValue } from "@/lib/wiki/constants";
 import type { TournamentStatus } from "@/lib/domain/tournaments";
 import { TOURNAMENT_STATUS_LABELS } from "@/lib/tournaments/constants";
@@ -61,6 +78,7 @@ import {
   cpSelectItemClass,
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
+import { useAdminSport } from "@/providers/admin-sport-provider";
 import { getDirectoryStatusBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
@@ -120,6 +138,87 @@ function getEditHref(item: WikiDirectoryListItem) {
 function canDeleteItem(item: WikiDirectoryListItem) {
   if (item.recordKind === "wiki_entity") return true;
   return item.recordKind === "tournament" && item.status !== "live";
+}
+
+function canSelectItem(item: WikiDirectoryListItem) {
+  return canDeleteItem(item);
+}
+
+function getBulkDeleteBlockedReason(item: WikiDirectoryListItem): string | null {
+  if (canDeleteItem(item)) return null;
+  if (item.recordKind === "tournament" && item.status === "live") {
+    return "Live tournaments cannot be bulk-deleted. End or cancel the event first.";
+  }
+  return "This item cannot be bulk-deleted.";
+}
+
+function estimateDeletableInList(
+  stats: {
+    player: number;
+    gear: number;
+    tournaments?: number;
+    tournamentsLive?: number;
+  } | undefined,
+  typeFilter: WikiDirectoryTypeFilterValue,
+): number | null {
+  if (!stats) return null;
+
+  const wikiDeletable =
+    typeFilter === "player"
+      ? stats.player
+      : typeFilter === "gear"
+        ? stats.gear
+        : typeFilter === "tournament"
+          ? 0
+          : stats.player + stats.gear;
+
+  const tournamentDeletable =
+    typeFilter === "player" || typeFilter === "gear"
+      ? 0
+      : Math.max(0, (stats.tournaments ?? 0) - (stats.tournamentsLive ?? 0));
+
+  return wikiDeletable + tournamentDeletable;
+}
+
+const checkboxClass =
+  "h-4 w-4 shrink-0 cursor-pointer rounded border-cp-border accent-cp-primary disabled:cursor-not-allowed disabled:opacity-40";
+
+type SelectAllCheckboxProps = {
+  checked: boolean;
+  indeterminate: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  "aria-label": string;
+  className?: string;
+};
+
+function SelectAllCheckbox({
+  checked,
+  indeterminate,
+  disabled,
+  onChange,
+  className,
+  "aria-label": ariaLabel,
+}: SelectAllCheckboxProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="checkbox"
+      aria-label={ariaLabel}
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      className={cn(checkboxClass, className)}
+    />
+  );
 }
 
 type DirectoryRowActionsProps = {
@@ -240,6 +339,15 @@ function DirectoryEntityIdentity({ item }: { item: WikiDirectoryListItem }) {
 }
 
 export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
+  return (
+    <AdminShell context={context} title="Wiki Entities">
+      <WikiEntitiesPageContent />
+    </AdminShell>
+  );
+}
+
+function WikiEntitiesPageContent() {
+  const { sportSlug } = useAdminSport();
   const { confirm } = useConfirmDialog();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
@@ -249,6 +357,9 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
     useState<WikiEntitiesListQuery["status"]>("all");
   const [sortBy, setSortBy] = useState<WikiEntitiesListQuery["sortBy"]>("updated");
   const [sortDir, setSortDir] = useState<WikiEntitiesListQuery["sortDir"]>("desc");
+  const [selection, setSelection] = useState<Map<string, DirectorySelectionEntry>>(
+    () => new Map(),
+  );
 
   const queryParams: WikiEntitiesListQuery = useMemo(
     () => ({
@@ -266,9 +377,95 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
     [page, debouncedSearch, typeFilter, statusFilter, sortBy, sortDir],
   );
 
-  const { data, isLoading, isFetching, error } = useWikiEntitiesList(queryParams);
+  useEffect(() => {
+    setPage(1);
+    setSelection(new Map());
+  }, [sportSlug]);
+
+  const { data, isLoading, isFetching, error } = useWikiEntitiesList(queryParams, sportSlug);
   const deleteEntity = useDeleteWikiEntity();
   const deleteTournament = useDeleteAdminTournament();
+  const bulkDelete = useBulkDeleteWikiDirectory();
+  const bulkPublish = useBulkPublishWikiDirectory();
+
+  const pageItems = data?.items ?? [];
+  const selectableOnPage = useMemo(
+    () => pageItems.filter(canSelectItem),
+    [pageItems],
+  );
+  const deletableOnPage = useMemo(
+    () => pageItems.filter(canDeleteItem),
+    [pageItems],
+  );
+  const allPageSelected =
+    selectableOnPage.length > 0 &&
+    selectableOnPage.every((item) => selection.has(getWikiDirectoryItemKey(item)));
+  const somePageSelected = selectableOnPage.some((item) =>
+    selection.has(getWikiDirectoryItemKey(item)),
+  );
+  const selectedDeletableCount = useMemo(
+    () => countDeletableSelection(selection),
+    [selection],
+  );
+  const selectedPublishableCount = useMemo(
+    () => countPublishableSelection(selection),
+    [selection],
+  );
+  const selectedOnCurrentPageCount = useMemo(
+    () => countDeletableSelectionOnPage(selection, pageItems, canSelectItem),
+    [selection, pageItems],
+  );
+  const hasCrossPageSelection =
+    selection.size > 0 && selectedOnCurrentPageCount < selection.size;
+  const estimatedDeletableTotal = useMemo(
+    () => estimateDeletableInList(data?.stats, typeFilter),
+    [data?.stats, typeFilter],
+  );
+  const pageHasOnlyProtectedItems =
+    pageItems.length > 0 && deletableOnPage.length === 0;
+
+  // Reset selection when filters change — not when paginating.
+  useEffect(() => {
+    setSelection(new Map());
+  }, [debouncedSearch, typeFilter, statusFilter, sortBy, sortDir]);
+
+  const toggleSelectItem = (item: WikiDirectoryListItem) => {
+    if (!canSelectItem(item)) return;
+    const key = getWikiDirectoryItemKey(item);
+    setSelection((prev) => {
+      const next = new Map(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.set(key, directorySelectionEntryFromItem(item));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllPage = () => {
+    if (allPageSelected) {
+      setSelection((prev) => {
+        const next = new Map(prev);
+        for (const item of selectableOnPage) {
+          next.delete(getWikiDirectoryItemKey(item));
+        }
+        return next;
+      });
+      return;
+    }
+
+    setSelection((prev) => {
+      const next = new Map(prev);
+      for (const item of selectableOnPage) {
+        const key = getWikiDirectoryItemKey(item);
+        next.set(key, directorySelectionEntryFromItem(item));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelection(new Map());
 
   const handleDeleteEntity = async (id: string, name: string) => {
     const ok = await confirm({
@@ -278,7 +475,171 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
       cancelLabel: "Cancel",
       variant: "destructive",
     });
-    if (ok) deleteEntity.mutate(id);
+    if (ok) deleteEntity.mutate({ id, redirectOnSuccess: false });
+  };
+
+  const handleBulkDeleteSelected = async () => {
+    const entries = [...selection.values()];
+    const { wikiEntityIds, tournamentIds, skippedLive } =
+      partitionSelectionForBulkDelete(entries);
+    const total = wikiEntityIds.length + tournamentIds.length;
+
+    if (total === 0) {
+      toast.error("No deletable items selected", {
+        description:
+          skippedLive > 0
+            ? "Live tournaments cannot be deleted from this list."
+            : "Select items using the checkboxes first.",
+      });
+      return;
+    }
+
+    if (total > DIRECTORY_BULK_ACTION_MAX) {
+      toast.error(`You can delete up to ${DIRECTORY_BULK_ACTION_MAX} items at a time`, {
+        description: `You selected ${total} items. Deselect some items or use Delete all in batches.`,
+      });
+      return;
+    }
+
+    const ok = await confirm({
+      title: `Delete ${total} selected item${total === 1 ? "" : "s"}?`,
+      description:
+        hasCrossPageSelection
+          ? `Selections span multiple pages (${selectedOnCurrentPageCount} on this page, ${total} total). This permanently removes wiki entities, media, and relations. Live tournaments are skipped.`
+          : skippedLive > 0
+            ? `${skippedLive} live tournament${skippedLive === 1 ? "" : "s"} in your selection will be skipped. This action permanently removes wiki entities, media, and relations.`
+            : "This permanently removes selected wiki entities, media, and relations. This cannot be undone.",
+      confirmLabel: "Delete selected",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    bulkDelete.mutate(
+      { mode: "selection", wikiEntityIds, tournamentIds },
+      { onSuccess: () => clearSelection() },
+    );
+  };
+
+  const handleBulkDeleteAll = async () => {
+    const filterSummary = [
+      debouncedSearch ? `search “${debouncedSearch}”` : null,
+      typeFilter !== "all" ? `type ${typeFilter}` : null,
+      statusFilter !== "all" ? `status ${statusFilter}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    const totalMatching = data?.total ?? 0;
+
+    const ok = await confirm({
+      title: "Delete all items?",
+      description: filterSummary
+        ? `${totalMatching} item${totalMatching === 1 ? "" : "s"} match ${filterSummary}. Up to ${DIRECTORY_BULK_ACTION_MAX} deletable items will be removed per request. Live tournaments are always skipped.`
+        : `All ${totalMatching} item${totalMatching === 1 ? "" : "s"} in this list (up to ${DIRECTORY_BULK_ACTION_MAX} per request) will be deleted. Live tournaments are always skipped.`,
+      confirmLabel: "Delete all",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    bulkDelete.mutate(
+      {
+        mode: "filter",
+        filter: {
+          page: 1,
+          pageSize: DIRECTORY_BULK_ACTION_MAX,
+          search: debouncedSearch || undefined,
+          entityType:
+            typeFilter === "all"
+              ? undefined
+              : (typeFilter as WikiEntitiesListQuery["entityType"]),
+          status: statusFilter,
+          sortBy,
+          sortDir,
+        },
+      },
+      { onSuccess: () => clearSelection() },
+    );
+  };
+
+  const handleBulkPublishSelected = async () => {
+    const entries = [...selection.values()];
+    const { wikiEntityIds, skipped } = partitionSelectionForBulkPublish(entries);
+
+    if (wikiEntityIds.length === 0) {
+      toast.error("No draft wiki entities selected", {
+        description:
+          skipped > 0
+            ? "Only draft players and gear can be published. Tournaments and already-published items are skipped."
+            : "Select draft items using the checkboxes first.",
+      });
+      return;
+    }
+
+    if (wikiEntityIds.length > DIRECTORY_BULK_ACTION_MAX) {
+      toast.error(`You can publish up to ${DIRECTORY_BULK_ACTION_MAX} items at a time`, {
+        description: `You selected ${wikiEntityIds.length} draft items. Deselect some or publish in batches.`,
+      });
+      return;
+    }
+
+    const ok = await confirm({
+      title: `Publish ${wikiEntityIds.length} draft item${wikiEntityIds.length === 1 ? "" : "s"}?`,
+      description:
+        hasCrossPageSelection
+          ? `Publishing ${wikiEntityIds.length} draft wiki entit${wikiEntityIds.length === 1 ? "y" : "ies"} from your selection. They will appear on the public sport wiki.`
+          : skipped > 0
+            ? `${skipped} selected item${skipped === 1 ? "" : "s"} will be skipped (not draft wiki entities).`
+            : "Published entries appear on the public sport wiki.",
+      confirmLabel: "Publish selected",
+      cancelLabel: "Cancel",
+    });
+    if (!ok) return;
+
+    bulkPublish.mutate(
+      { mode: "selection", wikiEntityIds },
+      { onSuccess: () => clearSelection() },
+    );
+  };
+
+  const handleBulkPublishAllDrafts = async () => {
+    const draftTotal = data?.stats?.wikiDraft ?? 0;
+    const filterSummary = [
+      debouncedSearch ? `search “${debouncedSearch}”` : null,
+      typeFilter !== "all" ? `type ${typeFilter}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    const ok = await confirm({
+      title: "Publish all draft wiki entities?",
+      description: filterSummary
+        ? `Up to ${DIRECTORY_BULK_ACTION_MAX} draft wiki entities matching ${filterSummary} will be published. Tournaments are not included.`
+        : `Up to ${DIRECTORY_BULK_ACTION_MAX} draft wiki entities (of ${draftTotal} total drafts) will be published.`,
+      confirmLabel: "Publish all drafts",
+      cancelLabel: "Cancel",
+    });
+    if (!ok) return;
+
+    bulkPublish.mutate(
+      {
+        mode: "filter",
+        filter: {
+          page: 1,
+          pageSize: DIRECTORY_BULK_ACTION_MAX,
+          search: debouncedSearch || undefined,
+          entityType:
+            typeFilter === "all"
+              ? undefined
+              : (typeFilter as WikiEntitiesListQuery["entityType"]),
+          status: "draft",
+          sortBy,
+          sortDir,
+        },
+      },
+      { onSuccess: () => clearSelection() },
+    );
   };
 
   const handleDeleteTournament = async (id: string, name: string) => {
@@ -295,8 +656,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
   const totalPages = data ? Math.ceil(data.total / data.pageSize) : 1;
 
   return (
-    <AdminShell context={context} title="Wiki Entities">
-      <div className="relative space-y-4 sm:space-y-6">
+    <div className="relative space-y-4 sm:space-y-6">
         <AdminLoadingOverlay show={isFetching && !isLoading} />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -306,7 +666,7 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
               <span className="font-medium text-foreground">editorial player profiles</span> you
               created for{" "}
               <span className="font-semibold capitalize text-cp-logo-accent">
-                {context.sportSlug}
+                {sportSlug}
               </span>
               . Players who registered through the app are not listed here.
             </p>
@@ -446,6 +806,119 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
             </div>
           ) : null}
 
+          {data?.items.length ? (
+            <div className="flex flex-col gap-2 border-b border-cp-border bg-cp-elevated/25 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4 lg:px-5">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-cp-muted">
+                {selection.size > 0 ? (
+                  <span className="font-medium text-foreground">
+                    {selection.size} selected
+                    {selectedPublishableCount > 0 ? (
+                      <span className="font-normal text-cp-muted">
+                        {" "}
+                        · {selectedPublishableCount} draft
+                        {selectedPublishableCount === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
+                    {hasCrossPageSelection ? (
+                      <span className="font-normal text-cp-muted">
+                        {" "}
+                        · {selectedOnCurrentPageCount} on this page
+                      </span>
+                    ) : null}
+                  </span>
+                ) : pageHasOnlyProtectedItems ? (
+                  <span>
+                    No bulk-delete on this page.{" "}
+                    <span className="text-cp-muted">
+                      Live tournaments are protected; players, gear, and draft tournaments can
+                      be selected.
+                    </span>
+                  </span>
+                ) : (
+                  <span>
+                    Select draft wiki entities to publish, or use bulk delete for removal.
+                  </span>
+                )}
+                {selection.size > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-cp-muted hover:text-foreground"
+                    onClick={clearSelection}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedPublishableCount === 0 || bulkPublish.isPending}
+                  className="h-8 border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                  onClick={() => void handleBulkPublishSelected()}
+                >
+                  {bulkPublish.isPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Publish selected
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    bulkPublish.isPending ||
+                    !data?.stats?.wikiDraft ||
+                    data.stats.wikiDraft === 0
+                  }
+                  className="h-8 border-cp-border text-xs text-cp-muted hover:border-emerald-500/30 hover:text-emerald-400"
+                  onClick={() => void handleBulkPublishAllDrafts()}
+                >
+                  Publish all drafts
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedDeletableCount === 0 || bulkDelete.isPending}
+                  className="h-8 border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  onClick={() => void handleBulkDeleteSelected()}
+                >
+                  {bulkDelete.isPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Delete selected
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    bulkDelete.isPending ||
+                    estimatedDeletableTotal === 0 ||
+                    estimatedDeletableTotal === null
+                  }
+                  title={
+                    estimatedDeletableTotal === 0
+                      ? "No deletable items match your filters (live tournaments are skipped)"
+                      : undefined
+                  }
+                  className="h-8 border-cp-border text-xs text-cp-muted hover:border-red-500/30 hover:text-red-400"
+                  onClick={() => void handleBulkDeleteAll()}
+                >
+                  Delete all
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {error ? (
             <p className="p-10 text-center text-sm text-red-400">
               Failed to load entities. Try again.
@@ -473,6 +946,15 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-cp-border/80 bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      <th className="w-10 px-3 py-3">
+                        <SelectAllCheckbox
+                          aria-label="Select all on this page"
+                          checked={allPageSelected}
+                          indeterminate={somePageSelected && !allPageSelected}
+                          disabled={selectableOnPage.length === 0}
+                          onChange={toggleSelectAllPage}
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold">Entity</th>
                       <th className="px-4 py-3 font-semibold">Type</th>
                       <th className="px-4 py-3 font-semibold">Status</th>
@@ -481,11 +963,30 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-cp-border/50">
-                    {data.items.map((item) => (
+                    {data.items.map((item) => {
+                      const itemKey = getWikiDirectoryItemKey(item);
+                      const isSelected = selection.has(itemKey);
+                      const selectable = canSelectItem(item);
+
+                      return (
                       <tr
-                        key={getWikiDirectoryItemKey(item)}
-                        className="transition-colors hover:bg-cp-elevated/30"
+                        key={itemKey}
+                        className={cn(
+                          "transition-colors hover:bg-cp-elevated/30",
+                          isSelected && "bg-cp-primary/5",
+                        )}
                       >
+                        <td className="w-10 px-3 py-3 align-middle">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${item.displayName}`}
+                            checked={isSelected}
+                            disabled={!selectable}
+                            title={getBulkDeleteBlockedReason(item) ?? undefined}
+                            onChange={() => toggleSelectItem(item)}
+                            className={checkboxClass}
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <DirectoryEntityIdentity item={item} />
                         </td>
@@ -514,15 +1015,52 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                           />
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>
 
               <div className="divide-y divide-cp-border/50 lg:hidden">
-                {data.items.map((item) => (
-                  <article key={getWikiDirectoryItemKey(item)} className="p-3 sm:p-4">
+                {selectableOnPage.length > 0 ? (
+                  <div className="flex items-center gap-3 border-b border-cp-border/60 bg-cp-elevated/25 px-3 py-2.5 sm:px-4">
+                    <SelectAllCheckbox
+                      aria-label="Select all on this page"
+                      checked={allPageSelected}
+                      indeterminate={somePageSelected && !allPageSelected}
+                      onChange={toggleSelectAllPage}
+                    />
+                    <span className="text-xs text-cp-muted">Select all on this page</span>
+                  </div>
+                ) : null}
+                {data.items.map((item) => {
+                  const itemKey = getWikiDirectoryItemKey(item);
+                  const isSelected = selection.has(itemKey);
+                  const selectable = canSelectItem(item);
+
+                  return (
+                  <article
+                    key={itemKey}
+                    className={cn("p-3 sm:p-4", isSelected && "bg-cp-primary/5")}
+                  >
                     <div className="flex gap-3">
+                      {selectable ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${item.displayName}`}
+                          checked={isSelected}
+                          onChange={() => toggleSelectItem(item)}
+                          className={cn(checkboxClass, "mt-1")}
+                        />
+                      ) : (
+                        <span
+                          className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center"
+                          title={getBulkDeleteBlockedReason(item) ?? undefined}
+                          aria-label={getBulkDeleteBlockedReason(item) ?? "Cannot select"}
+                        >
+                          <span className="h-3 w-3 rounded border border-cp-border/50 bg-cp-elevated/40" />
+                        </span>
+                      )}
                       <WikiEntityThumbnail
                         imageUrl={item.primaryImageUrl}
                         entityType={item.entityType}
@@ -560,7 +1098,8 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
                       </div>
                     </div>
                   </article>
-                ))}
+                );
+                })}
               </div>
             </>
           )}
@@ -594,6 +1133,5 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
           </div>
         ) : null}
       </div>
-    </AdminShell>
   );
 }

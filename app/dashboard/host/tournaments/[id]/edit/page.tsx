@@ -40,8 +40,6 @@ export default async function HostEditTournamentPage({ params }: PageProps) {
     <PageShell showGridBackground={false}>
       {isFunMatch ? (
         <ReclubTournamentWizard
-          sports={[{ slug: tournament.sportSlug, name: tournament.sportName }]}
-          defaultSportSlug={tournament.sportSlug}
           initial={tournament}
           tournamentId={tournamentId}
           workspace="host"

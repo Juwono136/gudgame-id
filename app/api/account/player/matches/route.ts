@@ -5,6 +5,7 @@ import {
   listPlayerMatches,
 } from "@/lib/account/player-competition/list-matches";
 import { requirePlayerDashboardAccess } from "@/lib/auth/role-guard";
+import { requireDashboardSportContext } from "@/lib/dashboard/sport-context";
 import { AppError } from "@/lib/errors";
 import { playerMatchesListQuerySchema } from "@/lib/validations/player-competition";
 
@@ -13,6 +14,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const { userId } = await requirePlayerDashboardAccess();
+    const sportCtx = await requireDashboardSportContext(userId);
     const url = new URL(request.url);
     const parsed = playerMatchesListQuerySchema.safeParse(
       Object.fromEntries(url.searchParams.entries()),
@@ -26,20 +28,22 @@ export async function GET(request: Request) {
       });
     }
 
-    const list = await listPlayerMatches(userId, parsed.data);
+    const query = { ...parsed.data, sportSlug: sportCtx.sportSlug };
+    const list = await listPlayerMatches(userId, query);
     const years = url.searchParams.get("includeYears") === "1"
-      ? await listDistinctMatchYears(userId)
+      ? await listDistinctMatchYears(userId, sportCtx.sportSlug)
       : undefined;
     const summary = url.searchParams.get("includeSummary") === "1"
       ? await getPlayerMatchListSummary(userId, {
-          search: parsed.data.search,
-          result: parsed.data.result,
-          type: parsed.data.type,
-          year: parsed.data.year,
+          search: query.search,
+          result: query.result,
+          type: query.type,
+          year: query.year,
+          sportSlug: sportCtx.sportSlug,
         })
       : undefined;
 
-    return jsonSuccess({ ...list, years, summary });
+    return jsonSuccess({ ...list, years, summary, sportSlug: sportCtx.sportSlug });
   } catch (error) {
     return jsonError(error);
   }

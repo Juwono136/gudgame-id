@@ -150,6 +150,14 @@ export async function POST(request: Request) {
       })
       .where(eq(user.id, existing.id));
 
+    const { syncOwnedPlayerProfilesFromSportInterests } = await import(
+      "@/lib/account/player-profile/sync-owned-profiles"
+    );
+    await syncOwnedPlayerProfilesFromSportInterests(existing.id);
+
+    const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
+    await reconcileDashboardSportCookie(existing.id);
+
     const status = getProfileCompletionStatus({
       fullNameKtp: data.fullNameKtp,
       phone: data.phone,

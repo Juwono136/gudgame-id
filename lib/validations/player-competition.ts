@@ -15,6 +15,8 @@ export const playerMatchesListQuerySchema = listBaseSchema.extend({
   ),
   sortBy: z.enum(["playedAt", "tournament"]).default("playedAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
+  /** Injected server-side from dashboard sport cookie — not accepted from client URL */
+  sportSlug: z.string().trim().min(1).max(50).optional(),
 });
 
 export type PlayerMatchesListQuery = z.infer<typeof playerMatchesListQuerySchema>;
@@ -29,6 +31,8 @@ export const playerTournamentsListQuerySchema = listBaseSchema.extend({
   placement: z.string().trim().max(80).optional().or(z.literal("")),
   sortBy: z.enum(["year", "tournament", "placement"]).default("year"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
+  /** Injected server-side from dashboard sport cookie — not accepted from client URL */
+  sportSlug: z.string().trim().min(1).max(50).optional(),
 });
 
 export type PlayerTournamentsListQuery = z.infer<typeof playerTournamentsListQuerySchema>;

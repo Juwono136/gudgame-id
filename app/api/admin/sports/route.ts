@@ -5,7 +5,7 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireAdminSession } from "@/lib/admin/session";
 import { hasPermission } from "@/lib/roles/permissions";
 import { parseSportAdminForm } from "@/lib/sports/parse-sport-form";
-import { createSport, listAdminSportsPaginated } from "@/lib/sports/service";
+import { createSport, listAdminSportsPaginated, listProvisionedSportSlugs } from "@/lib/sports/service";
 import { AppError } from "@/lib/errors";
 import { sportsListQuerySchema } from "@/lib/validations/sports-admin";
 
@@ -31,6 +31,11 @@ export async function GET(request: Request) {
     const ctx = await requireAdminSession();
     const url = new URL(request.url);
     const view = url.searchParams.get("view");
+
+    if (view === "provisioned-slugs") {
+      const slugs = await listProvisionedSportSlugs();
+      return jsonSuccess({ slugs });
+    }
 
     if (view === "manage") {
       if (!hasPermission(ctx.roles, "admin.sports.manage")) {

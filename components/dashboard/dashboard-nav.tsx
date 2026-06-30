@@ -11,6 +11,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import { DashboardSportSelector } from "@/components/dashboard/dashboard-sport-selector";
 import type { AppRole } from "@/lib/roles/constants";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,10 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
       <p className="mb-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
         {variant === "host" ? "Host workspace" : "Player workspace"}
       </p>
+
+      <div className="mb-2 px-1">
+        <DashboardSportSelector />
+      </div>
 
       <div className="flex flex-col gap-1">
         {items.map((item) => {

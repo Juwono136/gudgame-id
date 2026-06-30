@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import type { TournamentListItem, TournamentDetail } from "@/lib/tournaments/service";
 import type { HostTournamentWorkspace } from "@/lib/tournaments/workspace/service";
 import type { TournamentStatus } from "@/db/schema/tournaments";
@@ -11,13 +12,15 @@ import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 
 export function useHostTournamentsList() {
+  const { sportSlug } = useDashboardSport();
+
   return useQuery({
-    queryKey: ["host", "tournaments"],
+    queryKey: ["host", "tournaments", sportSlug],
     queryFn: async () => {
       const res = await fetch("/api/host/tournaments");
       const json = await parseJsonResponse<{
         success: boolean;
-        data: { items: TournamentListItem[] };
+        data: { items: TournamentListItem[]; sportSlug: string };
         error?: unknown;
       }>(res);
       if (!res.ok) {
@@ -160,7 +163,7 @@ export function useDeleteHostTournament() {
 export function useCreatePlayerReclubTournament() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: TournamentUpsertInput & { sportSlug: string }) => {
+    mutationFn: async (input: TournamentUpsertInput) => {
       const res = await fetch("/api/tournaments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

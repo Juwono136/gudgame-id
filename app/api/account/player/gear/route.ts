@@ -2,6 +2,7 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { parseRequestJson } from "@/lib/api/parse-request-json";
 import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { requireDashboardSportContext } from "@/lib/dashboard/sport-context";
 import { AppError } from "@/lib/errors";
 import { getPlayerWikiProfileForUser } from "@/lib/account/player-profile/service";
 import { createPlayerPublishedGear } from "@/lib/wiki/gear/player-create";
@@ -31,7 +32,10 @@ export async function POST(request: Request) {
       windowSeconds: 60,
     });
 
-    const profile = await getPlayerWikiProfileForUser(ctx.userId);
+    const profile = await getPlayerWikiProfileForUser(
+      ctx.userId,
+      (await requireDashboardSportContext(ctx.userId)).sportSlug,
+    );
     if (!profile) {
       throw new AppError("Create your player profile before adding gear", {
         code: "VALIDATION_ERROR",

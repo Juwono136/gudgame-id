@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { sports, wikiEntities } from "@/db/schema";
+import { wikiEntities } from "@/db/schema";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import {
@@ -48,7 +48,7 @@ function readPriceDisplay(attrs: Record<string, unknown>, priceIdr: number | nul
 }
 
 export async function listPublishedGearPaginated(
-  sportSlug: string,
+  sportId: string,
   query: PublicGearListQuery,
 ): Promise<{
   items: PublicGearListItem[];
@@ -62,7 +62,7 @@ export async function listPublishedGearPaginated(
   const offset = (page - 1) * pageSize;
 
   const conditions = [
-    eq(sports.slug, sportSlug),
+    eq(wikiEntities.sportId, sportId),
     eq(wikiEntities.entityType, "gear"),
     eq(wikiEntities.status, "published"),
   ];
@@ -88,7 +88,6 @@ export async function listPublishedGearPaginated(
   const [totalRow] = await db
     .select({ count: count() })
     .from(wikiEntities)
-    .innerJoin(sports, eq(wikiEntities.sportId, sports.id))
     .where(whereClause);
 
   const total = Number(totalRow?.count ?? 0);
@@ -117,7 +116,6 @@ export async function listPublishedGearPaginated(
       attributes: wikiEntities.attributes,
     })
     .from(wikiEntities)
-    .innerJoin(sports, eq(wikiEntities.sportId, sports.id))
     .where(whereClause)
     .orderBy(orderExpr)
     .limit(pageSize)

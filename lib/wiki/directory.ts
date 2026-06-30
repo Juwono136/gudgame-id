@@ -1,11 +1,11 @@
 import "server-only";
 
 import type { WikiEntityType } from "@/db/schema/wiki";
-import { listTournaments, type TournamentListItem } from "@/lib/tournaments/service";
+import { getTournamentStats, listTournaments, type TournamentListItem } from "@/lib/tournaments/service";
 import type { TournamentsListQuery } from "@/lib/validations/tournaments";
 import type { WikiEntitiesListQuery } from "@/lib/validations/wiki-entities";
 import type { WikiDirectoryListItem } from "@/lib/wiki/directory-types";
-import { listWikiEntities, type WikiEntityListItem } from "@/lib/wiki/service";
+import { getWikiEntityStats, listWikiEntities, type WikiEntityListItem } from "@/lib/wiki/service";
 
 export type { WikiDirectoryListItem, WikiDirectoryTypeFilter } from "@/lib/wiki/directory-types";
 
@@ -190,5 +190,44 @@ export async function listWikiDirectory(
   return {
     ...result,
     items: result.items.map(mapWikiRow),
+  };
+}
+
+export type WikiDirectoryStats = {
+  player: number;
+  gear: number;
+  /** Wiki entities + tournaments matching directory “published” filter */
+  published: number;
+  /** Wiki entities + tournament drafts matching directory “draft” filter */
+  draft: number;
+  /** Draft wiki entities only (for bulk publish) */
+  wikiDraft: number;
+  tournaments: number;
+  tournamentsLive: number;
+  tournamentsUpcoming: number;
+};
+
+/** Aggregate directory stat cards — aligned with list filter status mapping. */
+export async function getWikiDirectoryStats(
+  sportId: string,
+  options?: WikiDirectoryOptions,
+): Promise<WikiDirectoryStats> {
+  const [wikiStats, tournamentStats] = await Promise.all([
+    getWikiEntityStats(sportId, options?.adminUserId),
+    getTournamentStats(sportId, options?.tournamentCreatedBy),
+  ]);
+
+  const publishedTournaments =
+    tournamentStats.upcoming + tournamentStats.live + tournamentStats.completed;
+
+  return {
+    player: wikiStats.player,
+    gear: wikiStats.gear,
+    published: wikiStats.published + publishedTournaments,
+    draft: wikiStats.draft + tournamentStats.draft,
+    wikiDraft: wikiStats.draft,
+    tournaments: tournamentStats.total,
+    tournamentsLive: tournamentStats.live,
+    tournamentsUpcoming: tournamentStats.upcoming,
   };
 }

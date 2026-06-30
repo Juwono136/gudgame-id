@@ -1,9 +1,9 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireWikiManagementAccess } from "@/lib/admin/session";
-import { getTournamentStats } from "@/lib/tournaments/service";
-import { listWikiDirectory } from "@/lib/wiki/directory";
-import { createWikiEntity, getWikiEntityStats } from "@/lib/wiki/service";
+import { getWikiDirectoryStats, listWikiDirectory } from "@/lib/wiki/directory";
+import { createWikiEntity } from "@/lib/wiki/service";
 import { parseAndUploadWikiForm } from "@/lib/wiki/parse-wiki-form";
+import { assertAdminFormSportScope } from "@/lib/wiki/assert-sport-scope";
 import {
   wikiEntitiesListQuerySchema,
 } from "@/lib/validations/wiki-entities";
@@ -19,22 +19,13 @@ export async function GET(request: Request) {
       Object.fromEntries(url.searchParams.entries()),
     );
     const directoryOptions = { tournamentCreatedBy: ctx.userId, adminUserId: ctx.userId };
-    const [list, wikiStats, tournamentStats] = await Promise.all([
+    const [list, stats] = await Promise.all([
       listWikiDirectory(ctx.sportId, query, directoryOptions),
-      getWikiEntityStats(ctx.sportId, ctx.userId),
-      getTournamentStats(ctx.sportId, ctx.userId),
+      getWikiDirectoryStats(ctx.sportId, directoryOptions),
     ]);
     return jsonSuccess({
       ...list,
-      stats: {
-        player: wikiStats.player,
-        gear: wikiStats.gear,
-        published: wikiStats.published,
-        draft: wikiStats.draft,
-        tournaments: tournamentStats.total,
-        tournamentsLive: tournamentStats.live,
-        tournamentsUpcoming: tournamentStats.upcoming,
-      },
+      stats,
       sportSlug: ctx.sportSlug,
     });
   } catch (error) {
@@ -46,6 +37,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireWikiManagementAccess();
     const formData = await request.formData();
+    assertAdminFormSportScope(formData, ctx.sportSlug);
     const parsed = await parseAndUploadWikiForm(formData, ctx.sportSlug);
 
     if (!parsed.ok) {

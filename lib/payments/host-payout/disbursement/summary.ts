@@ -9,6 +9,7 @@ import {
   MIN_HOST_PAYOUT_DISBURSEMENT_IDR,
 } from "@/lib/payments/host-payout/disbursement/constants";
 import {
+  aggregatePendingEarningsBySport,
   getLastCompletedDisbursement,
   listPendingHostPayments,
 } from "@/lib/payments/host-payout/disbursement/queries";
@@ -31,6 +32,7 @@ export async function getHostPayoutSummary(hostUserId: string): Promise<HostPayo
 
   const pendingPayments = await listPendingHostPayments(hostUserId);
   const pendingBalanceIdr = pendingPayments.reduce((sum, p) => sum + p.hostPayoutIdr, 0);
+  const pendingBySport = aggregatePendingEarningsBySport(pendingPayments);
 
   const lastCompleted = await getLastCompletedDisbursement(hostUserId);
   const lastCompletedAt = lastCompleted?.completedAt ?? null;
@@ -52,6 +54,7 @@ export async function getHostPayoutSummary(hostUserId: string): Promise<HostPayo
         estimatedArrivalAt: lastCompleted.estimatedArrivalAt?.toISOString() ?? null,
         completedAt: lastCompleted.completedAt?.toISOString() ?? null,
         createdAt: lastCompleted.createdAt.toISOString(),
+        sportNames: [],
       }
     : null;
 
@@ -65,5 +68,6 @@ export async function getHostPayoutSummary(hostUserId: string): Promise<HostPayo
     minimumDisbursementIdr: MIN_HOST_PAYOUT_DISBURSEMENT_IDR,
     xenPlatformLinked: Boolean(xenditRow?.xenditAccountId) && isXenPlatformEnabled(),
     bankConfigured: profile.configured,
+    pendingBySport,
   };
 }

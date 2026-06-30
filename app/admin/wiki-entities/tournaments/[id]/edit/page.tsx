@@ -41,8 +41,8 @@ export default async function AdminEditTournamentPage({ params }: PageProps) {
       <div className="mt-6">
         {isFunMatch ? (
           <ReclubTournamentWizard
-            sports={[{ slug: ctx.sportSlug, name: tournament.sportName }]}
-            defaultSportSlug={ctx.sportSlug}
+            sportSlug={ctx.sportSlug}
+            sportName={tournament.sportName}
             initial={tournament}
             tournamentId={tournamentId}
             workspace="admin"

@@ -47,6 +47,8 @@ export const DEFAULT_REGISTRATION_ROLES: AppRole[] = ["player"];
 
 export const ACTIVE_ROLE_COOKIE = "cp-active-role";
 export const ADMIN_SPORT_COOKIE = "cp-admin-sport";
+/** Player/host dashboard active sport — separate from admin console scope */
+export const DASHBOARD_SPORT_COOKIE = "cp-dashboard-sport";
 
 export function isAppRole(value: string): value is AppRole {
   return (APP_ROLES as readonly string[]).includes(value);

@@ -23,15 +23,27 @@ import {
 } from "@/db/schema";
 import { AppError } from "@/lib/errors";
 import {
-  adminWikiEntityVisibilityCondition,
   assertAdminCanManageWikiEntity,
+  adminWikiEntityVisibilityCondition,
 } from "@/lib/wiki/admin-entity-access";
+import { normalizeWikiSourceUrl } from "@/lib/wiki/normalize-source-url";
+import { assertGearSourceUrlUnique } from "@/lib/wiki/source-url-lookup";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
 import type {
   WikiEntitiesListQuery,
   WikiEntityUpsertInput,
 } from "@/lib/validations/wiki-entities";
+
+function resolveWikiSourceUrl(
+  entityType: WikiEntityType,
+  sourceUrl: string | undefined,
+): string | null {
+  const trimmed = sourceUrl?.trim();
+  if (!trimmed) return null;
+  if (entityType === "gear") return normalizeWikiSourceUrl(trimmed);
+  return trimmed;
+}
 
 export type WikiEntityListItem = {
   id: string;
@@ -342,6 +354,11 @@ export async function createWikiEntity(
 
   const now = new Date();
   const publishedAt = input.status === "published" ? now : null;
+  const sourceUrl = resolveWikiSourceUrl(input.entityType, input.sourceUrl);
+
+  if (input.entityType === "gear") {
+    await assertGearSourceUrlUnique(sportId, sourceUrl);
+  }
 
   const [created] = await db
     .insert(wikiEntities)
@@ -359,7 +376,7 @@ export async function createWikiEntity(
       specs: input.specs,
       features: input.features,
       sourceType: input.sourceType,
-      sourceUrl: input.sourceUrl || null,
+      sourceUrl,
       scrapedAt: input.sourceType === "scraped" ? now : null,
       publishedAt,
       heroImageUrl: images?.heroUrl || input.heroImageUrl || null,
@@ -448,6 +465,11 @@ export async function updateWikiEntity(
     ? null
     : (images?.primaryStorageKey ?? existing.primaryImageStorageKey ?? null);
 
+  const sourceUrl = resolveWikiSourceUrl(input.entityType, input.sourceUrl);
+  if (input.entityType === "gear") {
+    await assertGearSourceUrlUnique(sportId, sourceUrl, id);
+  }
+
   const { deleteStoredObjectIfReplaced } = await import(
     "@/lib/storage/object-lifecycle"
   );
@@ -467,7 +489,7 @@ export async function updateWikiEntity(
       specs: input.specs,
       features: input.features,
       sourceType: input.sourceType,
-      sourceUrl: input.sourceUrl || null,
+      sourceUrl,
       publishedAt,
       heroImageUrl: images?.clearHero
         ? null

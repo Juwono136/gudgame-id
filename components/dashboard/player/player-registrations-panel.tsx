@@ -16,6 +16,7 @@ import {
 import type { PlayerRegistrationItem } from "@/lib/tournaments/payments/player-history";
 import { getPublicTournamentTypeLabel } from "@/lib/tournaments/ui/labels";
 import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
+import { SportDisciplineLabel } from "@/components/shared/sport-discipline-label";
 import { cn } from "@/lib/utils";
 
 const REG_FILTERS = ["all", "upcoming", "live", "completed"] as const;
@@ -67,6 +68,9 @@ function RegistrationCard({ item }: { item: PlayerRegistrationItem }) {
       </div>
 
       <p className="mt-3 font-semibold leading-snug text-foreground">{item.tournamentName}</p>
+      <div className="mt-2">
+        <SportDisciplineLabel name={item.sportName} />
+      </div>
 
       <p className="mt-2 flex items-center gap-1.5 text-xs text-cp-muted">
         <Calendar className="h-3.5 w-3.5 shrink-0" />

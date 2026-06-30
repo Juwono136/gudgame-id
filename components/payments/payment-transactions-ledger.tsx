@@ -28,6 +28,7 @@ import {
   toTotalPages,
 } from "@/lib/pagination/constants";
 import { paymentStatusBadgeClass } from "@/lib/styles/status-badges";
+import { SportDisciplineLabel } from "@/components/shared/sport-discipline-label";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES = paymentStatusBadgeClass;
@@ -37,6 +38,7 @@ type PaymentTransactionsLedgerProps = {
   scope: "admin" | "host" | "player";
   showHostColumn?: boolean;
   showPlatformFees?: boolean;
+  showSportColumn?: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
   pageSize?: number;
   embedded?: boolean;
@@ -124,6 +126,7 @@ function TransactionLedgerCard({
   scope,
   showHostColumn,
   showPlatformFees,
+  showSportColumn,
   onPayPending,
   onViewReceipt,
 }: {
@@ -131,6 +134,7 @@ function TransactionLedgerCard({
   scope: PaymentTransactionsLedgerProps["scope"];
   showHostColumn: boolean;
   showPlatformFees: boolean;
+  showSportColumn: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
   onViewReceipt?: (row: PaymentTransactionRow) => void;
 }) {
@@ -152,7 +156,12 @@ function TransactionLedgerCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-foreground">{row.tournamentName}</p>
-            <p className="mt-0.5 text-xs capitalize text-cp-muted">{row.tournamentType}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {showSportColumn ? (
+                <SportDisciplineLabel name={row.sportName} />
+              ) : null}
+              <p className="text-xs capitalize text-cp-muted">{row.tournamentType}</p>
+            </div>
           </div>
           <Badge
             className={cn(
@@ -237,10 +246,12 @@ export function PaymentTransactionsLedger({
   scope,
   showHostColumn = false,
   showPlatformFees = false,
+  showSportColumn,
   onPayPending,
   pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
   embedded = false,
 }: PaymentTransactionsLedgerProps) {
+  const displaySportColumn = showSportColumn ?? scope !== "admin";
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(1);
@@ -394,6 +405,7 @@ export function PaymentTransactionsLedger({
                   scope={scope}
                   showHostColumn={showHostColumn}
                   showPlatformFees={showPlatformFees}
+                  showSportColumn={displaySportColumn}
                   onPayPending={onPayPending}
                   onViewReceipt={handleViewReceipt}
                 />
@@ -401,11 +413,14 @@ export function PaymentTransactionsLedger({
             </ul>
 
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[800px] text-left text-sm">
                 <thead className="border-b border-cp-border bg-cp-elevated/50 text-xs uppercase tracking-wide text-cp-muted">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Date</th>
                     <th className="px-4 py-3 font-semibold">Tournament</th>
+                    {displaySportColumn ? (
+                      <th className="px-4 py-3 font-semibold">Sport</th>
+                    ) : null}
                     <th className="px-4 py-3 font-semibold">Team / Player</th>
                     {showHostColumn ? (
                       <th className="px-4 py-3 font-semibold">Host</th>
@@ -433,6 +448,11 @@ export function PaymentTransactionsLedger({
                         <p className="font-medium text-foreground">{row.tournamentName}</p>
                         <p className="text-xs text-cp-muted capitalize">{row.tournamentType}</p>
                       </td>
+                      {displaySportColumn ? (
+                        <td className="px-4 py-3">
+                          <SportDisciplineLabel name={row.sportName} />
+                        </td>
+                      ) : null}
                       <td className="px-4 py-3">
                         <p>{row.teamName ?? "—"}</p>
                         <p className="text-xs text-cp-muted">{row.payerName ?? "Player"}</p>

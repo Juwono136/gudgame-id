@@ -12,6 +12,7 @@ import {
   getWikiEntityAdminAccessRow,
 } from "@/lib/wiki/admin-entity-access";
 import { parseAndUploadWikiForm } from "@/lib/wiki/parse-wiki-form";
+import { assertAdminFormSportScope } from "@/lib/wiki/assert-sport-scope";
 import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -46,6 +47,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const entityId = parseEntityIdParam(id, "entity id");
 
     const formData = await request.formData();
+    assertAdminFormSportScope(formData, ctx.sportSlug);
     const parsed = await parseAndUploadWikiForm(formData, ctx.sportSlug);
 
     if (!parsed.ok) {

@@ -8,18 +8,10 @@ import {
   type TournamentCreateKind,
 } from "@/components/tournaments/tournament-create-kind-hub";
 import { dashboardRoutes } from "@/lib/constants/routes";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 
-type SportOption = { slug: string; name: string };
-
-type HostCreateTournamentClientProps = {
-  defaultSportSlug: string;
-  sports: SportOption[];
-};
-
-export function HostCreateTournamentClient({
-  defaultSportSlug,
-  sports,
-}: HostCreateTournamentClientProps) {
+export function HostCreateTournamentClient() {
+  const { sportSlug } = useDashboardSport();
   const [kind, setKind] = useState<TournamentCreateKind | null>(null);
 
   if (!kind) {
@@ -36,18 +28,13 @@ export function HostCreateTournamentClient({
 
   if (kind === "fun_match") {
     return (
-      <PlayerCreateReclubWizard
-        sports={sports}
-        defaultSportSlug={defaultSportSlug}
-        workspace="host"
-        onBack={() => setKind(null)}
-      />
+      <PlayerCreateReclubWizard workspace="host" onBack={() => setKind(null)} />
     );
   }
 
   return (
     <TournamentCreateWizard
-      sportSlug={defaultSportSlug}
+      sportSlug={sportSlug}
       mode="host"
       workspace="host"
       initialTournamentType="official"

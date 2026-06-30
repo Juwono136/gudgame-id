@@ -78,7 +78,15 @@ export function SportHubContent({ sport, live, upcoming, past }: SportHubContent
       <div className="relative min-h-[280px] overflow-hidden border-b border-cp-border bg-cp-card">
         {heroUrl ? (
           <>
-            <Image src={heroUrl} alt="" fill className="object-cover" priority unoptimized />
+            <Image
+              src={heroUrl}
+              alt=""
+              fill
+              sizes="100vw"
+              className="object-cover"
+              priority
+              unoptimized
+            />
             <div className="absolute inset-0 bg-gradient-to-r from-cp-bg/95 via-cp-bg/80 to-cp-bg/50" />
           </>
         ) : (

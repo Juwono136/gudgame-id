@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useHostTournamentsList, useDeleteHostTournament } from "@/hooks/use-host-tournaments";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { TournamentListItem } from "@/lib/tournaments/service";
@@ -148,6 +149,8 @@ function HostTournamentCard({
 export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
   const { confirm } = useConfirmDialog();
   const [tab, setTab] = useState<HubTab>("events");
+  const { sportSlug, availableSports } = useDashboardSport();
+  const sportName = availableSports.find((s) => s.slug === sportSlug)?.name ?? sportSlug;
   const { data: items = [], isLoading, isError, error } = useHostTournamentsList();
   const deleteTournament = useDeleteHostTournament();
 
@@ -181,7 +184,11 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
       roles={roles}
       variant="host"
       title="Tournaments"
-      description={activeTab?.hint ?? "Official and Fun Match events you host."}
+      description={
+        activeTab?.hint
+          ? `${sportName} — ${activeTab.hint.toLowerCase()}`
+          : `${sportName} — official and Fun Match events you host.`
+      }
       breadcrumbs={[
         { label: "Host", href: dashboardRoutes.host },
         { label: "Tournaments" },

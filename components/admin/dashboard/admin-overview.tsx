@@ -14,6 +14,7 @@ import { adminRoutes } from "@/lib/constants/routes";
 import type { AdminSessionContext } from "@/lib/admin/types";
 import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
 import type { AdminDashboardRange } from "@/lib/validations/admin-dashboard";
+import { useAdminSport } from "@/providers/admin-sport-provider";
 import {
   canManageUsers,
   hasPermission,
@@ -25,8 +26,20 @@ const fadeUp = {
 };
 
 export function AdminOverview({ context }: { context: AdminSessionContext }) {
+  return (
+    <AdminShell context={context} title="Dashboard">
+      <AdminOverviewContent context={context} />
+    </AdminShell>
+  );
+}
+
+function AdminOverviewContent({ context }: { context: AdminSessionContext }) {
+  const { sportSlug } = useAdminSport();
   const [range, setRange] = useState<AdminDashboardRange>("month");
-  const { data, isLoading, isFetching, error, refetch } = useAdminDashboardStats(range);
+  const { data, isLoading, isFetching, error, refetch } = useAdminDashboardStats(
+    range,
+    sportSlug,
+  );
 
   const showUsers = canManageUsers(context.roles);
   const showWiki = hasPermission(context.roles, "admin.wiki.manage");
@@ -35,14 +48,14 @@ export function AdminOverview({ context }: { context: AdminSessionContext }) {
     range === "week" ? "last 7 days" : range === "month" ? "last 30 days" : "last 12 months";
 
   return (
-    <AdminShell context={context} title="Dashboard">
+    <>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-cp-primary">
             Platform overview
           </p>
           <h2 className="mt-1 text-lg font-semibold text-foreground sm:text-xl">
-            <span className="capitalize">{context.sportSlug}</span> console
+            <span className="capitalize">{sportSlug}</span> console
           </h2>
           <p className="mt-1 text-sm text-cp-muted">
             Live metrics from users and wiki content. Refreshes every minute.
@@ -172,6 +185,6 @@ export function AdminOverview({ context }: { context: AdminSessionContext }) {
           </motion.div>
         </motion.div>
       ) : null}
-    </AdminShell>
+    </>
   );
 }

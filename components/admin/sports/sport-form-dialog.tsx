@@ -13,6 +13,7 @@ import {
 import { LimitedTextarea } from "@/components/admin/form/limited-textarea";
 import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { SportHeroImageField } from "@/components/admin/sports/sport-hero-image-field";
+import { SportCatalogNameSelect } from "@/components/admin/sports/sport-catalog-name-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +80,7 @@ export function SportFormDialog({
   const isEdit = Boolean(sport);
 
   const [name, setName] = useState("");
+  const [catalogSlug, setCatalogSlug] = useState("");
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] =
@@ -99,6 +101,7 @@ export function SportFormDialog({
     setFieldErrors({});
     if (sport) {
       setName(sport.name);
+      setCatalogSlug(sport.slug);
       setTagline(sport.tagline ?? "");
       setDescription(sport.description ?? "");
       setVisibility(sport.visibility as (typeof SPORT_VISIBILITY)[number]);
@@ -107,6 +110,7 @@ export function SportFormDialog({
       setModules(sport.modules ?? DEFAULT_SPORT_MODULES);
     } else {
       setName("");
+      setCatalogSlug("");
       setTagline("");
       setDescription("");
       setVisibility("coming_soon");
@@ -117,8 +121,8 @@ export function SportFormDialog({
   }, [open, sport]);
 
   const autoSlug = useMemo(
-    () => sport?.slug ?? (slugifyWikiName(name) || "sport-slug"),
-    [sport?.slug, name],
+    () => sport?.slug ?? (catalogSlug || slugifyWikiName(name) || "sport-slug"),
+    [sport?.slug, catalogSlug, name],
   );
 
   const buildFormData = () => {
@@ -138,6 +142,12 @@ export function SportFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isEdit && !catalogSlug) {
+      setFieldErrors({ name: "Select a sport discipline from the catalog." });
+      toast.error("Please select a sport discipline");
+      return;
+    }
 
     const validation = validateSportFormInput({
       name,
@@ -209,31 +219,34 @@ export function SportFormDialog({
                   Identity
                 </p>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="sport-name">Name</Label>
-                    <FieldCharCounter
-                      current={name.length}
-                      max={SPORT_FIELD_LIMITS.name}
+                  {isEdit ? (
+                    <>
+                      <Label htmlFor="sport-name">Sport discipline</Label>
+                      <Input
+                        id="sport-name"
+                        value={name}
+                        disabled
+                        readOnly
+                        className="h-11 w-full border-cp-border bg-cp-elevated/80 text-foreground"
+                      />
+                      <p className="text-[11px] text-cp-muted">
+                        Catalog discipline cannot be renamed after provisioning.
+                      </p>
+                    </>
+                  ) : (
+                    <SportCatalogNameSelect
+                      value={catalogSlug}
+                      onChange={(slug, catalogName) => {
+                        setCatalogSlug(slug);
+                        setName(catalogName);
+                        if (fieldErrors.name) {
+                          setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                        }
+                      }}
+                      disabled={busy}
+                      error={fieldErrors.name}
                     />
-                  </div>
-                  <Input
-                    id="sport-name"
-                    value={name}
-                    maxLength={SPORT_FIELD_LIMITS.name}
-                    onChange={(e) => {
-                      setName(e.target.value.slice(0, SPORT_FIELD_LIMITS.name));
-                      if (fieldErrors.name) {
-                        setFieldErrors((prev) => ({ ...prev, name: undefined }));
-                      }
-                    }}
-                    required
-                    placeholder="e.g. Padel"
-                    aria-invalid={Boolean(fieldErrors.name) || undefined}
-                    className="h-11 w-full border-cp-border bg-cp-bg-input text-foreground"
-                  />
-                  {fieldErrors.name ? (
-                    <p className="text-xs text-red-400">{fieldErrors.name}</p>
-                  ) : null}
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sport-slug">URL slug</Label>
@@ -245,7 +258,7 @@ export function SportFormDialog({
                     className="h-11 w-full border-cp-border bg-cp-elevated/80 text-cp-muted"
                   />
                   <p className="text-[11px] text-cp-muted">
-                    Generated automatically from the name.
+                    Fixed catalog slug shared with player sport interests.
                   </p>
                 </div>
                 <div className="space-y-2">

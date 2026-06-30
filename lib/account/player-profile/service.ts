@@ -7,7 +7,7 @@ import { AppError } from "@/lib/errors";
 import { getWikiEntityById } from "@/lib/wiki/service";
 import { ensureDefaultSports } from "@/lib/sports/ensure-default-sport";
 import { getSportBySlug } from "@/lib/wiki/public";
-import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
+import { slugifyWikiName } from "@/lib/wiki/slug";
 import { sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
 import { uploadWikiImage, validateWikiImageFile } from "@/lib/wiki/upload-media";
 import {
@@ -17,9 +17,14 @@ import {
   type PlayerEquipmentItem,
 } from "@/lib/wiki/player-equipment";
 import {
-  DEFAULT_PLAYER_SPORT_SLUG,
   PLAYER_GALLERY_MAX,
 } from "@/lib/wiki/constants";
+import {
+  getPrimaryOwnedPlayerEntityId,
+  getOwnedPlayerEntityIdForSport,
+  listOwnedPlayerEntities,
+  syncOwnedPlayerProfilesFromSportInterests,
+} from "@/lib/account/player-profile/sync-owned-profiles";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
 import {
   deleteStoredObjectIfReplaced,
@@ -134,23 +139,17 @@ function buildPlayerAttributes(
 }
 
 export async function getPlayerWikiEntityIdForUser(userId: string): Promise<string | null> {
-  const [row] = await getDb()
-    .select({ id: wikiEntities.id })
-    .from(wikiEntities)
-    .where(
-      and(
-        eq(wikiEntities.ownerUserId, userId),
-        eq(wikiEntities.entityType, "player"),
-      ),
-    )
-    .limit(1);
-  return row?.id ?? null;
+  return getPrimaryOwnedPlayerEntityId(userId);
 }
 
 export async function getPlayerWikiProfileForUser(
   userId: string,
+  sportSlug?: string,
 ): Promise<PlayerWikiProfileView | null> {
-  const entityId = await getPlayerWikiEntityIdForUser(userId);
+  await syncOwnedPlayerProfilesFromSportInterests(userId);
+  const entityId = sportSlug
+    ? await getOwnedPlayerEntityIdForSport(userId, sportSlug)
+    : await getPrimaryOwnedPlayerEntityId(userId);
   if (!entityId) return null;
   const detail = await getWikiEntityById(entityId);
   if (!detail) return null;
@@ -293,26 +292,44 @@ export async function upsertPlayerWikiProfile(
   options: { create: boolean },
 ): Promise<PlayerWikiProfileView> {
   await ensureDefaultSports();
-  const sport = await getSportBySlug(DEFAULT_PLAYER_SPORT_SLUG);
-  if (!sport) {
-    throw new AppError(
-      "Default sport is not available. Run npm run db:seed or add an active sport in Admin.",
-      {
-        code: "SERVICE_UNAVAILABLE",
-        statusCode: 503,
-      },
-    );
-  }
+  await syncOwnedPlayerProfilesFromSportInterests(userId);
 
-  const existingId = await getPlayerWikiEntityIdForUser(userId);
-  if (options.create && existingId) {
+  const owned = await listOwnedPlayerEntities(userId);
+  const publishedOwned = owned.filter((row) => row.status === "published");
+
+  if (options.create && publishedOwned.length > 0) {
     throw new AppError("You already have a player profile", {
       code: "VALIDATION_ERROR",
       statusCode: 409,
     });
   }
-  if (!options.create && !existingId) {
+
+  const primaryEntityId = await getPrimaryOwnedPlayerEntityId(userId);
+  if (!primaryEntityId) {
+    throw new AppError(
+      "No player profile could be created. Select sports you follow in Settings and ask an admin to enable those sports on the platform.",
+      {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+        context: {
+          fieldErrors: {
+            sportInterests: [
+              "Choose at least one sport in Settings that is already enabled on TandingBase.",
+            ],
+          },
+        },
+      },
+    );
+  }
+
+  const primaryDetail = await getWikiEntityById(primaryEntityId);
+  if (!primaryDetail) {
     throw new AppError("Player profile not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const sport = await getSportBySlug(primaryDetail.sportSlug);
+  if (!sport) {
+    throw new AppError("Sport not found for player profile", { code: "NOT_FOUND", statusCode: 404 });
   }
 
   const equipmentFiles = parseEquipmentFiles(formData);
@@ -322,7 +339,10 @@ export async function upsertPlayerWikiProfile(
     sport.slug,
   );
 
-  await validatePlayerGearLinks(sport.id, equipment);
+  for (const row of publishedOwned) {
+    await validatePlayerGearLinks(row.sportId, equipment);
+  }
+
   equipment = await enrichEquipmentFromCatalog(sport.id, sport.slug, equipment);
 
   const db = getDb();
@@ -351,81 +371,21 @@ export async function upsertPlayerWikiProfile(
   }
 
   const totalGallery = [...keptGallery, ...uploadedGallery].slice(0, PLAYER_GALLERY_MAX);
-
   const biography = input.biography ? sanitizeRichText(input.biography) : null;
   const summary = input.summary ? sanitizeRichText(input.summary) : null;
 
-  if (options.create) {
-    const baseSlug = slugifyWikiName(displayName);
-    const slug = await ensureUniqueWikiSlug(baseSlug, async (s) => {
-      const [row] = await db
-        .select({ id: wikiEntities.id })
-        .from(wikiEntities)
-        .where(and(eq(wikiEntities.sportId, sport.id), eq(wikiEntities.slug, s)))
-        .limit(1);
-      return Boolean(row);
-    });
-
-    const now = new Date();
-    const attributes = buildPlayerAttributes({}, input, equipment);
-
-    const [created] = await db
-      .insert(wikiEntities)
-      .values({
-        sportId: sport.id,
-        entityType: "player",
-        slug,
-        displayName,
-        summary,
-        biography,
-        status: "published",
-        attributes,
-        performance: {},
-        specs: {},
-        features: [],
-        sourceType: "manual",
-        publishedAt: now,
-        primaryImageUrl: accountPhoto.url,
-        primaryImageStorageKey: accountPhoto.storageKey,
-        ownerUserId: userId,
-        createdBy: userId,
-        updatedBy: userId,
-      })
-      .returning();
-
-    if (!created) {
-      throw new AppError("Failed to create player profile", {
-        code: "DATABASE_ERROR",
-        statusCode: 500,
-      });
-    }
-
-    await syncPlayerGallery(created.id, totalGallery);
-    const detail = await getWikiEntityById(created.id);
-    if (!detail) {
-      throw new AppError("Player profile not found after create", { code: "NOT_FOUND", statusCode: 404 });
-    }
-    return mapPlayerProfile(detail);
-  }
-
-  const entityId = existingId!;
-  const [existing] = await db
+  const [primaryRow] = await db
     .select()
     .from(wikiEntities)
-    .where(
-      and(
-        eq(wikiEntities.id, entityId),
-        eq(wikiEntities.ownerUserId, userId),
-      ),
-    )
+    .where(and(eq(wikiEntities.id, primaryEntityId), eq(wikiEntities.ownerUserId, userId)))
     .limit(1);
 
-  if (!existing) {
+  if (!primaryRow) {
     throw new AppError("Player profile not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
   const previousEquipment = equipmentFromAttributes(
-    (existing.attributes ?? {}) as Record<string, unknown>,
+    (primaryRow.attributes ?? {}) as Record<string, unknown>,
   );
   equipment = await Promise.resolve(equipment).then(async (next) => {
     await syncEquipmentStorage(previousEquipment, next);
@@ -443,10 +403,13 @@ export async function upsertPlayerWikiProfile(
   }
 
   const mergedAttributes = buildPlayerAttributes(
-    (existing.attributes ?? {}) as Record<string, unknown>,
+    (primaryRow.attributes ?? {}) as Record<string, unknown>,
     input,
     equipment,
   );
+
+  const entityIds = publishedOwned.map((row) => row.id);
+  const now = new Date();
 
   await db
     .update(wikiEntities)
@@ -455,19 +418,25 @@ export async function upsertPlayerWikiProfile(
       summary,
       biography,
       attributes: mergedAttributes,
-      primaryImageUrl: accountPhoto.url ?? existing.primaryImageUrl,
-      primaryImageStorageKey:
-        accountPhoto.storageKey ?? existing.primaryImageStorageKey,
+      primaryImageUrl: accountPhoto.url ?? primaryRow.primaryImageUrl,
+      primaryImageStorageKey: accountPhoto.storageKey ?? primaryRow.primaryImageStorageKey,
       updatedBy: userId,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
-    .where(eq(wikiEntities.id, entityId));
+    .where(
+      and(
+        eq(wikiEntities.ownerUserId, userId),
+        eq(wikiEntities.entityType, "player"),
+      ),
+    );
 
-  await syncPlayerGallery(entityId, totalGallery);
+  for (const entityId of entityIds) {
+    await syncPlayerGallery(entityId, totalGallery);
+  }
 
-  const detail = await getWikiEntityById(entityId);
+  const detail = await getWikiEntityById(primaryEntityId);
   if (!detail) {
-    throw new AppError("Player profile not found after update", { code: "NOT_FOUND", statusCode: 404 });
+    throw new AppError("Player profile not found after save", { code: "NOT_FOUND", statusCode: 404 });
   }
   return mapPlayerProfile(detail);
 }

@@ -17,6 +17,7 @@ export type PlayerPaymentHistoryItem = {
   tournamentId: string;
   tournamentName: string;
   sportSlug: string;
+  sportName: string;
   tournamentSlug: string;
   amountIdr: number;
   platformFeeIdr: number;
@@ -32,6 +33,7 @@ export type PlayerRegistrationItem = {
   tournamentId: string;
   tournamentName: string;
   sportSlug: string;
+  sportName: string;
   tournamentSlug: string;
   tournamentType: string;
   status: string;
@@ -93,6 +95,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
       tournamentId: tournamentPayments.tournamentId,
       tournamentName: tournaments.name,
       sportSlug: sports.slug,
+      sportName: sports.name,
       tournamentSlug: tournaments.slug,
       amountIdr: tournamentPayments.amountIdr,
       platformFeeIdr: tournamentPayments.platformFeeIdr,
@@ -114,6 +117,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
     tournamentId: r.tournamentId,
     tournamentName: r.tournamentName,
     sportSlug: r.sportSlug,
+    sportName: r.sportName,
     tournamentSlug: r.tournamentSlug,
     amountIdr: r.amountIdr,
     platformFeeIdr: r.platformFeeIdr,
@@ -131,6 +135,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     tournamentId: tournamentRegistrations.tournamentId,
     tournamentName: tournaments.name,
     sportSlug: sports.slug,
+    sportName: sports.name,
     tournamentSlug: tournaments.slug,
     tournamentType: tournaments.tournamentType,
     status: tournamentRegistrations.status,
@@ -144,6 +149,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     tournamentId: string;
     tournamentName: string;
     sportSlug: string;
+    sportName: string;
     tournamentSlug: string;
     tournamentType: string;
     status: string;
@@ -155,6 +161,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     tournamentId: r.tournamentId,
     tournamentName: r.tournamentName,
     sportSlug: r.sportSlug,
+    sportName: r.sportName,
     tournamentSlug: r.tournamentSlug,
     tournamentType: r.tournamentType,
     status: r.status,

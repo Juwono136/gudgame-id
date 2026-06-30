@@ -6,6 +6,7 @@ import { user } from "@/db/schema/auth";
 import { wikiEntities } from "@/db/schema";
 import { AppError } from "@/lib/errors";
 import { resolvePlayerDisplayNameFromAccount } from "@/lib/wiki/player-profile-fields";
+import { listOwnedPlayerEntityIds } from "@/lib/account/player-profile/owned-entities";
 
 export async function requirePlayerDisplayNameForUser(userId: string): Promise<string> {
   const [dbUser] = await getDb()
@@ -40,35 +41,25 @@ export async function requirePlayerDisplayNameForUser(userId: string): Promise<s
   return displayName;
 }
 
-async function getOwnedPlayerEntityId(userId: string): Promise<string | null> {
-  const [row] = await getDb()
-    .select({ id: wikiEntities.id })
-    .from(wikiEntities)
-    .where(
-      and(
-        eq(wikiEntities.ownerUserId, userId),
-        eq(wikiEntities.entityType, "player"),
-      ),
-    )
-    .limit(1);
-  return row?.id ?? null;
-}
-
 /** Keeps wiki `displayName` in sync when the account full name changes. */
 export async function syncPlayerDisplayNameFromUser(userId: string): Promise<void> {
-  const entityId = await getOwnedPlayerEntityId(userId);
-  if (!entityId) return;
+  const entityIds = await listOwnedPlayerEntityIds(userId);
+  if (entityIds.length === 0) return;
 
   const displayName = await requirePlayerDisplayNameForUser(userId);
+  const now = new Date();
 
   await getDb()
     .update(wikiEntities)
     .set({
       displayName,
       updatedBy: userId,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(
-      and(eq(wikiEntities.id, entityId), eq(wikiEntities.ownerUserId, userId)),
+      and(
+        eq(wikiEntities.ownerUserId, userId),
+        eq(wikiEntities.entityType, "player"),
+      ),
     );
 }

@@ -30,6 +30,7 @@ type HostDashboardProps = {
   publicPageUrl?: string | null;
   sportInterests?: SportInterestItem[];
   profileCompletion?: ProfileCompletionSnapshot;
+  activeSportName: string;
 };
 
 const STATUS_BADGE_STYLES = tournamentStatusBadgeClass;
@@ -114,6 +115,7 @@ export function HostDashboard({
   publicPageUrl,
   sportInterests = [],
   profileCompletion,
+  activeSportName,
 }: HostDashboardProps) {
   const { data: tournaments = [], isLoading } = useHostTournamentsList();
   const recent = tournaments.slice(0, 5);
@@ -124,7 +126,7 @@ export function HostDashboard({
       roles={roles}
       variant="host"
       title="Overview"
-      description="Manage official events, Fun Match sessions, registrations, and payouts."
+      description={`${activeSportName} — manage events, registrations, and payouts for this discipline.`}
       actions={
         <div className="flex w-full flex-col gap-2 min-[400px]:flex-row md:w-auto">
           {publicPageUrl ? (
@@ -207,7 +209,9 @@ export function HostDashboard({
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-foreground sm:text-lg">Your tournaments</h2>
             <p className="text-sm text-cp-muted">
-              {isLoading ? "Loading…" : `${tournaments.length} event${tournaments.length === 1 ? "" : "s"} you host`}
+              {isLoading
+                ? "Loading…"
+                : `${tournaments.length} ${activeSportName} event${tournaments.length === 1 ? "" : "s"} you host`}
             </p>
           </div>
           <Button asChild variant="outline" size="sm" className="h-10 w-full shrink-0 border-cp-border sm:w-auto">
@@ -222,7 +226,7 @@ export function HostDashboard({
             <Trophy className="h-10 w-10 text-cp-muted" />
             <p className="font-medium text-foreground">No tournaments yet</p>
             <p className="max-w-sm text-sm text-cp-muted">
-              Create your first official event or Fun Match session — choose the format when you start.
+              Create your first {activeSportName} official event or Fun Match session.
             </p>
             <Button asChild size="sm" className="mt-2 h-10 bg-cp-primary">
               <Link href={dashboardRoutes.hostTournamentsNew}>

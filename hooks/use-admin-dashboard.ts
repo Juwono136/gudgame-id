@@ -7,13 +7,13 @@ import type { AdminDashboardRange } from "@/lib/validations/admin-dashboard";
 
 type ApiSuccess<T> = { success: true; data: T };
 
-export function adminDashboardQueryKey(range: AdminDashboardRange) {
-  return ["admin", "dashboard", "stats", range] as const;
+export function adminDashboardQueryKey(range: AdminDashboardRange, sportSlug: string) {
+  return ["admin", "dashboard", "stats", sportSlug, range] as const;
 }
 
-export function useAdminDashboardStats(range: AdminDashboardRange) {
+export function useAdminDashboardStats(range: AdminDashboardRange, sportSlug: string) {
   return useQuery({
-    queryKey: adminDashboardQueryKey(range),
+    queryKey: adminDashboardQueryKey(range, sportSlug),
     queryFn: async () => {
       const res = await fetch(`/api/admin/dashboard/stats?range=${range}`);
       const json = await parseJsonResponse<ApiSuccess<AdminDashboardStats>>(res);

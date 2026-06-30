@@ -138,6 +138,63 @@ export const wikiEntitiesListQuerySchema = z.object({
 
 export type WikiEntitiesListQuery = z.infer<typeof wikiEntitiesListQuerySchema>;
 
+export const wikiBulkDeleteSchema = z
+  .object({
+    mode: z.enum(["selection", "filter"]),
+    wikiEntityIds: z.array(z.string().uuid()).max(100).default([]),
+    tournamentIds: z.array(z.string().uuid()).max(100).default([]),
+    filter: wikiEntitiesListQuerySchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.mode === "selection") {
+      if (value.wikiEntityIds.length + value.tournamentIds.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select at least one item to delete",
+          path: ["wikiEntityIds"],
+        });
+      }
+    }
+    if (value.mode === "filter" && !value.filter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Filter is required for delete-all",
+        path: ["filter"],
+      });
+    }
+  });
+
+export type WikiBulkDeleteInput = z.infer<typeof wikiBulkDeleteSchema>;
+
+export const wikiBulkPublishSchema = z
+  .object({
+    mode: z.enum(["selection", "filter"]),
+    wikiEntityIds: z.array(z.string().uuid()).max(100).default([]),
+    filter: wikiEntitiesListQuerySchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.mode === "selection" && value.wikiEntityIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select at least one draft wiki entity to publish",
+        path: ["wikiEntityIds"],
+      });
+    }
+    if (value.mode === "filter" && !value.filter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Filter is required for publish-all",
+        path: ["filter"],
+      });
+    }
+  });
+
+export type WikiBulkPublishInput = z.infer<typeof wikiBulkPublishSchema>;
+
+export const wikiSourceUrlStatusSchema = z.object({
+  urls: z.array(z.string().trim().min(1).max(2000)).min(1).max(80),
+});
+
 export const wikiScrapeRequestSchema = z.object({
   url: z
     .string()

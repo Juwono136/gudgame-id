@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Archive,
@@ -41,11 +41,14 @@ import {
   useCreatorTournamentHistory,
   useTournamentArchive,
 } from "@/hooks/use-creator-tournament-history";
+import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentsListQuery } from "@/lib/validations/tournaments";
 import { cn } from "@/lib/utils";
 
 export function HostTournamentHistoryPanel() {
+  const { sportSlug, availableSports } = useDashboardSport();
+  const sportName = availableSports.find((s) => s.slug === sportSlug)?.name ?? sportSlug;
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
@@ -70,6 +73,10 @@ export function HostTournamentHistoryPanel() {
 
   const { data, isLoading, isFetching, error } = useCreatorTournamentHistory(query);
   const { data: archive, isLoading: archiveLoading } = useTournamentArchive(archiveId);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sportSlug]);
 
   return (
     <div className="space-y-4">
@@ -138,9 +145,9 @@ export function HostTournamentHistoryPanel() {
         ) : !data?.items.length ? (
           <div className="py-16 text-center">
             <History className="mx-auto h-10 w-10 text-cp-muted" />
-            <p className="mt-4 font-medium text-foreground">No tournament history yet</p>
+            <p className="mt-4 font-medium text-foreground">No {sportName} tournament history yet</p>
             <p className="mt-1 text-sm text-cp-muted">
-              Completed events and audit snapshots appear here for accountability.
+              Completed {sportName} events and audit snapshots appear here for accountability.
             </p>
           </div>
         ) : (

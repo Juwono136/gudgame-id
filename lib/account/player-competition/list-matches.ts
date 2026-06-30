@@ -64,7 +64,7 @@ function matchSortColumn(sortBy: PlayerMatchesListQuery["sortBy"]) {
 }
 
 function buildMatchConditions(userId: string, query: PlayerMatchesListQuery) {
-  const { search, result, type, year } = query;
+  const { search, result, type, year, sportSlug } = query;
   const conditions = [eq(playerMatches.userId, userId)];
 
   if (search?.trim()) {
@@ -99,6 +99,10 @@ function buildMatchConditions(userId: string, query: PlayerMatchesListQuery) {
     );
   }
 
+  if (sportSlug) {
+    conditions.push(eq(sports.slug, sportSlug));
+  }
+
   return and(...conditions);
 }
 
@@ -123,7 +127,7 @@ function matchListSelect() {
 
 export async function getPlayerMatchListSummary(
   userId: string,
-  query: Pick<PlayerMatchesListQuery, "search" | "result" | "type" | "year">,
+  query: Pick<PlayerMatchesListQuery, "search" | "result" | "type" | "year" | "sportSlug">,
 ): Promise<PlayerMatchListSummary> {
   const db = getDb();
   const whereClause = buildMatchConditions(userId, {
@@ -193,14 +197,29 @@ export async function listPlayerMatches(
   );
 }
 
-export async function listDistinctMatchYears(userId: string): Promise<number[]> {
+export async function listDistinctMatchYears(
+  userId: string,
+  sportSlug?: string,
+): Promise<number[]> {
   const db = getDb();
+  const whereClause = buildMatchConditions(userId, {
+    page: 1,
+    pageSize: 10,
+    result: "all",
+    type: "all",
+    sortBy: "playedAt",
+    sortDir: "desc",
+    sportSlug,
+  });
+
   const rows = await db
     .select({
       year: sql<number>`extract(year from ${playerMatches.playedAt})::int`,
     })
     .from(playerMatches)
-    .where(eq(playerMatches.userId, userId))
+    .leftJoin(tournaments, eq(playerMatches.tournamentId, tournaments.id))
+    .leftJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(whereClause)
     .groupBy(sql`extract(year from ${playerMatches.playedAt})`)
     .orderBy(desc(sql`extract(year from ${playerMatches.playedAt})`));
 

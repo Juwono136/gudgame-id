@@ -542,6 +542,10 @@ export async function listPlayerTournaments(
     });
   }
 
+  if (query.sportSlug) {
+    merged = merged.filter((r) => r.sportSlug === query.sportSlug);
+  }
+
   merged = sortRows(merged, sortBy, sortDir);
 
   const total = merged.length;
@@ -555,6 +559,7 @@ export async function listPlayerTournaments(
 export async function listDistinctTournamentYears(
   userId: string,
   roles: AppRole[],
+  sportSlug?: string,
 ): Promise<number[]> {
   const list = await listPlayerTournaments(userId, roles, {
     page: 1,
@@ -563,6 +568,7 @@ export async function listDistinctTournamentYears(
     type: "all",
     sortBy: "year",
     sortDir: "desc",
+    sportSlug,
   });
   const years = new Set(list.items.map((i) => i.year));
   return [...years].sort((a, b) => b - a);

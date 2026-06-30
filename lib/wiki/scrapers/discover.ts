@@ -6,6 +6,7 @@ import { fetchHtmlForScrape } from "@/lib/wiki/scrapers/fetch-html";
 import type { WikiCatalogDiscovery, WikiCatalogListItem } from "@/lib/wiki/scrapers/types";
 import { assertScrapeUrlAllowed } from "@/lib/wiki/scrapers/security";
 import { discoverByHost } from "@/lib/wiki/scrapers/discover-sites";
+import { normalizeWikiSourceUrl } from "@/lib/wiki/normalize-source-url";
 
 export const MAX_CATALOG_ITEMS = 80;
 
@@ -169,8 +170,8 @@ export async function discoverGearCatalog(
 function dedupeByUrl(items: WikiCatalogListItem[]): WikiCatalogListItem[] {
   const map = new Map<string, WikiCatalogListItem>();
   for (const item of items) {
-    const key = item.url.toLowerCase();
-    if (!map.has(key)) map.set(key, item);
+    const key = normalizeWikiSourceUrl(item.url);
+    if (!map.has(key)) map.set(key, { ...item, url: key });
   }
   return [...map.values()];
 }

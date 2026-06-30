@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function GearListPage({ params }: PageProps) {
   const { sportSlug } = await params;
   const sport = await getSportBySlug(sportSlug);
-  if (!sport || sport.visibility !== "live") notFound();
+  if (!sport || sport.visibility !== "live" || !sport.modules.gear) notFound();
 
   return (
     <WikiPageShell

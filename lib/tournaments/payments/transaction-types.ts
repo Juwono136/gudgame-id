@@ -4,6 +4,7 @@ export type PaymentTransactionRow = {
   tournamentId: string;
   tournamentName: string;
   sportSlug: string;
+  sportName: string;
   tournamentSlug: string;
   tournamentType: string;
   teamName: string | null;

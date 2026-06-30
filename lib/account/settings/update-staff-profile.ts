@@ -72,6 +72,14 @@ export async function updateStaffProfile(
 
   await getDb().update(user).set(updatePayload).where(eq(user.id, userId));
 
+  const { syncOwnedPlayerProfilesFromSportInterests } = await import(
+    "@/lib/account/player-profile/sync-owned-profiles"
+  );
+  await syncOwnedPlayerProfilesFromSportInterests(userId);
+
+  const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
+  await reconcileDashboardSportCookie(userId);
+
   const { syncPlayerPrimaryPhotoFromUser } = await import(
     "@/lib/account/player-profile/sync-primary-photo"
   );

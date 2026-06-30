@@ -28,25 +28,8 @@ export async function getUserPhotoForWiki(userId: string): Promise<{
   };
 }
 
-async function getOwnedPlayerEntityId(userId: string): Promise<string | null> {
-  const [row] = await getDb()
-    .select({ id: wikiEntities.id })
-    .from(wikiEntities)
-    .where(
-      and(
-        eq(wikiEntities.ownerUserId, userId),
-        eq(wikiEntities.entityType, "player"),
-      ),
-    )
-    .limit(1);
-  return row?.id ?? null;
-}
-
-/** Copies the account profile photo onto the owned wiki player entity. */
+/** Copies the account profile photo onto all owned wiki player entities. */
 export async function syncPlayerPrimaryPhotoFromUser(userId: string): Promise<void> {
-  const entityId = await getOwnedPlayerEntityId(userId);
-  if (!entityId) return;
-
   const photo = await getUserPhotoForWiki(userId);
   if (!photo.url && !photo.storageKey) return;
 
@@ -59,6 +42,9 @@ export async function syncPlayerPrimaryPhotoFromUser(userId: string): Promise<vo
       updatedAt: new Date(),
     })
     .where(
-      and(eq(wikiEntities.id, entityId), eq(wikiEntities.ownerUserId, userId)),
+      and(
+        eq(wikiEntities.ownerUserId, userId),
+        eq(wikiEntities.entityType, "player"),
+      ),
     );
 }

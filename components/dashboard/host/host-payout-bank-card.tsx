@@ -34,6 +34,9 @@ import {
   type PayoutSchedule,
 } from "@/lib/payments/host-payout/constants";
 import { PayoutScheduleField } from "@/components/dashboard/host/payout-schedule-field";
+import { SportDisciplineLabel } from "@/components/shared/sport-discipline-label";
+import { formatIdrDisplay } from "@/lib/format/currency";
+import type { HostPayoutSummaryView } from "@/lib/payments/host-payout/disbursement/types";
 import { cn } from "@/lib/utils";
 
 type AccountFormState = {
@@ -103,6 +106,20 @@ export function HostPayoutBankCard({
       if (!res.ok) throw new Error("Failed to load payout profile");
       return json.data.profile;
     },
+  });
+
+  const { data: payoutSummary } = useQuery({
+    queryKey: ["host", "payout-summary"],
+    queryFn: async () => {
+      const res = await fetch("/api/host/payout/disbursements/summary");
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data: { summary: HostPayoutSummaryView };
+      }>(res);
+      if (!res.ok) throw new Error("Failed to load payout summary");
+      return json.data.summary;
+    },
+    enabled: Boolean(profile?.configured),
   });
 
   useEffect(() => {
@@ -435,6 +452,59 @@ export function HostPayoutBankCard({
           </Button>
         </div>
       )}
+
+      {isConfigured && payoutSummary && payoutSummary.pendingBySport.length > 0 ? (
+        <div className="mt-5 overflow-hidden rounded-xl border border-cp-border bg-cp-card/50">
+          <div className="border-b border-cp-border px-4 py-3 sm:px-5">
+            <h3 className="text-sm font-semibold text-foreground">Pending earnings by sport</h3>
+            <p className="mt-1 text-xs text-cp-muted">
+              Paid registrations awaiting your next scheduled bank transfer.
+            </p>
+          </div>
+          <ul className="divide-y divide-cp-border lg:hidden">
+            {payoutSummary.pendingBySport.map((row) => (
+              <li
+                key={row.sportSlug}
+                className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5"
+              >
+                <SportDisciplineLabel name={row.sportName} />
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-foreground">
+                    {formatIdrDisplay(row.amountIdr)}
+                  </p>
+                  <p className="text-[11px] text-cp-muted">
+                    {row.paymentCount} payment{row.paymentCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto lg:block">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead className="border-b border-cp-border bg-cp-elevated/50 text-xs uppercase tracking-wide text-cp-muted">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Sport</th>
+                  <th className="px-5 py-3 font-semibold">Payments</th>
+                  <th className="px-5 py-3 font-semibold">Pending amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payoutSummary.pendingBySport.map((row) => (
+                  <tr key={row.sportSlug} className="border-b border-cp-border/60 last:border-0">
+                    <td className="px-5 py-3">
+                      <SportDisciplineLabel name={row.sportName} />
+                    </td>
+                    <td className="px-5 py-3 text-cp-muted">{row.paymentCount}</td>
+                    <td className="px-5 py-3 font-semibold text-foreground">
+                      {formatIdrDisplay(row.amountIdr)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {isConfigured ? (
         <div className="mt-5 border-t border-cp-border/60 pt-5">

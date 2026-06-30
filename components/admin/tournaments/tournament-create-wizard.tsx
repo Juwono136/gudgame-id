@@ -75,6 +75,7 @@ import {
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
 import { cn } from "@/lib/utils";
+import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
 
 const STEPS = [
   { id: "basics", label: "Basics", shortLabel: "Basics" },
@@ -135,6 +136,11 @@ export function TournamentCreateWizard({
   initialOfficialBilling,
 }: TournamentCreateWizardProps) {
   const isEdit = Boolean(initial && tournamentId);
+  const dashboardSport = useDashboardSportOptional();
+  const resolvedSportSlug =
+    isEdit || mode === "admin"
+      ? sportSlug
+      : (dashboardSport?.sportSlug ?? sportSlug);
   const adminCreate = useCreateTournament();
   const hostCreate = useCreateHostTournament();
   const adminUpdate = useUpdateAdminTournament(tournamentId ?? "");
@@ -194,7 +200,7 @@ export function TournamentCreateWizard({
   const [prizePoolIdr, setPrizePoolIdr] = useState(
     initial?.prizePoolIdr ? String(initial.prizePoolIdr) : "",
   );
-  const sportDefaults = getSportTournamentDefaults(sportSlug);
+  const sportDefaults = getSportTournamentDefaults(resolvedSportSlug);
   const [maxTeams, setMaxTeams] = useState(
     String(initial?.maxTeams ?? sportDefaults.maxTeams),
   );
@@ -219,6 +225,13 @@ export function TournamentCreateWizard({
   const [courtCount, setCourtCount] = useState(
     String(initial ? getTournamentCourtCount(initial) : 1),
   );
+
+  useEffect(() => {
+    if (isEdit) return;
+    const defaults = getSportTournamentDefaults(resolvedSportSlug);
+    setPlayersPerTeam(String(defaults.playersPerTeam));
+    setMaxTeams(String(defaults.maxTeams));
+  }, [resolvedSportSlug, isEdit]);
 
   useEffect(() => {
     if (!initial) return;
@@ -445,7 +458,7 @@ export function TournamentCreateWizard({
     if (cover.pendingFile) {
       const uploaded = await uploadTournamentCoverClient(
         cover.pendingFile,
-        sportSlug,
+        resolvedSportSlug,
         tournamentId,
       );
       return uploaded.storageKey;
@@ -468,7 +481,7 @@ export function TournamentCreateWizard({
             } else {
               router.push(
                 tournamentAfterSaveUrl(workspace, {
-                  sportSlug,
+                  sportSlug: resolvedSportSlug,
                   slug: initial?.slug ?? resolvedSlug,
                 }),
               );
@@ -552,7 +565,7 @@ export function TournamentCreateWizard({
                   <TournamentWizardStepHeader
                     eyebrow="Step 1"
                     title="Tournament basics"
-                    description={`${isEdit ? "Update" : "Create"} a tournament for ${sportSlug}. Set the name, fees, capacity, and public description.`}
+                    description={`${isEdit ? "Update" : "Create"} a tournament for ${resolvedSportSlug}. Set the name, fees, capacity, and public description.`}
                   />
                   <div className="space-y-6">
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -627,7 +640,7 @@ export function TournamentCreateWizard({
                   <FormatTypeSelect
                     value={matchType}
                     onChange={setMatchType}
-                    sportSlug={sportSlug}
+                    sportSlug={resolvedSportSlug}
                   />
                 </div>
                 <div className="space-y-2">
@@ -799,7 +812,7 @@ export function TournamentCreateWizard({
                     />
                   </div>
                   <TournamentGearPicker
-                    sportSlug={sportSlug}
+                    sportSlug={resolvedSportSlug}
                     selectedIds={gearEntityIds}
                     onChange={setGearEntityIds}
                   />
@@ -823,7 +836,7 @@ export function TournamentCreateWizard({
               {currentStepId === "review" ? (
                 <TournamentWizardReview
               name={name}
-              sportSlug={sportSlug}
+              sportSlug={resolvedSportSlug}
               tournamentType={tournamentType}
               statusLabel={STATUS_LABELS[status]}
               visibilityLabel={visibilityLabel}

@@ -11,6 +11,8 @@ import {
 import { USER_GENDER_LABELS, USER_GENDERS, type UserGender } from "@/lib/constants/user-gender";
 import { cn } from "@/lib/utils";
 
+const UNSET_GENDER_VALUE = "__unset__";
+
 type GenderSelectFieldProps = {
   value: UserGender | "";
   onChange: (value: UserGender) => void;
@@ -39,14 +41,19 @@ export function GenderSelectField({
         your player profile.
       </p>
       <Select
-        value={value || undefined}
-        onValueChange={(v) => onChange(v as UserGender)}
+        value={value || UNSET_GENDER_VALUE}
+        onValueChange={(v) => {
+          if (v !== UNSET_GENDER_VALUE) onChange(v as UserGender);
+        }}
         required={required}
       >
         <SelectTrigger id={id} className="border-cp-border bg-cp-bg-input" aria-invalid={Boolean(error)}>
           <SelectValue placeholder="Select gender" />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value={UNSET_GENDER_VALUE} disabled className="sr-only">
+            Placeholder
+          </SelectItem>
           {USER_GENDERS.map((g) => (
             <SelectItem key={g} value={g}>
               {USER_GENDER_LABELS[g]}
