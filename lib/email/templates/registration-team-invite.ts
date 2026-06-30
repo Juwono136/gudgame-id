@@ -12,7 +12,7 @@ function escapeHtml(value: string): string {
 export function renderRegistrationTeamInviteTemplate(
   data: RegistrationTeamInviteTemplateData,
 ): { subject: string; html: string; text: string } {
-  const subject = `You're on a team — ${data.tournamentName}`;
+  const subject = `You're on a team — ${data.sportName} · ${data.tournamentName}`;
   const tournamentUrl = escapeHtml(data.tournamentUrl);
 
   const bodyHtml = `

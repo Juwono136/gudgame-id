@@ -40,6 +40,7 @@ import {
   useUnreadNotificationCount,
 } from "@/hooks/use-notifications";
 import { resolveNotificationHref } from "@/lib/notifications/resolve-action-url";
+import { readNotificationSportName } from "@/lib/notifications/tournament-label";
 import type { NotificationItem } from "@/lib/notifications/types";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +88,7 @@ function NotificationRow({
 }) {
   const unread = !item.readAt;
   const href = resolveNotificationHref(item);
+  const sportName = readNotificationSportName(item.metadata);
 
   return (
     <button
@@ -133,12 +135,17 @@ function NotificationRow({
           >
             {item.body}
           </p>
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {sportName ? (
+              <span className="rounded-full border border-cp-border/80 bg-cp-elevated/50 px-2 py-0.5 text-[10px] font-semibold text-cp-primary">
+                {sportName}
+              </span>
+            ) : null}
             <p className="text-[10px] font-medium uppercase tracking-wide text-cp-text-dim">
               {formatRelativeTime(item.createdAt)}
             </p>
             {href ? (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-cp-primary opacity-0 transition-opacity group-hover:opacity-100 sm:opacity-100">
+              <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-semibold text-cp-primary opacity-0 transition-opacity group-hover:opacity-100 sm:opacity-100">
                 Open
                 <ChevronRight className="h-3 w-3" />
               </span>

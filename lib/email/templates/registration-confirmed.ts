@@ -22,7 +22,7 @@ export function renderRegistrationConfirmedTemplate(
   const receiptUrl = escapeHtml(data.receiptUrl);
   const paymentsUrl = escapeHtml(data.paymentsUrl);
 
-  const subject = `Payment confirmed — ${data.tournamentName}`;
+  const subject = `Payment confirmed — ${data.sportName} · ${data.tournamentName}`;
 
   const membersHtml = data.teamMembers.length
     ? `<ul style="margin:8px 0 0;padding-left:20px;font-size:14px;line-height:1.75;color:#374151;">${data.teamMembers

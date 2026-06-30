@@ -22,7 +22,7 @@ export function renderHostPaymentReceivedTemplate(
   const ledgerUrl = escapeHtml(data.ledgerUrl);
   const tournamentWorkspaceUrl = escapeHtml(data.tournamentWorkspaceUrl);
 
-  const subject = `Payment received — ${data.teamName} · ${data.tournamentName}`;
+  const subject = `Payment received — ${data.sportName} · ${data.teamName} · ${data.tournamentName}`;
 
   const settlementHtml = `
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;">

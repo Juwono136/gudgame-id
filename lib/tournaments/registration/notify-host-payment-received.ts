@@ -12,6 +12,10 @@ import { dashboardRoutes } from "@/lib/constants/routes";
 import { siteConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { createNotification } from "@/lib/notifications/service";
+import {
+  tournamentNotificationMetadata,
+  tournamentNotificationTitle,
+} from "@/lib/notifications/tournament-label";
 
 const log = logger.child({ module: "host-payment-received" });
 
@@ -170,18 +174,24 @@ async function sendHostInAppNotification(ctx: HostPaymentContext): Promise<void>
   await createNotification({
     userId: ctx.hostUserId,
     type: "tournament_host_player_paid",
-    title: `Payment received — ${ctx.tournamentName}`,
-    body: `${ctx.playerName} paid ${amountCollected} for "${ctx.teamName}". Your payout: ${hostPayout}. Tap to view the official receipt.`,
+    title: tournamentNotificationTitle(
+      ctx.sportName,
+      ctx.tournamentName,
+      "Payment received",
+    ),
+    body: `[${ctx.sportName}] ${ctx.playerName} paid ${amountCollected} for "${ctx.teamName}". Your payout: ${hostPayout}. Tap to view the official receipt.`,
     actionUrl: ctx.receiptUrl,
-    metadata: {
-      tournamentId: ctx.tournamentId,
-      registrationId: ctx.registrationId,
-      paymentId: ctx.paymentId,
-      amountIdr: ctx.amountIdr,
-      hostPayoutIdr: ctx.hostPayoutIdr,
-      platformFeeIdr: ctx.platformFeeIdr,
-      invoiceNumber: ctx.invoiceNumber,
-    },
+    metadata: tournamentNotificationMetadata(
+      { id: ctx.tournamentId, sportName: ctx.sportName },
+      {
+        registrationId: ctx.registrationId,
+        paymentId: ctx.paymentId,
+        amountIdr: ctx.amountIdr,
+        hostPayoutIdr: ctx.hostPayoutIdr,
+        platformFeeIdr: ctx.platformFeeIdr,
+        invoiceNumber: ctx.invoiceNumber,
+      },
+    ),
   });
 }
 

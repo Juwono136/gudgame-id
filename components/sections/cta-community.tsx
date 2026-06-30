@@ -10,13 +10,13 @@ import {
   Sparkles,
   Trophy,
   UserPlus,
-  Users,
+  Compass,
 } from "lucide-react";
 import { FadeInView } from "@/components/motion/fade-in";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/auth/client";
 import { useSessionContext } from "@/hooks/use-session-context";
-import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
 
@@ -51,16 +51,16 @@ export default function CTACommunity() {
     const actions: QuickAction[] = [
       {
         href: dashboardRoutes.home,
-        label: "Player overview",
-        description: "Your dashboard, stats, and activity",
+        label: "My dashboard",
+        description: "Stats, sessions, and profile",
         icon: LayoutDashboard,
         primary: true,
       },
       {
-        href: publicSportRoutes.players("padel"),
-        label: "Browse players",
-        description: "Wiki profiles and rankings",
-        icon: Users,
+        href: "/search",
+        label: "Wiki search",
+        description: "Players, gear, and tournaments across sports",
+        icon: Compass,
       },
       hasHostRole
         ? {
@@ -109,7 +109,7 @@ export default function CTACommunity() {
                     {displayName}
                   </h2>
                   <p className="mt-2 max-w-xl text-sm leading-relaxed text-cp-muted sm:text-[15px]">
-                    Jump back into your workspace, browse the wiki, or explore live tournaments.
+                    Jump back into your workspace, search the wiki, or pick a sport below.
                   </p>
                 </div>
               </div>

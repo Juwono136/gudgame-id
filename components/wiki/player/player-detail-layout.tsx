@@ -1,6 +1,9 @@
 import type { WikiEntityDetail } from "@/lib/wiki/service";
 import type { PlayerCareerStats } from "@/lib/wiki/player-career-stats";
 import type { SportInterestItem } from "@/lib/account/player-performance/sport-interests";
+import type { PlayerMatchListItem, PlayerTournamentListItem } from "@/lib/account/player-competition/types";
+import type { PlayerSocialLink } from "@/lib/wiki/player-profile-fields";
+import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
 import { WikiPageShell } from "@/components/wiki/wiki-page-shell";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { PlayerHero } from "@/components/wiki/player/player-hero";
@@ -15,9 +18,7 @@ import { publicSportRoutes } from "@/lib/constants/routes";
 import { WIKI_ENTITY_TYPE_PLURAL } from "@/lib/wiki/constants";
 import { resolveWikiImageUrl } from "@/lib/media/client";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
-import {
-  getSignatureGearItem,
-} from "@/lib/wiki/player-career-stats";
+import { getSignatureGearItem } from "@/lib/wiki/player-career-stats";
 import {
   parsePlayerEditableAttributes,
   parseSocialLinks,
@@ -29,6 +30,16 @@ type PlayerDetailLayoutProps = {
   careerStats: PlayerCareerStats;
   sportInterests?: SportInterestItem[];
   genderLabel?: string | null;
+  summary?: string | null;
+  biography?: string | null;
+  nationality?: string | null;
+  age?: number | null;
+  socialLinks?: PlayerSocialLink[];
+  signatureGear?: PlayerEquipmentItem | null;
+  equipment?: PlayerEquipmentItem[];
+  galleryUrls?: string[];
+  recentMatches?: PlayerMatchListItem[];
+  recentTournaments?: PlayerTournamentListItem[];
 };
 
 export function PlayerDetailLayout({
@@ -37,15 +48,36 @@ export function PlayerDetailLayout({
   careerStats: playerCareer,
   sportInterests = [],
   genderLabel = null,
+  summary: summaryOverride,
+  biography: biographyOverride,
+  nationality: nationalityOverride,
+  age: ageOverride,
+  socialLinks: socialLinksOverride,
+  signatureGear: signatureGearOverride,
+  equipment: equipmentOverride,
+  galleryUrls: galleryUrlsOverride,
+  recentMatches = [],
+  recentTournaments = [],
 }: PlayerDetailLayoutProps) {
   const playerEditable = parsePlayerEditableAttributes(entity.attributes);
-  const playerEquipment = equipmentFromAttributes(entity.attributes);
-  const signatureGear = getSignatureGearItem(entity.attributes);
-  const socialLinks = parseSocialLinks(entity.attributes.socialLinks);
+  const playerEquipment = equipmentOverride ?? equipmentFromAttributes(entity.attributes);
+  const signatureGear =
+    signatureGearOverride !== undefined
+      ? signatureGearOverride
+      : getSignatureGearItem(entity.attributes);
+  const socialLinks =
+    socialLinksOverride ?? parseSocialLinks(entity.attributes.socialLinks);
 
-  const galleryUrls = entity.gallery
-    .map((m) => resolveWikiImageUrl(m.url))
-    .filter((u): u is string => Boolean(u));
+  const galleryUrls =
+    galleryUrlsOverride ??
+    entity.gallery
+      .map((m) => resolveWikiImageUrl(m.url))
+      .filter((u): u is string => Boolean(u));
+
+  const displaySummary = summaryOverride ?? entity.summary;
+  const displayBiography = biographyOverride ?? entity.biography;
+  const displayNationality = nationalityOverride ?? playerEditable.nationality;
+  const displayAge = ageOverride ?? playerEditable.age;
 
   const primaryImage = resolveWikiImageUrl(
     entity.primaryImageUrl,
@@ -60,9 +92,9 @@ export function PlayerDetailLayout({
       variant: "tier",
     });
   }
-  if (playerEditable.nationality) {
+  if (displayNationality) {
     badges.push({
-      label: playerEditable.nationality.toUpperCase(),
+      label: displayNationality.toUpperCase(),
       variant: "nationality",
     });
   }
@@ -89,7 +121,7 @@ export function PlayerDetailLayout({
       <PlayerHero
         displayName={entity.displayName}
         nickname={entity.nickname}
-        summary={entity.summary}
+        summary={displaySummary}
         imageUrl={primaryImage}
         badges={badges}
       />
@@ -98,22 +130,22 @@ export function PlayerDetailLayout({
         <div className="order-2 space-y-6 lg:order-1 lg:col-span-2">
           <PlayerCareerStatsSection stats={playerCareer} />
 
-          {entity.biography ? (
+          {displayBiography ? (
             <PlayerPageCard title="Biography">
-              <RichHtmlContent html={entity.biography} variant="article" />
+              <RichHtmlContent html={displayBiography} variant="article" />
             </PlayerPageCard>
           ) : null}
 
-          <PlayerRecentMatchesSection />
-          <PlayerTournamentHistorySection />
+          <PlayerRecentMatchesSection matches={recentMatches} />
+          <PlayerTournamentHistorySection tournaments={recentTournaments} />
         </div>
 
         <div className="order-1 lg:sticky lg:top-6 lg:order-2 lg:self-start">
           <PlayerSidebar
             sportSlug={entity.sportSlug}
             displayName={entity.displayName}
-            nationality={playerEditable.nationality}
-            age={playerEditable.age}
+            nationality={displayNationality}
+            age={displayAge}
             yearsActive={playerCareer.yearsActive}
             sportInterests={sportInterests}
             signatureGear={signatureGear}

@@ -38,7 +38,7 @@ export async function GET() {
 
     await requirePlayerRole(session.user.id);
     const sportCtx = await requireDashboardSportContext(session.user.id);
-    const profile = await getPlayerWikiProfileForUser(session.user.id, sportCtx.sportSlug);
+    const profile = await getPlayerWikiProfileForUser(session.user.id);
     return jsonSuccess({ profile, sportSlug: sportCtx.sportSlug });
   } catch (error) {
     return jsonError(error);

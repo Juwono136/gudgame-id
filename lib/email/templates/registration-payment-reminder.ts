@@ -12,7 +12,7 @@ function escapeHtml(value: string): string {
 export function renderRegistrationPaymentReminderTemplate(
   data: RegistrationPaymentReminderTemplateData,
 ): { subject: string; html: string; text: string } {
-  const subject = `Complete payment — ${data.tournamentName}`;
+  const subject = `Complete payment — ${data.sportName} · ${data.tournamentName}`;
   const checkoutUrl = escapeHtml(data.checkoutUrl);
 
   const bodyHtml = `

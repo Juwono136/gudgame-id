@@ -90,6 +90,26 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
   const photo = await getUserPhotoForWiki(userId);
   const syncedSportSlugs: string[] = [];
 
+  const primaryId = await getPrimaryOwnedPlayerEntityId(userId);
+  const primaryDetail = primaryId
+    ? await db
+        .select({
+          slug: wikiEntities.slug,
+          summary: wikiEntities.summary,
+          biography: wikiEntities.biography,
+          attributes: wikiEntities.attributes,
+          primaryImageUrl: wikiEntities.primaryImageUrl,
+          primaryImageStorageKey: wikiEntities.primaryImageStorageKey,
+        })
+        .from(wikiEntities)
+        .where(eq(wikiEntities.id, primaryId))
+        .limit(1)
+        .then((rows) => rows[0])
+    : undefined;
+
+  const preferredBaseSlug =
+    primaryDetail?.slug?.trim() || slugifyWikiName(displayName) || "player";
+
   for (const sport of provisioned) {
     const found = existing.find((row) => row.sportSlug === sport.slug);
     if (found) {
@@ -111,7 +131,7 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
       continue;
     }
 
-    const slug = await ensureUniqueWikiSlug(slugifyWikiName(displayName), async (candidate) => {
+    const slug = await ensureUniqueWikiSlug(preferredBaseSlug, async (candidate) => {
       const [row] = await db
         .select({ id: wikiEntities.id })
         .from(wikiEntities)
@@ -120,24 +140,61 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
       return Boolean(row);
     });
 
-    await db.insert(wikiEntities).values({
-      sportId: sport.id,
-      entityType: "player",
-      slug,
-      displayName,
-      status: "published",
-      attributes: {},
-      performance: {},
-      specs: {},
-      features: [],
-      sourceType: "manual",
-      publishedAt: now,
-      primaryImageUrl: photo.url,
-      primaryImageStorageKey: photo.storageKey,
-      ownerUserId: userId,
-      createdBy: userId,
-      updatedBy: userId,
-    });
+    try {
+      await db.insert(wikiEntities).values({
+        sportId: sport.id,
+        entityType: "player",
+        slug,
+        displayName,
+        summary: primaryDetail?.summary ?? null,
+        biography: primaryDetail?.biography ?? null,
+        status: "published",
+        attributes: (primaryDetail?.attributes ?? {}) as Record<string, unknown>,
+        performance: {},
+        specs: {},
+        features: [],
+        sourceType: "manual",
+        publishedAt: now,
+        primaryImageUrl: photo.url ?? primaryDetail?.primaryImageUrl ?? null,
+        primaryImageStorageKey: photo.storageKey ?? primaryDetail?.primaryImageStorageKey ?? null,
+        ownerUserId: userId,
+        createdBy: userId,
+        updatedBy: userId,
+      });
+    } catch {
+      const fallbackSlug = await ensureUniqueWikiSlug(
+        `${preferredBaseSlug}-${userId.slice(0, 8)}`,
+        async (candidate) => {
+          const [row] = await db
+            .select({ id: wikiEntities.id })
+            .from(wikiEntities)
+            .where(and(eq(wikiEntities.sportId, sport.id), eq(wikiEntities.slug, candidate)))
+            .limit(1);
+          return Boolean(row);
+        },
+      );
+
+      await db.insert(wikiEntities).values({
+        sportId: sport.id,
+        entityType: "player",
+        slug: fallbackSlug,
+        displayName,
+        summary: primaryDetail?.summary ?? null,
+        biography: primaryDetail?.biography ?? null,
+        status: "published",
+        attributes: (primaryDetail?.attributes ?? {}) as Record<string, unknown>,
+        performance: {},
+        specs: {},
+        features: [],
+        sourceType: "manual",
+        publishedAt: now,
+        primaryImageUrl: photo.url ?? primaryDetail?.primaryImageUrl ?? null,
+        primaryImageStorageKey: photo.storageKey ?? primaryDetail?.primaryImageStorageKey ?? null,
+        ownerUserId: userId,
+        createdBy: userId,
+        updatedBy: userId,
+      });
+    }
 
     syncedSportSlugs.push(sport.slug);
   }

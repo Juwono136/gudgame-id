@@ -145,8 +145,11 @@ export async function getPlayerWikiEntityIdForUser(userId: string): Promise<stri
 export async function getPlayerWikiProfileForUser(
   userId: string,
   sportSlug?: string,
+  options?: { skipSync?: boolean },
 ): Promise<PlayerWikiProfileView | null> {
-  await syncOwnedPlayerProfilesFromSportInterests(userId);
+  if (!options?.skipSync) {
+    await syncOwnedPlayerProfilesFromSportInterests(userId);
+  }
   const entityId = sportSlug
     ? await getOwnedPlayerEntityIdForSport(userId, sportSlug)
     : await getPrimaryOwnedPlayerEntityId(userId);

@@ -7,6 +7,7 @@ import { wikiEntities } from "@/db/schema/wiki";
 import { formatUserGender } from "@/lib/constants/user-gender";
 import { getUserSportInterests } from "@/lib/account/player-performance/sport-interests";
 import { resolvePlayerCareerStats } from "@/lib/account/player-performance/resolve-career-stats";
+import { getPublicPlayerPageContent } from "@/lib/wiki/player-public-page";
 import { getSportBySlug } from "@/lib/wiki/public";
 import { getPublishedWikiEntityBySlug } from "@/lib/wiki/service";
 import { equipmentFromAttributes, mergeEquipmentIntoAttributes } from "@/lib/wiki/player-equipment";
@@ -63,13 +64,30 @@ export default async function PlayerWikiPage({ params }: PageProps) {
     attributes: mergeEquipmentIntoAttributes(entity.attributes, enrichedEquipment),
   };
 
+  const pageContent = await getPublicPlayerPageContent(
+    enrichedEntity,
+    ownerUserId,
+    sport.name,
+    careerStats,
+  );
+
   return (
     <PlayerDetailLayout
       entity={enrichedEntity}
       sportName={sport.name}
-      careerStats={careerStats}
+      careerStats={pageContent.careerStats}
       sportInterests={sportInterests}
       genderLabel={ownerGenderLabel}
+      summary={pageContent.summary}
+      biography={pageContent.biography}
+      nationality={pageContent.nationality}
+      age={pageContent.age}
+      socialLinks={pageContent.socialLinks}
+      signatureGear={pageContent.signatureGear}
+      equipment={pageContent.equipment}
+      galleryUrls={pageContent.galleryUrls}
+      recentMatches={pageContent.recentMatches}
+      recentTournaments={pageContent.recentTournaments}
     />
   );
 }

@@ -38,8 +38,10 @@ function groupResults(results: GlobalSearchResult[]) {
 }
 
 function formatSubtitle(item: GlobalSearchResult) {
-  const parts = [item.subtitle, item.sportName].filter(Boolean);
-  return parts.join(" · ") || null;
+  const sportLabel = item.sportName?.trim();
+  const detail = item.subtitle?.trim();
+  if (sportLabel && detail) return `${sportLabel} · ${detail}`;
+  return sportLabel ?? detail ?? null;
 }
 
 function SearchResultRow({
@@ -80,9 +82,16 @@ function SearchResultRow({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-foreground group-hover:text-cp-primary">
-          {item.title}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-semibold text-foreground group-hover:text-cp-primary">
+            {item.title}
+          </p>
+          {item.sportName ? (
+            <span className="hidden shrink-0 rounded-full border border-cp-border/80 bg-cp-elevated/60 px-2 py-0.5 text-[10px] font-semibold text-cp-primary sm:inline">
+              {item.sportName}
+            </span>
+          ) : null}
+        </div>
         {subtitle ? (
           <p className="truncate text-xs text-cp-muted">{subtitle}</p>
         ) : null}

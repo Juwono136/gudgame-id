@@ -25,6 +25,7 @@ import type { ProfileCompletionStatus } from "@/lib/auth/profile-completion";
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
 import type { AppRole } from "@/lib/roles/constants";
 import { resolveDashboardSportContext } from "@/lib/dashboard/sport-context";
+import { mergeSharedPlayerProfileView } from "@/lib/account/player-profile/merge-profile-view";
 
 export type PlayerDashboardView = {
   account: {
@@ -73,9 +74,18 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
     sportCtx.availableSports.find((s) => s.slug === sportCtx.sportSlug)?.name ??
     sportCtx.sportSlug;
 
-  const playerProfile = sportCtx.sportId
+  const sharedProfile = await getPlayerWikiProfileForUser(userId);
+  const sportScopedProfile = sportCtx.sportId
     ? await getPlayerWikiProfileForUser(userId, sportCtx.sportSlug)
     : null;
+
+  const playerProfile =
+    sharedProfile != null
+      ? mergeSharedPlayerProfileView(sharedProfile, sportScopedProfile, {
+          slug: sportCtx.sportSlug,
+          name: activeSportName,
+        })
+      : sportScopedProfile;
 
   const sportScope = sportCtx.sportId ? { sportSlug: sportCtx.sportSlug } : undefined;
 
@@ -117,7 +127,7 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
     activeSport: { slug: sportCtx.sportSlug, name: activeSportName },
     accountCompletion: getProfileCompletionStatus(dbUser),
     playerProfile,
-    playerPageCompletion: getPlayerPageCompletionStatus(playerProfile),
+    playerPageCompletion: getPlayerPageCompletionStatus(sharedProfile ?? sportScopedProfile),
     recentMatches: recentMatchesResult.items,
     recentTournaments: recentTournamentsResult.items,
     sportInterests,

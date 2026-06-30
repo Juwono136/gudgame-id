@@ -118,7 +118,7 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
 
   return (
     <nav
-      className={cn("rounded-2xl border border-cp-border bg-cp-card/80 p-2", className)}
+      className={cn("overflow-visible rounded-2xl border border-cp-border bg-cp-card/80 p-2", className)}
       aria-label={variant === "host" ? "Host navigation" : "Player navigation"}
     >
       <p className="mb-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
@@ -126,7 +126,7 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
       </p>
 
       <div className="mb-2 px-1">
-        <DashboardSportSelector />
+        <DashboardSportSelector preferNative />
       </div>
 
       <div className="flex flex-col gap-1">

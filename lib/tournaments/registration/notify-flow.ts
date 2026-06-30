@@ -7,6 +7,10 @@ import { sendTemplatedEmail } from "@/lib/email/send";
 import { siteConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { createNotification } from "@/lib/notifications/service";
+import {
+  tournamentNotificationMetadata,
+  tournamentNotificationTitle,
+} from "@/lib/notifications/tournament-label";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getRegistrationDetail } from "@/lib/tournaments/registration/service";
 
@@ -58,10 +62,14 @@ export async function notifyAwaitingConfirmation(
   await createNotification({
     userId: payerUserId,
     type: "tournament_confirm_participation",
-    title: `Confirm your spot — ${tournament.name}`,
-    body: `Team "${teamName}" is reserved. Confirm participation within ${PAYMENT_WINDOW_HOURS}h to unlock payment.`,
+    title: tournamentNotificationTitle(
+      tournament.sportName,
+      tournament.name,
+      "Confirm your spot",
+    ),
+    body: `[${tournament.sportName}] Team "${teamName}" is reserved. Confirm participation within ${PAYMENT_WINDOW_HOURS}h to unlock payment.`,
     actionUrl,
-    metadata: { tournamentId: tournament.id, registrationId, teamName },
+    metadata: tournamentNotificationMetadata(tournament, { registrationId, teamName }),
   });
 
   if (email) {
@@ -89,10 +97,14 @@ export async function notifyAwaitingConfirmation(
     await createNotification({
       userId: tournament.createdBy,
       type: "tournament_host_player_confirmed",
-      title: `New registration — ${tournament.name}`,
-      body: `${displayName} registered team "${teamName}" and is awaiting confirmation.`,
+      title: tournamentNotificationTitle(
+        tournament.sportName,
+        tournament.name,
+        "New registration",
+      ),
+      body: `${displayName} registered team "${teamName}" for ${tournament.sportName} and is awaiting confirmation.`,
       actionUrl: `${appBaseUrl()}/dashboard/host/tournaments/${tournament.id}`,
-      metadata: { tournamentId: tournament.id, registrationId },
+      metadata: tournamentNotificationMetadata(tournament, { registrationId }),
     });
   }
 }
@@ -115,10 +127,14 @@ export async function notifyPaymentReminder(
   await createNotification({
     userId: payerUserId,
     type: "tournament_payment_reminder",
-    title: `Complete payment — ${tournament.name}`,
-    body: `Your team "${teamName}" is confirmed. Pay ${fee} to secure your slot.`,
+    title: tournamentNotificationTitle(
+      tournament.sportName,
+      tournament.name,
+      "Complete payment",
+    ),
+    body: `[${tournament.sportName}] Team "${teamName}" is confirmed. Pay ${fee} to secure your slot.`,
     actionUrl,
-    metadata: { tournamentId: tournament.id, registrationId, amountIdr },
+    metadata: tournamentNotificationMetadata(tournament, { registrationId, amountIdr }),
   });
 
   if (email) {
@@ -156,10 +172,14 @@ export async function notifyHostPlayerConfirmedParticipation(
   await createNotification({
     userId: tournament.createdBy,
     type: "tournament_host_player_confirmed",
-    title: `Player confirmed — ${tournament.name}`,
-    body: `${displayName} confirmed team "${teamName}" and can now complete payment.`,
+    title: tournamentNotificationTitle(
+      tournament.sportName,
+      tournament.name,
+      "Player confirmed",
+    ),
+    body: `${displayName} confirmed team "${teamName}" for ${tournament.sportName} and can now complete payment.`,
     actionUrl: `${appBaseUrl()}/dashboard/host/payments?tournamentId=${tournament.id}`,
-    metadata: { tournamentId: tournament.id, registrationId },
+    metadata: tournamentNotificationMetadata(tournament, { registrationId }),
   });
 }
 
@@ -168,14 +188,19 @@ export async function notifyPlayerRegistrationConfirmed(
   payerUserId: string,
   tournamentName: string,
   actionUrl: string,
+  sportName?: string,
 ): Promise<void> {
+  const sport = sportName?.trim() || "Tournament";
   await createNotification({
     userId: payerUserId,
     type: "tournament_registration_confirmed",
-    title: `You're in — ${tournamentName}`,
-    body: "Payment received. Your official receipt is ready — tap to view or download.",
+    title: tournamentNotificationTitle(sport, tournamentName, "You're in"),
+    body: `[${sport}] Payment received. Your official receipt is ready — tap to view or download.`,
     actionUrl,
-    metadata: { registrationId },
+    metadata: {
+      registrationId,
+      ...(sportName ? { sportName } : {}),
+    },
   });
 }
 
@@ -188,10 +213,20 @@ export async function notifyPaymentFailed(registrationId: string): Promise<void>
   await createNotification({
     userId: detail.registeredByUserId,
     type: "tournament_payment_reminder",
-    title: `Payment not completed — ${detail.tournamentName}`,
-    body: `Your payment for team "${detail.teamName ?? "your team"}" was not completed. You can try again before the deadline.`,
+    title: tournamentNotificationTitle(
+      detail.sportName ?? "Tournament",
+      detail.tournamentName,
+      "Payment not completed",
+    ),
+    body: `[${detail.sportName ?? "Tournament"}] Payment for team "${detail.teamName ?? "your team"}" was not completed. You can try again before the deadline.`,
     actionUrl,
-    metadata: { registrationId, reason: "failed" },
+    metadata: {
+      registrationId,
+      reason: "failed",
+      sportSlug: detail.sportSlug,
+      sportName: detail.sportName,
+      tournamentId: detail.tournamentId,
+    },
   });
 }
 
@@ -205,10 +240,19 @@ export async function notifyPaymentExpired(registrationId: string): Promise<void
   await createNotification({
     userId: detail.registeredByUserId,
     type: "tournament_payment_expired",
-    title: `Payment window closed — ${detail.tournamentName}`,
-    body: `The payment deadline for team "${detail.teamName ?? "your team"}" has passed. Your slot has been released.`,
+    title: tournamentNotificationTitle(
+      detail.sportName ?? "Tournament",
+      detail.tournamentName,
+      "Payment window closed",
+    ),
+    body: `[${detail.sportName ?? "Tournament"}] The payment deadline for team "${detail.teamName ?? "your team"}" has passed. Your slot has been released.`,
     actionUrl,
-    metadata: { registrationId },
+    metadata: {
+      registrationId,
+      sportSlug: detail.sportSlug,
+      sportName: detail.sportName,
+      tournamentId: detail.tournamentId,
+    },
   });
 
   const { email, displayName } = await loadUserDisplay(detail.registeredByUserId);
@@ -252,10 +296,18 @@ export async function notifyTeamMemberInvitations(
     await createNotification({
       userId: memberId,
       type: "tournament_team_invite",
-      title: `Team invitation — ${tournament.name}`,
-      body: `${captainName} added you to team "${teamName}" for ${tournament.name}.`,
+      title: tournamentNotificationTitle(
+        tournament.sportName,
+        tournament.name,
+        "Team invitation",
+      ),
+      body: `${captainName} added you to team "${teamName}" for ${tournament.sportName} · ${tournament.name}.`,
       actionUrl: tournamentUrl,
-      metadata: { tournamentId: tournament.id, registrationId, teamName, captainUserId },
+      metadata: tournamentNotificationMetadata(tournament, {
+        registrationId,
+        teamName,
+        captainUserId,
+      }),
     });
 
     if (email) {
@@ -294,10 +346,14 @@ export async function notifyRegistrationCancelled(
   await createNotification({
     userId,
     type: "tournament_registration_cancelled",
-    title: `Registration cancelled — ${tournament.name}`,
-    body: `Your registration for team "${teamName}" was cancelled. ${reason}`,
+    title: tournamentNotificationTitle(
+      tournament.sportName,
+      tournament.name,
+      "Registration cancelled",
+    ),
+    body: `[${tournament.sportName}] Your registration for team "${teamName}" was cancelled. ${reason}`,
     actionUrl: tournamentUrl,
-    metadata: { tournamentId: tournament.id, registrationId, teamName },
+    metadata: tournamentNotificationMetadata(tournament, { registrationId, teamName }),
   });
 
   if (email) {

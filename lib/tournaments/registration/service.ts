@@ -1032,6 +1032,7 @@ async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSele
       payment.payerUserId,
       detail.tournamentName,
       `${origin}${dashboardRoutes.paymentReceipt(payment.id)}`,
+      detail.sportName ?? undefined,
     );
   }
 }

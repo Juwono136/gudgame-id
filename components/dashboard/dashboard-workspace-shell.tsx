@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
+import { DashboardSportSelector } from "@/components/dashboard/dashboard-sport-selector";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { AppRole } from "@/lib/roles/constants";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,7 @@ export function DashboardWorkspaceShell({
         <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
           {/* Desktop sidebar */}
           <aside className="hidden w-60 shrink-0 lg:block xl:w-64">
-            <div className="sticky top-24">
+            <div className="sticky top-24 overflow-visible">
               <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-cp-card/50" />}>
                 <DashboardNav roles={roles} variant={variant} />
               </Suspense>
@@ -82,6 +83,9 @@ export function DashboardWorkspaceShell({
                       {description}
                     </p>
                   ) : null}
+                  <div className="mt-4 lg:hidden">
+                    <DashboardSportSelector preferNative />
+                  </div>
                 </div>
                 {actions ? (
                   <div className="flex w-full shrink-0 flex-col gap-2 md:ml-auto md:w-auto md:items-end [&_a]:w-full [&_button]:w-full md:[&_a]:w-auto md:[&_button]:w-auto">

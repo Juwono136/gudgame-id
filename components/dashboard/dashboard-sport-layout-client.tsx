@@ -1,17 +1,10 @@
 "use client";
 
-import { DashboardMobileSportBar } from "@/components/dashboard/dashboard-mobile-sport-bar";
-
 type DashboardSportLayoutClientProps = {
   children: React.ReactNode;
 };
 
-/** Renders dashboard-only chrome that requires DashboardSportProvider. */
+/** Dashboard layout wrapper — sport selector lives in workspace shell (scrolls with content). */
 export function DashboardSportLayoutClient({ children }: DashboardSportLayoutClientProps) {
-  return (
-    <>
-      <DashboardMobileSportBar />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

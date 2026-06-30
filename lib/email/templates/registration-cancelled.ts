@@ -12,7 +12,7 @@ function escapeHtml(value: string): string {
 export function renderRegistrationCancelledTemplate(
   data: RegistrationCancelledTemplateData,
 ): { subject: string; html: string; text: string } {
-  const subject = `Registration cancelled — ${data.tournamentName}`;
+  const subject = `Registration cancelled — ${data.sportName} · ${data.tournamentName}`;
   const tournamentUrl = escapeHtml(data.tournamentUrl);
 
   const bodyHtml = `
