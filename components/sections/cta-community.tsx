@@ -14,8 +14,7 @@ import {
 } from "lucide-react";
 import { FadeInView } from "@/components/motion/fade-in";
 import { Button } from "@/components/ui/button";
-import { useSession } from "@/lib/auth/client";
-import { useSessionContext } from "@/hooks/use-session-context";
+import { useAuthUser, getAuthDisplayFirstName } from "@/hooks/use-auth-user";
 import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
@@ -29,23 +28,18 @@ type QuickAction = {
 };
 
 export default function CTACommunity() {
-  const { data: session } = useSession();
-  const { data: sessionCtx } = useSessionContext(Boolean(session?.user));
+  const { user, sessionCtx, isAuthenticated, isAuthLoading } = useAuthUser();
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
   }, []);
 
-  const isAuthenticated =
-    hydrated && (Boolean(session?.user) || sessionCtx?.authenticated === true);
-  const displayName =
-    session?.user?.name?.split(" ")[0] ??
-    session?.user?.email?.split("@")[0] ??
-    "there";
-  const avatarSrc = resolveUserImageUrl(session?.user?.image);
+  const showAuthenticated = hydrated && isAuthenticated && !isAuthLoading;
+  const displayName = getAuthDisplayFirstName(user);
+  const avatarSrc = resolveUserImageUrl(user?.image);
 
-  if (isAuthenticated) {
+  if (showAuthenticated) {
     const hasHostRole = sessionCtx?.roles.includes("host");
 
     const actions: QuickAction[] = [
@@ -185,10 +179,10 @@ export default function CTACommunity() {
             aria-hidden
           />
 
-          <h2 className="relative text-xl font-bold tracking-tight text-foreground md:text-2xl lg:text-3xl">
+          <h2 className="relative text-xl text-center font-bold tracking-tight text-foreground md:text-2xl lg:text-3xl">
             Join the Community
           </h2>
-          <p className="relative mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-cp-muted sm:text-base">
+          <p className="relative mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-cp-muted sm:text-base">
             TandingBase is built by enthusiasts, for enthusiasts. Create an account to track
             your gear, follow your favorite pros, and contribute to the knowledge base.
           </p>
@@ -208,7 +202,7 @@ export default function CTACommunity() {
             </Button>
           </div>
 
-          <p className="relative mt-5 text-xs text-cp-text-dim">
+          <p className="relative text-center mt-5 text-xs text-cp-text-dim">
             Already hosting events?{" "}
             <Link
               href={authRoutes.login}

@@ -13,14 +13,22 @@ import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
 import type { TournamentParticipantRow } from "@/lib/tournaments/participants/query";
 import { cn } from "@/lib/utils";
 
+type FunMatchTeamScore = {
+  pointsFor: number;
+  wins: number;
+  losses?: number;
+  points?: number;
+};
+
 type TournamentParticipantsPanelProps = {
   sportSlug: string;
   slug: string;
   tournamentType: "official" | "fun_match";
   variant?: "official" | "reclub";
   officialBilling?: string | null;
-  /** Fun match: squad points from session stats keyed by team name */
-  teamScoreByName?: Record<string, { pointsFor: number; wins: number }>;
+  /** Fun match: squad stats keyed by team id (preferred) or team name */
+  teamScoreByName?: Record<string, FunMatchTeamScore>;
+  teamScoreByTeamId?: Record<string, FunMatchTeamScore>;
 };
 
 function formatIdr(amount: number | null) {
@@ -81,30 +89,41 @@ function ParticipantPlayerCell({
     </Avatar>
   );
 
-  const nameBlock = (
-    <div className="min-w-0">
-      {row.profileUrl ? (
-        <Link
-          href={row.profileUrl}
-          className={cn(
-            "group block truncate font-semibold text-foreground transition-colors",
-            hoverAccent,
-          )}
-        >
-          {row.displayName}
-        </Link>
-      ) : (
-        <p className="truncate font-semibold text-foreground">{row.displayName}</p>
+  const nameBlock = row.profileUrl ? (
+    <Link
+      href={row.profileUrl}
+      className={cn(
+        "group block min-w-0",
+        hoverAccent,
       )}
+    >
+      <p className="truncate font-semibold text-foreground transition-colors group-hover:text-cp-primary">
+        {row.displayName}
+      </p>
+      {!compact && row.genderLabel ? (
+        <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p>
+      ) : null}
+    </Link>
+  ) : (
+    <div className="min-w-0">
+      <p className="truncate font-semibold text-foreground">{row.displayName}</p>
       {!compact && row.genderLabel ? (
         <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p>
       ) : null}
     </div>
   );
 
+  const avatarNode = row.profileUrl ? (
+    <Link href={row.profileUrl} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary">
+      {avatar}
+    </Link>
+  ) : (
+    avatar
+  );
+
   return (
     <div className="flex min-w-0 items-center gap-3">
-      {avatar}
+      {avatarNode}
       {nameBlock}
     </div>
   );
@@ -129,16 +148,41 @@ function OfficialStatusBadges({ row }: { row: TournamentParticipantRow }) {
   );
 }
 
-function FunMatchScore({ row, teamScoreByName }: { row: TournamentParticipantRow; teamScoreByName?: Record<string, { pointsFor: number; wins: number }> }) {
-  const stat = teamScoreByName?.[row.teamName];
-  if (!stat || (stat.pointsFor === 0 && stat.wins === 0)) {
+function FunMatchScore({
+  row,
+  teamScoreByName,
+  teamScoreByTeamId,
+}: {
+  row: TournamentParticipantRow;
+  teamScoreByName?: Record<string, FunMatchTeamScore>;
+  teamScoreByTeamId?: Record<string, FunMatchTeamScore>;
+}) {
+  const stat =
+    teamScoreByTeamId?.[row.teamId] ??
+    (row.teamName ? teamScoreByName?.[row.teamName] : undefined);
+
+  const hasActivity =
+    stat &&
+    (stat.pointsFor > 0 ||
+      stat.wins > 0 ||
+      (stat.losses ?? 0) > 0 ||
+      (stat.points ?? 0) > 0);
+
+  if (!hasActivity) {
     return <span className="text-sm text-cp-muted">—</span>;
   }
+
+  const rankingPts = stat.points ?? 0;
+  const label =
+    rankingPts > 0 ? `${rankingPts} pts` : `${stat.pointsFor} pts`;
+
   return (
     <span className="text-sm font-semibold tabular-nums text-foreground">
-      {stat.pointsFor} pts
-      {stat.wins > 0 ? (
-        <span className="ml-1.5 text-xs font-normal text-cp-muted">· {stat.wins}W</span>
+      {label}
+      {stat.wins > 0 || (stat.losses ?? 0) > 0 ? (
+        <span className="ml-1.5 text-xs font-normal text-cp-muted">
+          · {stat.wins}W{(stat.losses ?? 0) > 0 ? `-${stat.losses}L` : ""}
+        </span>
       ) : null}
     </span>
   );
@@ -151,6 +195,7 @@ export function TournamentParticipantsPanel({
   variant = tournamentType === "official" ? "official" : "reclub",
   officialBilling,
   teamScoreByName,
+  teamScoreByTeamId,
 }: TournamentParticipantsPanelProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -289,7 +334,11 @@ export function TournamentParticipantsPanel({
                   ) : (
                     <div className="flex items-center justify-between gap-2 lg:justify-end">
                       <span className="text-xs text-cp-muted lg:hidden">Score</span>
-                      <FunMatchScore row={row} teamScoreByName={teamScoreByName} />
+                      <FunMatchScore
+                        row={row}
+                        teamScoreByName={teamScoreByName}
+                        teamScoreByTeamId={teamScoreByTeamId}
+                      />
                     </div>
                   )}
                 </div>

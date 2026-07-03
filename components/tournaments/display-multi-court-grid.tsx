@@ -7,6 +7,8 @@ type MultiCourtDisplayCardProps = {
   courtName: string;
   teamAName: string;
   teamBName: string;
+  teamAPlayers?: string[];
+  teamBPlayers?: string[];
   scoreA: number;
   scoreB: number;
   subtitle?: string;
@@ -16,6 +18,8 @@ export function MultiCourtDisplayCard({
   courtName,
   teamAName,
   teamBName,
+  teamAPlayers,
+  teamBPlayers,
   scoreA,
   scoreB,
   subtitle,
@@ -36,20 +40,33 @@ export function MultiCourtDisplayCard({
       ) : null}
 
       <div className="grid flex-1 gap-3">
-        <ScoreRow name={teamAName} score={scoreA} />
+        <ScoreRow name={teamAName} players={teamAPlayers} score={scoreA} />
         <div className="h-px bg-white/10" />
-        <ScoreRow name={teamBName} score={scoreB} />
+        <ScoreRow name={teamBName} players={teamBPlayers} score={scoreB} />
       </div>
     </article>
   );
 }
 
-function ScoreRow({ name, score }: { name: string; score: number }) {
+function ScoreRow({
+  name,
+  players,
+  score,
+}: {
+  name: string;
+  players?: string[];
+  score: number;
+}) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="min-w-0 flex-1 break-words text-sm font-medium leading-snug text-white/90 sm:text-base">
-        {name}
-      </p>
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-sm font-medium leading-snug text-white/90 sm:text-base">
+          {name}
+        </p>
+        {players?.length ? (
+          <p className="mt-0.5 text-[11px] leading-snug text-white/50">{players.join(" · ")}</p>
+        ) : null}
+      </div>
       <p className="shrink-0 text-4xl font-bold tabular-nums text-white sm:text-5xl">{score}</p>
     </div>
   );

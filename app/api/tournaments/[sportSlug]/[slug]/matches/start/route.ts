@@ -13,6 +13,9 @@ const bodySchema = z.object({
   teamAId: z.string().uuid(),
   teamBId: z.string().uuid(),
   courtId: z.string().uuid().optional(),
+  playType: z.enum(["round", "friendly"]).optional(),
+  bracketMatchId: z.string().uuid().optional(),
+  sessionRound: z.number().int().positive().optional(),
 });
 
 export async function POST(
@@ -58,7 +61,12 @@ export async function POST(
       userId,
       parsed.data.teamAId,
       parsed.data.teamBId,
-      parsed.data.courtId,
+      {
+        courtId: parsed.data.courtId,
+        playType: parsed.data.playType,
+        bracketMatchId: parsed.data.bracketMatchId,
+        sessionRound: parsed.data.sessionRound,
+      },
     );
     return jsonSuccess({ match }, 201);
   } catch (error) {

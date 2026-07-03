@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatStatDuration } from "@/lib/tournaments/stats/compute";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import { getReclubMatchHistoryKey, type ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import { cn } from "@/lib/utils";
 
@@ -23,34 +24,54 @@ type HistoryRow = {
 
 type ManageScoringHistoryPanelProps = {
   sessionStats?: TournamentSessionStats;
-  matches: import("@/lib/tournaments/reclub/types").ReclubMatchView[];
+  matches: ReclubMatchView[];
   bracketMatches?: BracketMatchView[];
   variant: "official" | "reclub";
   standingsMode?: "americano" | "elimination";
   isLoading?: boolean;
 };
 
+function formatHistoryRoundLabel(m: ReclubMatchView): string {
+  if (m.roundLabel) return m.roundLabel;
+  if (m.playType === "friendly") {
+    return m.playNumber ? `Friendly #${m.playNumber}` : "Friendly";
+  }
+  if (m.playType === "bracket_rematch") {
+    return m.playNumber ? `Bracket rematch #${m.playNumber}` : "Bracket rematch";
+  }
+  if (m.playType === "bracket" || m.sourceKind === "bracket") {
+    return `Bracket · R${m.roundNumber}`;
+  }
+  return `Round ${m.roundNumber}`;
+}
+
 function buildHistoryRows(
-  matches: ManageScoringHistoryPanelProps["matches"],
+  matches: ReclubMatchView[],
   bracketMatches: BracketMatchView[] = [],
 ): HistoryRow[] {
+  const coveredBracketSlotIds = new Set<string>();
+  for (const m of matches) {
+    if (m.bracketMatchId) coveredBracketSlotIds.add(m.bracketMatchId);
+    if (m.sourceKind === "bracket") coveredBracketSlotIds.add(m.id);
+  }
+
   const reclubRows: HistoryRow[] = matches
     .filter((m) => m.status === "completed")
     .map((m) => ({
-      id: m.id,
+      id: getReclubMatchHistoryKey(m),
       teamAName: m.teamAName,
       teamBName: m.teamBName,
       scoreA: m.scoreA,
       scoreB: m.scoreB,
-      roundLabel: `Round ${m.roundNumber}`,
+      roundLabel: formatHistoryRoundLabel(m),
       durationSeconds: m.durationSeconds,
       endedAt: m.endedAt,
     }));
 
   const bracketRows: HistoryRow[] = bracketMatches
-    .filter((m) => m.status === "completed")
+    .filter((m) => m.status === "completed" && !coveredBracketSlotIds.has(m.id))
     .map((m) => ({
-      id: m.id,
+      id: `bracket-slot-${m.id}`,
       teamAName: m.teamAName,
       teamBName: m.teamBName,
       scoreA: m.scoreA,
@@ -60,9 +81,14 @@ function buildHistoryRows(
       endedAt: null,
     }));
 
-  return [...reclubRows, ...bracketRows].sort((a, b) =>
-    (b.endedAt ?? "").localeCompare(a.endedAt ?? ""),
-  );
+  const seen = new Set<string>();
+  return [...reclubRows, ...bracketRows]
+    .filter((row) => {
+      if (seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    })
+    .sort((a, b) => (b.endedAt ?? "").localeCompare(a.endedAt ?? ""));
 }
 
 function initials(name: string) {
@@ -171,15 +197,18 @@ export function ManageScoringHistoryPanel({
       <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
         <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
           <History className={cn("h-4 w-4", accent)} />
-          Match history
+          Match history & standings
         </h3>
+        <p className="mt-1 text-sm text-cp-muted">
+          Every finalized match is listed here — bracket plays, rematches, and friendly games.
+        </p>
         {completed.length === 0 ? (
           <p className="mt-3 text-sm text-cp-muted">
-            Finalized matches appear here with scores and sync to the public stats tabs.
+            No matches finished yet. Start a match on any court — results appear here automatically.
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-cp-border/60">
-            {[...completed].slice(0, 12).map((m) => (
+            {[...completed].slice(0, 24).map((m) => (
                 <li
                   key={m.id}
                   className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between"

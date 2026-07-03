@@ -179,31 +179,13 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
 
 /** Mobile bottom tab bar — fixed while scrolling (< lg). */
 export function DashboardMobileBottomNav({
-  roles,
+  roles: _roles,
   variant = "player",
 }: DashboardNavProps) {
-  const isHost = roles.includes("host") || roles.includes("super_admin");
   const items = variant === "host" ? HOST_ITEMS : PLAYER_ITEMS;
   const { isActive } = useDashboardNavState(variant);
 
-  const switchItem =
-    variant === "player" && isHost
-      ? {
-          href: dashboardRoutes.host,
-          mobileLabel: "Host",
-          icon: Trophy,
-          active: false,
-        }
-      : variant === "host"
-        ? {
-            href: dashboardRoutes.home,
-            mobileLabel: "Player",
-            icon: Users,
-            active: false,
-          }
-        : null;
-
-  const tabCount = items.length + (switchItem ? 1 : 0);
+  const tabCount = items.length;
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -256,20 +238,6 @@ export function DashboardMobileBottomNav({
             </Link>
           );
         })}
-
-        {switchItem ? (
-          <Link
-            href={switchItem.href}
-            className="relative flex min-w-0 flex-col items-center justify-center gap-0 px-0 py-1.5 text-cp-muted transition-colors hover:text-foreground sm:gap-0.5 sm:py-2"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg sm:h-8 sm:w-8 sm:rounded-xl">
-              <switchItem.icon className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px]" />
-            </span>
-            <span className="w-full max-w-full truncate px-0 text-center text-[9px] font-medium leading-tight sm:text-[10px]">
-              {switchItem.mobileLabel}
-            </span>
-          </Link>
-        ) : null}
       </div>
     </nav>
   );

@@ -3,8 +3,10 @@ import "server-only";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { playerMatches, type StatsTier } from "@/db/schema/player-competition";
+import { sports } from "@/db/schema";
 import { deriveTierFromPoints, type PlayerTierLevel } from "@/lib/player/tier";
 import { pointsForMatch } from "@/lib/account/player-performance/points";
+import { getPlayerRankOnLeaderboard } from "@/lib/wiki/player-leaderboard";
 
 export type PlayerMatchAggregate = {
   totalMatches: number;
@@ -125,9 +127,20 @@ export async function computeTournamentUserStats(
 export async function computeSportRank(
   sportId: string,
   userId: string,
-  totalPoints: number,
+  _totalPoints: number,
 ): Promise<number> {
   const db = getDb();
+  const [sportRow] = await db
+    .select({ slug: sports.slug })
+    .from(sports)
+    .where(eq(sports.id, sportId))
+    .limit(1);
+
+  if (sportRow?.slug) {
+    const rank = await getPlayerRankOnLeaderboard(sportRow.slug, userId);
+    if (rank != null) return rank;
+  }
+
   const [row] = await db
     .select({
       rank: sql<number>`(
@@ -155,7 +168,7 @@ export async function computeSportRank(
               ), 0)
               FROM player_matches pm2
               WHERE pm2.user_id = pm.user_id AND pm2.sport_id = ${sportId}
-            ) > ${totalPoints}
+            ) > ${_totalPoints}
         )
       )`,
     })

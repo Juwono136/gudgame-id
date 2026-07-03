@@ -11,17 +11,9 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useCancelRegistration } from "@/hooks/use-cancel-registration";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { publicSportRoutes } from "@/lib/constants/routes";
+import { formatRegistrationFeeIdr } from "@/lib/format/currency";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
-
-function formatIdr(amount: number | null) {
-  if (amount == null) return "—";
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 type RegistrationConfirmClientProps = {
   tournament: TournamentDetail;
@@ -130,7 +122,10 @@ export function RegistrationConfirmClient({
                 Registration fee (after confirm)
               </p>
               <p className="mt-1.5 text-xl font-bold text-cp-primary sm:text-2xl">
-                {formatIdr(tournament.registrationFeeIdr)}
+                {formatRegistrationFeeIdr(
+                  tournament.registrationFeeIdr,
+                  tournament.officialBilling,
+                )}
               </p>
             </div>
           </div>

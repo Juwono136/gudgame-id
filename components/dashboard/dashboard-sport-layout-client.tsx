@@ -1,10 +1,34 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import { WorkspaceRoleSwitcher } from "@/components/dashboard/workspace-role-switcher";
+import { dashboardRoutes } from "@/lib/constants/routes";
+import type { AppRole } from "@/lib/roles/constants";
+
 type DashboardSportLayoutClientProps = {
   children: React.ReactNode;
+  roles: AppRole[];
 };
 
-/** Dashboard layout wrapper — sport selector lives in workspace shell (scrolls with content). */
-export function DashboardSportLayoutClient({ children }: DashboardSportLayoutClientProps) {
-  return <>{children}</>;
+/** Dashboard layout wrapper — persistent mobile role switcher + sport context. */
+export function DashboardSportLayoutClient({
+  children,
+  roles,
+}: DashboardSportLayoutClientProps) {
+  const pathname = usePathname();
+  const hideRoleSwitcher = pathname?.startsWith(dashboardRoutes.completeProfile);
+  const variant: "player" | "host" = pathname?.startsWith("/dashboard/host") ? "host" : "player";
+
+  return (
+    <>
+      {!hideRoleSwitcher ? (
+        <div className="sticky top-16 z-30 border-b border-cp-border/60 bg-cp-bg/95 px-4 py-3 backdrop-blur-md lg:hidden dark:bg-cp-bg/90">
+          <div className="mx-auto max-w-7xl">
+            <WorkspaceRoleSwitcher roles={roles} variant={variant} />
+          </div>
+        </div>
+      ) : null}
+      {children}
+    </>
+  );
 }

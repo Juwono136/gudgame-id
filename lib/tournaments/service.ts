@@ -614,6 +614,13 @@ export async function createTournament(
   const { provisionTournamentCourts } = await import("@/lib/tournaments/courts/service");
   await provisionTournamentCourts(detail);
 
+  if (detail.format !== "americano") {
+    const { ensureBracketStructure } = await import(
+      "@/lib/tournaments/brackets/provision-structure"
+    );
+    await ensureBracketStructure(detail);
+  }
+
   await invalidateTournamentCaches(detail.sportSlug, detail.slug);
   return detail;
 }
@@ -776,6 +783,13 @@ export async function updateTournament(
 
   const { provisionTournamentCourts } = await import("@/lib/tournaments/courts/service");
   await provisionTournamentCourts(detail);
+
+  if (detail.format !== "americano") {
+    const { ensureBracketStructure } = await import(
+      "@/lib/tournaments/brackets/provision-structure"
+    );
+    await ensureBracketStructure(detail);
+  }
 
   await invalidateTournamentCaches(detail.sportSlug, detail.slug);
   return detail;

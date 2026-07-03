@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Users } from "lucide-react";
+import { Shuffle, Users } from "lucide-react";
 import { toast } from "sonner";
 import { BracketCourtScoringGrid } from "@/components/tournaments/manage/bracket-court-scoring-grid";
 import { BracketScoringLockPanel } from "@/components/tournaments/manage/bracket-scoring-lock-panel";
+import { FunMatchHostTools } from "@/components/tournaments/manage/fun-match-host-tools";
+import { OfficialManagePointLogPanel } from "@/components/tournaments/official/official-manage-point-log-panel";
 import { ManageScoringHistoryPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
 import { ManageCourtCard } from "@/components/tournaments/manage/manage-court-card";
 import { Button } from "@/components/ui/button";
@@ -78,9 +80,19 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
         {courtCountSetting} court{courtCountSetting === 1 ? "" : "s"} configured
       </span>
       {isOfficial ? (
-        <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5 text-[11px] text-cp-muted">
-          {getOfficialBillingLabel(tournament.officialBilling)}
-        </span>
+        <>
+          {tournament.categoryLabel ? (
+            <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5 text-[11px] text-cp-muted">
+              {tournament.categoryLabel}
+            </span>
+          ) : null}
+          <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5 text-[11px] text-cp-muted">
+            {getOfficialBillingLabel(tournament.officialBilling)}
+          </span>
+          <span className="rounded-full border border-cp-primary/25 bg-cp-primary/10 px-2.5 py-0.5 text-[11px] text-cp-primary">
+            Point-by-point audit log
+          </span>
+        </>
       ) : null}
       {scoringType === "timed" ? (
         <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5 text-[11px] text-cp-muted">
@@ -95,16 +107,6 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
     [teams],
   );
 
-  const courtLockMatches = useMemo(() => {
-    const bracketLocks = activeBracketMatches.map((m) => ({
-      id: m.id,
-      teamAId: m.teamAId,
-      teamBId: m.teamBId,
-      courtId: m.courtId,
-      status: "in_progress" as const,
-    }));
-    return [...activeMatches, ...bracketLocks] as ReclubMatchView[];
-  }, [activeBracketMatches, activeMatches]);
 
   const historyPanel = (
     <ManageScoringHistoryPanel
@@ -120,6 +122,7 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
   const [teamBByCourt, setTeamBByCourt] = useState<Record<string, string>>({});
   const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
   const [courtNameDraft, setCourtNameDraft] = useState("");
+  const [reshuffleSeed, setReshuffleSeed] = useState(0);
 
   const completedRounds = matches.filter((m) => m.status === "completed").length;
   const maxRounds = getMaxRounds(tournament);
@@ -150,11 +153,47 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
       players: allPlayers,
       courtCount: courts.length || 1,
       roundNumber: currentRound,
-      seed: tournament.id.charCodeAt(0),
+      seed: tournament.id.charCodeAt(0) + reshuffleSeed,
     });
-  }, [allPlayers, courts.length, currentRound, tournament.format, tournament.id]);
+  }, [allPlayers, courts.length, currentRound, reshuffleSeed, tournament.format, tournament.id]);
 
-  const handleStartOnCourt = async (courtId: string) => {
+  const handleReshuffleCourts = useCallback(() => {
+    const bracketByCourt = new Map(
+      activeBracketMatches.filter((m) => m.courtId).map((m) => [m.courtId!, m]),
+    );
+    const idleCourts = courts.filter(
+      (c) => !matchByCourt.get(c.id) && !bracketByCourt.get(c.id),
+    );
+    if (idleCourts.length === 0) {
+      toast.message("All courts are busy — finish a match before reshuffling");
+      return;
+    }
+    const pool = [...squadsWithPlayers];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+    }
+    const nextA: Record<string, string> = { ...teamAByCourt };
+    const nextB: Record<string, string> = { ...teamBByCourt };
+    let idx = 0;
+    for (const court of idleCourts) {
+      const teamA = pool[idx++];
+      const teamB = pool[idx++];
+      if (!teamA || !teamB) break;
+      nextA[court.id] = teamA.id;
+      nextB[court.id] = teamB.id;
+    }
+    setTeamAByCourt(nextA);
+    setTeamBByCourt(nextB);
+    if (tournament.format === "americano") {
+      setReshuffleSeed((s) => s + 1);
+    }
+    toast.success("Courts reshuffled", {
+      description: "Review squad assignments on idle courts before starting.",
+    });
+  }, [activeBracketMatches, courts, matchByCourt, squadsWithPlayers, teamAByCourt, teamBByCourt, tournament.format]);
+
+  const handleStartOnCourt = async (courtId: string, playType?: "round" | "friendly") => {
     const teamAId = teamAByCourt[courtId];
     const teamBId = teamBByCourt[courtId];
     if (!teamAId || !teamBId || teamAId === teamBId) {
@@ -165,12 +204,12 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
     const teamB = teams.find((t) => t.id === teamBId)?.name ?? "Team B";
     const court = courts.find((c) => c.id === courtId)?.name ?? "Court";
     const ok = await confirm({
-      title: "Start match on court?",
+      title: playType === "friendly" ? "Start friendly game?" : "Start match on court?",
       description: `${teamA} vs ${teamB} on ${court}`,
-      confirmLabel: "Start match",
+      confirmLabel: playType === "friendly" ? "Start friendly" : "Start match",
     });
     if (!ok) return;
-    await startRound.mutateAsync({ teamAId, teamBId, courtId });
+    await startRound.mutateAsync({ teamAId, teamBId, courtId, playType });
     setTeamAByCourt((p) => ({ ...p, [courtId]: "" }));
     setTeamBByCourt((p) => ({ ...p, [courtId]: "" }));
   };
@@ -234,15 +273,21 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cp-border bg-cp-card p-4">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Multi-court bracket scoring</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              {isFunMatch ? "Multi-court scoring" : "Multi-court bracket scoring"}
+            </h2>
             <p className="text-sm text-cp-muted">
-              Assign ready bracket matches per court and score in parallel — squads already on a
-              court cannot start elsewhere.
+              {isFunMatch
+                ? "Run bracket matches or friendly games on each court. Squads already playing cannot start elsewhere."
+                : "Assign ready bracket matches per court and score in parallel — squads already on a court cannot start elsewhere."}
             </p>
             <p className="mt-1 text-xs text-cp-muted">
               {squadsWithPlayers.length} squad{squadsWithPlayers.length === 1 ? "" : "s"} ready
               {tournament.maxTeams ? ` · capacity ${tournament.maxTeams}` : ""} · {liveBracket} live ·{" "}
               {completedBracket} finished
+              {isFunMatch && activeMatches.length > 0
+                ? ` · ${activeMatches.length} friendly live`
+                : ""}
               {!isFunMatch && data?.summary
                 ? ` · ${data.summary.registeredTeams} registered`
                 : ""}
@@ -250,10 +295,25 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
             </p>
             {scoringMeta}
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+              Refresh
+            </Button>
+          </div>
         </div>
+
+        {isFunMatch && canScore ? (
+          <FunMatchHostTools
+            sportSlug={tournament.sportSlug}
+            slug={tournament.slug}
+            teams={teams}
+            activeReclubMatches={activeMatches}
+            activeBracketMatches={activeBracketMatches}
+            canManage={canScore}
+            onReshuffle={handleReshuffleCourts}
+            onMoved={() => void refetch()}
+          />
+        ) : null}
 
         {livePhase !== "live" ? (
           <BracketScoringLockPanel
@@ -278,6 +338,24 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
             canScore={canScore}
             tournamentType={tournament.tournamentType}
             reclubActiveMatches={isFunMatch ? activeMatches : []}
+            friendlyAByCourt={isFunMatch ? teamAByCourt : undefined}
+            friendlyBByCourt={isFunMatch ? teamBByCourt : undefined}
+            onFriendlyPickAChange={
+              isFunMatch
+                ? (courtId, teamId) => setTeamAByCourt((p) => ({ ...p, [courtId]: teamId }))
+                : undefined
+            }
+            onFriendlyPickBChange={
+              isFunMatch
+                ? (courtId, teamId) => setTeamBByCourt((p) => ({ ...p, [courtId]: teamId }))
+                : undefined
+            }
+            onFriendlyScoreChange={isFunMatch ? handleScoreChange : undefined}
+            onFriendlyComplete={isFunMatch ? handleComplete : undefined}
+            friendlyScoreSyncing={updateScore.isPending}
+            friendlyCompletePending={completeRound.isPending}
+            scoringType={scoringType}
+            roundDuration={roundDuration}
           />
         ) : (
           <div className="rounded-2xl border border-dashed border-cp-border py-12 text-center text-sm text-cp-muted">
@@ -285,68 +363,15 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
           </div>
         )}
 
-        {isFunMatch && courts.length > 0 ? (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/10 p-4 sm:p-5">
-              <h2 className="text-lg font-semibold text-foreground">Multi-court scoring</h2>
-              <p className="mt-1 text-sm text-cp-muted">
-                Assign squads per court and update scores with +/- controls — same workflow as official
-                Americano. Use this for friendly rounds alongside the elimination bracket above.
-              </p>
-              {scoringMeta}
-            </div>
-
-            <div className={manageCourtGridClassName}>
-              {courts.map((court) => {
-                const match = matchByCourt.get(court.id) ?? null;
-                const busy = Boolean(court.activeMatchId);
-                return (
-                  <ManageCourtCard
-                    key={court.id}
-                    court={court}
-                    match={match}
-                    teams={teams}
-                    activeMatches={courtLockMatches}
-                    canScore={canScore}
-                    teamAId={teamAByCourt[court.id] ?? ""}
-                    teamBId={teamBByCourt[court.id] ?? ""}
-                    onTeamAChange={(v) => setTeamAByCourt((p) => ({ ...p, [court.id]: v }))}
-                    onTeamBChange={(v) => setTeamBByCourt((p) => ({ ...p, [court.id]: v }))}
-                    onStart={() => void handleStartOnCourt(court.id)}
-                    starting={startRound.isPending}
-                    busy={busy}
-                    pointsPerMatch={pointsPerMatch}
-                    scoringType={scoringType}
-                    roundDuration={roundDuration}
-                    editingName={editingCourtId === court.id}
-                    nameDraft={courtNameDraft}
-                    onEditName={() => {
-                      setEditingCourtId(court.id);
-                      setCourtNameDraft(court.name);
-                    }}
-                    onNameDraftChange={setCourtNameDraft}
-                    onSaveName={async () => {
-                      const ok = await confirm({
-                        title: "Rename court?",
-                        description: `Save court name as "${courtNameDraft.trim()}"?`,
-                        confirmLabel: "Save",
-                      });
-                      if (!ok) return;
-                      await renameCourt.mutateAsync({ courtId: court.id, name: courtNameDraft });
-                      setEditingCourtId(null);
-                    }}
-                    onCancelEdit={() => setEditingCourtId(null)}
-                    onScoreChange={(input) => handleScoreChange(match!.id, input)}
-                    onComplete={(elapsed) => void handleComplete(match!, elapsed)}
-                    completing={completeRound.isPending}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
         {historyPanel}
+
+        {isOfficial ? (
+          <OfficialManagePointLogPanel
+            bracketMatches={bracketMatches}
+            reclubMatches={matches}
+            categoryLabel={tournament.categoryLabel}
+          />
+        ) : null}
 
         {(startRound.isPending || completeRound.isPending) && <LoadingOverlay show />}
       </div>
@@ -370,9 +395,17 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
           </p>
           {scoringMeta}
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
-          {isFetching ? "Refreshing…" : "Refresh"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+            {isFetching ? "Refreshing…" : "Refresh"}
+          </Button>
+          {isFunMatch && canScore ? (
+            <Button type="button" variant="outline" size="sm" onClick={handleReshuffleCourts}>
+              <Shuffle className="mr-1.5 h-4 w-4" />
+              Reshuffle
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {roundPlan && roundPlan.resting.length > 0 ? (
@@ -436,6 +469,14 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
       </div>
 
       {historyPanel}
+
+      {isOfficial ? (
+        <OfficialManagePointLogPanel
+          bracketMatches={bracketMatches}
+          reclubMatches={matches}
+          categoryLabel={tournament.categoryLabel}
+        />
+      ) : null}
 
       {(startRound.isPending || completeRound.isPending) && <LoadingOverlay show />}
     </div>

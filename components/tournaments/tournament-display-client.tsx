@@ -29,6 +29,8 @@ type LiveMatchView = {
   matchNumber?: number;
   teamAName?: string | null;
   teamBName?: string | null;
+  teamAPlayers?: string[];
+  teamBPlayers?: string[];
   scoreA?: number | null;
   scoreB?: number | null;
   status?: string;
@@ -36,8 +38,8 @@ type LiveMatchView = {
 };
 
 const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
-  "single",
   "multi_court",
+  "single",
   "leaderboard",
   "bracket",
 ];
@@ -99,13 +101,14 @@ export function TournamentDisplayClient({
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const [rotationIndex, setRotationIndex] = useState(0);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
 
   const layout: TournamentDisplayLayout = useMemo(() => {
     const cfg = data?.displayConfig;
     if (cfg?.autoRotate || cfg?.layout === "rotation") return "rotation";
     if (layoutParam) return layoutParam;
-    return (cfg?.layout as TournamentDisplayLayout | undefined) ?? "single";
-  }, [data?.displayConfig, layoutParam]);
+    return (cfg?.layout as TournamentDisplayLayout | undefined) ?? (isOfficialType(data?.tournament.tournamentType ?? "") ? "single" : "multi_court");
+  }, [data?.displayConfig, data?.tournament.tournamentType, layoutParam]);
 
   const rotationLayouts = useMemo((): TournamentDisplayLayout[] => {
     const fromCfg = data?.displayConfig?.rotationLayouts;
@@ -180,6 +183,25 @@ export function TournamentDisplayClient({
     () => pickActiveMatch(data?.matches ?? [], matchId),
     [data?.matches, matchId],
   );
+
+  const featuredMatch = useMemo(() => {
+    if (activeMatches.length > 1) {
+      return activeMatches[featuredIndex % activeMatches.length] ?? activeMatch;
+    }
+    return activeMatch;
+  }, [activeMatch, activeMatches, featuredIndex]);
+
+  useEffect(() => {
+    if (effectiveLayout !== "single" || activeMatches.length <= 1) return;
+    const id = setInterval(() => {
+      setFeaturedIndex((i) => i + 1);
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [activeMatches.length, effectiveLayout]);
+
+  useEffect(() => {
+    setFeaturedIndex(0);
+  }, [activeMatches.map((m) => m.id).join(",")]);
 
   const isOfficial = isOfficialType(data?.tournament.tournamentType);
 
@@ -259,6 +281,8 @@ export function TournamentDisplayClient({
                       courtName={courtLabel}
                       teamAName={m.teamAName!}
                       teamBName={m.teamBName!}
+                      teamAPlayers={m.teamAPlayers}
+                      teamBPlayers={m.teamBPlayers}
                       scoreA={m.scoreA ?? 0}
                       scoreB={m.scoreB ?? 0}
                       subtitle={buildSubtitle(data.tournament.name, m, isOfficial)}
@@ -398,7 +422,7 @@ export function TournamentDisplayClient({
     return <DisplayVenueShell>{shellContent}</DisplayVenueShell>;
   }
 
-  if (!activeMatch?.teamAName || !activeMatch?.teamBName) {
+  if (!featuredMatch?.teamAName || !featuredMatch?.teamBName) {
     return (
       <DisplayVenueShell className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center text-white">
         <Radio className="h-10 w-10 text-white/40" />
@@ -422,8 +446,8 @@ export function TournamentDisplayClient({
     );
   }
 
-  const subtitle = buildSubtitle(data.tournament.name, activeMatch, isOfficial);
-  const isLiveNow = activeMatch.status === "in_progress";
+  const subtitle = buildSubtitle(data.tournament.name, featuredMatch, isOfficial);
+  const isLiveNow = featuredMatch.status === "in_progress";
 
   return (
     <DisplayVenueShell>
@@ -434,11 +458,16 @@ export function TournamentDisplayClient({
             Live
           </div>
         ) : null}
+        {activeMatches.length > 1 ? (
+          <p className="pointer-events-none absolute right-6 top-6 z-10 text-xs text-white/50">
+            Court {featuredIndex % activeMatches.length + 1} of {activeMatches.length}
+          </p>
+        ) : null}
         <LiveScoreboardDisplay
-          teamAName={activeMatch.teamAName}
-          teamBName={activeMatch.teamBName}
-          scoreA={activeMatch.scoreA ?? 0}
-          scoreB={activeMatch.scoreB ?? 0}
+          teamAName={featuredMatch.teamAName}
+          teamBName={featuredMatch.teamBName}
+          scoreA={featuredMatch.scoreA ?? 0}
+          scoreB={featuredMatch.scoreB ?? 0}
           subtitle={subtitle}
           className="bg-transparent"
         />

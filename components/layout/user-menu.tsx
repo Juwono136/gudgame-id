@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSession } from "@/lib/auth/client";
+import { useAuthUser } from "@/hooks/use-auth-user";
 import { getProfileHandle } from "@/lib/auth/user-display";
 import type { AppRole } from "@/lib/roles/constants";
 import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
@@ -23,7 +23,6 @@ import {
   isSettingsActive,
 } from "@/lib/constants/routes";
 import { getDashboardLinksForRoles } from "@/lib/roles/dashboard-links";
-import { useSessionContext } from "@/hooks/use-session-context";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { ThemeToggleMenuItems } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -33,13 +32,6 @@ type UserMenuProps = {
   onNavigate?: () => void;
 };
 
-type SessionUser = {
-  name: string;
-  email: string;
-  image?: string | null;
-  role?: string | null;
-  nickname?: string | null;
-};
 
 function getInitials(name: string | null | undefined): string {
   return (
@@ -122,10 +114,7 @@ const accountIconClass = (active: boolean) =>
 
 export function UserMenu({ className, onNavigate }: UserMenuProps) {
   const pathname = usePathname();
-  const { data: session, isPending } = useSession();
-  const { data: sessionCtx } = useSessionContext();
-  const isAuthenticated =
-    Boolean(session?.user) || sessionCtx?.authenticated === true;
+  const { user, sessionCtx, isAuthenticated, isAuthLoading } = useAuthUser();
   const { requestLogout, isLoggingOut } = useLogoutWithConfirm({ onNavigate });
   const roles = sessionCtx?.roles ?? [];
   const dashboardLinks = useMemo(
@@ -137,7 +126,7 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
     return null;
   }
 
-  if (isPending || !session?.user) {
+  if (isAuthLoading || !user) {
     return (
       <div
         className={cn(
@@ -149,7 +138,6 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
     );
   }
 
-  const user = session.user as SessionUser;
   const initials = getInitials(user.name);
   const profile = getProfileHandle(user);
   const avatarSrc = resolveUserImageUrl(user.image);
@@ -246,20 +234,16 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
 /** Mobile drawer account section — profile + links (no separate navbar avatar) */
 export function UserMenuMobileLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const { data: sessionCtx } = useSessionContext();
+  const { user, sessionCtx, isAuthenticated, isAuthLoading } = useAuthUser();
   const { requestLogout, isLoggingOut } = useLogoutWithConfirm({ onNavigate });
-  const isAuthenticated =
-    Boolean(session?.user) || sessionCtx?.authenticated === true;
   const roles = sessionCtx?.roles ?? [];
   const dashboardLinks = useMemo(
     () => getDashboardLinksForRoles(roles),
     [roles],
   );
 
-  if (!isAuthenticated || !session?.user) return null;
+  if (!isAuthenticated || isAuthLoading || !user) return null;
 
-  const user = session.user as SessionUser;
   const profile = getProfileHandle(user);
   const avatarSrc = resolveUserImageUrl(user.image);
   const settingsActive = isSettingsActive(pathname);

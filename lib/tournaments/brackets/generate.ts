@@ -13,8 +13,9 @@ import {
   assertBracketInitialGenerationAllowed,
 } from "@/lib/tournaments/lifecycle-guards";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
-import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
+import { listBracketEligibleTeamsForGenerate } from "@/lib/tournaments/brackets/eligible-teams";
 import { applyRoundOneSeeding } from "@/lib/tournaments/brackets/round-one";
+import { ensureBracketStructure } from "@/lib/tournaments/brackets/provision-structure";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
@@ -49,38 +50,54 @@ export async function generateTournamentBracket(
   const seedMode = options?.seedMode ?? "manual";
   const db = getDb();
 
-  const existing = await db
-    .select({ id: tournamentBracketMatches.id })
-    .from(tournamentBracketMatches)
-    .where(eq(tournamentBracketMatches.tournamentId, tournament.id))
-    .limit(1);
+  await ensureBracketStructure(tournament);
 
-  if (existing.length) {
-    throw new AppError("Bracket already generated. Reset the bracket first to regenerate.", {
-      code: "CONFLICT",
-      statusCode: 409,
-    });
+  const existingRound1 = await db
+    .select({
+      id: tournamentBracketMatches.id,
+      teamAId: tournamentBracketMatches.teamAId,
+      teamBId: tournamentBracketMatches.teamBId,
+    })
+    .from(tournamentBracketMatches)
+    .where(
+      and(
+        eq(tournamentBracketMatches.tournamentId, tournament.id),
+        eq(tournamentBracketMatches.roundNumber, 1),
+      ),
+    )
+    .orderBy(tournamentBracketMatches.matchNumber);
+
+  const structureExists = existingRound1.length > 0;
+  const round1HasTeams = existingRound1.some((m) => m.teamAId || m.teamBId);
+
+  if (structureExists && round1HasTeams && seedMode === "manual") {
+    const total = await db
+      .select({ id: tournamentBracketMatches.id })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    return { matchCount: total.length, seedMode: (tournament.settings?.bracketSeedMode ?? "manual") as "random" | "manual" };
   }
 
-  let teams =
-    isFunMatchType(tournament.tournamentType)
-      ? (await listLobbyTeamsDetailed(tournament.id))
-          .filter((t) => t.memberCount > 0)
-          .map((t) => ({ id: t.id, name: t.name }))
-      : await db
-          .select({
-            id: tournamentTeams.id,
-            name: tournamentTeams.name,
-          })
-          .from(tournamentRegistrations)
-          .innerJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
-          .where(
-            and(
-              eq(tournamentRegistrations.tournamentId, tournament.id),
-              eq(tournamentRegistrations.status, "confirmed"),
-            ),
-          )
-          .orderBy(tournamentTeams.sortOrder);
+  if (structureExists && round1HasTeams && seedMode === "random") {
+    throw new AppError(
+      "Round one already has teams. Reset the bracket or adjust seeding manually.",
+      { code: "CONFLICT", statusCode: 409 },
+    );
+  }
+
+  if (structureExists && !round1HasTeams && seedMode === "manual") {
+    const total = await db
+      .select({ id: tournamentBracketMatches.id })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    await patchTournamentBracketSettings(tournament, {
+      bracketSeedMode: "manual",
+      bracketSeedingFinalized: false,
+    });
+    return { matchCount: total.length, seedMode: "manual" };
+  }
+
+  const teams = await listBracketEligibleTeamsForGenerate(tournament);
 
   if (teams.length < 2) {
     throw new AppError(
@@ -145,6 +162,28 @@ export async function generateTournamentBracket(
     matchCountPerRound.push(bracketSize / Math.pow(2, r));
   }
 
+  if (structureExists) {
+    const round1Ids = existingRound1.map((m) => m.id);
+    const total = await db
+      .select({ id: tournamentBracketMatches.id })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    if (seedMode === "random") {
+      const shuffled = shuffleTeams(teams);
+      await applyRoundOneSeeding(tournament.id, round1Ids, shuffled);
+      await patchTournamentBracketSettings(tournament, {
+        bracketSeedMode: "random",
+        bracketSeedingFinalized: true,
+      });
+    } else {
+      await patchTournamentBracketSettings(tournament, {
+        bracketSeedMode: "manual",
+        bracketSeedingFinalized: false,
+      });
+    }
+    return { matchCount: total.length, seedMode };
+  }
+
   const allMatchIds: string[][] = [];
 
   for (let round = 1; round <= totalRounds; round++) {
@@ -177,11 +216,11 @@ export async function generateTournamentBracket(
     }
   }
 
-  const round1 = allMatchIds[0]!;
+  const round1Ids = allMatchIds[0]!;
 
   if (seedMode === "random") {
-    teams = shuffleTeams(teams);
-    await applyRoundOneSeeding(tournament.id, round1, teams);
+    const shuffled = shuffleTeams(teams);
+    await applyRoundOneSeeding(tournament.id, round1Ids, shuffled);
     await patchTournamentBracketSettings(tournament, {
       bracketSeedMode: "random",
       bracketSeedingFinalized: true,

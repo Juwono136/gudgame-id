@@ -62,7 +62,10 @@ services:
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN:-}
       XENDIT_XENPLATFORM_ENABLED: ${XENDIT_XENPLATFORM_ENABLED:-true}
 
-      # Google Maps
+      # OpenStreetMap venue search (no key required)
+      NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-}
+
+      # Google Maps (optional legacy embed)
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
 
       # Ops

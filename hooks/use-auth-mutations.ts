@@ -17,7 +17,7 @@ import {
 import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import { resolveSafeCallbackUrl } from "@/lib/roles/route-access";
-import { invalidateSessionContext } from "@/lib/session/invalidate-session-context";
+import { syncAuthSessionAfterChange } from "@/lib/session/invalidate-session-context";
 import type {
   ForgotPasswordFormValues,
   LoginFormValues,
@@ -92,6 +92,7 @@ export function useLoginMutation() {
 
       let roles: AppRole[] = [];
       let mustChangePassword = false;
+      let profileComplete = true;
       try {
         const res = await fetch("/api/account/session-context", { cache: "no-store" });
         const json = (await res.json()) as {
@@ -109,6 +110,7 @@ export function useLoginMutation() {
         }
         if (json.success && json.data?.roles) roles = json.data.roles;
         mustChangePassword = json.data?.mustChangePassword ?? false;
+        profileComplete = json.data?.profileComplete ?? true;
       } catch (err) {
         if (err instanceof Error && err.message === ACCOUNT_INACTIVE_MESSAGE) {
           throw err;
@@ -121,8 +123,10 @@ export function useLoginMutation() {
 
       if (mustChangePassword) {
         router.push(authRoutes.changePasswordRequired);
+      } else if (!profileComplete) {
+        router.push(dashboardRoutes.completeProfile);
       } else {
-        invalidateSessionContext(queryClient);
+        await syncAuthSessionAfterChange(queryClient);
         router.push(resolveSafeCallbackUrl(callbackUrl, roles));
       }
       router.refresh();
@@ -154,6 +158,7 @@ async function finishAuthRedirect(
 
   let roles: AppRole[] = [];
   let mustChangePassword = false;
+  let profileComplete = options?.profileComplete ?? true;
   try {
     const res = await fetch("/api/account/session-context", { cache: "no-store" });
     const json = (await res.json()) as {
@@ -171,6 +176,9 @@ async function finishAuthRedirect(
     }
     if (json.success && json.data?.roles) roles = json.data.roles;
     mustChangePassword = json.data?.mustChangePassword ?? false;
+    if (json.data?.profileComplete === false) {
+      profileComplete = false;
+    }
 
     if (options?.isNewUser) {
       toast.success("Welcome to TandingBase!", {
@@ -196,10 +204,10 @@ async function finishAuthRedirect(
 
   if (mustChangePassword) {
     router.push(authRoutes.changePasswordRequired);
-  } else if (options?.isNewUser && options?.profileComplete === false) {
+  } else if (!profileComplete) {
     router.push(dashboardRoutes.completeProfile);
   } else {
-    invalidateSessionContext(queryClient);
+    await syncAuthSessionAfterChange(queryClient);
     router.push(resolveSafeCallbackUrl(callbackUrl, roles));
   }
   router.refresh();
@@ -420,6 +428,7 @@ export function useResetPasswordMutation() {
 
 export function useLogoutMutation() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
@@ -428,7 +437,8 @@ export function useLogoutMutation() {
         throw new Error(result.error.message ?? "Sign out failed");
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await syncAuthSessionAfterChange(queryClient);
       toast.success("Signed out", {
         description: "See you on court soon.",
       });

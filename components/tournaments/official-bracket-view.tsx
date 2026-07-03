@@ -11,7 +11,8 @@ export function OfficialBracketView({ matches }: OfficialBracketViewProps) {
   return (
     <BracketTreeView
       matches={matches}
-      emptyMessage="Bracket not generated yet. The host will publish it after registration closes."
+      showEmptySlots
+      emptyMessage="Bracket slots fill in as teams register and matches are played."
     />
   );
 }

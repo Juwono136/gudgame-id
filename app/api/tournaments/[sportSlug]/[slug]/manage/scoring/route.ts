@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { listBracketEligibleTeamIds } from "@/lib/tournaments/brackets/eligible-teams";
 import { listBracketMatches } from "@/lib/tournaments/brackets/service";
 import { getTeamsInActiveBracketMatches } from "@/lib/tournaments/brackets/active-teams";
 import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
@@ -35,7 +36,7 @@ export async function GET(
     const isElimination = tournament.format !== "americano";
     const isFunMatch = isFunMatchType(tournament.tournamentType);
 
-    const [teams, reclubMatches, activeReclubMatches, bracketMatches, summary, teamsInActiveBracket] =
+    const [teams, reclubMatches, activeReclubMatches, bracketMatches, summary, teamsInActiveBracket, bracketEligibleTeamIds] =
       await Promise.all([
         listLobbyTeamsDetailed(tournament.id),
         isElimination && !isFunMatch ? Promise.resolve([]) : listReclubMatches(tournament.id),
@@ -55,6 +56,9 @@ export async function GET(
           tournament.officialBilling,
         ),
         isElimination ? getTeamsInActiveBracketMatches(tournament.id) : Promise.resolve([]),
+        isElimination
+          ? listBracketEligibleTeamIds(tournament).then((ids) => [...ids])
+          : Promise.resolve([] as string[]),
       ]);
 
     const activeBracketMatches = bracketMatches.filter((m) => m.status === "in_progress");
@@ -77,6 +81,7 @@ export async function GET(
       activeBracketMatches,
       summary,
       teamsInActiveBracket,
+      bracketEligibleTeamIds,
       sessionStats,
       tournament: {
         id: tournament.id,

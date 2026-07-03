@@ -166,7 +166,14 @@ export function ReclubWizardReview({
             label="Scoring type"
             value={scoringType === "timed" ? "Timed rounds" : "Points"}
           />
-          <ReviewField label="Point per match" value={`${pointsPerMatch} points`} />
+          <ReviewField
+            label={scoringType === "timed" ? "Round duration" : "Point per match"}
+            value={
+              scoringType === "timed"
+                ? `${pointsPerMatch} minutes`
+                : `${pointsPerMatch} points`
+            }
+          />
           <ReviewField label="Courts" value={courtCount} />
           <div className="sm:col-span-2">
             <ReviewField label="Schedule" value={formatWizardDateRange(startsAt, endsAt)} />

@@ -30,6 +30,7 @@ export type ManageScoringPayload = {
     maxTeams: number | null;
   };
   teamsInActiveBracket?: string[];
+  bracketEligibleTeamIds?: string[];
   sessionStats?: TournamentSessionStats;
 };
 

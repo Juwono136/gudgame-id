@@ -194,7 +194,12 @@ export function TournamentWizardReview({
             <ReviewItem label="Players per team" value={playersPerTeam || "—"} />
             <ReviewItem label="Match type" value={matchTypeLabel} />
             <ReviewItem label="Scoring type" value={scoringTypeLabel} />
-            <ReviewItem label="Point per match" value={pointsPerMatch ? `${pointsPerMatch} points` : "—"} />
+            <ReviewItem
+              label={
+                pointsPerMatch.includes("min") ? "Round duration" : "Point per match"
+              }
+              value={pointsPerMatch || "—"}
+            />
             <ReviewItem label="Courts" value={courtCount || "—"} />
             {isOfficial ? (
               <>
@@ -232,7 +237,7 @@ export function TournamentWizardReview({
             {onEditStep ? (
               <button
                 type="button"
-                onClick={() => onEditStep(1)}
+                onClick={() => onEditStep(0)}
                 className="inline-flex items-center gap-1 rounded-lg border border-cp-border bg-cp-card px-2.5 py-1.5 text-xs font-medium text-cp-primary transition-colors hover:bg-cp-primary/10"
               >
                 <Pencil className="h-3 w-3" />
@@ -244,7 +249,7 @@ export function TournamentWizardReview({
             <TournamentVenueMapPreview venue={venue} mapsUrl={venueMapsUrl} />
           ) : (
             <div className="rounded-xl border border-dashed border-cp-border bg-cp-elevated/30 px-4 py-8 text-center text-sm text-cp-muted">
-              No venue set. Add a location on the Schedule & rules step.
+              No venue set. Add a location on the Basics step.
             </div>
           )}
         </div>

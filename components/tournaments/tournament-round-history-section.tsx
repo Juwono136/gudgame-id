@@ -3,12 +3,15 @@
 import { History, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatPlayerNameList } from "@/lib/format/player-names";
 
 export type RoundHistoryItem = {
   id: string;
   roundLabel: string;
   teamAName: string | null;
   teamBName: string | null;
+  teamAPlayers?: string[];
+  teamBPlayers?: string[];
   scoreA: number | null;
   scoreB: number | null;
   status: string;
@@ -29,6 +32,36 @@ function winnerSide(item: RoundHistoryItem): "a" | "b" | "tie" | null {
   if (a > b) return "a";
   if (b > a) return "b";
   return "tie";
+}
+
+function TeamBlock({
+  name,
+  players,
+  align,
+  winner,
+}: {
+  name: string | null;
+  players?: string[];
+  align: "left" | "right";
+  winner: boolean;
+}) {
+  return (
+    <div className={cn("min-w-0", align === "right" && "text-right")}>
+      <p
+        className={cn(
+          "text-sm font-semibold leading-snug",
+          winner ? "text-foreground" : "text-cp-muted",
+        )}
+      >
+        {name ?? "TBD"}
+      </p>
+      {players?.length ? (
+        <p className="mt-0.5 text-[11px] leading-relaxed text-cp-muted">
+          {formatPlayerNameList(players)}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function TournamentRoundHistorySection({
@@ -64,7 +97,9 @@ export function TournamentRoundHistorySection({
           <History className={cn("h-4 w-4", accent)} />
           {title}
         </h3>
-        <Badge variant="muted">{sorted.length} match{sorted.length === 1 ? "" : "es"}</Badge>
+        <Badge variant="muted">
+          {sorted.length} match{sorted.length === 1 ? "" : "es"}
+        </Badge>
       </div>
 
       <ul className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -91,34 +126,30 @@ export function TournamentRoundHistorySection({
                 </span>
               ) : null}
 
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+              <p className="pr-16 text-[10px] font-semibold uppercase leading-snug tracking-wider text-cp-muted">
                 {item.roundLabel}
               </p>
 
-              <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                <p
-                  className={cn(
-                    "truncate text-sm font-semibold",
-                    winner === "a" ? "text-foreground" : "text-cp-muted",
-                  )}
-                >
-                  {item.teamAName ?? "TBD"}
-                </p>
-                <div className="rounded-lg border border-cp-border/80 bg-cp-elevated/60 px-3 py-1.5 text-center">
-                  <p className="text-lg font-bold tabular-nums text-foreground">
+              <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-3">
+                <TeamBlock
+                  name={item.teamAName}
+                  players={item.teamAPlayers}
+                  align="left"
+                  winner={winner === "a"}
+                />
+                <div className="rounded-lg border border-cp-border/80 bg-cp-elevated/60 px-2.5 py-1.5 text-center sm:px-3">
+                  <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
                     {item.scoreA ?? 0}
                     <span className="mx-1 text-cp-muted">:</span>
                     {item.scoreB ?? 0}
                   </p>
                 </div>
-                <p
-                  className={cn(
-                    "truncate text-right text-sm font-semibold",
-                    winner === "b" ? "text-foreground" : "text-cp-muted",
-                  )}
-                >
-                  {item.teamBName ?? "TBD"}
-                </p>
+                <TeamBlock
+                  name={item.teamBName}
+                  players={item.teamBPlayers}
+                  align="right"
+                  winner={winner === "b"}
+                />
               </div>
             </li>
           );

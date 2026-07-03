@@ -20,20 +20,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
-import { FunMatchLiveMatches } from "@/components/tournaments/fun-match-live-matches";
+import { FunMatchPublicLiveScore } from "@/components/tournaments/fun-match/fun-match-public-live-score";
+import { FunMatchPublicBracketTab } from "@/components/tournaments/fun-match/fun-match-public-bracket-tab";
+import { FunMatchPublicPlayersTab } from "@/components/tournaments/fun-match/fun-match-public-players-tab";
+import { FunMatchPublicHistoryTab } from "@/components/tournaments/fun-match/fun-match-public-history-tab";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
-import {
-  ReclubMatchHistoryPanel,
-} from "@/components/tournaments/reclub-match-history";
 import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
-import { mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
-import { ReclubBracketPanel } from "@/components/tournaments/reclub-bracket-panel";
-import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
+import { mapLivePayloadToRecentRows } from "@/lib/tournaments/recent-matches";
 import { ReclubSquadLobby } from "@/components/tournaments/reclub/reclub-squad-lobby";
 import { ReclubSessionStatusBanner } from "@/components/tournaments/reclub/reclub-session-status-banner";
 import { ReclubRulesPanel } from "@/components/tournaments/reclub-rules-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
-import { TournamentPlayersLiveStatsPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
 import { TournamentOrganizer } from "@/components/tournaments/tournament-organizer";
 import { TournamentShareCard } from "@/components/tournaments/tournament-share-card";
 import {
@@ -73,11 +70,10 @@ import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import {
   getMaxRounds,
-  getScoringTypeLabel,
   getTournamentCourtCount,
   getTournamentFormatLabel,
   getTournamentPointsPerMatch,
-  getTournamentScoringType,
+  getTournamentScoringPrimaryLabel,
   getVenueMapsUrl,
 } from "@/lib/tournaments/settings";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
@@ -197,7 +193,8 @@ export function ReclubTournamentPage({
   const summary = data?.summary ?? initialSummary;
   const teams = data?.teams ?? [];
   const matches = data?.matches ?? [];
-  const activeMatch = data?.activeMatch ?? null;
+  const activeMatches = data?.activeMatches ?? (data?.activeMatch ? [data.activeMatch] : []);
+  const activeMatch = activeMatches[0] ?? null;
   const userTeamId = data?.userTeamId ?? initialUserTeamId;
   const canManage = data?.canManage ?? canManageProp;
   const currentUserId = data?.userId ?? null;
@@ -228,7 +225,7 @@ export function ReclubTournamentPage({
     [isElimination],
   );
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
-  const scoringTypeLabel = getScoringTypeLabel(getTournamentScoringType(tournament));
+  const scoringPrimaryLabel = getTournamentScoringPrimaryLabel(tournament);
   const pointsPerMatch = getTournamentPointsPerMatch(tournament);
   const courtCount = getTournamentCourtCount(tournament);
   const courtCountLive = data?.courts?.length ?? courtCount;
@@ -406,7 +403,7 @@ export function ReclubTournamentPage({
     });
   };
 
-  const recentRoundRows = useMemo(() => mapReclubMatchesToRecentRows(matches), [matches]);
+  const recentRoundRows = useMemo(() => mapLivePayloadToRecentRows(liveData), [liveData]);
   const captainUserIdByTeam = useMemo(
     () =>
       Object.fromEntries(
@@ -548,7 +545,7 @@ export function ReclubTournamentPage({
             <TournamentStatCard
               icon={Users}
               label="Scoring"
-              value={`${pointsPerMatch} pts`}
+              value={scoringPrimaryLabel}
               tone="hero"
             />
           </div>
@@ -696,9 +693,7 @@ export function ReclubTournamentPage({
                       </div>
                       <div className="flex justify-between gap-3 rounded-lg bg-cp-elevated/30 px-3 py-2">
                         <dt>Scoring</dt>
-                        <dd className="font-medium text-foreground">
-                          {scoringTypeLabel} · {pointsPerMatch} pts
-                        </dd>
+                        <dd className="font-medium text-foreground">{scoringPrimaryLabel}</dd>
                       </div>
                       <div className="flex justify-between gap-3 rounded-lg bg-cp-elevated/30 px-3 py-2">
                         <dt>Courts</dt>
@@ -740,83 +735,11 @@ export function ReclubTournamentPage({
             ) : null}
 
             {tab === "Live Score" ? (
-              <div className="space-y-6">
-                {activeMatch ? (
-                  <section className="rounded-2xl border border-amber-500/25 bg-cp-card p-4 sm:p-6">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-                          Round {activeMatch.roundNumber} · Live
-                        </p>
-                        <h2 className="mt-1 text-xl font-bold text-foreground">
-                          {activeMatch.teamAName} vs {activeMatch.teamBName}
-                        </h2>
-                        <p className="mt-1 inline-flex items-center gap-2 text-sm text-cp-muted">
-                          <Timer className="h-4 w-4" />
-                          {formatDuration(liveElapsed)}
-                        </p>
-                      </div>
-                      {canManage ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0 border-emerald-500/30"
-                          onClick={() =>
-                            router.push(
-                              publicSportRoutes.tournamentDisplayMatch(
-                                tournament.sportSlug,
-                                tournament.slug,
-                                activeMatch.id,
-                              ),
-                            )
-                          }
-                        >
-                          Open display mode
-                        </Button>
-                      ) : null}
-                    </div>
-                    {canUseHostControls ? (
-                      <div className="mt-6">
-                        <LiveScoreboard
-                          teamAName={activeMatch.teamAName ?? "Squad A"}
-                          teamBName={activeMatch.teamBName ?? "Squad B"}
-                          scoreA={Number(scoreA) || 0}
-                          scoreB={Number(scoreB) || 0}
-                          onScoreAChange={(n) => {
-                            setScoreA(String(n));
-                            persistLiveScore(n, Number(scoreB) || 0, "a", "set");
-                          }}
-                          onScoreBChange={(n) => {
-                            setScoreB(String(n));
-                            persistLiveScore(Number(scoreA) || 0, n, "b", "set");
-                          }}
-                          maxScore={pointsPerMatch}
-                          disabled={completeRound.isPending}
-                          status={scoreStatus}
-                        />
-                      </div>
-                    ) : (
-                      <p className="mt-6 text-center text-4xl font-bold tabular-nums text-foreground sm:text-5xl">
-                        {activeMatch.scoreA ?? 0} : {activeMatch.scoreB ?? 0}
-                      </p>
-                    )}
-                  </section>
-                ) : (
-                  <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
-                    <Trophy className="mx-auto h-8 w-8 text-emerald-400/80" />
-                    <h2 className="mt-3 text-lg font-semibold text-foreground">No live match right now</h2>
-                    <p className="mx-auto mt-2 max-w-md text-sm text-cp-muted">
-                      {phaseEmptyMessage ??
-                        "Scores will appear here when the host starts a round or bracket match."}
-                    </p>
-                  </section>
-                )}
-
-                {liveData?.matches && liveData.matches.length > 0 ? (
-                  <FunMatchLiveMatches matches={liveData.matches} />
-                ) : null}
-              </div>
+              <FunMatchPublicLiveScore
+                tournament={tournament}
+                liveData={liveData}
+                teams={teams}
+              />
             ) : null}
 
             {tab === "Lobby" ? (
@@ -873,43 +796,29 @@ export function ReclubTournamentPage({
             ) : null}
 
             {tab === "Players" ? (
-              <div className="space-y-6">
-                <TournamentParticipantsPanel
-                  sportSlug={tournament.sportSlug}
-                  slug={tournament.slug}
-                  tournamentType="fun_match"
-                  variant="reclub"
-                />
-                <TournamentPlayersLiveStatsPanel
-                  stats={sessionStats}
-                  variant="reclub"
-                  emptyMessage="Player stats appear after lobby or bracket matches are finalized."
-                />
-              </div>
+              <FunMatchPublicPlayersTab
+                tournament={tournament}
+                liveData={liveData}
+                teams={teams}
+              />
             ) : null}
 
             {tab === "Bracket" ? (
-              <ReclubBracketPanel
+              <FunMatchPublicBracketTab
                 sportSlug={tournament.sportSlug}
                 slug={tournament.slug}
-                tournamentId={tournament.id}
-                teams={teams}
-                canManage={canManage}
-                participant={participant}
                 userTeamId={userTeamId}
-                tournamentStatus={tournament.status}
-                session={tournament}
               />
             ) : null}
 
             {tab === "History & stats" ? (
-              <div className="space-y-8">
-                <TournamentSessionStatsPanel variant="reclub" stats={sessionStats} />
-                <ReclubMatchHistoryPanel
-                  sportSlug={tournament.sportSlug}
-                  slug={tournament.slug}
-                />
-              </div>
+              <FunMatchPublicHistoryTab
+                tournament={tournament}
+                liveData={liveData}
+                teams={teams}
+                userTeamId={userTeamId}
+                isElimination={isElimination}
+              />
             ) : null}
           </motion.div>
         </AnimatePresence>

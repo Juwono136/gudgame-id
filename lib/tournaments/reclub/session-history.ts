@@ -90,16 +90,6 @@ async function listBracketHistoryViews(tournamentId: string): Promise<ReclubMatc
   return views;
 }
 
-function getRecordedBracketIds(reclubRows: { metadata: unknown }[]): Set<string> {
-  const ids = new Set<string>();
-  for (const row of reclubRows) {
-    const meta = row.metadata as Record<string, unknown> | null;
-    const id = meta?.bracketMatchId;
-    if (typeof id === "string") ids.add(id);
-  }
-  return ids;
-}
-
 function sortHistoryItems(items: ReclubMatchView[]): ReclubMatchView[] {
   return [...items].sort((a, b) => {
     const aTime = new Date(a.endedAt ?? a.startedAt ?? 0).getTime();
@@ -133,20 +123,32 @@ function filterHistoryItems(
   return filtered;
 }
 
+function getRecordedBracketPlayKeys(reclubRows: { id: string; metadata: unknown }[]): Set<string> {
+  const keys = new Set<string>();
+  for (const row of reclubRows) {
+    const meta = parseReclubMatchMetadata(row.metadata);
+    if (meta.bracketMatchId && meta.playNumber != null) {
+      keys.add(`${meta.bracketMatchId}-${meta.playNumber}`);
+    }
+  }
+  return keys;
+}
+
 export async function mergeReclubSessionHistory(
   tournamentId: string,
   reclubItems: ReclubMatchView[],
 ): Promise<ReclubMatchView[]> {
   const reclubRows = await getDb()
-    .select({ metadata: tournamentReclubMatches.metadata })
+    .select({ id: tournamentReclubMatches.id, metadata: tournamentReclubMatches.metadata })
     .from(tournamentReclubMatches)
     .where(eq(tournamentReclubMatches.tournamentId, tournamentId));
 
-  const recordedBracketIds = getRecordedBracketIds(reclubRows);
+  const recordedPlayKeys = getRecordedBracketPlayKeys(reclubRows);
   const bracketViews = await listBracketHistoryViews(tournamentId);
-  const unrecordedBracket = bracketViews.filter(
-    (m) => m.bracketMatchId != null && !recordedBracketIds.has(m.bracketMatchId),
-  );
+  const unrecordedBracket = bracketViews.filter((m) => {
+    if (m.bracketMatchId == null) return false;
+    return !recordedPlayKeys.has(`${m.bracketMatchId}-1`);
+  });
 
   return sortHistoryItems([...reclubItems, ...unrecordedBracket]);
 }
@@ -182,7 +184,9 @@ export async function listMergedReclubSessionHistory(
           : ("round" as const),
       bracketMatchId:
         typeof raw?.bracketMatchId === "string" ? raw.bracketMatchId : null,
-      roundLabel: typeof raw?.roundLabel === "string" ? raw.roundLabel : null,
+      roundLabel: meta.roundLabel ?? (typeof raw?.roundLabel === "string" ? raw.roundLabel : null),
+      playType: meta.playType ?? null,
+      playNumber: meta.playNumber ?? null,
     };
   });
 
@@ -200,26 +204,33 @@ export async function listMergedReclubSessionHistory(
   };
 }
 
-export async function recordBracketMatchInSessionHistory(
-  tournament: TournamentDetail,
-  bracketMatch: BracketRow,
-  userId: string,
-): Promise<void> {
-  if (!isFunMatchType(tournament.tournamentType)) return;
-
-  const db = getDb();
-  const [existing] = await db
+async function countBracketPlaysInHistory(
+  tournamentId: string,
+  bracketMatchId: string,
+): Promise<number> {
+  const rows = await getDb()
     .select({ id: tournamentReclubMatches.id })
     .from(tournamentReclubMatches)
     .where(
       and(
-        eq(tournamentReclubMatches.tournamentId, tournament.id),
-        sql`${tournamentReclubMatches.metadata}->>'bracketMatchId' = ${String(bracketMatch.id)}`,
+        eq(tournamentReclubMatches.tournamentId, tournamentId),
+        sql`${tournamentReclubMatches.metadata}->>'bracketMatchId' = ${bracketMatchId}`,
       ),
-    )
-    .limit(1);
+    );
+  return rows.length;
+}
 
-  if (existing) return;
+export async function recordBracketMatchInSessionHistory(
+  tournament: TournamentDetail,
+  bracketMatch: BracketRow,
+  userId: string,
+  options?: { playType?: "bracket" | "bracket_rematch" },
+): Promise<void> {
+  if (!isFunMatchType(tournament.tournamentType)) return;
+
+  const db = getDb();
+  const playNumber =
+    (await countBracketPlaysInHistory(tournament.id, bracketMatch.id)) + 1;
 
   const allRounds = await db
     .select({ roundNumber: tournamentBracketMatches.roundNumber })
@@ -234,6 +245,7 @@ export async function recordBracketMatchInSessionHistory(
   ]);
 
   const endedAt = bracketMatch.completedAt ?? new Date();
+  const playType = options?.playType ?? "bracket";
 
   await db.insert(tournamentReclubMatches).values({
     tournamentId: tournament.id,
@@ -247,12 +259,18 @@ export async function recordBracketMatchInSessionHistory(
     status: "completed",
     startedAt: endedAt,
     endedAt,
-    summary: `Bracket · ${roundLabel} · M${bracketMatch.matchNumber}`,
+    courtId: bracketMatch.courtId,
+    summary:
+      playType === "bracket_rematch"
+        ? `Bracket rematch · ${roundLabel} · M${bracketMatch.matchNumber} · #${playNumber}`
+        : `Bracket · ${roundLabel} · M${bracketMatch.matchNumber}`,
     recordedByUserId: userId,
     metadata: {
       bracketMatchId: bracketMatch.id,
       bracketMatchNumber: bracketMatch.matchNumber,
       source: "bracket",
+      playType,
+      playNumber,
       roundLabel,
       teamAPlayers,
       teamBPlayers,

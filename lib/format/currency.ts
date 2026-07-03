@@ -22,6 +22,18 @@ export function formatIdrDisplay(amount: number): string {
   }).format(amount);
 }
 
+/** Registration fee for official tournaments — free events show Rp 0 instead of a dash. */
+export function formatRegistrationFeeIdr(
+  registrationFeeIdr: number | null | undefined,
+  officialBilling?: string | null,
+): string {
+  if (officialBilling === "free" || registrationFeeIdr === 0) {
+    return formatIdrDisplay(0);
+  }
+  if (registrationFeeIdr == null) return "—";
+  return formatIdrDisplay(registrationFeeIdr);
+}
+
 /** Parse percent like "1,25" or "1.25" */
 export function parsePercentInput(value: string): number | null {
   const normalized = value.trim().replace(",", ".");

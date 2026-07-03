@@ -9,11 +9,12 @@ import {
   Radio,
   Swords,
   Trophy,
+  UserRound,
   UserPlus,
   Users,
 } from "lucide-react";
 import { FadeInView } from "@/components/motion/fade-in";
-import { CourtScoringGrid } from "@/components/tournaments/manage/court-scoring-grid";
+import { FunMatchScoringWorkspace } from "@/components/tournaments/manage/fun-match-scoring-workspace";
 import { BracketManagePanel } from "@/components/tournaments/manage/bracket-manage-panel";
 import { DisplayControlPanel } from "@/components/tournaments/manage/display-control-panel";
 import { ManageOfficialDashboardPanel } from "@/components/tournaments/manage/manage-official-dashboard-panel";
@@ -39,6 +40,7 @@ const SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "scoring", label: "Live scoring", icon: Radio },
   { id: "bracket", label: "Bracket", icon: Swords },
+  { id: "players", label: "Players", icon: UserRound },
   { id: "registrations", label: "Registrations", icon: Users },
   { id: "invites", label: "Invites", icon: UserPlus },
   { id: "display", label: "Display", icon: Monitor },
@@ -58,6 +60,10 @@ const SECTION_META: Record<ManageSection, { title: string; description: string }
   bracket: {
     title: "Bracket",
     description: "Generate, seed, and score elimination matches.",
+  },
+  players: {
+    title: "Players",
+    description: "Everyone who has joined squads for this Fun Match session.",
   },
   registrations: {
     title: "Registrations",
@@ -105,10 +111,11 @@ export function TournamentManageShell({
     return SECTIONS.filter((s) => {
       if (s.id === "bracket" && !isElimination) return false;
       if (s.id === "registrations" && !isOfficial) return false;
+      if (s.id === "players" && !isFunMatch) return false;
       if (s.id === "invites" && !access.isOwner) return false;
       return true;
     });
-  }, [isElimination, isOfficial, access.isOwner]);
+  }, [isElimination, isOfficial, isFunMatch, access.isOwner]);
 
   const initialSection =
     (searchParams.get("section") as ManageSection | null) ?? "dashboard";
@@ -278,10 +285,11 @@ export function TournamentManageShell({
             ) : null}
 
             {section === "scoring" && access.canManageScoring ? (
-              <CourtScoringGrid
+              <FunMatchScoringWorkspace
                 tournament={tournament}
                 participant={participant}
                 livePhase={livePhase}
+                workspaceVariant={isFunMatch ? "fun_match" : "official"}
               />
             ) : null}
 
@@ -293,6 +301,17 @@ export function TournamentManageShell({
 
             {section === "bracket" && isElimination && access.canManageBracket ? (
               <BracketManagePanel tournament={tournament} participant={participant} />
+            ) : null}
+
+            {section === "players" && isFunMatch ? (
+              <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
+                <TournamentParticipantsPanel
+                  sportSlug={tournament.sportSlug}
+                  slug={tournament.slug}
+                  tournamentType="fun_match"
+                  variant="reclub"
+                />
+              </div>
             ) : null}
 
             {section === "registrations" && isOfficial ? (

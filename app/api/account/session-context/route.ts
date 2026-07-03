@@ -20,6 +20,7 @@ export async function GET() {
     if (!session?.user) {
       return jsonSuccess({
         authenticated: false,
+        user: null,
         accountInactive: false,
         roles: [],
         roleLabels: [],
@@ -39,6 +40,7 @@ export async function GET() {
     if (!account) {
       return jsonSuccess({
         authenticated: false,
+        user: null,
         accountInactive: false,
         staleSession: true,
         roles: [],
@@ -57,6 +59,7 @@ export async function GET() {
     if (!account.isActive) {
       return jsonSuccess({
         authenticated: false,
+        user: null,
         accountInactive: true,
         roles: [],
         roleLabels: [],
@@ -83,6 +86,7 @@ export async function GET() {
         gender: user.gender,
         image: user.image,
         imageStorageKey: user.imageStorageKey,
+        nickname: user.nickname,
       })
       .from(user)
       .where(eq(user.id, session.user.id))
@@ -96,6 +100,14 @@ export async function GET() {
 
     return jsonSuccess({
       authenticated: true,
+      user: {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        image: dbUser?.image ?? session.user.image ?? null,
+        nickname: dbUser?.nickname ?? null,
+        role: (session.user as { role?: string | null }).role ?? null,
+      },
       accountInactive: false,
       roles,
       roleLabels: roles.map(getRoleLabel),

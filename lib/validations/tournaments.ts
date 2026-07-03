@@ -66,6 +66,7 @@ export const tournamentUpsertSchema = z
       )
       .default(21),
     courtCount: z.coerce.number().int().min(1).max(12).default(1),
+    roundDurationMinutes: z.coerce.number().int().min(1).max(120).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.format !== "americano" && data.format !== "single_elimination") {

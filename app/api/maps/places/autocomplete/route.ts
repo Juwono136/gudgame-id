@@ -1,6 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
-import { autocompletePlaces, isGooglePlacesConfigured } from "@/lib/maps/google-places";
+import { autocompletePlaces, isVenueSearchConfigured } from "@/lib/maps/venue-search";
 import { z } from "zod";
 import { guardApiRequest } from "@/lib/api/guard-request";
 
@@ -17,12 +17,12 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const { input } = querySchema.parse(Object.fromEntries(url.searchParams));
 
-    if (!isGooglePlacesConfigured()) {
+    if (!isVenueSearchConfigured()) {
       return jsonSuccess({ items: [], configured: false });
     }
 
-    const items = await autocompletePlaces(input);
-    return jsonSuccess({ items, configured: true });
+    const { items, provider } = await autocompletePlaces(input);
+    return jsonSuccess({ items, configured: true, provider });
   } catch (error) {
     return jsonError(error);
   }

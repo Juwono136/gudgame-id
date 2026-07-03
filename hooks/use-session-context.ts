@@ -11,8 +11,18 @@ export type SessionDashboardLink = {
   href: string;
 };
 
+export type SessionContextUser = {
+  id: string;
+  name: string;
+  email: string;
+  image?: string | null;
+  nickname?: string | null;
+  role?: string | null;
+};
+
 export type SessionContextData = {
   authenticated: boolean;
+  user?: SessionContextUser | null;
   accountInactive?: boolean;
   roles: AppRole[];
   roleLabels: string[];
@@ -35,6 +45,7 @@ export function useSessionContext(enabled = true) {
       if (!res.ok) {
         return {
           authenticated: false,
+          user: null,
           accountInactive: false,
           roles: [] as AppRole[],
           roleLabels: [],

@@ -7,7 +7,21 @@ import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
+import {
+  appendBracketScoreEvent,
+  parseBracketMatchMetadata,
+} from "@/lib/tournaments/brackets/bracket-metadata";
 import { assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
+import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
+import {
+  applyScoreDelta as engineApplyDelta,
+  type ScoringRules,
+} from "@/lib/tournaments/scoring/engine";
+import {
+  getTournamentDeuceConfig,
+  getTournamentPointsPerMatch,
+  getTournamentScoringType,
+} from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type BracketMatchView = {
@@ -27,7 +41,47 @@ export type BracketMatchView = {
   nextMatchId: string | null;
   courtId: string | null;
   startedAt: string | null;
+  scoreEvents: MatchScoreEvent[];
 };
+
+function buildScoringRules(tournament: TournamentDetail): ScoringRules {
+  return {
+    pointsPerMatch: getTournamentPointsPerMatch(tournament),
+    deuceConfig: getTournamentDeuceConfig(tournament),
+    scoringType: getTournamentScoringType(tournament),
+  };
+}
+
+type BracketMatchRow = typeof tournamentBracketMatches.$inferSelect;
+
+async function mapBracketRowToView(
+  row: BracketMatchRow,
+  playersByTeam: Map<string, string[]>,
+): Promise<BracketMatchView> {
+  const meta = parseBracketMatchMetadata(row.metadata);
+  return {
+    id: row.id,
+    roundNumber: row.roundNumber,
+    matchNumber: row.matchNumber,
+    teamAId: row.teamAId,
+    teamBId: row.teamBId,
+    teamAName: row.teamAName,
+    teamBName: row.teamBName,
+    teamAPlayers: row.teamAId ? (playersByTeam.get(row.teamAId) ?? []) : [],
+    teamBPlayers: row.teamBId ? (playersByTeam.get(row.teamBId) ?? []) : [],
+    scoreA: row.scoreA,
+    scoreB: row.scoreB,
+    winnerTeamId: row.winnerTeamId,
+    status: row.status,
+    nextMatchId: row.nextMatchId,
+    courtId: row.courtId,
+    startedAt:
+      row.status === "in_progress" && row.scheduledAt
+        ? row.scheduledAt.toISOString()
+        : null,
+    scoreEvents: meta.scoreEvents ?? [],
+  };
+}
 
 async function getBracketTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
   if (!teamIds.length) return new Map();
@@ -71,27 +125,7 @@ export async function listBracketMatches(tournamentId: string): Promise<BracketM
   ];
   const playersByTeam = await getBracketTeamPlayers(teamIds);
 
-  return rows.map((r) => ({
-    id: r.id,
-    roundNumber: r.roundNumber,
-    matchNumber: r.matchNumber,
-    teamAId: r.teamAId,
-    teamBId: r.teamBId,
-    teamAName: r.teamAName,
-    teamBName: r.teamBName,
-    teamAPlayers: r.teamAId ? (playersByTeam.get(r.teamAId) ?? []) : [],
-    teamBPlayers: r.teamBId ? (playersByTeam.get(r.teamBId) ?? []) : [],
-    scoreA: r.scoreA,
-    scoreB: r.scoreB,
-    winnerTeamId: r.winnerTeamId,
-    status: r.status,
-    nextMatchId: r.nextMatchId,
-    courtId: r.courtId,
-    startedAt:
-      r.status === "in_progress" && r.scheduledAt
-        ? r.scheduledAt.toISOString()
-        : null,
-  }));
+  return Promise.all(rows.map((r) => mapBracketRowToView(r, playersByTeam)));
 }
 
 export async function submitBracketMatchScore(
@@ -138,10 +172,13 @@ export async function submitBracketMatchScore(
   }
 
   if (scoreA === scoreB) {
-    throw new AppError("Scores cannot be tied in elimination bracket", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
+    throw new AppError(
+      "Scores are tied — replay this match before advancing the bracket",
+      {
+        code: "TIE_REQUIRES_REMATCH",
+        statusCode: 422,
+      },
+    );
   }
 
   const winnerTeamId = scoreA > scoreB ? match.teamAId : match.teamBId;
@@ -150,6 +187,15 @@ export async function submitBracketMatchScore(
     .from(tournamentTeams)
     .where(eq(tournamentTeams.id, winnerTeamId))
     .limit(1);
+
+  const prevMeta = parseBracketMatchMetadata(match.metadata);
+  const finalizeMeta = appendBracketScoreEvent(prevMeta, {
+    at: new Date().toISOString(),
+    userId,
+    scoreA,
+    scoreB,
+    action: "set",
+  });
 
   const [updated] = await db
     .update(tournamentBracketMatches)
@@ -160,6 +206,8 @@ export async function submitBracketMatchScore(
       status: "completed",
       completedAt: new Date(),
       recordedByUserId: userId,
+      courtId: null,
+      metadata: finalizeMeta,
     })
     .where(eq(tournamentBracketMatches.id, matchId))
     .returning();
@@ -254,35 +302,23 @@ export async function submitBracketMatchScore(
     }
   }
 
-  return {
-    id: updated.id,
-    roundNumber: updated.roundNumber,
-    matchNumber: updated.matchNumber,
-    teamAId: updated.teamAId,
-    teamBId: updated.teamBId,
-    teamAName: updated.teamAName,
-    teamBName: updated.teamBName,
-    teamAPlayers: match.teamAId ? (await getBracketTeamPlayers([match.teamAId])).get(match.teamAId) ?? [] : [],
-    teamBPlayers: match.teamBId ? (await getBracketTeamPlayers([match.teamBId])).get(match.teamBId) ?? [] : [],
-    scoreA: updated.scoreA,
-    scoreB: updated.scoreB,
-    winnerTeamId: updated.winnerTeamId,
-    status: updated.status,
-    nextMatchId: updated.nextMatchId,
-    courtId: updated.courtId,
-    startedAt:
-      updated.status === "in_progress" && updated.scheduledAt
-        ? updated.scheduledAt.toISOString()
-        : null,
-  };
+  const playersByTeam = await getBracketTeamPlayers(
+    [updated.teamAId, updated.teamBId].filter((id): id is string => Boolean(id)),
+  );
+  return mapBracketRowToView(updated, playersByTeam);
 }
 
 export async function updateBracketLiveScore(
   tournament: TournamentDetail,
   matchId: string,
   userId: string,
-  scoreA: number,
-  scoreB: number,
+  userName: string | null,
+  input: {
+    scoreA: number;
+    scoreB: number;
+    action?: MatchScoreEvent["action"];
+    side?: MatchScoreEvent["side"];
+  },
 ): Promise<BracketMatchView> {
   if (tournament.format === "americano") {
     throw new AppError("Americano tournaments do not use bracket scoring", {
@@ -320,13 +356,55 @@ export async function updateBracketLiveScore(
     });
   }
 
+  const rules = buildScoringRules(tournament);
+  let scoreA = Math.max(0, match.scoreA ?? 0);
+  let scoreB = Math.max(0, match.scoreB ?? 0);
+
+  if (input.action === "increment" && input.side) {
+    const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
+    if (!next) {
+      throw new AppError("Cannot increase score — match may be complete or at cap", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    scoreA = next.scoreA;
+    scoreB = next.scoreB;
+  } else if (input.action === "decrement" && input.side) {
+    const next = engineApplyDelta(scoreA, scoreB, input.side, -1, rules);
+    if (!next) {
+      throw new AppError("Score cannot go below zero", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    scoreA = next.scoreA;
+    scoreB = next.scoreB;
+  } else {
+    scoreA = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreA));
+    scoreB = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreB));
+  }
+
+  const prevMeta = parseBracketMatchMetadata(match.metadata);
+  const event: MatchScoreEvent = {
+    at: new Date().toISOString(),
+    userId,
+    userName: userName ?? undefined,
+    scoreA,
+    scoreB,
+    action: input.action ?? "set",
+    side: input.side,
+  };
+  const metadata = appendBracketScoreEvent(prevMeta, event);
+
   const [updated] = await db
     .update(tournamentBracketMatches)
     .set({
-      scoreA: Math.max(0, Math.min(99, scoreA)),
-      scoreB: Math.max(0, Math.min(99, scoreB)),
+      scoreA,
+      scoreB,
       status: "in_progress",
       recordedByUserId: userId,
+      metadata,
     })
     .where(eq(tournamentBracketMatches.id, matchId))
     .returning();
@@ -335,27 +413,8 @@ export async function updateBracketLiveScore(
     throw new AppError("Could not update score", { code: "DATABASE_ERROR", statusCode: 500 });
   }
 
-  return {
-    id: updated.id,
-    roundNumber: updated.roundNumber,
-    matchNumber: updated.matchNumber,
-    teamAId: updated.teamAId,
-    teamBId: updated.teamBId,
-    teamAName: updated.teamAName,
-    teamBName: updated.teamBName,
-    teamAPlayers: match.teamAId ? (await getBracketTeamPlayers([match.teamAId])).get(match.teamAId) ?? [] : [],
-    teamBPlayers: match.teamBId ? (await getBracketTeamPlayers([match.teamBId])).get(match.teamBId) ?? [] : [],
-    scoreA: updated.scoreA,
-    scoreB: updated.scoreB,
-    winnerTeamId: updated.winnerTeamId,
-    status: updated.status,
-    nextMatchId: updated.nextMatchId,
-    courtId: updated.courtId,
-    startedAt:
-      updated.status === "in_progress" && updated.scheduledAt
-        ? updated.scheduledAt.toISOString()
-        : null,
-  };
+  const playersByTeam = await getBracketTeamPlayers([match.teamAId, match.teamBId]);
+  return mapBracketRowToView(updated, playersByTeam);
 }
 
 export async function hasBracket(tournamentId: string): Promise<boolean> {

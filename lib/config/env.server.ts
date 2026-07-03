@@ -38,6 +38,7 @@ const serverSchema = z
     HEALTH_CHECK_TOKEN: z.string().min(16).optional(),
     CRON_SECRET: z.string().min(16).optional(),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
+    NOMINATIM_USER_AGENT: z.string().min(1).optional(),
     GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
     XENDIT_SECRET_KEY: z.string().min(1).optional(),
     XENDIT_WEBHOOK_TOKEN: z.string().min(16).optional(),

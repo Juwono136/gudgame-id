@@ -1,16 +1,6 @@
 import "server-only";
 
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  ne,
-  or,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, ne, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   sports,
@@ -26,6 +16,7 @@ import {
   assertAdminCanManageWikiEntity,
   adminWikiEntityVisibilityCondition,
 } from "@/lib/wiki/admin-entity-access";
+import { isEligiblePublicPlayerProfile } from "@/lib/wiki/active-player-eligibility";
 import { normalizeWikiSourceUrl } from "@/lib/wiki/normalize-source-url";
 import { assertGearSourceUrlUnique } from "@/lib/wiki/source-url-lookup";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
@@ -326,6 +317,12 @@ export async function getPublishedWikiEntityBySlug(
     .limit(1);
 
   if (!row) return null;
+
+  if (entityType === "player") {
+    const eligible = await isEligiblePublicPlayerProfile(row.id);
+    if (!eligible) return null;
+  }
+
   return getWikiEntityById(row.id, { publishedOnly: true });
 }
 

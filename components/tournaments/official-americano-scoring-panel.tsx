@@ -341,6 +341,8 @@ export function OfficialAmericanoScoringPanel({
             roundLabel: `R${m.roundNumber}`,
             teamAName: m.teamAName ?? null,
             teamBName: m.teamBName ?? null,
+            teamAPlayers: m.teamAPlayers ?? [],
+            teamBPlayers: m.teamBPlayers ?? [],
             scoreA: m.scoreA ?? null,
             scoreB: m.scoreB ?? null,
             status: m.status,

@@ -3,15 +3,9 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
-import {
-  tournamentRegistrations,
-  tournamentTeams,
-} from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertBracketSetupAllowed } from "@/lib/tournaments/lifecycle-guards";
 import { assertBracketPlayNotStarted } from "@/lib/tournaments/brackets/play-guard";
-import { isFunMatchType } from "@/lib/tournaments/core/types";
-import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { hasBracket } from "@/lib/tournaments/brackets/service";
 import { processRoundOneByesFromSlots } from "@/lib/tournaments/brackets/round-one";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
@@ -39,33 +33,6 @@ export async function finalizeBracketSeeding(
   }
 
   const db = getDb();
-
-  const requiredTeams: string[] =
-    isFunMatchType(tournament.tournamentType)
-      ? (await listLobbyTeamsDetailed(tournament.id))
-          .filter((t) => t.memberCount > 0)
-          .map((t) => t.id)
-      : (
-          await db
-            .select({ teamId: tournamentRegistrations.teamId })
-            .from(tournamentRegistrations)
-            .innerJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
-            .where(
-              and(
-                eq(tournamentRegistrations.tournamentId, tournament.id),
-                eq(tournamentRegistrations.status, "confirmed"),
-              ),
-            )
-        )
-          .map((row) => row.teamId)
-          .filter((id): id is string => Boolean(id));
-
-  if (requiredTeams.length < 2) {
-    throw new AppError("Need at least 2 teams before finalizing the bracket", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
-  }
 
   const round1 = await db
     .select()
@@ -99,12 +66,11 @@ export async function finalizeBracketSeeding(
     }
   }
 
-  const missing = requiredTeams.filter((id) => !placedTeamIds.has(id));
-  if (missing.length > 0) {
-    throw new AppError(
-      `${missing.length} team${missing.length === 1 ? "" : "s"} still need to be placed in round one before saving`,
-      { code: "VALIDATION_ERROR", statusCode: 422 },
-    );
+  if (placedTeamIds.size < 1) {
+    throw new AppError("Place at least one team in round one before saving the bracket", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
   }
 
   await processRoundOneByesFromSlots(tournament.id);

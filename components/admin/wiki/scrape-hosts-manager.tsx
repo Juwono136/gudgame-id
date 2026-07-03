@@ -23,6 +23,7 @@ import {
   type ScrapeParserProfile,
 } from "@/lib/wiki/gear/constants";
 import type { ScrapeHostView } from "@/lib/wiki/scrape-hosts/service";
+import { normalizeScrapeHostnameInput } from "@/lib/wiki/scrape-hosts/normalize-hostname";
 import { cn } from "@/lib/utils";
 
 type HostsResponse = {
@@ -54,10 +55,19 @@ export function ScrapeHostsManager() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const normalizedHostname = normalizeScrapeHostnameInput(hostname);
+      if (!normalizedHostname) {
+        throw new Error("Enter a valid hostname (e.g. padelracket.id)");
+      }
       const res = await fetch("/api/admin/wiki-scrape-hosts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostname, label, parserProfile, enabled: true }),
+        body: JSON.stringify({
+          hostname: normalizedHostname,
+          label: label.trim(),
+          parserProfile,
+          enabled: true,
+        }),
       });
       const json = await parseJsonResponse<HostsResponse>(res);
       if (!res.ok) throw new Error(extractApiErrorMessage(json, "Failed to add host"));
@@ -205,7 +215,8 @@ export function ScrapeHostsManager() {
           <DialogHeader>
             <DialogTitle>Add scrape host</DialogTitle>
             <DialogDescription className="text-sm text-cp-muted">
-              Allow importing products from this hostname. Use the site domain only, without https://.
+              Allow importing products from this hostname. Paste a full URL if you like — we store
+              the domain only (e.g. padelracket.id).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -214,7 +225,13 @@ export function ScrapeHostsManager() {
               <Input
                 value={hostname}
                 onChange={(e) => setHostname(e.target.value)}
-                placeholder="e.g. padeltop.id"
+                onBlur={() => {
+                  const normalized = normalizeScrapeHostnameInput(hostname);
+                  if (normalized && normalized !== hostname.trim().toLowerCase()) {
+                    setHostname(normalized);
+                  }
+                }}
+                placeholder="e.g. padeltop.id or https://padeltop.id/"
                 className="mt-1.5 border-cp-border bg-cp-elevated font-mono text-sm"
               />
             </div>

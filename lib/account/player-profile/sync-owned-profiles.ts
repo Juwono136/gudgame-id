@@ -6,7 +6,7 @@ import { sports, user, wikiEntities } from "@/db/schema";
 import { filterSportCatalogSlugs } from "@/lib/sports/catalog";
 import { slugifyWikiName, ensureUniqueWikiSlug } from "@/lib/wiki/slug";
 import { getUserPhotoForWiki } from "@/lib/account/player-profile/sync-primary-photo";
-import { requirePlayerDisplayNameForUser } from "@/lib/account/player-profile/resolve-display-name";
+import { resolveWikiDisplayNameForUser } from "@/lib/account/player-profile/resolve-wiki-display-name";
 
 export type OwnedPlayerEntityRow = {
   id: string;
@@ -80,10 +80,8 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
     }
   }
 
-  let displayName: string;
-  try {
-    displayName = await requirePlayerDisplayNameForUser(userId);
-  } catch {
+  const displayName = await resolveWikiDisplayNameForUser(userId);
+  if (!displayName) {
     return { syncedSportSlugs: [] };
   }
 

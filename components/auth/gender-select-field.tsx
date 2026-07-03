@@ -1,6 +1,5 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -32,14 +31,14 @@ export function GenderSelectField({
 }: GenderSelectFieldProps) {
   return (
     <div className={cn("space-y-2", className)}>
-      <Label htmlFor={id}>
+      {/* <Label htmlFor={id}>
         Gender
         {required ? <span className="text-red-400"> *</span> : null}
-      </Label>
-      <p className="text-xs text-cp-muted">
+      </Label> */}
+      {/* <p className="text-xs text-cp-muted">
         Required for official tournaments with Male or Female categories. Not shown publicly beyond
         your player profile.
-      </p>
+      </p> */}
       <Select
         value={value || UNSET_GENDER_VALUE}
         onValueChange={(v) => {

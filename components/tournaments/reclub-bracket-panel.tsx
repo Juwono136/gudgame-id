@@ -36,6 +36,7 @@ import {
 } from "@/lib/tournaments/reclub/session-lifecycle";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { cn } from "@/lib/utils";
+import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
 
 type ReclubBracketPanelProps = {
   sportSlug: string;
@@ -71,7 +72,7 @@ export function ReclubBracketPanel({
   const canPlay = canPlayReclubSession(session);
 
   const matches = data?.matches ?? [];
-  const generated = data?.generated ?? false;
+  const generated = hasPublicBracketTree(data);
   const seedingFinalized = data?.seedingFinalized ?? false;
   const playStarted = matches.some(
     (m) => m.status === "in_progress" || m.status === "completed",
@@ -97,12 +98,18 @@ export function ReclubBracketPanel({
   );
 
   const activeSquads = teams.filter((t) => t.memberCount > 0).length;
+  const round1HasTeams = matches.some(
+    (m) => m.roundNumber === 1 && (m.teamAId || m.teamBId),
+  );
   const canGenerate =
     canManage &&
     !generated &&
     activeSquads >= 2 &&
     sessionPhase !== "ended" &&
     tournamentStatus !== "cancelled";
+
+  const canRandomSeed =
+    canManage && generated && !seedingLocked && canPlay && activeSquads >= 2 && !round1HasTeams;
 
   if (isLoading) {
     return (
@@ -121,8 +128,8 @@ export function ReclubBracketPanel({
             Elimination bracket
           </h2>
           <p className="mt-1 max-w-xl text-sm text-cp-muted">
-            Single-elimination tree — winners advance, losers are out. Host seeds squads, scores
-            matches live, and results sync to player history.
+            Single-elimination tree — slots fill as squads join. Host assigns seeding, scores matches
+            live, and results sync across the session.
           </p>
         </div>
         {isFetching && !isLoading ? (
@@ -139,10 +146,10 @@ export function ReclubBracketPanel({
           <Sparkles className="mx-auto h-8 w-8 text-emerald-400/80" />
           <p className="mt-3 text-sm text-cp-muted">
             {activeSquads < 2
-              ? "Need at least 2 squads with players before generating a bracket."
+              ? "Need at least 2 squads with players. The bracket tree appears automatically once the session is ready."
               : canManage
-                ? "Generate the bracket when squads are ready. You can drag squads to seed round one."
-                : "The host will generate the bracket when squads are ready."}
+                ? "The bracket tree is loading — assign squads to round one when it appears, or use random seed."
+                : "The bracket tree appears here once squads are ready."}
           </p>
           {canGenerate ? (
             <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -208,6 +215,24 @@ export function ReclubBracketPanel({
                   }}
                 >
                   Save bracket
+                </Button>
+              ) : null}
+              {canRandomSeed ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={generate.isPending}
+                  onClick={async () => {
+                    try {
+                      await generate.mutateAsync("random");
+                      await refetch();
+                    } catch {
+                      /* toast via mutation onError */
+                    }
+                  }}
+                >
+                  <Shuffle className="mr-1.5 h-4 w-4" />
+                  Random seed
                 </Button>
               ) : null}
               {!resetLocked ? (

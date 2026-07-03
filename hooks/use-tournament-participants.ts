@@ -8,6 +8,7 @@ import type { TournamentParticipantsResult } from "@/lib/tournaments/participant
 
 type UseTournamentParticipantsOptions = {
   enabled?: boolean;
+  refetchInterval?: number | false;
 };
 
 export function useTournamentParticipants(
@@ -41,5 +42,6 @@ export function useTournamentParticipants(
       return json.data;
     },
     staleTime: 30_000,
+    refetchInterval: options?.refetchInterval ?? false,
   });
 }

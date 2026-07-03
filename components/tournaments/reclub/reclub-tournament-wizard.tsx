@@ -59,8 +59,10 @@ import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
 import {
   TOURNAMENT_COURT_COUNT_OPTIONS,
   TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
+  TOURNAMENT_ROUND_DURATION_OPTIONS,
   getTournamentCourtCount,
   getTournamentPointsPerMatch,
+  getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   type TournamentScoringType,
 } from "@/lib/tournaments/settings";
@@ -117,6 +119,7 @@ function hydrateFromInitial(initial: TournamentDetail) {
     matchType: initial.format === "americano" ? "americano" : "single_elimination",
     scoringType: getTournamentScoringType(initial),
     pointsPerMatch: String(getTournamentPointsPerMatch(initial)),
+    roundDurationMinutes: String(getTournamentRoundDurationMinutes(initial)),
     courtCount: String(getTournamentCourtCount(initial)),
     startsAt: toLocalDatetime(initial.startsAt),
     endsAt: toLocalDatetime(initial.endsAt),
@@ -195,6 +198,9 @@ export function ReclubTournamentWizard({
     hydrated?.pointsPerMatch ?? "21",
   );
   const [courtCount, setCourtCount] = useState(hydrated?.courtCount ?? "1");
+  const [roundDurationMinutes, setRoundDurationMinutes] = useState(
+    hydrated?.roundDurationMinutes ?? "15",
+  );
   const [startsAt, setStartsAt] = useState(hydrated?.startsAt ?? "");
   const [endsAt, setEndsAt] = useState(hydrated?.endsAt ?? "");
 
@@ -313,6 +319,8 @@ export function ReclubTournamentWizard({
       format: matchType as "americano" | "single_elimination",
       scoringType,
       pointsPerMatch: Number(pointsPerMatch) || 21,
+      roundDurationMinutes:
+        scoringType === "timed" ? Number(roundDurationMinutes) || 15 : undefined,
       courtCount: Number(courtCount) || 1,
     };
   };
@@ -546,19 +554,42 @@ export function ReclubTournamentWizard({
                   </Select>
                 </div>
                 <div>
-                  <Label>Point per match</Label>
-                  <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
-                    <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
-                        <SelectItem key={points} value={String(points)}>
-                          {points} points
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {scoringType === "timed" ? (
+                    <>
+                      <Label>Round duration</Label>
+                      <Select
+                        value={roundDurationMinutes}
+                        onValueChange={setRoundDurationMinutes}
+                      >
+                        <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TOURNAMENT_ROUND_DURATION_OPTIONS.map((minutes) => (
+                            <SelectItem key={minutes} value={String(minutes)}>
+                              {minutes} minutes
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  ) : (
+                    <>
+                      <Label>Point per match</Label>
+                      <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
+                        <SelectTrigger className="mt-1.5 border-cp-border bg-cp-bg-input">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
+                            <SelectItem key={points} value={String(points)}>
+                              {points} points
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                 </div>
                 <div>
                   <Label>Number of courts</Label>
@@ -634,7 +665,9 @@ export function ReclubTournamentWizard({
               maxRounds={maxRounds}
               matchType={matchType}
               scoringType={scoringType}
-              pointsPerMatch={pointsPerMatch}
+              pointsPerMatch={
+                scoringType === "timed" ? roundDurationMinutes : pointsPerMatch
+              }
               courtCount={courtCount}
               startsAt={startsAt}
               endsAt={endsAt}

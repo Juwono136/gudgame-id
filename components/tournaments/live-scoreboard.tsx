@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 type LiveScoreboardProps = {
   teamAName: string;
   teamBName: string;
+  teamAPlayers?: string[];
+  teamBPlayers?: string[];
   scoreA: number;
   scoreB: number;
   onScoreAChange: (next: number) => void;
@@ -70,25 +72,35 @@ function ScoreColumn({
 
 function CompactScoreRow({
   label,
+  players,
   score,
   onChange,
   maxScore,
   disabled,
 }: {
   label: string;
+  players?: string[];
   score: number;
   onChange: (n: number) => void;
   maxScore: number;
   disabled?: boolean;
 }) {
+  const playerLine = players?.length ? players.join(" / ") : null;
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-2 py-2 sm:gap-3 sm:px-3">
-      <p
-        className="min-w-0 flex-1 break-words text-xs font-medium leading-snug text-foreground sm:text-sm"
-        title={label}
-      >
-        {label}
-      </p>
+      <div className="min-w-0 flex-1">
+        <p
+          className="break-words text-xs font-semibold leading-snug text-foreground sm:text-sm"
+          title={label}
+        >
+          {label}
+        </p>
+        {playerLine ? (
+          <p className="mt-0.5 break-words text-[10px] leading-snug text-cp-muted sm:text-[11px]">
+            {playerLine}
+          </p>
+        ) : null}
+      </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <Button
           type="button"
@@ -124,6 +136,8 @@ function CompactScoreRow({
 export function LiveScoreboard({
   teamAName,
   teamBName,
+  teamAPlayers,
+  teamBPlayers,
   scoreA,
   scoreB,
   onScoreAChange,
@@ -151,6 +165,7 @@ export function LiveScoreboard({
         <div className="space-y-2">
           <CompactScoreRow
             label={teamAName}
+            players={teamAPlayers}
             score={scoreA}
             onChange={onScoreAChange}
             maxScore={maxScore}
@@ -158,6 +173,7 @@ export function LiveScoreboard({
           />
           <CompactScoreRow
             label={teamBName}
+            players={teamBPlayers}
             score={scoreB}
             onChange={onScoreBChange}
             maxScore={maxScore}

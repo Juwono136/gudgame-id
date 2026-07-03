@@ -12,13 +12,12 @@ import { UserMenu, UserMenuMobileLinks } from "@/components/layout/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { GlobalSearchBox } from "@/components/search/global-search-box";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { useSession } from "@/lib/auth/client";
+import { useAuthUser } from "@/hooks/use-auth-user";
 import {
   authRoutes,
   isNavActive,
   mainNavItems,
 } from "@/lib/constants/navigation";
-import { useSessionContext } from "@/hooks/use-session-context";
 import { useDashboardMobileNavActive } from "@/hooks/use-dashboard-mobile-nav-active";
 import { DASHBOARD_MOBILE_BOTTOM_NAV_HEIGHT } from "@/lib/constants/dashboard-layout";
 import { SITE_HEADER_HEIGHT_CSS_VAR } from "@/lib/constants/site-layout";
@@ -31,18 +30,17 @@ export default function Navbar() {
   const pathname = usePathname();
   const headerRef = useRef<HTMLElement>(null);
   const scrollYRef = useRef(0);
-  const { data: session, isPending: sessionPending } = useSession();
-  const { data: sessionCtx, isPending: ctxPending } = useSessionContext();
+  const { isAuthenticated, isAuthLoading } = useAuthUser();
   const hasBottomDashboardNav = useDashboardMobileNavActive();
   const [hydrated, setHydrated] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [menuTop, setMenuTop] = useState(56);
 
-  const isAuthenticated =
-    hydrated && (Boolean(session?.user) || sessionCtx?.authenticated === true);
-  const isAuthLoading =
-    hydrated && (sessionPending || ctxPending) && !isAuthenticated;
+  const isAuthLoadingNav =
+    hydrated && isAuthLoading && !isAuthenticated;
+
+  const showAuthenticated = hydrated && isAuthenticated;
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -172,13 +170,13 @@ export default function Navbar() {
               </button>
             ) : null}
 
-            {isAuthenticated ? (
+            {showAuthenticated ? (
               <NotificationBell className="inline-flex h-9 w-9 shrink-0" />
             ) : null}
 
-            {isAuthenticated ? (
+            {showAuthenticated ? (
               <UserMenu className="hidden md:inline-flex" />
-            ) : isAuthLoading ? (
+            ) : isAuthLoadingNav ? (
               <div
                 className="hidden h-10 w-10 animate-pulse rounded-full border border-cp-border bg-cp-elevated md:block"
                 aria-hidden
@@ -312,9 +310,9 @@ export default function Navbar() {
                   })}
                 </div>
 
-                {isAuthenticated ? (
+                {showAuthenticated ? (
                   <UserMenuMobileLinks onNavigate={closeMobile} />
-                ) : isAuthLoading ? null : (
+                ) : isAuthLoadingNav ? null : (
                   <motion.div
                     className="mt-4 flex flex-col gap-2"
                     initial={{ opacity: 0, y: 6 }}

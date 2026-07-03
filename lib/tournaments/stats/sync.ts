@@ -314,6 +314,20 @@ export async function syncReclubBracketResult(input: {
   }
 }
 
+export async function removeOfficialPlacement(
+  tournamentId: string,
+  userId: string,
+): Promise<void> {
+  await getDb()
+    .delete(playerTournamentResults)
+    .where(
+      and(
+        eq(playerTournamentResults.tournamentId, tournamentId),
+        eq(playerTournamentResults.userId, userId),
+      ),
+    );
+}
+
 export async function syncOfficialPlacement(input: {
   tournament: TournamentDetail;
   userId: string;

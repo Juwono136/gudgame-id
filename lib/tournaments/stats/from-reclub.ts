@@ -8,7 +8,6 @@ import type {
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import {
   bracketMatchToReclubView,
-  getReclubMatchHistoryKey,
   type ReclubMatchView,
 } from "@/lib/tournaments/reclub/types";
 
@@ -72,16 +71,12 @@ export function computeReclubSessionStats(input: {
   void input.maxRounds;
 
   const teams = toStatsTeams(input.teams);
-  const seen = new Set<string>();
   const matches: StatsMatchInput[] = [];
 
   for (const match of input.matches) {
     const normalized = toStatsMatch(match);
     if (!normalized) continue;
-    const key = getReclubMatchHistoryKey(match);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    matches.push(normalized);
+    matches.push({ ...normalized, id: match.id });
   }
 
   const base = computeTournamentSessionStats({
@@ -104,15 +99,10 @@ export function computeReclubSessionStatsWithBracket(input: {
   totalPlayers: number;
   maxRounds: number | null;
 }): TournamentSessionStats {
-  const seen = new Set<string>();
-  const merged: ReclubMatchView[] = [];
-
-  for (const match of [...input.reclubMatches, ...input.bracketMatches.map(bracketMatchToReclubView)]) {
-    const key = getReclubMatchHistoryKey(match);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(match);
-  }
+  const merged: ReclubMatchView[] = [
+    ...input.reclubMatches,
+    ...input.bracketMatches.map(bracketMatchToReclubView),
+  ];
 
   return computeReclubSessionStats({
     matches: merged,

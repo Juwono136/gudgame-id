@@ -2,9 +2,9 @@
 
 import { ExternalLink, MapPin } from "lucide-react";
 import {
-  buildGoogleMapsEmbedUrl,
-  resolveGoogleMapsOpenUrl,
-} from "@/lib/maps/google-maps-url";
+  buildVenueEmbedUrl,
+  resolveVenueOpenUrl,
+} from "@/lib/maps/venue-maps-url";
 import { cn } from "@/lib/utils";
 
 type TournamentVenueMapPreviewProps = {
@@ -20,8 +20,8 @@ export function TournamentVenueMapPreview({
   className,
   compact = false,
 }: TournamentVenueMapPreviewProps) {
-  const embedUrl = buildGoogleMapsEmbedUrl(mapsUrl, venue);
-  const openUrl = resolveGoogleMapsOpenUrl(mapsUrl, venue);
+  const embedUrl = buildVenueEmbedUrl(mapsUrl, venue);
+  const openUrl = resolveVenueOpenUrl(mapsUrl, venue);
 
   if (!venue.trim() && !embedUrl) return null;
 

@@ -6,8 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
+import { OfficialPublicBracketTab } from "@/components/tournaments/official/official-public-bracket-tab";
+import { OfficialPublicHistoryStatsTab } from "@/components/tournaments/official/official-public-history-stats-tab";
+import { OfficialPublicPlayersTab } from "@/components/tournaments/official/official-public-players-tab";
 import { OfficialAmericanoScoringPanel } from "@/components/tournaments/official-americano-scoring-panel";
-import { PublicEliminationBracketTab } from "@/components/tournaments/public-elimination-bracket-tab";
 import { PaymentReceiptActions } from "@/components/payments/payment-receipt-actions";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
 import { tournamentTabUrl } from "@/lib/tournaments/manage-mode";
@@ -15,11 +17,8 @@ import { TournamentBreadcrumbs } from "@/components/tournaments/tournament-bread
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
-import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
-import { TournamentPlayersLiveStatsPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
 import { TournamentRoundHistorySection } from "@/components/tournaments/tournament-round-history-section";
 import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
-import { TournamentSessionStatsPanel } from "@/components/tournaments/tournament-session-stats-panel";
 import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
 import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
 import { TournamentCountdown } from "@/components/tournaments/tournament-countdown";
@@ -52,21 +51,34 @@ import type { TournamentRegistrationSummary } from "@/lib/tournaments/registrati
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentRuleSections } from "@/lib/tournaments/settings";
 import {
-  getScoringTypeLabel,
   getTournamentCourtCount,
   getTournamentFormatLabel,
-  getTournamentPointsPerMatch,
-  getTournamentScoringType,
+  getTournamentScoringDetailLabel,
+  getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { mapBracketMatchesToRecentRows, mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
 import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
 import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
+import {
+  buildOfficialTeamsFromLivePlayers,
+  buildOfficialTeamsFromParticipants,
+  enrichOfficialTeamsFromBracket,
+  mergeOfficialTeams,
+} from "@/lib/tournaments/stats/build-official-teams";
+import {
+  mapBracketMatchesToHistoryItems,
+  mapLiveHistoryToRoundItems,
+  mapReclubMatchesToHistoryItems,
+  mergeHistoryItems,
+} from "@/lib/tournaments/stats/map-history-items";
 import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 import { getMaxRounds } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
 import { isActiveRegistrationStatus } from "@/lib/tournaments/registration/urls";
+import { formatPlayerNameList } from "@/lib/format/player-names";
 
 function formatIdr(amount: number | null | undefined) {
   if (amount == null) return "—";
@@ -96,7 +108,7 @@ type OfficialTournamentPageProps = {
   gearItems?: TournamentGearRuleItem[];
 };
 
-const TABS = ["Overview", "Live Score", "Players", "Bracket", "Stats"] as const;
+const TABS = ["Overview", "Live Score", "Players", "Bracket", "History & stats"] as const;
 type OfficialTab = (typeof TABS)[number];
 
 export function OfficialTournamentPage({
@@ -174,8 +186,8 @@ export function OfficialTournamentPage({
     return TABS.filter((item) => isElimination || item !== "Bracket");
   }, [isElimination]);
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
-  const scoringTypeLabel = getScoringTypeLabel(getTournamentScoringType(tournament));
-  const pointsPerMatch = getTournamentPointsPerMatch(tournament);
+  const scoringPrimaryLabel = getTournamentScoringPrimaryLabel(tournament);
+  const scoringDetailLabel = getTournamentScoringDetailLabel(tournament);
   const courtCount = getTournamentCourtCount(tournament);
   useEffect(() => {
     setPublicUrl(window.location.href);
@@ -201,9 +213,11 @@ export function OfficialTournamentPage({
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
+    const normalized =
+      tabParam === "Stats" ? ("History & stats" as OfficialTab) : (tabParam as OfficialTab | null);
     const valid = new Set(visibleTabs);
-    if (tabParam && valid.has(tabParam as OfficialTab)) {
-      setTab(tabParam as OfficialTab);
+    if (normalized && valid.has(normalized)) {
+      setTab(normalized);
       return;
     }
     if (!tabParam) {
@@ -226,6 +240,7 @@ export function OfficialTournamentPage({
     tournament.slug,
     { enabled: isElimination },
   );
+  const bracketReady = hasPublicBracketTree(bracket);
   const { data: regStatus } = useRegistrationStatus(
     tournament.sportSlug,
     tournament.slug,
@@ -256,7 +271,14 @@ export function OfficialTournamentPage({
     tournament.slug,
     1,
     200,
-    { enabled: tab === "Players" || tab === "Stats" },
+    {
+      enabled:
+        isElimination ||
+        tab === "Players" ||
+        tab === "History & stats" ||
+        tab === "Live Score",
+      refetchInterval: isElimination ? 8_000 : false,
+    },
   );
 
   const sessionStats = useMemo(() => {
@@ -296,29 +318,103 @@ export function OfficialTournamentPage({
     return mapBracketMatchesToRecentRows(bracket?.matches ?? []);
   }, [americanoLobby?.matches, bracket?.matches, isElimination]);
 
-  const activeOfficialMatch = useMemo(() => {
+  const activeOfficialMatches = useMemo(() => {
     if (isElimination) {
-      return (
-        (bracket?.matches ?? []).find(
+      return (bracket?.matches ?? [])
+        .filter(
           (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
-        ) ?? null
-      );
+        )
+        .map((match) => ({
+          id: match.id,
+          teamAName: match.teamAName ?? "TBD",
+          teamBName: match.teamBName ?? "TBD",
+          teamAPlayers: match.teamAPlayers ?? [],
+          teamBPlayers: match.teamBPlayers ?? [],
+          scoreA: match.scoreA,
+          scoreB: match.scoreB,
+          roundNumber: match.roundNumber,
+          matchNumber: match.matchNumber,
+        }));
     }
-    const liveRound =
-      liveData?.matches?.find(
+    const liveRounds =
+      liveData?.matches?.filter(
         (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
-      ) ?? americanoLobby?.activeMatch;
-    if (!liveRound) return null;
-    return {
-      id: liveRound.id,
-      teamAName: liveRound.teamAName ?? "TBD",
-      teamBName: liveRound.teamBName ?? "TBD",
-      scoreA: liveRound.scoreA,
-      scoreB: liveRound.scoreB,
-      roundNumber: liveRound.roundNumber,
-      matchNumber: "matchNumber" in liveRound ? liveRound.matchNumber : undefined,
-    };
+      ) ?? [];
+    if (liveRounds.length) {
+      return liveRounds.map((liveRound) => ({
+        id: liveRound.id,
+        teamAName: liveRound.teamAName ?? "TBD",
+        teamBName: liveRound.teamBName ?? "TBD",
+        teamAPlayers: liveRound.teamAPlayers ?? [],
+        teamBPlayers: liveRound.teamBPlayers ?? [],
+        scoreA: liveRound.scoreA,
+        scoreB: liveRound.scoreB,
+        roundNumber: liveRound.roundNumber,
+        matchNumber: "matchNumber" in liveRound ? liveRound.matchNumber : undefined,
+      }));
+    }
+    const single = americanoLobby?.activeMatch;
+    if (!single) return [];
+    return [
+      {
+        id: single.id,
+        teamAName: single.teamAName ?? "TBD",
+        teamBName: single.teamBName ?? "TBD",
+        teamAPlayers: single.teamAPlayers ?? [],
+        teamBPlayers: single.teamBPlayers ?? [],
+        scoreA: single.scoreA,
+        scoreB: single.scoreB,
+        roundNumber: single.roundNumber,
+        matchNumber: undefined,
+      },
+    ];
   }, [americanoLobby?.activeMatch, bracket?.matches, isElimination, liveData?.matches]);
+
+  const officialTeams = useMemo(() => {
+    if (!isElimination) return americanoLobby?.teams ?? [];
+    const fromParticipants = buildOfficialTeamsFromParticipants(
+      (participantsData?.items ?? []).map((item) => ({
+        userId: item.userId,
+        displayName: item.displayName,
+        image: item.image,
+        role: item.role,
+        teamId: item.teamId,
+        teamName: item.teamName,
+      })),
+    );
+    const fromLive = buildOfficialTeamsFromLivePlayers(liveData?.players ?? []);
+    const merged = mergeOfficialTeams(fromParticipants, fromLive);
+    return enrichOfficialTeamsFromBracket(merged, bracket?.matches ?? []);
+  }, [
+    americanoLobby?.teams,
+    bracket?.matches,
+    isElimination,
+    liveData?.players,
+    participantsData?.items,
+  ]);
+  const officialReclubMatches = useMemo(() => {
+    if (isElimination) return [];
+    return americanoLobby?.matches ?? [];
+  }, [americanoLobby?.matches, isElimination]);
+
+  const officialBracketMatches = bracket?.matches ?? [];
+
+  const historyItems = useMemo(() => {
+    const fromLive = mapLiveHistoryToRoundItems(liveData?.matchHistory ?? []);
+    const fromBracket = mapBracketMatchesToHistoryItems(bracket?.matches ?? []);
+    const fromReclub = mapReclubMatchesToHistoryItems(americanoLobby?.matches ?? []);
+    return mergeHistoryItems(fromLive, fromBracket, fromReclub);
+  }, [americanoLobby?.matches, bracket?.matches, liveData?.matchHistory]);
+
+  const liveScoreHistoryItems = useMemo(() => {
+    if (historyItems.length > 0) return historyItems;
+    return mergeHistoryItems(
+      mapBracketMatchesToHistoryItems(bracket?.matches ?? []),
+      mapReclubMatchesToHistoryItems(americanoLobby?.matches ?? []),
+    );
+  }, [americanoLobby?.matches, bracket?.matches, historyItems]);
+
+  const activeOfficialMatch = activeOfficialMatches[0] ?? null;
 
   const handleRegister = async () => {
     if (!isAuthenticated) {
@@ -492,7 +588,14 @@ export function OfficialTournamentPage({
         </section>
       ) : null}
 
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:gap-8 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:gap-8 lg:px-8",
+          tab === "Overview"
+            ? "lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)]"
+            : "max-w-6xl lg:grid-cols-1",
+        )}
+      >
         <div className="order-2 min-w-0 space-y-6 lg:order-1">
           <TournamentTabNav<OfficialTab>
             tabs={visibleTabs}
@@ -523,8 +626,8 @@ export function OfficialTournamentPage({
                 <InfoCard
                   icon={Radio}
                   title="Scoring"
-                  value={`${pointsPerMatch} points`}
-                  hint={`${scoringTypeLabel} · ${courtCount} ${courtCount === 1 ? "court" : "courts"}`}
+                  value={scoringPrimaryLabel}
+                  hint={scoringDetailLabel}
                 />
               </div>
               <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
@@ -567,7 +670,7 @@ export function OfficialTournamentPage({
                 emptyMessage={
                   !isElimination
                     ? "Americano results will appear after rounds are recorded."
-                    : bracket?.generated
+                    : bracketReady
                     ? "No match results yet. Seeded bracket matches will appear here as play progresses."
                     : "The host will publish the bracket after registration closes. Results will show here once matches are played."
                 }
@@ -607,47 +710,38 @@ export function OfficialTournamentPage({
               />
             ) : (
             <div className="space-y-6">
-              {activeOfficialMatch ? (
+              {activeOfficialMatches.length > 0 ? (
                 <section className="rounded-2xl border border-cp-primary/25 bg-cp-card p-4 sm:p-6">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
-                        <Radio className="h-4 w-4 animate-pulse" />
-                        Live now
-                      </p>
-                      <h2 className="mt-2 text-xl font-bold text-foreground">
-                        {activeOfficialMatch.teamAName} vs {activeOfficialMatch.teamBName}
-                      </h2>
-                      <p className="mt-1 text-sm text-cp-muted">
-                        Round {activeOfficialMatch.roundNumber}
-                        {activeOfficialMatch.matchNumber
-                          ? ` · Match ${activeOfficialMatch.matchNumber}`
-                          : ""}
-                      </p>
-                    </div>
-                    {canManage ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 border-cp-primary/30"
-                        onClick={() =>
-                          router.push(
-                            publicSportRoutes.tournamentDisplayMatch(
-                              tournament.sportSlug,
-                              tournament.slug,
-                              activeOfficialMatch.id,
-                            ),
-                          )
-                        }
-                      >
-                        Open display mode
-                      </Button>
-                    ) : null}
-                  </div>
-                  <p className="mt-6 text-center text-4xl font-bold tabular-nums text-foreground sm:text-5xl">
-                    {activeOfficialMatch.scoreA ?? 0} : {activeOfficialMatch.scoreB ?? 0}
+                  <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
+                    <Radio className="h-4 w-4 animate-pulse" />
+                    {activeOfficialMatches.length} court{activeOfficialMatches.length === 1 ? "" : "s"} live
                   </p>
+                  <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {activeOfficialMatches.map((m) => (
+                      <li
+                        key={m.id}
+                        className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-4"
+                      >
+                        <p className="text-xs text-cp-muted">
+                          Round {m.roundNumber}
+                          {m.matchNumber ? ` · Match ${m.matchNumber}` : ""}
+                        </p>
+                        <p className="mt-1 font-semibold text-foreground">
+                          {m.teamAName} vs {m.teamBName}
+                        </p>
+                        {m.teamAPlayers?.length || m.teamBPlayers?.length ? (
+                          <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
+                            {[formatPlayerNameList(m.teamAPlayers), formatPlayerNameList(m.teamBPlayers)]
+                              .filter(Boolean)
+                              .join(" vs ")}
+                          </p>
+                        ) : null}
+                        <p className="mt-3 text-center text-3xl font-bold tabular-nums">
+                          {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
                   {isElimination ? (
                     <Button
                       variant="outline"
@@ -665,29 +759,17 @@ export function OfficialTournamentPage({
                   <h2 className="mt-3 text-lg font-semibold text-foreground">No live match right now</h2>
                   <p className="mx-auto mt-2 max-w-md text-sm text-cp-muted">
                     {liveData?.message ??
-                      (bracket?.generated
+                      (bracketReady
                         ? "Official scores appear here when a bracket match is in progress."
                         : "The host will publish the bracket after registration closes. Live scores follow once play starts.")}
                   </p>
                 </section>
               )}
 
-              {liveData?.matches && liveData.matches.length > 0 ? (
+              {liveScoreHistoryItems.length > 0 ? (
                 <TournamentRoundHistorySection
                   variant="official"
-                  items={liveData.matches.map((m) => ({
-                    id: m.id,
-                    roundLabel:
-                      m.type === "bracket" && m.matchNumber
-                        ? `R${m.roundNumber} · M${m.matchNumber}`
-                        : `Round ${m.roundNumber}`,
-                    teamAName: m.teamAName ?? null,
-                    teamBName: m.teamBName ?? null,
-                    scoreA: m.scoreA ?? null,
-                    scoreB: m.scoreB ?? null,
-                    status: m.status ?? "pending",
-                    type: m.type,
-                  }))}
+                  items={liveScoreHistoryItems}
                 />
               ) : null}
             </div>
@@ -695,78 +777,48 @@ export function OfficialTournamentPage({
           ) : null}
 
           {tab === "Players" ? (
-            <div className="space-y-6">
-              <TournamentParticipantsPanel
-                sportSlug={tournament.sportSlug}
-                slug={tournament.slug}
-                tournamentType="official"
-                variant="official"
-                officialBilling={tournament.officialBilling}
-              />
-              <TournamentPlayersLiveStatsPanel
-                stats={sessionStats}
-                variant="official"
-                emptyMessage="Match stats appear here once bracket matches are finalized in Manage → Live scoring."
-              />
-            </div>
-          ) : null}
-
-          {tab === "Bracket" ? (
-            bracketLoading ? (
-              <LoadingSpinner label="Loading bracket…" />
-            ) : !bracket?.generated ? (
-              <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-5 text-center sm:p-8">
-                <Trophy className="mx-auto h-8 w-8 text-cp-primary" />
-                <h2 className="mt-3 text-lg font-semibold text-foreground">
-                  Bracket not generated yet
-                </h2>
-                <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-cp-muted">
-                  The bracket appears here once the host generates it from Manage → Bracket. You can
-                  view it anytime after that, regardless of tournament status.
-                </p>
-                {participant.isRuntimeManager ? (
-                  <Button
-                    type="button"
-                    className="mt-5 bg-cp-primary hover:bg-cp-primary-light"
-                    onClick={handleManageClick}
-                  >
-                    Open manage tools
-                  </Button>
-                ) : null}
-              </section>
+            bracketLoading && isElimination ? (
+              <LoadingSpinner label="Loading players…" />
             ) : (
-              <PublicEliminationBracketTab
-                sportSlug={tournament.sportSlug}
-                slug={tournament.slug}
-                matches={bracket?.matches ?? []}
-                participant={participant}
-                variant="official"
-                tournamentStatus={tournament.status}
+              <OfficialPublicPlayersTab
+                tournament={tournament}
+                bracketMatches={officialBracketMatches}
+                reclubMatches={officialReclubMatches}
+                teams={officialTeams}
               />
             )
           ) : null}
 
-          {tab === "Stats" ? (
+          {tab === "Bracket" ? (
+            <OfficialPublicBracketTab
+              sportSlug={tournament.sportSlug}
+              slug={tournament.slug}
+              participant={participant}
+              tournamentStatus={tournament.status}
+              userTeamId={regStatus?.teamId ?? null}
+            />
+          ) : null}
+
+          {tab === "History & stats" ? (
             bracketLoading || participantsLoading ? (
-              <LoadingSpinner label="Loading stats…" />
+              <LoadingSpinner label="Loading history & stats…" />
             ) : (
-              <TournamentSessionStatsPanel
-                variant="official"
-                stats={sessionStats}
-                emptyMessage={
-                  isElimination
-                    ? bracket?.generated
-                      ? undefined
-                      : "The host will publish the bracket after registration closes. Stats will appear once matches are played."
-                    : livePhase === "live"
-                      ? undefined
-                      : "Americano point stats appear here once rounds are recorded."
-                }
+              <OfficialPublicHistoryStatsTab
+                tournament={tournament}
+                bracketMatches={officialBracketMatches}
+                reclubMatches={officialReclubMatches}
+                teams={officialTeams}
+                sessionStats={sessionStats}
+                historyItems={historyItems}
+                participant={participant}
+                isElimination={isElimination}
+                userTeamId={regStatus?.teamId ?? null}
               />
             )
           ) : null}
         </div>
 
+        {tab === "Overview" ? (
         <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
           <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-[0_8px_32px_rgba(0,71,255,0.12)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
@@ -897,6 +949,7 @@ export function OfficialTournamentPage({
           <TournamentShareCard url={publicUrl} tournamentName={tournament.name} />
 
         </aside>
+        ) : null}
       </div>
     </TournamentDetailPageShell>
   );

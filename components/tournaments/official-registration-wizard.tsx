@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { publicSportRoutes } from "@/lib/constants/routes";
+import { formatIdrDisplay, formatRegistrationFeeIdr } from "@/lib/format/currency";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentPlayerSearchResult } from "@/lib/tournaments/players/search";
 import { cn } from "@/lib/utils";
@@ -22,15 +23,6 @@ const STEPS = [
   { id: "partners", label: "Partners" },
   { id: "review", label: "Review" },
 ] as const;
-
-function formatIdr(amount: number | null) {
-  if (amount == null) return "—";
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 type OfficialRegistrationWizardProps = {
   tournament: TournamentDetail;
@@ -45,6 +37,7 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
   const [submitting, setSubmitting] = useState(false);
 
   const hubHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+  const isFreeOfficial = tournament.officialBilling === "free";
   const processingFeeEstimate = Math.round((tournament.registrationFeeIdr ?? 0) * 0.0125);
 
   const goNext = () => {
@@ -212,17 +205,22 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
           <h3 className="text-sm font-semibold text-foreground">Order summary</h3>
           <p className="mt-1 text-xs text-cp-muted">{tournament.sportName}</p>
           <p className="mt-4 text-2xl font-bold text-cp-primary">
-            {formatIdr(tournament.registrationFeeIdr)}
+            {formatRegistrationFeeIdr(
+              tournament.registrationFeeIdr,
+              tournament.officialBilling,
+            )}
           </p>
-          {processingFeeEstimate > 0 ? (
+          {!isFreeOfficial && processingFeeEstimate > 0 ? (
             <p className="text-xs text-cp-muted">
-              + est. processing {formatIdr(processingFeeEstimate)}
+              + est. processing {formatIdrDisplay(processingFeeEstimate)}
             </p>
           ) : null}
-          <p className="mt-4 flex items-center gap-1 text-[10px] text-cp-text-dim">
-            <Shield className="h-3 w-3" />
-            Encrypted & secure via Xendit
-          </p>
+          {!isFreeOfficial ? (
+            <p className="mt-4 flex items-center gap-1 text-[10px] text-cp-text-dim">
+              <Shield className="h-3 w-3" />
+              Encrypted & secure via Xendit
+            </p>
+          ) : null}
           {step < STEPS.length - 1 ? (
             <Button className="mt-6 w-full bg-cp-primary" onClick={goNext}>
               Next

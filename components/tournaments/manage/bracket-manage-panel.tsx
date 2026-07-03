@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -30,10 +30,10 @@ import {
 } from "@/hooks/use-tournament-bracket";
 import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
-import { isFunMatchType, isOfficialType } from "@/lib/tournaments/core/types";
+import { isOfficialType } from "@/lib/tournaments/core/types";
 import {
   getTournamentCourtCount,
-  getTournamentPointsPerMatch,
+  getTournamentMatchScoringHint,
 } from "@/lib/tournaments/settings";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -44,6 +44,7 @@ import {
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
+import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
 
 async function runBracketMutation(action: () => Promise<unknown>) {
   try {
@@ -68,16 +69,26 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
   const finalize = useFinalizeBracketSeeding(tournament.sportSlug, tournament.slug);
   const resetBracket = useResetBracket(tournament.sportSlug, tournament.slug);
   const assign = useAssignBracketTeam(tournament.sportSlug, tournament.slug);
-  const pointsPerMatch = getTournamentPointsPerMatch(tournament);
 
   const [seedSlot, setSeedSlot] = useState<{ matchId: string; slot: "a" | "b" } | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState("");
+  const seedPickerRef = useRef<HTMLDivElement>(null);
 
-  const generated = data?.generated ?? false;
+  const generated = hasPublicBracketTree(data);
   const seedingFinalized = data?.seedingFinalized ?? false;
   const matches = data?.matches ?? [];
-  const matchCount = matches.length;
-  const teams = workspace?.teams ?? [];
+  const allTeams = workspace?.teams ?? [];
+
+  const eligibleIdSet = useMemo(() => {
+    if (!isOfficial) return null;
+    return new Set(workspace?.bracketEligibleTeamIds ?? []);
+  }, [isOfficial, workspace?.bracketEligibleTeamIds]);
+
+  const seedableTeams = useMemo(() => {
+    const withMembers = allTeams.filter((t) => t.memberCount > 0);
+    if (!eligibleIdSet) return withMembers;
+    return withMembers.filter((t) => eligibleIdSet.has(t.id));
+  }, [allTeams, eligibleIdSet]);
 
   const placedTeamIds = useMemo(() => {
     const ids = new Set<string>();
@@ -91,13 +102,12 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
   }, [matches]);
 
   const unplacedTeams = useMemo(
-    () => teams.filter((t) => t.memberCount > 0 && !placedTeamIds.has(t.id)),
-    [teams, placedTeamIds],
+    () => seedableTeams.filter((t) => !placedTeamIds.has(t.id)),
+    [seedableTeams, placedTeamIds],
   );
 
-  const readyTeamCount = teams.filter((t) => t.memberCount > 0).length;
-  const completedMatchCount = matches.filter((m) => m.status === "completed").length;
-  const liveMatchCount = matches.filter((m) => m.status === "in_progress").length;
+  const placedTeamCount = placedTeamIds.size;
+  const matchScoringHint = getTournamentMatchScoringHint(tournament);
 
   const playStarted = matches.some(
     (m) => m.status === "in_progress" || m.status === "completed",
@@ -105,19 +115,43 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
   const seedingLocked = playStarted || tournament.status === "completed";
   const resetLocked = seedingLocked || tournament.status === "live";
 
+  const selectedMatchLabel = useMemo(() => {
+    if (!seedSlot) return null;
+    const match = matches.find((m) => m.id === seedSlot.matchId);
+    if (!match) return `Slot ${seedSlot.slot.toUpperCase()}`;
+    return `Match ${match.matchNumber}, slot ${seedSlot.slot.toUpperCase()}`;
+  }, [matches, seedSlot]);
+
+  const openSeedSlot = (matchId: string, slot: "a" | "b") => {
+    if (seedingLocked) return;
+    setSeedSlot({ matchId, slot });
+    setSelectedTeamId("");
+    requestAnimationFrame(() => {
+      seedPickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
   const handleGenerate = async (seedMode: "random" | "manual") => {
+    if (generated && seedMode === "manual") {
+      await runBracketMutation(async () => {
+        await generate.mutateAsync(seedMode);
+        await refetch();
+      });
+      return;
+    }
     if (generated) return;
+
     const label =
       seedMode === "random"
         ? "Generate bracket with random seeding?"
-        : "Generate bracket for manual seeding?";
+        : "Open bracket for manual seeding?";
     const ok = await confirm({
       title: label,
       description:
         seedMode === "random"
-          ? "Teams will be randomly placed in round one and the bracket will be saved automatically."
-          : "An empty bracket tree will be created. Place teams in round-one slots, then tap Save bracket.",
-      confirmLabel: "Generate",
+          ? "Confirmed teams will be randomly placed in round one."
+          : "The bracket tree will be ready. Place teams in round-one slots as they register — no need to wait for a full roster.",
+      confirmLabel: seedMode === "random" ? "Random seed" : "Open bracket",
     });
     if (!ok) return;
     await runBracketMutation(async () => {
@@ -128,9 +162,9 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
 
   const handleFinalize = async () => {
     const ok = await confirm({
-      title: "Save bracket seeding?",
+      title: "Save current bracket seeding?",
       description:
-        "Round-one placements will be locked for play. BYE slots are processed and winners advance automatically.",
+        "Processes walkovers for single-team slots and locks seeding for play. You can still add more teams later by resetting if the tournament has not started.",
       confirmLabel: "Save bracket",
     });
     if (!ok) return;
@@ -156,11 +190,11 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
 
   const handleAssign = async () => {
     if (!seedSlot || !selectedTeamId) return;
-    const team = teams.find((t) => t.id === selectedTeamId);
+    const team = seedableTeams.find((t) => t.id === selectedTeamId);
     const ok = await confirm({
       title: "Assign team to bracket slot?",
-      description: `Place ${team?.name ?? "this team"} in the selected round-one slot.`,
-      confirmLabel: "Assign",
+      description: `Place ${team?.name ?? "this team"} in the selected round-one slot. The public bracket updates immediately.`,
+      confirmLabel: "Place team",
     });
     if (!ok) return;
     await runBracketMutation(async () => {
@@ -188,13 +222,14 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <GitBranch className="h-5 w-5 text-emerald-400" />
+              <GitBranch className={cn("h-5 w-5", isOfficial ? "text-cp-primary" : "text-emerald-400")} />
               Bracket setup
             </h2>
             <p className="mt-1 max-w-xl text-sm text-cp-muted">
+              Place teams in round-one slots as they join — the public bracket updates live.
               {isOfficial
-                ? "Full elimination workflow: seed teams, track every match, and score on assigned courts with detailed bracket status."
-                : "Generate the elimination tree, seed teams (random or manual), then score matches from Live scoring or below."}
+                ? " Only confirmed teams (paid when required) appear in the seeding list."
+                : null}
             </p>
           </div>
           <Button asChild variant="outline" size="sm">
@@ -204,111 +239,53 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
           </Button>
         </div>
 
-        {isOfficial ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                label: "Teams ready",
-                value: `${readyTeamCount}${tournament.maxTeams ? ` / ${tournament.maxTeams}` : ""}`,
-              },
-              { label: "Bracket matches", value: String(matchCount) },
-              { label: "Completed", value: String(completedMatchCount) },
-              {
-                label: "Scoring",
-                value: `${pointsPerMatch} pts · ${courtCount} courts`,
-              },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-lg border border-cp-border bg-cp-elevated/30 px-3 py-2"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-                  {stat.label}
-                </p>
-                <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                  {stat.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <ol className="mt-5 grid gap-2 sm:grid-cols-2">
-          {[
-            { done: readyTeamCount >= 2, text: `At least 2 teams ready (${readyTeamCount})` },
-            { done: generated, text: `Bracket generated (${matchCount} matches)` },
-            {
-              done: seedingFinalized,
-              text: "Seeding saved",
-            },
-            { done: tournament.status === "live", text: "Tournament published (Live)" },
-            {
-              done: completedMatchCount > 0,
-              text: `Matches scored (${completedMatchCount} done${liveMatchCount ? ` · ${liveMatchCount} live` : ""})`,
-            },
-          ].map((step) => (
-            <li
-              key={step.text}
-              className={cn(
-                "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-                step.done
-                  ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
-                  : "border-cp-border bg-cp-elevated/30 text-cp-muted",
-              )}
-            >
-              <CheckCircle2
-                className={cn("h-4 w-4 shrink-0", step.done ? "text-emerald-400" : "opacity-40")}
-              />
-              {step.text}
-            </li>
-          ))}
-        </ol>
-
         {!generated ? (
           <>
             {tournament.status === "live" ? (
               <p className="mt-4 rounded-lg border border-sky-500/25 bg-sky-950/20 px-3 py-2 text-sm text-sky-100/90">
-                Tournament is live — you can still generate the bracket before any match is scored.
+                Tournament is live — open the bracket tree and place teams before scoring matches.
               </p>
             ) : null}
             <div className="mt-5 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              disabled={generate.isPending || teams.filter((t) => t.memberCount > 0).length < 2}
-              onClick={() => void handleGenerate("random")}
-            >
-              {generate.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Shuffle className="mr-2 h-4 w-4" />
-              )}
-              Random seed
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={generate.isPending || teams.filter((t) => t.memberCount > 0).length < 2}
-              onClick={() => void handleGenerate("manual")}
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Manual seed
-            </Button>
-          </div>
+              <Button
+                type="button"
+                disabled={generate.isPending || seedableTeams.length < 2}
+                onClick={() => void handleGenerate("random")}
+              >
+                {generate.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Shuffle className="mr-2 h-4 w-4" />
+                )}
+                Random seed
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={generate.isPending}
+                onClick={() => void handleGenerate("manual")}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Open bracket
+              </Button>
+            </div>
           </>
         ) : (
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <p className="text-sm text-emerald-200/80">
+            <p className={cn("text-sm", isOfficial ? "text-cp-primary/90" : "text-emerald-200/80")}>
               {seedingLocked
                 ? "Seeding is locked once bracket matches have been scored."
                 : seedingFinalized
                   ? tournament.status === "live"
                     ? "Bracket is ready for live scoring."
-                    : "Bracket is ready. You can still adjust seeding while the tournament is upcoming."
-                  : "Place all teams in round one, then save the bracket."}
+                    : "Bracket saved. Adjust seeding while upcoming, or add teams via reset if needed."
+                  : placedTeamCount > 0
+                    ? `${placedTeamCount} team${placedTeamCount === 1 ? "" : "s"} placed — add more anytime, then save when ready.`
+                    : "Click a round-one slot below and place your first team."}
             </p>
             {!seedingLocked ? (
               <div className="flex flex-wrap gap-2">
-                {!seedingFinalized && unplacedTeams.length === 0 && readyTeamCount >= 2 ? (
+                {!seedingFinalized && placedTeamCount >= 1 ? (
                   <Button
                     type="button"
                     disabled={finalize.isPending}
@@ -339,60 +316,90 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
         )}
       </section>
 
-      {generated && !seedingLocked ? (
-        <section className="rounded-2xl border border-cp-border bg-cp-card p-5">
-          <h3 className="text-sm font-semibold text-foreground">Manual seeding</h3>
-          <p className="mt-1 text-sm text-cp-muted">
-            Click a round-one slot in the tree, then pick a team to place.
-            {unplacedTeams.length > 0
-              ? ` ${unplacedTeams.length} team${unplacedTeams.length === 1 ? "" : "s"} still unplaced.`
-              : " All teams placed — save the bracket when ready."}
-          </p>
-          {seedSlot ? (
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-xs text-cp-muted">
-                  Placing in slot {seedSlot.slot.toUpperCase()}
-                </p>
-                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                  <SelectTrigger className={cpSelectTriggerClass}>
-                    <SelectValue placeholder="Choose team" />
-                  </SelectTrigger>
-                  <SelectContent className={cpSelectContentClass}>
-                    {unplacedTeams.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="button" onClick={() => void handleAssign()} disabled={!selectedTeamId || assign.isPending}>
-                Place team
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setSeedSlot(null)}>
-                Cancel
-              </Button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
       {generated ? (
         <>
           <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cp-muted">
-              <Swords className="h-4 w-4" />
-              Bracket tree
-            </h3>
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cp-muted">
+                  <Swords className="h-4 w-4" />
+                  Bracket tree
+                </h3>
+                {!seedingLocked ? (
+                  <p className="mt-1 text-sm text-cp-muted">
+                    Click a round-one slot labeled &ldquo;Drop squad here&rdquo;, then choose a team below.
+                    {unplacedTeams.length > 0
+                      ? ` ${unplacedTeams.length} eligible team${unplacedTeams.length === 1 ? "" : "s"} ready to place.`
+                      : placedTeamCount > 0
+                        ? " All eligible teams are placed."
+                        : isOfficial
+                          ? " No confirmed teams yet."
+                          : " No squads with players yet."}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {!seedingLocked && seedSlot ? (
+              <div
+                ref={seedPickerRef}
+                className="mb-4 rounded-xl border border-cp-primary/35 bg-cp-primary/5 p-4"
+              >
+                <p className="text-sm font-medium text-foreground">
+                  Place team in {selectedMatchLabel}
+                </p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <Select
+                      value={selectedTeamId || "__none__"}
+                      onValueChange={(v) => setSelectedTeamId(v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger className={cpSelectTriggerClass}>
+                        <SelectValue placeholder="Choose team" />
+                      </SelectTrigger>
+                      <SelectContent className={cpSelectContentClass}>
+                        <SelectItem value="__none__" className={cpSelectItemClass}>
+                          Choose team…
+                        </SelectItem>
+                        {unplacedTeams.map((t) => (
+                          <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
+                            {t.name}
+                            {t.members?.length
+                              ? ` (${t.members.map((m) => m.displayName).join(", ")})`
+                              : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => void handleAssign()}
+                    disabled={!selectedTeamId || assign.isPending}
+                  >
+                    {assign.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Place team
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setSeedSlot(null)}>
+                    Cancel
+                  </Button>
+                </div>
+                {unplacedTeams.length === 0 ? (
+                  <p className="mt-2 text-xs text-cp-muted">
+                    No unplaced teams left — save the bracket or wait for new registrations.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <BracketTreeView
               matches={matches}
               seedingMode={!seedingLocked}
-              onSlotClick={(matchId, slot) => {
-                if (seedingLocked) return;
-                setSeedSlot({ matchId, slot });
-                setSelectedTeamId("");
-              }}
+              showEmptySlots
+              activeSeedSlot={seedSlot}
+              onSlotClick={openSeedSlot}
             />
           </section>
 
@@ -403,9 +410,10 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
               tournamentId={tournament.id}
               tournamentStatus={tournament.status}
               matches={matches}
-              pointsPerMatch={pointsPerMatch}
+              matchScoringHint={matchScoringHint}
               courtCount={courtCount}
               seedingFinalized={seedingFinalized}
+              accentVariant={isOfficial ? "official" : "fun"}
             />
           ) : null}
         </>

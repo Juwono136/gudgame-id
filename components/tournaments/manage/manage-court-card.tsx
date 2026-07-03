@@ -230,6 +230,18 @@ export const ManageCourtCard = memo(function ManageCourtCard({
             variant="compact"
             teamAName={match.teamAName ?? "Team A"}
             teamBName={match.teamBName ?? "Team B"}
+            teamAPlayers={
+              teams
+                .find((t) => t.id === match.teamAId)
+                ?.members?.map((m) => m.displayName)
+                .filter(Boolean) as string[] | undefined
+            }
+            teamBPlayers={
+              teams
+                .find((t) => t.id === match.teamBId)
+                ?.members?.map((m) => m.displayName)
+                .filter(Boolean) as string[] | undefined
+            }
             scoreA={localScoreA}
             scoreB={localScoreB}
             maxScore={pointsPerMatch}

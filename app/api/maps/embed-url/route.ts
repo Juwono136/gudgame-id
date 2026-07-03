@@ -2,6 +2,7 @@ import { z } from "zod";
 import { guardApiRequest } from "@/lib/api/guard-request";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { buildGoogleMapsEmbedUrlWithApiKey } from "@/lib/maps/embed-url.server";
+import { buildVenueEmbedUrl } from "@/lib/maps/venue-maps-url";
 import { buildGoogleMapsEmbedUrl } from "@/lib/maps/google-maps-url";
 
 export const runtime = "nodejs";
@@ -21,10 +22,25 @@ export async function GET(request: Request) {
       mapsUrl: url.searchParams.get("mapsUrl") ?? undefined,
     });
 
-    // Legacy embed works with Places API (New) only — no Maps Embed API required.
-    const embedUrl =
-      buildGoogleMapsEmbedUrl(mapsUrl, venue) ??
-      buildGoogleMapsEmbedUrlWithApiKey(mapsUrl, venue);
+    const trimmed = mapsUrl?.trim();
+    const isGoogleUrl =
+      trimmed &&
+      (() => {
+        try {
+          const host = new URL(trimmed).hostname;
+          return host.includes("google") || host.includes("goo.gl") || host.includes("maps.app");
+        } catch {
+          return false;
+        }
+      })();
+
+    const embedUrl = isGoogleUrl
+      ? buildGoogleMapsEmbedUrlWithApiKey(mapsUrl, venue) ??
+        buildGoogleMapsEmbedUrl(mapsUrl, venue) ??
+        buildVenueEmbedUrl(mapsUrl, venue)
+      : buildVenueEmbedUrl(mapsUrl, venue) ??
+        buildGoogleMapsEmbedUrl(mapsUrl, venue) ??
+        buildGoogleMapsEmbedUrlWithApiKey(mapsUrl, venue);
 
     return jsonSuccess({
       embedUrl,

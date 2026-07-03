@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useUpdateTournamentDisplayConfig } from "@/hooks/use-tournament-manage-display";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
+import { isOfficialType } from "@/lib/tournaments/core/types";
 import {
   getTournamentDisplayConfig,
   type TournamentDisplayLayout,
@@ -28,15 +29,31 @@ import {
 import { cn } from "@/lib/utils";
 
 const LAYOUTS: { value: TournamentDisplayLayout; label: string; description: string }[] = [
-  { value: "single", label: "Single match", description: "One live match, large scores" },
-  { value: "multi_court", label: "Multi-court grid", description: "All active courts at once" },
-  { value: "bracket", label: "Live bracket", description: "Elimination tree with live matches" },
-  { value: "leaderboard", label: "Leaderboard", description: "Top teams by wins and points" },
+  {
+    value: "single",
+    label: "Featured court",
+    description: "One live match full-screen — rotates when several courts are active",
+  },
+  {
+    value: "multi_court",
+    label: "Multi-court grid",
+    description: "Every live court at once — recommended for 2+ courts",
+  },
+  {
+    value: "bracket",
+    label: "Live bracket",
+    description: "Elimination bracket with live scores",
+  },
+  {
+    value: "leaderboard",
+    label: "Leaderboard",
+    description: "Player standings (W-L-T, points) from finalized matches",
+  },
 ];
 
 const ROTATION_OPTIONS: TournamentDisplayLayout[] = [
-  "single",
   "multi_court",
+  "single",
   "leaderboard",
   "bracket",
 ];
@@ -49,9 +66,12 @@ type DisplayControlPanelProps = {
 function resolveDisplayPanelState(tournament: TournamentDetail) {
   const saved = getTournamentDisplayConfig(tournament);
   const autoRotate = Boolean(saved.autoRotate || saved.layout === "rotation");
+  const fallbackLayout: TournamentDisplayLayout = isOfficialType(tournament.tournamentType)
+    ? "single"
+    : "multi_court";
   const layout: TournamentDisplayLayout =
     saved.layout === "rotation" || autoRotate
-      ? saved.rotationLayouts?.[0] ?? "single"
+      ? saved.rotationLayouts?.[0] ?? fallbackLayout
       : saved.layout;
   return {
     layout,

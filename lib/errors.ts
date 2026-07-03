@@ -17,7 +17,8 @@ export type ErrorCode =
   | "HOST_PAYOUT_NOT_CONFIGURED"
   | "PAYMENT_GATEWAY_ERROR"
   | "INVALID_TOURNAMENT_TYPE"
-  | "REGISTRATION_FAILED";
+  | "REGISTRATION_FAILED"
+  | "TIE_REQUIRES_REMATCH";
 
 export class AppError extends Error {
   readonly code: ErrorCode;

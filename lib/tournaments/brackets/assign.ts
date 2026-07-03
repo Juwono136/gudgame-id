@@ -9,6 +9,7 @@ import { assertBracketSetupAllowed } from "@/lib/tournaments/lifecycle-guards";
 import { assertBracketPlayNotStarted } from "@/lib/tournaments/brackets/play-guard";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
+import { assertTeamBracketEligible } from "@/lib/tournaments/brackets/eligible-teams";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
@@ -89,6 +90,8 @@ export async function assignTeamToBracketSlot(
         statusCode: 422,
       });
     }
+
+    await assertTeamBracketEligible(tournament, teamId);
 
     const [duplicate] = await db
       .select({ id: tournamentBracketMatches.id })

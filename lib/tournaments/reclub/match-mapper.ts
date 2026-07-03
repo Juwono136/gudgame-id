@@ -31,6 +31,8 @@ export function mapReclubMatchRow(
     scoreEvents: meta.scoreEvents ?? [],
     sourceKind: bracketMatchId ? "bracket" : "round",
     bracketMatchId,
-    roundLabel: typeof raw?.roundLabel === "string" ? raw.roundLabel : null,
+    roundLabel: meta.roundLabel ?? null,
+    playType: meta.playType ?? null,
+    playNumber: meta.playNumber ?? null,
   };
 }

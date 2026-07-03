@@ -1,68 +1,51 @@
 import "server-only";
 
-import {
-  computePlayerMatchStats,
-  computeSportRank,
-} from "@/lib/account/player-performance/compute";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/db/client";
+import { sports } from "@/db/schema";
+import { computeOwnedPlayerCareerStats } from "@/lib/account/player-performance/compute-owned-career-stats";
 import {
   getPlayerCareerStats,
   type PlayerCareerStats,
   type PlayerCareerStatsSource,
 } from "@/lib/wiki/player-career-stats";
-import { syncPlayerWikiPerformanceSafe } from "@/lib/account/player-performance/sync-wiki";
-import { formatPlayerTierLabel } from "@/lib/player/tier";
+import { getPlayerRankOnLeaderboard } from "@/lib/wiki/player-leaderboard";
 
-function computeYearsActiveFromIso(firstMatchAt: string | null): string | null {
-  if (!firstMatchAt) return null;
-  const start = new Date(firstMatchAt);
-  if (Number.isNaN(start.getTime())) return null;
-  const startYear = start.getFullYear();
-  const nowYear = new Date().getFullYear();
-  return startYear === nowYear ? `${startYear}` : `${startYear}–Present`;
+async function resolveSportSlug(sportId: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ slug: sports.slug })
+    .from(sports)
+    .where(eq(sports.id, sportId))
+    .limit(1);
+  return row?.slug ?? null;
 }
 
 export async function resolvePlayerCareerStats(input: {
   entity: PlayerCareerStatsSource;
   ownerUserId?: string | null;
   sportId?: string | null;
+  sportSlug?: string | null;
 }): Promise<PlayerCareerStats> {
   const wikiStats = getPlayerCareerStats(input.entity);
 
-  if (!input.ownerUserId) {
+  if (!input.ownerUserId || !input.sportId) {
     return wikiStats;
   }
 
-  const computed = await computePlayerMatchStats(
-    input.ownerUserId,
-    input.sportId ?? undefined,
-  );
+  const career = await computeOwnedPlayerCareerStats({
+    entity: input.entity,
+    ownerUserId: input.ownerUserId,
+    sportId: input.sportId,
+  });
 
-  if (computed.totalMatches === 0) {
-    return wikiStats;
-  }
-
-  if (
-    input.ownerUserId &&
-    input.sportId &&
-    (wikiStats.totalPoints ?? 0) !== computed.totalPoints
-  ) {
-    void syncPlayerWikiPerformanceSafe(input.ownerUserId, input.sportId);
-  }
-
-  const worldRank =
-    input.sportId != null
-      ? await computeSportRank(input.sportId, input.ownerUserId, computed.totalPoints)
-      : wikiStats.worldRank;
-
-  const yearsActive =
-    wikiStats.yearsActive ?? computeYearsActiveFromIso(computed.firstMatchAt);
+  const sportSlug =
+    input.sportSlug?.trim() || (await resolveSportSlug(input.sportId));
+  const worldRank = sportSlug
+    ? await getPlayerRankOnLeaderboard(sportSlug, input.ownerUserId)
+    : career.worldRank;
 
   return {
+    ...career,
     worldRank,
-    totalPoints: computed.totalPoints,
-    winRate: computed.winRate,
-    tier: computed.tierLevel ? formatPlayerTierLabel(computed.tierLevel) : wikiStats.tier,
-    tierLevel: computed.tierLevel ?? wikiStats.tierLevel,
-    yearsActive,
   };
 }

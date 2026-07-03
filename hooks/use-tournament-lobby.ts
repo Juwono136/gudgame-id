@@ -98,7 +98,14 @@ export function useSwitchTeam(sportSlug: string, slug: string) {
 export function useStartReclubRound(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { teamAId: string; teamBId: string; courtId?: string }) => {
+    mutationFn: async (input: {
+      teamAId: string;
+      teamBId: string;
+      courtId?: string;
+      playType?: "round" | "friendly";
+      bracketMatchId?: string;
+      sessionRound?: number;
+    }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/matches/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -114,9 +121,34 @@ export function useStartReclubRound(sportSlug: string, slug: string) {
       }
       return json.data.match;
     },
+    onSuccess: (_data, input) => {
+      invalidateLobbyAndLive(qc, sportSlug, slug);
+      toast.success(input.playType === "friendly" ? "Friendly game started!" : "Round started!");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useHostMovePlayer(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { teamId: string; userId: string }) => {
+      const res = await fetch(
+        `/api/tournaments/${sportSlug}/${slug}/teams/${input.teamId}/members/move`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: input.userId }),
+        },
+      );
+      const json = await parseJsonResponse<{ success: boolean; error?: unknown }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not move player"));
+      }
+    },
     onSuccess: () => {
       invalidateLobbyAndLive(qc, sportSlug, slug);
-      toast.success("Round started!");
+      toast.success("Player moved");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -217,6 +249,7 @@ export function useUpdateReclubLiveScore(sportSlug: string, slug: string) {
           };
         },
       );
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
     },
     onError: (err: Error) => toast.error(err.message),
   });

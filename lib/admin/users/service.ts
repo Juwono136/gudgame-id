@@ -445,6 +445,11 @@ export async function deleteAdminUser(id: string): Promise<void> {
     throw new AppError("User not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
+  const { archivePublishedPlayerProfilesForUser } = await import(
+    "@/lib/wiki/active-player-eligibility"
+  );
+  await archivePublishedPlayerProfilesForUser(id);
+
   const result = await db.delete(user).where(eq(user.id, id)).returning({ id: user.id });
   if (result.length === 0) {
     throw new AppError("User not found", { code: "NOT_FOUND", statusCode: 404 });

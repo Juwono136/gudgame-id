@@ -13,6 +13,7 @@ import {
   type ScrapeParserProfile,
 } from "@/lib/wiki/gear/constants";
 import { z } from "zod";
+import { normalizeScrapeHostnameInput } from "@/lib/wiki/scrape-hosts/normalize-hostname";
 
 export const DEFAULT_SCRAPE_HOST_SEEDS: {
   hostname: string;
@@ -45,27 +46,21 @@ function isPrivateHost(hostname: string): boolean {
 }
 
 export function normalizeScrapeHostname(raw: string): string {
-  const trimmed = raw.trim().toLowerCase();
+  const trimmed = normalizeScrapeHostnameInput(raw);
   if (!trimmed) {
     throw new AppError("Hostname is required", { code: "VALIDATION_ERROR", statusCode: 422 });
   }
-  if (trimmed.includes("://") || trimmed.includes("/")) {
-    throw new AppError("Enter hostname only (e.g. padeltop.id)", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
-  }
-  const host = trimmed.replace(/^www\./, "") === trimmed ? trimmed : trimmed;
-  if (isPrivateHost(host)) {
+
+  if (isPrivateHost(trimmed)) {
     throw new AppError("Private or local hostnames are not allowed", {
       code: "VALIDATION_ERROR",
       statusCode: 422,
     });
   }
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host)) {
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(trimmed)) {
     throw new AppError("Invalid hostname format", { code: "VALIDATION_ERROR", statusCode: 422 });
   }
-  return host;
+  return trimmed;
 }
 
 const createHostSchema = z.object({

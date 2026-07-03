@@ -38,9 +38,13 @@ export type TournamentLivePayload = {
     id: string;
     type: "americano_round" | "lobby_round" | "bracket";
     roundNumber?: number;
+    roundLabel?: string | null;
     matchNumber?: number;
     teamAName?: string | null;
     teamBName?: string | null;
+    teamAId?: string | null;
+    teamBId?: string | null;
+    bracketMatchId?: string | null;
     scoreA?: number | null;
     scoreB?: number | null;
     status?: string;
@@ -48,6 +52,20 @@ export type TournamentLivePayload = {
     endedAt?: string | null;
     courtId?: string | null;
     timerEndsAt?: string | null;
+    teamAPlayers?: string[];
+    teamBPlayers?: string[];
+    playType?: string | null;
+    playNumber?: number | null;
+    durationSeconds?: number | null;
+    scoreEvents?: Array<{
+      at: string;
+      userId: string;
+      userName?: string;
+      scoreA: number;
+      scoreB: number;
+      action: string;
+      side?: string;
+    }>;
   }>;
   courts?: Array<{
     id: string;
@@ -71,6 +89,15 @@ export type TournamentLivePayload = {
     summary: string | null;
     score: string;
     endedAt: string | null;
+    playType?: string | null;
+    roundNumber?: number;
+    teamAId?: string | null;
+    teamBId?: string | null;
+    teamAName?: string | null;
+    teamBName?: string | null;
+    teamAPlayers?: string[];
+    teamBPlayers?: string[];
+    bracketMatchId?: string | null;
   }>;
   leaderboard: unknown[];
   playerStats: TournamentSessionStats;

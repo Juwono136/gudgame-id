@@ -8,11 +8,17 @@ type LiveMatchItem = {
   id: string;
   teamAName?: string | null;
   teamBName?: string | null;
+  teamAPlayers?: string[];
+  teamBPlayers?: string[];
   scoreA?: number | null;
   scoreB?: number | null;
   status?: string;
   roundNumber?: number | null;
+  matchNumber?: number;
   type?: string;
+  playType?: string | null;
+  playNumber?: number | null;
+  courtId?: string | null;
 };
 
 type FunMatchLiveMatchesProps = {
@@ -55,11 +61,21 @@ export function FunMatchLiveMatches({ matches, className }: FunMatchLiveMatchesP
           const Icon = meta.icon;
           const isLive = m.status === "in_progress";
           const roundLabel =
-            m.type === "bracket"
-              ? "Bracket"
-              : m.roundNumber != null
-                ? `Round ${m.roundNumber}`
-                : "Match";
+            m.playType === "friendly"
+              ? m.playNumber
+                ? `Friendly #${m.playNumber}`
+                : "Friendly"
+              : m.playType === "bracket_rematch"
+                ? m.playNumber
+                  ? `Rematch #${m.playNumber}`
+                  : "Rematch"
+                : m.type === "bracket"
+                  ? m.matchNumber
+                    ? `Bracket · M${m.matchNumber}`
+                    : "Bracket"
+                  : m.roundNumber != null
+                    ? `Round ${m.roundNumber}`
+                    : "Match";
 
           return (
             <li
@@ -82,9 +98,14 @@ export function FunMatchLiveMatches({ matches, className }: FunMatchLiveMatchesP
               </div>
 
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-center">
-                <p className="text-sm font-semibold leading-tight text-foreground sm:text-base">
-                  {m.teamAName ?? "TBD"}
-                </p>
+                <div>
+                  <p className="text-sm font-semibold leading-tight text-foreground sm:text-base">
+                    {m.teamAName ?? "TBD"}
+                  </p>
+                  {m.teamAPlayers?.length ? (
+                    <p className="mt-0.5 text-[10px] text-cp-muted">{m.teamAPlayers.join(" · ")}</p>
+                  ) : null}
+                </div>
                 <span className="font-mono text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
                   {m.status === "completed" || m.status === "in_progress" ? (
                     <>
@@ -96,9 +117,14 @@ export function FunMatchLiveMatches({ matches, className }: FunMatchLiveMatchesP
                     <span className="text-lg text-cp-muted">vs</span>
                   )}
                 </span>
-                <p className="text-sm font-semibold leading-tight text-foreground sm:text-base">
-                  {m.teamBName ?? "TBD"}
-                </p>
+                <div>
+                  <p className="text-sm font-semibold leading-tight text-foreground sm:text-base">
+                    {m.teamBName ?? "TBD"}
+                  </p>
+                  {m.teamBPlayers?.length ? (
+                    <p className="mt-0.5 text-[10px] text-cp-muted">{m.teamBPlayers.join(" · ")}</p>
+                  ) : null}
+                </div>
               </div>
             </li>
           );

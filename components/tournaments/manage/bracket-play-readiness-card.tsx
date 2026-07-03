@@ -15,9 +15,10 @@ type BracketPlayReadinessCardProps = {
   tournamentId: string;
   tournamentStatus: string;
   matches: BracketMatchView[];
-  pointsPerMatch: number;
+  matchScoringHint: string;
   courtCount: number;
   seedingFinalized: boolean;
+  accentVariant?: "official" | "fun";
 };
 
 export function BracketPlayReadinessCard({
@@ -26,12 +27,14 @@ export function BracketPlayReadinessCard({
   tournamentId,
   tournamentStatus,
   matches,
-  pointsPerMatch,
+  matchScoringHint,
   courtCount,
   seedingFinalized,
+  accentVariant = "official",
 }: BracketPlayReadinessCardProps) {
   const liveScoringUrl = `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=scoring`;
   const editUrl = tournamentEditUrl(tournamentId, "host");
+  const isOfficial = accentVariant === "official";
 
   const live = matches.filter((m) => m.status === "in_progress");
   const ready = matches.filter(
@@ -46,15 +49,17 @@ export function BracketPlayReadinessCard({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <Swords className="h-4 w-4 text-cp-primary" />
+            <Swords
+              className={cn("h-4 w-4", isOfficial ? "text-cp-primary" : "text-emerald-400")}
+            />
             {isLive ? "Live play" : isCompleted ? "Bracket results" : "Next: live play"}
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-cp-muted">
             {isLive
-              ? "Bracket setup is done here. Start matches and update scores from the Live scoring tab using your configured courts."
+              ? "Start matches and update scores from the Live scoring tab using your configured courts."
               : isCompleted
                 ? "This tournament has ended. Final bracket results are shown in the tree above."
-                : "Seeding is complete on this tab. Set the tournament to Live, then open Live scoring to start matches on court."}
+                : "Seeding is complete. Set the tournament to Live, then open Live scoring to start matches on court."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -66,7 +71,7 @@ export function BracketPlayReadinessCard({
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs text-cp-muted">
         <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5">
-          First to {pointsPerMatch} pts
+          {matchScoringHint}
         </span>
         <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5">
           {courtCount} court{courtCount === 1 ? "" : "s"}
@@ -110,7 +115,15 @@ export function BracketPlayReadinessCard({
                 <Button asChild size="sm" variant="outline" className="border-amber-500/30">
                   <Link href={editUrl}>Edit tournament status</Link>
                 </Button>
-                <Button asChild size="sm" className="bg-cp-primary hover:bg-cp-primary-light">
+                <Button
+                  asChild
+                  size="sm"
+                  className={cn(
+                    isOfficial
+                      ? "bg-cp-primary hover:bg-cp-primary-light"
+                      : "bg-emerald-600 hover:bg-emerald-500",
+                  )}
+                >
                   <Link href={liveScoringUrl}>
                     <Radio className="mr-1.5 h-3.5 w-3.5" />
                     Preview Live scoring
@@ -123,12 +136,27 @@ export function BracketPlayReadinessCard({
       ) : null}
 
       {isLive ? (
-        <div className="mt-5 flex flex-col gap-3 rounded-xl border border-cp-primary/25 bg-cp-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            "mt-5 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between",
+            isOfficial
+              ? "border-cp-primary/25 bg-cp-primary/5"
+              : "border-emerald-500/25 bg-emerald-950/20",
+          )}
+        >
           <p className="text-sm text-foreground">
             Multi-court bracket scoring is ready — assign each ready match to a court and finalize
             results there.
           </p>
-          <Button asChild className="shrink-0 bg-cp-primary hover:bg-cp-primary-light">
+          <Button
+            asChild
+            className={cn(
+              "shrink-0",
+              isOfficial
+                ? "bg-cp-primary hover:bg-cp-primary-light"
+                : "bg-emerald-600 hover:bg-emerald-500",
+            )}
+          >
             <Link href={liveScoringUrl}>
               Open Live scoring
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -176,7 +204,12 @@ export function BracketPlayReadinessCard({
                 <span className="text-sm text-foreground">
                   R{m.roundNumber} · {m.teamAName} vs {m.teamBName}
                 </span>
-                <span className="font-mono text-sm font-semibold text-cp-primary">
+                <span
+                  className={cn(
+                    "font-mono text-sm font-semibold",
+                    isOfficial ? "text-cp-primary" : "text-emerald-400",
+                  )}
+                >
                   {m.scoreA ?? 0} – {m.scoreB ?? 0}
                 </span>
               </li>

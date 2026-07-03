@@ -59,6 +59,7 @@ export const TOURNAMENT_POINTS_PER_MATCH_OPTIONS = [
   11, 15, 21, 25, 30, 35, 40,
 ] as const;
 export const TOURNAMENT_COURT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12] as const;
+export const TOURNAMENT_ROUND_DURATION_OPTIONS = [5, 10, 15, 20, 25, 30] as const;
 
 export const DEFAULT_SUDDEN_DEATH_EXTENSION_MINUTES = 3;
 
@@ -133,6 +134,29 @@ export function getTournamentFormatLabel(format: string | null | undefined): str
 
 export function getScoringTypeLabel(scoringType: string | null | undefined): string {
   return scoringType === "timed" ? "Timed rounds" : "Points";
+}
+
+/** Primary scoring label for cards and summaries (e.g. "21 points" or "15 min rounds"). */
+export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): string {
+  if (getTournamentScoringType(tournament) === "timed") {
+    return `${getTournamentRoundDurationMinutes(tournament)} min rounds`;
+  }
+  return `${getTournamentPointsPerMatch(tournament)} points`;
+}
+
+/** Secondary scoring line with type and court count. */
+export function getTournamentScoringDetailLabel(tournament: TournamentDetail): string {
+  const courtCount = getTournamentCourtCount(tournament);
+  const courts = `${courtCount} ${courtCount === 1 ? "court" : "courts"}`;
+  return `${getScoringTypeLabel(getTournamentScoringType(tournament))} · ${courts}`;
+}
+
+/** Short hint for match scoring (bracket readiness, live toolbar). */
+export function getTournamentMatchScoringHint(tournament: TournamentDetail): string {
+  if (getTournamentScoringType(tournament) === "timed") {
+    return `${getTournamentRoundDurationMinutes(tournament)} min per round`;
+  }
+  return `First to ${getTournamentPointsPerMatch(tournament)} pts`;
 }
 
 export type OfficialTournamentStaffRole = "host" | "scorekeeper";

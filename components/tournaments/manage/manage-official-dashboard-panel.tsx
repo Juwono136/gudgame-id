@@ -11,8 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import {
   getTournamentCourtCount,
-  getTournamentPointsPerMatch,
-  getTournamentScoringType,
+  getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -64,8 +63,7 @@ export function ManageOfficialDashboardPanel({
   className,
 }: ManageOfficialDashboardPanelProps) {
   const courtCount = getTournamentCourtCount(tournament);
-  const pointsPerMatch = getTournamentPointsPerMatch(tournament);
-  const scoringType = getTournamentScoringType(tournament);
+  const scoringPrimary = getTournamentScoringPrimaryLabel(tournament);
   const billingLabel =
     tournament.officialBilling === "paid"
       ? OFFICIAL_BILLING_LABELS.paid
@@ -111,7 +109,7 @@ export function ManageOfficialDashboardPanel({
           icon={LayoutGrid}
           label="Courts & scoring"
           value={`${courtCount} courts`}
-          detail={`${pointsPerMatch} pts · ${scoringType === "timed" ? "Timed" : "Points"}`}
+          detail={scoringPrimary}
           accent="text-violet-400"
         />
         <StatCard

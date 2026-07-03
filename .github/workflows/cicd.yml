@@ -174,7 +174,10 @@ jobs:
           XENDIT_WEBHOOK_TOKEN: ${{ secrets.XENDIT_WEBHOOK_TOKEN }}
           XENDIT_XENPLATFORM_ENABLED: ${{ secrets.XENDIT_XENPLATFORM_ENABLED }}
 
-          # Google Maps
+          # OpenStreetMap venue search (no key required)
+          NOMINATIM_USER_AGENT: ${{ secrets.NOMINATIM_USER_AGENT }}
+
+          # Google Maps (optional legacy embed)
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
 
           # Ops

@@ -1,6 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
-import { getPlaceDetails, isGooglePlacesConfigured } from "@/lib/maps/google-places";
+import { getPlaceDetails, isVenueSearchConfigured } from "@/lib/maps/venue-search";
 import { z } from "zod";
 import { guardApiRequest } from "@/lib/api/guard-request";
 
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const { placeId } = querySchema.parse(Object.fromEntries(url.searchParams));
 
-    if (!isGooglePlacesConfigured()) {
+    if (!isVenueSearchConfigured()) {
       return jsonSuccess({ configured: false, place: null });
     }
 

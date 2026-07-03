@@ -179,25 +179,30 @@ export function TournamentRecentMatchesSection({
         ))}
       </div>
 
-      <div className="hidden md:block">
-        <table className="w-full table-fixed text-left text-sm">
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
             <tr className="border-b border-cp-border bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              <th className="w-[12%] px-4 py-3 sm:px-6">Round</th>
-              <th className="w-[28%] px-4 py-3">Match</th>
-              {!isOfficial ? <th className="w-[24%] px-4 py-3">Players</th> : null}
-              {isOfficial ? <th className="w-[16%] px-4 py-3">Winner</th> : null}
-              <th className="w-[10%] px-4 py-3 text-center">Score</th>
-              {!isOfficial ? <th className="w-[10%] px-4 py-3">Duration</th> : null}
-              {isOfficial ? <th className="w-[14%] px-4 py-3">Played</th> : null}
-              <th className="w-[16%] px-4 py-3 text-right sm:px-6">Status</th>
+              <th className="min-w-[5.5rem] max-w-[8rem] px-4 py-3 sm:px-6">Round</th>
+              <th className="min-w-[10rem] px-4 py-3">Match</th>
+              {!isOfficial ? <th className="min-w-[9rem] px-4 py-3">Players</th> : null}
+              {isOfficial ? <th className="min-w-[6rem] px-4 py-3">Winner</th> : null}
+              <th className="w-20 px-4 py-3 text-center">Score</th>
+              {!isOfficial ? <th className="w-20 px-4 py-3">Duration</th> : null}
+              {isOfficial ? <th className="min-w-[6rem] px-4 py-3">Played</th> : null}
+              <th className="min-w-[5.5rem] px-4 py-3 text-right sm:px-6">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-cp-border/70">
             {rows.map((row) => (
               <tr key={row.id} className="transition-colors hover:bg-cp-elevated/25">
                 <td className="px-4 py-3.5 align-top sm:px-6">
-                  <span className={cn("text-xs font-bold uppercase tracking-wide", roundAccent)}>
+                  <span
+                    className={cn(
+                      "block break-words text-xs font-bold uppercase leading-snug tracking-wide",
+                      roundAccent,
+                    )}
+                  >
                     {row.roundLabel}
                   </span>
                   {row.matchNumber != null ? (

@@ -51,10 +51,12 @@ import {
 import {
   TOURNAMENT_COURT_COUNT_OPTIONS,
   TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
+  TOURNAMENT_ROUND_DURATION_OPTIONS,
   getTournamentRuleSections,
   getTournamentCourtCount,
   getTournamentFormatLabel,
   getTournamentPointsPerMatch,
+  getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   getScoringTypeLabel,
   getVenueMapsUrl,
@@ -221,6 +223,9 @@ export function TournamentCreateWizard({
   const [courtCount, setCourtCount] = useState(
     String(initial ? getTournamentCourtCount(initial) : 1),
   );
+  const [roundDurationMinutes, setRoundDurationMinutes] = useState(
+    String(initial ? getTournamentRoundDurationMinutes(initial) : 15),
+  );
 
   useEffect(() => {
     if (isEdit) return;
@@ -267,6 +272,7 @@ export function TournamentCreateWizard({
     setScoringType(getTournamentScoringType(initial));
     setPointsPerMatch(String(getTournamentPointsPerMatch(initial)));
     setCourtCount(String(getTournamentCourtCount(initial)));
+    setRoundDurationMinutes(String(getTournamentRoundDurationMinutes(initial)));
   }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
 
   const resolvedSlug = slug.trim() || slugifyWikiName(name);
@@ -309,6 +315,8 @@ export function TournamentCreateWizard({
       endsAt: toIso(endsAt),
       scoringType,
       pointsPerMatch: Number(pointsPerMatch) || 21,
+      roundDurationMinutes:
+        scoringType === "timed" ? Number(roundDurationMinutes) || 15 : undefined,
       courtCount: Number(courtCount) || 1,
     };
   };
@@ -372,8 +380,6 @@ export function TournamentCreateWizard({
         toast.error("Paid official tournaments require a registration fee (IDR)");
         return false;
       }
-    }
-    if (stepId === "schedule") {
       if (!venue.trim()) {
         toast.error("Venue is required");
         return false;
@@ -382,6 +388,8 @@ export function TournamentCreateWizard({
         limitError("Venue", TOURNAMENT_FIELD_LIMITS.venue);
         return false;
       }
+    }
+    if (stepId === "schedule") {
       if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) {
         toast.error("End date must be after start date");
         return false;
@@ -653,19 +661,42 @@ export function TournamentCreateWizard({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Point per match</Label>
-                  <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
-                    <SelectTrigger className="border-cp-border bg-cp-elevated">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
-                        <SelectItem key={points} value={String(points)}>
-                          {points} points
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {scoringType === "timed" ? (
+                    <>
+                      <Label>Round duration</Label>
+                      <Select
+                        value={roundDurationMinutes}
+                        onValueChange={setRoundDurationMinutes}
+                      >
+                        <SelectTrigger className="border-cp-border bg-cp-elevated">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TOURNAMENT_ROUND_DURATION_OPTIONS.map((minutes) => (
+                            <SelectItem key={minutes} value={String(minutes)}>
+                              {minutes} minutes
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  ) : (
+                    <>
+                      <Label>Point per match</Label>
+                      <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
+                        <SelectTrigger className="border-cp-border bg-cp-elevated">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
+                            <SelectItem key={points} value={String(points)}>
+                              {points} points
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Number of courts</Label>
@@ -732,6 +763,14 @@ export function TournamentCreateWizard({
               </div>
 
               <TournamentCoverUpload value={cover} onChange={setCover} />
+
+              <VenueAutocompleteField
+                venue={venue}
+                mapsUrl={venueMapsUrl}
+                onVenueChange={(v) => setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue))}
+                onMapsUrlChange={(v) => setVenueMapsUrl(v.slice(0, 2000))}
+                required
+              />
                   </div>
                 </>
               ) : null}
@@ -741,7 +780,7 @@ export function TournamentCreateWizard({
                   <TournamentWizardStepHeader
                     eyebrow="Step 2"
                     title="Schedule & rules"
-                    description="Set dates, venue, and official rules players must follow."
+                    description="Set dates and official rules players must follow."
                   />
                   <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
@@ -768,14 +807,6 @@ export function TournamentCreateWizard({
                   </div>
                 ) : null}
               </div>
-
-              <VenueAutocompleteField
-                venue={venue}
-                mapsUrl={venueMapsUrl}
-                onVenueChange={(v) => setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue))}
-                onMapsUrlChange={setVenueMapsUrl}
-                required
-              />
 
               {tournamentType === "official" ? (
                 <div className="space-y-6">
@@ -848,7 +879,11 @@ export function TournamentCreateWizard({
               rules={rules}
               matchTypeLabel={getTournamentFormatLabel(matchType)}
               scoringTypeLabel={getScoringTypeLabel(scoringType)}
-              pointsPerMatch={pointsPerMatch}
+              pointsPerMatch={
+                scoringType === "timed"
+                  ? `${roundDurationMinutes} min rounds`
+                  : `${pointsPerMatch} points`
+              }
               courtCount={courtCount}
               onEditStep={goToStep}
             />

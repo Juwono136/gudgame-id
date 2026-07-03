@@ -1,5 +1,7 @@
 import type { ReclubScoreEvent } from "@/lib/tournaments/reclub/score-events";
 
+export type ReclubPlayType = "round" | "friendly" | "bracket" | "bracket_rematch";
+
 export type ReclubMatchView = {
   id: string; roundNumber: number;
   teamAId?: string | null;
@@ -21,6 +23,8 @@ export type ReclubMatchView = {
   sourceKind?: "round" | "bracket";
   bracketMatchId?: string | null;
   roundLabel?: string | null;
+  playType?: ReclubPlayType | null;
+  playNumber?: number | null;
 };
 
 export type ReclubMatchesListQuery = {
@@ -31,8 +35,49 @@ export type ReclubMatchesListQuery = {
 };
 
 export function getReclubMatchHistoryKey(match: ReclubMatchView): string {
-  if (match.bracketMatchId != null) return `bracket-${match.bracketMatchId}`;
+  if (match.bracketMatchId != null) {
+    const play = match.playNumber ?? 1;
+    return `bracket-${match.bracketMatchId}-play-${play}`;
+  }
+  if (match.sourceKind === "bracket") {
+    const play = match.playNumber ?? 1;
+    return `bracket-${match.id}-play-${play}`;
+  }
   return `round-${match.id}`;
+}
+
+function matchDedupeScore(m: ReclubMatchView): number {
+  let score = 0;
+  if (m.status === "in_progress") score += 100;
+  if (m.courtId) score += 40;
+  if (m.teamAPlayers?.length || m.teamBPlayers?.length) score += 25;
+  if (m.teamAId && m.teamBId) score += 20;
+  if (m.id !== m.bracketMatchId) score += 15;
+  if (m.durationSeconds != null) score += 10;
+  if (m.endedAt) score += 5;
+  return score;
+}
+
+export function pickBetterReclubMatch(a: ReclubMatchView, b: ReclubMatchView): ReclubMatchView {
+  const scoreA = matchDedupeScore(a);
+  const scoreB = matchDedupeScore(b);
+  if (scoreB !== scoreA) return scoreB > scoreA ? b : a;
+  return {
+    ...a,
+    ...b,
+    teamAName: b.teamAName ?? a.teamAName,
+    teamBName: b.teamBName ?? a.teamBName,
+    teamAPlayers: b.teamAPlayers?.length ? b.teamAPlayers : a.teamAPlayers,
+    teamBPlayers: b.teamBPlayers?.length ? b.teamBPlayers : a.teamBPlayers,
+    courtId: b.courtId ?? a.courtId,
+    teamAId: b.teamAId ?? a.teamAId,
+    teamBId: b.teamBId ?? a.teamBId,
+    scoreA: b.scoreA ?? a.scoreA,
+    scoreB: b.scoreB ?? a.scoreB,
+    durationSeconds: b.durationSeconds ?? a.durationSeconds,
+    endedAt: b.endedAt ?? a.endedAt,
+    roundLabel: b.roundLabel ?? a.roundLabel,
+  };
 }
 
 /** Minimal bracket row shape for merging into reclub session stats (client-safe). */

@@ -3,9 +3,9 @@
 import { ExternalLink, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  buildGoogleMapsEmbedUrl,
-  resolveGoogleMapsOpenUrl,
-} from "@/lib/maps/google-maps-url";
+  buildVenueEmbedUrl,
+  resolveVenueOpenUrl,
+} from "@/lib/maps/venue-maps-url";
 import { cn } from "@/lib/utils";
 
 type VenueMapsPreviewProps = {
@@ -15,8 +15,8 @@ type VenueMapsPreviewProps = {
 };
 
 export function VenueMapsPreview({ venue, mapsUrl, className }: VenueMapsPreviewProps) {
-  const openUrl = resolveGoogleMapsOpenUrl(mapsUrl, venue);
-  const embedUrl = buildGoogleMapsEmbedUrl(mapsUrl, venue);
+  const openUrl = resolveVenueOpenUrl(mapsUrl, venue);
+  const embedUrl = buildVenueEmbedUrl(mapsUrl, venue);
 
   return (
     <section className={cn("min-w-0", className)} aria-labelledby="venue-location-heading">
@@ -62,7 +62,7 @@ export function VenueMapsPreview({ venue, mapsUrl, className }: VenueMapsPreview
           </div>
         ) : (
           <p className="px-4 py-6 text-sm text-cp-muted sm:px-5">
-            Add a Google Maps link to show an interactive location preview.
+            Add a maps link or pick a venue from search to show a location preview.
           </p>
         )}
       </div>

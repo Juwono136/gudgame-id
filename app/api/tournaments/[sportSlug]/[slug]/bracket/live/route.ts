@@ -1,5 +1,6 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { getServerSession } from "@/lib/auth/session";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { updateBracketLiveScore, listBracketMatches } from "@/lib/tournaments/brackets/service";
@@ -18,6 +19,8 @@ const bodySchema = z.object({
   matchId: z.string().uuid(),
   scoreA: z.coerce.number().int().min(0).max(99),
   scoreB: z.coerce.number().int().min(0).max(99),
+  action: z.enum(["set", "increment", "decrement"]).optional(),
+  side: z.enum(["a", "b"]).optional(),
 });
 
 export async function PATCH(
@@ -63,12 +66,18 @@ export async function PATCH(
     }
     assertCanScoreBracketMatch(participant, target);
 
+    const session = await getServerSession();
     const match = await updateBracketLiveScore(
       tournament,
       matchId,
       userId,
-      parsed.data.scoreA,
-      parsed.data.scoreB,
+      session?.user?.name ?? null,
+      {
+        scoreA: parsed.data.scoreA,
+        scoreB: parsed.data.scoreB,
+        action: parsed.data.action,
+        side: parsed.data.side,
+      },
     );
 
     return jsonSuccess({ match });

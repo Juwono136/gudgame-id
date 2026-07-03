@@ -83,6 +83,35 @@ export type MapsEmbedTarget =
   | { kind: "place"; query: string };
 
 /** Resolve venue / maps link into an embed target (coords or place search). */
+function extractOsmCoordsFromUrl(url: string): { latitude: number; longitude: number } | null {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes("openstreetmap.org")) return null;
+
+    const mlat = parsed.searchParams.get("mlat");
+    const mlon = parsed.searchParams.get("mlon");
+    if (mlat && mlon) {
+      const latitude = Number(mlat);
+      const longitude = Number(mlon);
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+
+    const hashMatch = parsed.hash.match(/#map=\d+\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);
+    if (hashMatch) {
+      const latitude = Number(hashMatch[1]);
+      const longitude = Number(hashMatch[2]);
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+  } catch {
+    /* ignore invalid URLs */
+  }
+  return null;
+}
+
 export function resolveMapsEmbedTarget(
   mapsUrl?: string | null,
   venue?: string,
@@ -90,6 +119,11 @@ export function resolveMapsEmbedTarget(
   const trimmed = mapsUrl?.trim();
 
   if (trimmed) {
+    const osmCoords = extractOsmCoordsFromUrl(trimmed);
+    if (osmCoords) {
+      return { kind: "coords", latitude: osmCoords.latitude, longitude: osmCoords.longitude };
+    }
+
     const coords = extractCoordsFromUrl(trimmed);
     if (coords) {
       const [lat, lng] = coords.split(",").map(Number);

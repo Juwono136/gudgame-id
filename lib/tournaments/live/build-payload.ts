@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { tournamentTeamMembers } from "@/db/schema/tournament-registration";
 import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboard";
+import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { isFunMatchType, supportsRoundBasedPlay } from "@/lib/tournaments/core/types";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/lib/tournaments/lifecycle-guards";
 import { TOURNAMENT_NOT_STARTED_MESSAGE } from "@/lib/tournaments/core/types";
 import { listReclubMatches } from "@/lib/tournaments/reclub/matches";
+import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
@@ -28,8 +30,13 @@ function mapReclubToLiveMatch(m: ReclubMatchView) {
     id: m.id,
     type: "lobby_round" as const,
     roundNumber: m.roundNumber,
+    roundLabel: historyLabelForReclub(m),
+    teamAId: m.teamAId ?? null,
+    teamBId: m.teamBId ?? null,
     teamAName: m.teamAName,
     teamBName: m.teamBName,
+    teamAPlayers: m.teamAPlayers,
+    teamBPlayers: m.teamBPlayers,
     scoreA: m.scoreA,
     scoreB: m.scoreB,
     status: m.status,
@@ -37,7 +44,28 @@ function mapReclubToLiveMatch(m: ReclubMatchView) {
     endedAt: m.endedAt,
     courtId: m.courtId,
     timerEndsAt: m.timerEndsAt,
+    playType: m.playType ?? null,
+    playNumber: m.playNumber ?? null,
+    durationSeconds: m.durationSeconds,
+    bracketMatchId: m.bracketMatchId ?? null,
   };
+}
+
+function historyLabelForReclub(m: ReclubMatchView): string {
+  if (m.playType === "friendly") {
+    return m.playNumber ? `Friendly #${m.playNumber}` : "Friendly";
+  }
+  if (m.playType === "bracket_rematch") {
+    return m.playNumber ? `Bracket rematch #${m.playNumber}` : "Bracket rematch";
+  }
+  if (m.playType === "bracket" || m.sourceKind === "bracket") {
+    return m.roundLabel ?? `Bracket · R${m.roundNumber}`;
+  }
+  return m.roundLabel ?? `Round ${m.roundNumber}`;
+}
+
+function historyLabelForBracket(m: BracketMatchView, maxRound: number): string {
+  return `Bracket · ${getBracketRoundLabel(m.roundNumber, maxRound)} · M${m.matchNumber}`;
 }
 
 function mapBracketToLiveMatch(m: BracketMatchView) {
@@ -46,6 +74,8 @@ function mapBracketToLiveMatch(m: BracketMatchView) {
     type: "bracket" as const,
     roundNumber: m.roundNumber,
     matchNumber: m.matchNumber,
+    teamAId: m.teamAId ?? null,
+    teamBId: m.teamBId ?? null,
     teamAName: m.teamAName,
     teamBName: m.teamBName,
     teamAPlayers: m.teamAPlayers,
@@ -55,6 +85,9 @@ function mapBracketToLiveMatch(m: BracketMatchView) {
     status: m.status,
     courtId: m.courtId,
     startedAt: m.startedAt,
+    endedAt: null,
+    bracketMatchId: m.id,
+    scoreEvents: m.scoreEvents ?? [],
   };
 }
 
@@ -139,12 +172,96 @@ export async function buildTournamentLivePayload(
       })),
   }));
 
-  const lobbyLiveMatches = isLiveOrDone ? lobbyMatches.map(mapReclubToLiveMatch) : [];
-  const bracketLiveMatches = isLiveOrDone ? bracketMatches.map(mapBracketToLiveMatch) : [];
+  const lobbyLiveMatches = isLiveOrDone
+    ? lobbyMatches.filter((m) => m.status === "in_progress").map(mapReclubToLiveMatch)
+    : [];
+  const bracketLiveMatches = isLiveOrDone
+    ? bracketMatches.filter((m) => m.status === "in_progress").map(mapBracketToLiveMatch)
+    : [];
 
-  const liveMatches = includeLobbyRounds
-    ? [...lobbyLiveMatches, ...bracketLiveMatches]
+  const lobbyBracketIds = new Set(
+    lobbyMatches.map((m) => m.bracketMatchId ?? (m.sourceKind === "bracket" ? m.id : null)).filter(Boolean),
+  );
+
+  const bracketLiveNotInLobby = bracketLiveMatches.filter((m) => !lobbyBracketIds.has(m.id));
+
+  const activeLiveMatches = includeLobbyRounds
+    ? isFunMatch
+      ? lobbyLiveMatches
+      : [...lobbyLiveMatches, ...bracketLiveNotInLobby]
     : bracketLiveMatches;
+
+  const funMatchSessionMatches =
+    isLiveOrDone && isFunMatch
+      ? dedupeReclubMatchViews(
+          lobbyMatches.filter((m) => m.status === "in_progress" || m.status === "completed"),
+        ).map(mapReclubToLiveMatch)
+      : null;
+
+  const matchesPayload = funMatchSessionMatches ?? activeLiveMatches;
+
+  const maxBracketRound = bracketMatches.length
+    ? Math.max(...bracketMatches.map((m) => m.roundNumber))
+    : 1;
+
+  const recordedBracketIds = new Set(
+    lobbyMatches
+      .filter((m) => m.bracketMatchId && m.status === "completed")
+      .map((m) => `${m.bracketMatchId}-${m.playNumber ?? 1}`),
+  );
+
+  const lobbyHistory = lobbyMatches
+    .filter((m) => m.status === "completed")
+    .map((m) => ({
+      id: m.id,
+      label: historyLabelForReclub(m),
+      summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
+      score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
+      endedAt: m.endedAt,
+      playType: m.playType ?? null,
+      roundNumber: m.roundNumber,
+      teamAId: m.teamAId ?? null,
+      teamBId: m.teamBId ?? null,
+      teamAName: m.teamAName ?? null,
+      teamBName: m.teamBName ?? null,
+      teamAPlayers: m.teamAPlayers ?? [],
+      teamBPlayers: m.teamBPlayers ?? [],
+    }))
+    .sort((a, b) => {
+      const at = new Date(a.endedAt ?? 0).getTime();
+      const bt = new Date(b.endedAt ?? 0).getTime();
+      return bt - at;
+    });
+
+  const bracketHistory = bracketMatches
+    .filter(
+      (m) =>
+        m.status === "completed" &&
+        !recordedBracketIds.has(`${m.id}-1`) &&
+        (m.teamAName || m.teamBName),
+    )
+    .map((m) => ({
+      id: m.id,
+      label: historyLabelForBracket(m, maxBracketRound),
+      summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
+      score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
+      endedAt: null,
+      playType: "bracket" as const,
+      roundNumber: m.roundNumber,
+      teamAId: m.teamAId ?? null,
+      teamBId: m.teamBId ?? null,
+      teamAName: m.teamAName ?? null,
+      teamBName: m.teamBName ?? null,
+      teamAPlayers: m.teamAPlayers ?? [],
+      teamBPlayers: m.teamBPlayers ?? [],
+      bracketMatchId: m.id,
+    }));
+
+  const matchHistory = [...lobbyHistory, ...bracketHistory].sort((a, b) => {
+    const at = new Date(a.endedAt ?? 0).getTime();
+    const bt = new Date(b.endedAt ?? 0).getTime();
+    return bt - at;
+  });
 
   const statsMatches: StatsMatchInput[] = [
     ...lobbyMatches.map(toStatsMatchFromReclub).filter((m): m is StatsMatchInput => m != null),
@@ -168,26 +285,6 @@ export async function buildTournamentLivePayload(
         teams: statsTeams,
         totalPlayers: members.length,
       });
-
-  const lobbyHistory = lobbyMatches
-    .filter((m) => m.status === "completed")
-    .map((m) => ({
-      id: m.id,
-      label: m.roundLabel ?? `Round ${m.roundNumber}`,
-      summary: m.summary,
-      score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
-      endedAt: m.endedAt,
-    }));
-
-  const bracketHistory = bracketMatches
-    .filter((m) => m.status === "completed")
-    .map((m) => ({
-      id: m.id,
-      label: `Round ${m.roundNumber} · Match ${m.matchNumber}`,
-      summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
-      score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
-      endedAt: null,
-    }));
 
   return {
     phase,
@@ -214,10 +311,8 @@ export async function buildTournamentLivePayload(
       leaderboard,
       generated: bracketMatches.length > 0,
     },
-    matches: liveMatches,
-    matchHistory: includeLobbyRounds
-      ? [...lobbyHistory, ...bracketHistory]
-      : bracketHistory,
+    matches: matchesPayload,
+    matchHistory: includeLobbyRounds ? matchHistory : bracketHistory,
     leaderboard,
     playerStats: sessionStats,
     lastUpdatedAt: new Date().toISOString(),

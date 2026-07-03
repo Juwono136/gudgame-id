@@ -153,7 +153,7 @@ export async function POST(request: Request) {
     const { syncOwnedPlayerProfilesFromSportInterests } = await import(
       "@/lib/account/player-profile/sync-owned-profiles"
     );
-    await syncOwnedPlayerProfilesFromSportInterests(existing.id);
+    const { syncedSportSlugs } = await syncOwnedPlayerProfilesFromSportInterests(existing.id);
 
     const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
     await reconcileDashboardSportCookie(existing.id);
@@ -169,9 +169,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: status.isComplete
-        ? "Your profile is now complete."
+        ? syncedSportSlugs.length > 0
+          ? `Your profile is complete. Public player page${syncedSportSlugs.length > 1 ? "s" : ""} created for ${syncedSportSlugs.join(", ")}.`
+          : "Your profile is now complete."
         : "Profile saved. You can update details anytime in Settings.",
       profileComplete: status.isComplete,
+      playerPagesCreated: syncedSportSlugs,
     });
   } catch (err) {
     log.error("Complete profile failed", err);

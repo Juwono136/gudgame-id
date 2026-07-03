@@ -50,11 +50,11 @@ export default async function CompleteProfilePage() {
 
         <header className="mt-5 space-y-3">
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Complete your profile
+            Personalize your game
           </h1>
           <p className="max-w-prose text-sm leading-relaxed text-cp-muted">
-            Welcome to TandingBase! Add a few details so we can verify your player identity.
-            You can update these anytime later in Settings.
+            Tell us a bit about yourself to tailor your wiki and tournament experience. Photo is
+            optional — you can update everything later in Settings.
           </p>
 
           <div className="rounded-xl border border-cp-border bg-cp-card cp-shadow-card p-4 dark:bg-cp-elevated/50">

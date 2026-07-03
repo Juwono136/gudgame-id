@@ -335,3 +335,115 @@ export async function getUserTeamInTournament(
 ): Promise<string | null> {
   return getUserTeamId(tournamentId, userId);
 }
+
+async function assertSquadNotLiveOnCourt(
+  tournamentId: string,
+  teamId: string,
+): Promise<void> {
+  const db = getDb();
+  const [active] = await db
+    .select({ id: tournamentReclubMatches.id })
+    .from(tournamentReclubMatches)
+    .where(
+      and(
+        eq(tournamentReclubMatches.tournamentId, tournamentId),
+        eq(tournamentReclubMatches.status, "in_progress"),
+      ),
+    )
+    .limit(1);
+
+  if (!active) return;
+
+  const rows = await db
+    .select({
+      teamAId: tournamentReclubMatches.teamAId,
+      teamBId: tournamentReclubMatches.teamBId,
+    })
+    .from(tournamentReclubMatches)
+    .where(
+      and(
+        eq(tournamentReclubMatches.tournamentId, tournamentId),
+        eq(tournamentReclubMatches.status, "in_progress"),
+      ),
+    );
+
+  for (const row of rows) {
+    if (row.teamAId === teamId || row.teamBId === teamId) {
+      throw new AppError("Cannot move players while this squad is live on a court", {
+        code: "CONFLICT",
+        statusCode: 409,
+      });
+    }
+  }
+}
+
+export async function hostMovePlayerToSquad(
+  tournament: TournamentDetail,
+  hostUserId: string,
+  playerUserId: string,
+  targetTeamId: string,
+): Promise<void> {
+  if (!isFunMatchType(tournament.tournamentType)) {
+    throw new AppError("Player moves are only available for Fun Match sessions", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
+  if (tournament.createdBy !== hostUserId) {
+    throw new AppError("Only the host can move players between squads", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+
+  const db = getDb();
+
+  const [target] = await db
+    .select()
+    .from(tournamentTeams)
+    .where(
+      and(eq(tournamentTeams.id, targetTeamId), eq(tournamentTeams.tournamentId, tournament.id)),
+    )
+    .limit(1);
+
+  if (!target) {
+    throw new AppError("Target squad not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const currentTeamId = await getUserTeamId(tournament.id, playerUserId);
+  if (currentTeamId === targetTeamId) return;
+
+  if (currentTeamId) {
+    await assertSquadNotLiveOnCourt(tournament.id, currentTeamId);
+  }
+  await assertSquadNotLiveOnCourt(tournament.id, targetTeamId);
+
+  const [memberCount] = await db
+    .select({ count: count() })
+    .from(tournamentTeamMembers)
+    .where(eq(tournamentTeamMembers.teamId, targetTeamId));
+
+  if (Number(memberCount?.count ?? 0) >= tournament.playersPerTeam) {
+    throw new AppError("Target squad is full", { code: "CONFLICT", statusCode: 409 });
+  }
+
+  if (currentTeamId) {
+    await db
+      .delete(tournamentTeamMembers)
+      .where(
+        and(
+          eq(tournamentTeamMembers.teamId, currentTeamId),
+          eq(tournamentTeamMembers.userId, playerUserId),
+        ),
+      );
+  }
+
+  const nextSlot = Number(memberCount?.count ?? 0);
+  await db.insert(tournamentTeamMembers).values({
+    teamId: targetTeamId,
+    userId: playerUserId,
+    slotIndex: nextSlot,
+    role: nextSlot === 0 ? "captain" : "member",
+  });
+}

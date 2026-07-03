@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Pencil, Play, Trophy } from "lucide-react";
+import { Loader2, Pencil, Play, RefreshCw, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  useRematchBracketMatch,
   useStartBracketMatchOnCourt,
   useSubmitBracketScore,
   useUpdateBracketLiveScore,
 } from "@/hooks/use-tournament-bracket";
+import { useStartReclubRound } from "@/hooks/use-tournament-lobby";
 import { useRenameTournamentCourt } from "@/hooks/use-tournament-courts";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import {
@@ -29,8 +31,9 @@ import {
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { TournamentCourtView } from "@/lib/tournaments/courts/service";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
-import { isOfficialType } from "@/lib/tournaments/core/types";
+import { isFunMatchType, isOfficialType } from "@/lib/tournaments/core/types";
 import {
   cpSelectContentClass,
   cpSelectItemClass,
@@ -49,15 +52,34 @@ type BracketCourtScoringGridProps = {
   pointsPerMatch: number;
   canScore: boolean;
   tournamentType: string;
-  /** Fun-match hybrid: lock squads active in reclub rounds on other courts. */
-  reclubActiveMatches?: Pick<
-    import("@/lib/tournaments/reclub/types").ReclubMatchView,
-    "teamAId" | "teamBId" | "courtId"
-  >[];
+  /** Fun-match hybrid: friendly games running alongside bracket matches. */
+  reclubActiveMatches?: ReclubMatchView[];
+  friendlyAByCourt?: Record<string, string>;
+  friendlyBByCourt?: Record<string, string>;
+  onFriendlyPickAChange?: (courtId: string, teamId: string) => void;
+  onFriendlyPickBChange?: (courtId: string, teamId: string) => void;
+  onFriendlyScoreChange?: (
+    matchId: string,
+    input: {
+      scoreA: number;
+      scoreB: number;
+      action?: "increment" | "decrement" | "set";
+      side?: "a" | "b";
+    },
+  ) => void;
+  onFriendlyComplete?: (match: ReclubMatchView, elapsed: number) => void;
+  friendlyScoreSyncing?: boolean;
+  friendlyCompletePending?: boolean;
+  scoringType?: string;
+  roundDuration?: number;
 };
 
-function formatReadyMatch(m: BracketMatchView): string {
-  return `R${m.roundNumber} M${m.matchNumber}: ${m.teamAName} vs ${m.teamBName}`;
+function formatStartableMatch(m: BracketMatchView): string {
+  const base = `R${m.roundNumber} M${m.matchNumber}: ${m.teamAName} vs ${m.teamBName}`;
+  if (m.status === "completed") {
+    return `${base} (${m.scoreA ?? 0}–${m.scoreB ?? 0} · play again)`;
+  }
+  return base;
 }
 
 function formatDuration(seconds: number): string {
@@ -85,11 +107,21 @@ function useLiveTimer(startedAt: string | null, active: boolean) {
 function BracketCourtCard({
   court,
   liveMatch,
-  readyMatches,
-  activeMatches,
-  teams,
+  friendlyLiveMatch,
+  startableMatches,
   pickMatchId,
   onPickMatch,
+  friendlyTeamAId,
+  friendlyTeamBId,
+  onFriendlyTeamAChange,
+  onFriendlyTeamBChange,
+  onStartFriendly,
+  startingFriendly,
+  showFriendly,
+  onReplayTie,
+  replayingTie,
+  activeMatches,
+  teams,
   onStart,
   starting,
   canScore,
@@ -107,25 +139,42 @@ function BracketCourtCard({
   onSaveName,
   onCancelEdit,
   reclubActiveMatches,
+  onFriendlyScoreChange,
+  onFriendlyComplete,
+  friendlyScoreSyncing,
+  friendlyCompletePending,
+  scoringType,
+  roundDuration,
 }: {
   court: TournamentCourtView;
   liveMatch: BracketMatchView | null;
-  readyMatches: BracketMatchView[];
-  activeMatches: BracketMatchView[];
-  teams: LobbyTeamView[];
-  reclubActiveMatches: Pick<
-    import("@/lib/tournaments/reclub/types").ReclubMatchView,
-    "teamAId" | "teamBId" | "courtId"
-  >[];
+  friendlyLiveMatch: ReclubMatchView | null;
+  startableMatches: BracketMatchView[];
   pickMatchId: string;
   onPickMatch: (matchId: string) => void;
+  friendlyTeamAId: string;
+  friendlyTeamBId: string;
+  onFriendlyTeamAChange: (v: string) => void;
+  onFriendlyTeamBChange: (v: string) => void;
+  onStartFriendly: () => void;
+  startingFriendly: boolean;
+  showFriendly: boolean;
+  onReplayTie: () => void;
+  replayingTie: boolean;
+  activeMatches: BracketMatchView[];
+  teams: LobbyTeamView[];
+  reclubActiveMatches: ReclubMatchView[];
   onStart: () => void;
   starting: boolean;
   canScore: boolean;
   isOfficial: boolean;
   pointsPerMatch: number;
   scores: { a: number; b: number } | null;
-  onPersistScore: (a: number, b: number) => void;
+  onPersistScore: (
+    a: number,
+    b: number,
+    meta?: { action?: "increment" | "decrement" | "set"; side?: "a" | "b" },
+  ) => void;
   onFinalize: () => void;
   scoreSyncing: boolean;
   finalizePending: boolean;
@@ -135,9 +184,62 @@ function BracketCourtCard({
   onNameDraftChange: (v: string) => void;
   onSaveName: () => void;
   onCancelEdit: () => void;
+  onFriendlyScoreChange: (input: {
+    scoreA: number;
+    scoreB: number;
+    action?: "increment" | "decrement" | "set";
+    side?: "a" | "b";
+  }) => void;
+  onFriendlyComplete: (elapsed: number) => void;
+  friendlyScoreSyncing: boolean;
+  friendlyCompletePending: boolean;
+  scoringType: string;
+  roundDuration: number;
 }) {
   const elapsed = useLiveTimer(liveMatch?.startedAt ?? null, Boolean(liveMatch));
-  const busy = Boolean(court.activeMatchId && !liveMatch);
+  const friendlyElapsed = useLiveTimer(
+    friendlyLiveMatch?.startedAt ?? null,
+    Boolean(friendlyLiveMatch && !liveMatch),
+  );
+  const busy = Boolean(court.activeMatchId && !liveMatch && !friendlyLiveMatch);
+  const isTied = Boolean(liveMatch && scores && scores.a === scores.b && scores.a > 0);
+  const selectedMatch = startableMatches.find((m) => m.id === pickMatchId) ?? null;
+  const selectedNeedsRematch = selectedMatch?.status === "completed";
+  const [localFriendlyA, setLocalFriendlyA] = useState(friendlyLiveMatch?.scoreA ?? 0);
+  const [localFriendlyB, setLocalFriendlyB] = useState(friendlyLiveMatch?.scoreB ?? 0);
+  const friendlyScoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setLocalFriendlyA(friendlyLiveMatch?.scoreA ?? 0);
+    setLocalFriendlyB(friendlyLiveMatch?.scoreB ?? 0);
+  }, [friendlyLiveMatch?.id, friendlyLiveMatch?.scoreA, friendlyLiveMatch?.scoreB]);
+
+  useEffect(
+    () => () => {
+      if (friendlyScoreSyncRef.current) clearTimeout(friendlyScoreSyncRef.current);
+    },
+    [],
+  );
+
+  const pushFriendlyScore = useCallback(
+    (nextA: number, nextB: number) => {
+      setLocalFriendlyA(nextA);
+      setLocalFriendlyB(nextB);
+      if (friendlyScoreSyncRef.current) clearTimeout(friendlyScoreSyncRef.current);
+      friendlyScoreSyncRef.current = setTimeout(() => {
+        onFriendlyScoreChange({ scoreA: nextA, scoreB: nextB, action: "set" });
+      }, 120);
+    },
+    [onFriendlyScoreChange],
+  );
+
+  const friendlyTimerRemaining =
+    friendlyLiveMatch?.timerEndsAt && scoringType === "timed"
+      ? Math.max(
+          0,
+          Math.floor((new Date(friendlyLiveMatch.timerEndsAt).getTime() - Date.now()) / 1000),
+        )
+      : null;
 
   const courtLock = useMemo(
     () => buildBracketCourtLockState(activeMatches, teams, court.id, reclubActiveMatches),
@@ -148,7 +250,11 @@ function BracketCourtCard({
     <article
       className={cn(
         "flex h-full min-h-[17rem] min-w-0 flex-col rounded-2xl border bg-cp-card p-3 sm:min-h-[18rem] sm:p-4",
-        liveMatch ? "border-cp-primary/40 ring-1 ring-cp-primary/20" : "border-cp-border",
+        liveMatch
+          ? "border-cp-primary/40 ring-1 ring-cp-primary/20"
+          : friendlyLiveMatch
+            ? "border-emerald-500/40 ring-1 ring-emerald-500/20"
+            : "border-cp-border",
       )}
     >
       <div className="mb-3 flex shrink-0 items-center gap-2 border-b border-cp-border pb-3">
@@ -191,12 +297,14 @@ function BracketCourtCard({
                 "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                 liveMatch
                   ? "bg-red-500/15 text-red-400"
-                  : busy
-                    ? "bg-amber-500/15 text-amber-400"
-                    : "bg-cp-elevated text-cp-muted",
+                  : friendlyLiveMatch
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : busy
+                      ? "bg-amber-500/15 text-amber-400"
+                      : "bg-cp-elevated text-cp-muted",
               )}
             >
-              {liveMatch ? "Live" : busy ? "Busy" : "Idle"}
+              {liveMatch ? "Live" : friendlyLiveMatch ? "Friendly" : busy ? "Busy" : "Idle"}
             </span>
           </>
         )}
@@ -223,51 +331,138 @@ function BracketCourtCard({
             variant="compact"
             teamAName={liveMatch.teamAName ?? "Team A"}
             teamBName={liveMatch.teamBName ?? "Team B"}
+            teamAPlayers={liveMatch.teamAPlayers}
+            teamBPlayers={liveMatch.teamBPlayers}
             scoreA={scores.a}
             scoreB={scores.b}
-            onScoreAChange={(n) => onPersistScore(n, scores.b)}
-            onScoreBChange={(n) => onPersistScore(scores.a, n)}
+            onScoreAChange={(n) => {
+              const prev = scores.a;
+              const meta =
+                n === prev + 1
+                  ? { action: "increment" as const, side: "a" as const }
+                  : n === prev - 1
+                    ? { action: "decrement" as const, side: "a" as const }
+                    : { action: "set" as const, side: "a" as const };
+              onPersistScore(n, scores.b, meta);
+            }}
+            onScoreBChange={(n) => {
+              const prev = scores.b;
+              const meta =
+                n === prev + 1
+                  ? { action: "increment" as const, side: "b" as const }
+                  : n === prev - 1
+                    ? { action: "decrement" as const, side: "b" as const }
+                    : { action: "set" as const, side: "b" as const };
+              onPersistScore(scores.a, n, meta);
+            }}
             disabled={!canScore || scoreSyncing || finalizePending}
             maxScore={pointsPerMatch}
             status={scoreSyncing ? "syncing" : "idle"}
           />
 
           {canScore ? (
+            isTied ? (
+              <div className="mt-auto space-y-2">
+                <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-center text-xs text-amber-200">
+                  Scores are tied — replay this match before finalizing.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-amber-500/40"
+                  disabled={replayingTie}
+                  onClick={onReplayTie}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {replayingTie ? "Resetting…" : "Replay match"}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                className={cn(
+                  "mt-auto w-full",
+                  isOfficial
+                    ? "bg-cp-primary hover:bg-cp-primary-light"
+                    : "bg-emerald-600 hover:bg-emerald-500",
+                )}
+                disabled={finalizePending}
+                onClick={onFinalize}
+              >
+                <Trophy className="mr-2 h-4 w-4" />
+                {finalizePending ? "Finalizing…" : "Finalize match"}
+              </Button>
+            )
+          ) : null}
+        </div>
+      ) : friendlyLiveMatch ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide sm:gap-2 sm:text-xs">
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-950/30 px-2 py-0.5 text-emerald-300">
+              Friendly game
+            </span>
+            <span className="rounded-full border border-cp-border bg-cp-elevated/50 px-2 py-0.5 tabular-nums text-cp-muted">
+              {formatDuration(friendlyElapsed)}
+            </span>
+          </div>
+          {friendlyTimerRemaining != null ? (
+            <div className="h-1 overflow-hidden rounded-full bg-cp-elevated">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-300"
+                style={{
+                  width: `${Math.min(100, ((roundDuration * 60 - friendlyTimerRemaining) / (roundDuration * 60)) * 100)}%`,
+                }}
+              />
+            </div>
+          ) : null}
+          <LiveScoreboard
+            variant="compact"
+            teamAName={friendlyLiveMatch.teamAName ?? "Team A"}
+            teamBName={friendlyLiveMatch.teamBName ?? "Team B"}
+            teamAPlayers={friendlyLiveMatch.teamAPlayers}
+            teamBPlayers={friendlyLiveMatch.teamBPlayers}
+            scoreA={localFriendlyA}
+            scoreB={localFriendlyB}
+            maxScore={pointsPerMatch}
+            disabled={!canScore || friendlyScoreSyncing || friendlyCompletePending}
+            onScoreAChange={(v) => pushFriendlyScore(v, localFriendlyB)}
+            onScoreBChange={(v) => pushFriendlyScore(localFriendlyA, v)}
+            status={friendlyScoreSyncing ? "syncing" : "idle"}
+          />
+          {canScore ? (
             <Button
               type="button"
-              className={cn(
-                "mt-auto w-full",
-                isOfficial
-                  ? "bg-cp-primary hover:bg-cp-primary-light"
-                  : "bg-emerald-600 hover:bg-emerald-500",
-              )}
-              disabled={finalizePending}
-              onClick={onFinalize}
+              variant="secondary"
+              className="mt-auto w-full border-emerald-500/40 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/40"
+              disabled={friendlyCompletePending}
+              onClick={() => onFriendlyComplete(friendlyElapsed)}
             >
               <Trophy className="mr-2 h-4 w-4" />
-              {finalizePending ? "Finalizing…" : "Finalize match"}
+              {friendlyCompletePending ? "Finalizing…" : "Finalize friendly"}
             </Button>
           ) : null}
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs text-cp-muted">Ready match</Label>
+            <Label className="text-xs text-cp-muted">Bracket match</Label>
             <Select
               value={pickMatchId || "__none__"}
               onValueChange={(v) => onPickMatch(v === "__none__" ? "" : v)}
-              disabled={!canScore || readyMatches.length === 0}
+              disabled={!canScore || startableMatches.length === 0}
             >
               <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full min-w-0")}>
                 <SelectValue
-                  placeholder={readyMatches.length ? "Select match…" : "No matches ready"}
+                  placeholder={
+                    startableMatches.length ? "Select match…" : "No matches available"
+                  }
                 />
               </SelectTrigger>
               <SelectContent className={cpSelectContentClass} position="popper">
                 <SelectItem value="__none__" className={cpSelectItemClass}>
                   Select match…
                 </SelectItem>
-                {readyMatches.map((m) => {
+                {startableMatches.map((m) => {
                   const locked = isBracketMatchLockedForCourt(m, courtLock, teams);
                   const reason = bracketMatchLockReason(m, courtLock, teams);
                   return (
@@ -279,7 +474,7 @@ function BracketCourtCard({
                       title={reason ?? undefined}
                     >
                       <span className="line-clamp-2 text-left">
-                        {formatReadyMatch(m)}
+                        {formatStartableMatch(m)}
                         {locked ? " (on court)" : ""}
                       </span>
                     </SelectItem>
@@ -290,7 +485,7 @@ function BracketCourtCard({
           </div>
           <Button
             type="button"
-            className="mt-auto w-full"
+            className="w-full"
             disabled={!canScore || !pickMatchId || starting || busy}
             onClick={onStart}
           >
@@ -299,8 +494,82 @@ function BracketCourtCard({
             ) : (
               <Play className="mr-2 h-4 w-4" />
             )}
-            Start on court
+            {selectedNeedsRematch ? "Play again on court" : "Start on court"}
           </Button>
+
+          {showFriendly ? (
+            <div className="mt-1 space-y-2 border-t border-cp-border pt-3">
+              <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                <Users className="h-3 w-3" />
+                Friendly game
+              </p>
+              <div className="grid gap-2">
+                <Select
+                  value={friendlyTeamAId || "__none__"}
+                  onValueChange={(v) => onFriendlyTeamAChange(v === "__none__" ? "" : v)}
+                  disabled={!canScore || busy}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-9 w-full")}>
+                    <SelectValue placeholder="Squad A" />
+                  </SelectTrigger>
+                  <SelectContent className={cpSelectContentClass}>
+                    <SelectItem value="__none__" className={cpSelectItemClass}>
+                      Squad A
+                    </SelectItem>
+                    {teams
+                      .filter((t) => t.memberCount > 0)
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={friendlyTeamBId || "__none__"}
+                  onValueChange={(v) => onFriendlyTeamBChange(v === "__none__" ? "" : v)}
+                  disabled={!canScore || busy}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-9 w-full")}>
+                    <SelectValue placeholder="Squad B" />
+                  </SelectTrigger>
+                  <SelectContent className={cpSelectContentClass}>
+                    <SelectItem value="__none__" className={cpSelectItemClass}>
+                      Squad B
+                    </SelectItem>
+                    {teams
+                      .filter((t) => t.memberCount > 0)
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-emerald-500/40 text-emerald-300"
+                disabled={
+                  !canScore ||
+                  busy ||
+                  !friendlyTeamAId ||
+                  !friendlyTeamBId ||
+                  friendlyTeamAId === friendlyTeamBId ||
+                  startingFriendly
+                }
+                onClick={onStartFriendly}
+              >
+                {startingFriendly ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                Start friendly
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </article>
@@ -318,15 +587,30 @@ export function BracketCourtScoringGrid({
   canScore,
   tournamentType,
   reclubActiveMatches = [],
+  friendlyAByCourt: controlledFriendlyA,
+  friendlyBByCourt: controlledFriendlyB,
+  onFriendlyPickAChange,
+  onFriendlyPickBChange,
+  onFriendlyScoreChange,
+  onFriendlyComplete,
+  friendlyScoreSyncing = false,
+  friendlyCompletePending = false,
+  scoringType = "points",
+  roundDuration = 20,
 }: BracketCourtScoringGridProps) {
   const { confirm } = useConfirmDialog();
   const startMatch = useStartBracketMatchOnCourt(sportSlug, slug);
+  const rematchMatch = useRematchBracketMatch(sportSlug, slug);
+  const startFriendly = useStartReclubRound(sportSlug, slug);
   const liveScore = useUpdateBracketLiveScore(sportSlug, slug);
   const finalizeScore = useSubmitBracketScore(sportSlug, slug);
   const renameCourt = useRenameTournamentCourt(sportSlug, slug);
   const isOfficial = isOfficialType(tournamentType);
+  const isFunMatch = isFunMatchType(tournamentType);
 
   const [pickByCourt, setPickByCourt] = useState<Record<string, string>>({});
+  const [friendlyAByCourt, setFriendlyAByCourt] = useState<Record<string, string>>({});
+  const [friendlyBByCourt, setFriendlyBByCourt] = useState<Record<string, string>>({});
   const [localScores, setLocalScores] = useState<Record<string, { a: number; b: number }>>({});
   const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
   const [courtNameDraft, setCourtNameDraft] = useState("");
@@ -345,16 +629,52 @@ export function BracketCourtScoringGrid({
     return map;
   }, [activeMatches]);
 
-  const readyMatches = useMemo(
-    () =>
-      matches.filter(
-        (m) =>
-          m.status === "pending" &&
-          m.teamAId &&
-          m.teamBId,
-      ),
-    [matches],
+  const friendlyMatchByCourt = useMemo(() => {
+    const map = new Map<string, ReclubMatchView>();
+    for (const m of reclubActiveMatches) {
+      if (m.courtId) map.set(m.courtId, m);
+    }
+    return map;
+  }, [reclubActiveMatches]);
+
+  const getFriendlyA = useCallback(
+    (courtId: string) => controlledFriendlyA?.[courtId] ?? friendlyAByCourt[courtId] ?? "",
+    [controlledFriendlyA, friendlyAByCourt],
   );
+
+  const getFriendlyB = useCallback(
+    (courtId: string) => controlledFriendlyB?.[courtId] ?? friendlyBByCourt[courtId] ?? "",
+    [controlledFriendlyB, friendlyBByCourt],
+  );
+
+  const setFriendlyA = useCallback(
+    (courtId: string, value: string) => {
+      if (onFriendlyPickAChange) onFriendlyPickAChange(courtId, value);
+      else setFriendlyAByCourt((prev) => ({ ...prev, [courtId]: value }));
+    },
+    [onFriendlyPickAChange],
+  );
+
+  const setFriendlyB = useCallback(
+    (courtId: string, value: string) => {
+      if (onFriendlyPickBChange) onFriendlyPickBChange(courtId, value);
+      else setFriendlyBByCourt((prev) => ({ ...prev, [courtId]: value }));
+    },
+    [onFriendlyPickBChange],
+  );
+
+  const startableMatches = useMemo(() => {
+    const playable = matches.filter(
+      (m) =>
+        (m.status === "pending" || m.status === "completed") && m.teamAId && m.teamBId,
+    );
+    return playable.sort((a, b) => {
+      if (a.status === "pending" && b.status === "completed") return -1;
+      if (a.status === "completed" && b.status === "pending") return 1;
+      if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
+      return a.matchNumber - b.matchNumber;
+    });
+  }, [matches]);
 
   const getScores = useCallback(
     (match: BracketMatchView) =>
@@ -370,11 +690,22 @@ export function BracketCourtScoringGrid({
   );
 
   const persistScore = useCallback(
-    (match: BracketMatchView, a: number, b: number) => {
+    (
+      match: BracketMatchView,
+      a: number,
+      b: number,
+      meta?: { action?: "increment" | "decrement" | "set"; side?: "a" | "b" },
+    ) => {
       setLocalScores((prev) => ({ ...prev, [match.id]: { a, b } }));
       if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
       scoreSyncRef.current = setTimeout(() => {
-        liveScore.mutate({ matchId: match.id, scoreA: a, scoreB: b });
+        liveScore.mutate({
+          matchId: match.id,
+          scoreA: a,
+          scoreB: b,
+          action: meta?.action,
+          side: meta?.side,
+        });
       }, 120);
     },
     [liveScore],
@@ -384,7 +715,7 @@ export function BracketCourtScoringGrid({
     async (match: BracketMatchView) => {
       const { a, b } = getScores(match);
       if (a === b) {
-        toast.error("Set a winner — scores cannot be tied in elimination");
+        toast.error("Scores are tied — use Replay match to play again");
         return;
       }
       const ok = await confirm({
@@ -419,7 +750,8 @@ export function BracketCourtScoringGrid({
       toast.error("Select a match to start on this court");
       return;
     }
-    const match = readyMatches.find((m) => m.id === matchId);
+    const match = matches.find((m) => m.id === matchId);
+    const needsRematch = match?.status === "completed";
     const court = courts.find((c) => c.id === courtId);
     if (match) {
       const lock = buildBracketCourtLockState(activeMatches, teams, courtId, reclubActiveMatches);
@@ -432,13 +764,53 @@ export function BracketCourtScoringGrid({
       }
     }
     const ok = await confirm({
-      title: "Start match on court?",
-      description: `${match ? formatReadyMatch(match) : "Match"} on ${court?.name ?? "court"}`,
-      confirmLabel: "Start match",
+      title: needsRematch ? "Play again on court?" : "Start match on court?",
+      description: `${match ? formatStartableMatch(match) : "Match"} on ${court?.name ?? "court"}${
+        needsRematch
+          ? ". Previous result is saved to history; bracket advancement rolls back for this slot."
+          : ""
+      }`,
+      confirmLabel: needsRematch ? "Play again" : "Start match",
     });
     if (!ok) return;
+    if (needsRematch) {
+      await rematchMatch.mutateAsync({ matchId });
+    }
     await startMatch.mutateAsync({ matchId, courtId });
     setPickByCourt((prev) => ({ ...prev, [courtId]: "" }));
+  };
+
+  const handleReplayTie = async (match: BracketMatchView) => {
+    const ok = await confirm({
+      title: "Replay tied match?",
+      description: "Scores will reset and the same bracket slot returns to pending.",
+      confirmLabel: "Replay",
+    });
+    if (!ok) return;
+    await rematchMatch.mutateAsync({ matchId: match.id });
+    setLocalScores((prev) => {
+      const next = { ...prev };
+      delete next[match.id];
+      return next;
+    });
+  };
+
+  const handleStartFriendly = async (courtId: string) => {
+    const teamAId = getFriendlyA(courtId);
+    const teamBId = getFriendlyB(courtId);
+    if (!teamAId || !teamBId || teamAId === teamBId) {
+      toast.error("Select two different squads");
+      return;
+    }
+    const ok = await confirm({
+      title: "Start friendly game?",
+      description: "Bracket tree stays unchanged — result goes to session history.",
+      confirmLabel: "Start friendly",
+    });
+    if (!ok) return;
+    await startFriendly.mutateAsync({ teamAId, teamBId, courtId, playType: "friendly" });
+    setFriendlyA(courtId, "");
+    setFriendlyB(courtId, "");
   };
 
   if (!courts.length) {
@@ -453,6 +825,7 @@ export function BracketCourtScoringGrid({
     <div className={manageCourtGridClassName}>
       {courts.map((court) => {
         const liveMatch = matchByCourt.get(court.id) ?? null;
+        const friendlyLiveMatch = friendlyMatchByCourt.get(court.id) ?? null;
         const scores = liveMatch ? getScores(liveMatch) : null;
 
         return (
@@ -460,18 +833,38 @@ export function BracketCourtScoringGrid({
             key={court.id}
             court={court}
             liveMatch={liveMatch}
-            readyMatches={readyMatches}
-            activeMatches={activeMatches}
-            teams={teams}
+            friendlyLiveMatch={friendlyLiveMatch}
+            startableMatches={startableMatches}
             pickMatchId={pickByCourt[court.id] ?? ""}
             onPickMatch={(v) => setPickByCourt((prev) => ({ ...prev, [court.id]: v }))}
+            friendlyTeamAId={getFriendlyA(court.id)}
+            friendlyTeamBId={getFriendlyB(court.id)}
+            onFriendlyTeamAChange={(v) => setFriendlyA(court.id, v)}
+            onFriendlyTeamBChange={(v) => setFriendlyB(court.id, v)}
+            onStartFriendly={() => void handleStartFriendly(court.id)}
+            startingFriendly={startFriendly.isPending}
+            showFriendly={isFunMatch && !liveMatch && !friendlyLiveMatch}
+            onFriendlyScoreChange={(input) =>
+              friendlyLiveMatch && onFriendlyScoreChange?.(friendlyLiveMatch.id, input)
+            }
+            onFriendlyComplete={(elapsed) =>
+              friendlyLiveMatch && onFriendlyComplete?.(friendlyLiveMatch, elapsed)
+            }
+            friendlyScoreSyncing={friendlyScoreSyncing}
+            friendlyCompletePending={friendlyCompletePending}
+            scoringType={scoringType}
+            roundDuration={roundDuration}
+            onReplayTie={() => liveMatch && void handleReplayTie(liveMatch)}
+            replayingTie={rematchMatch.isPending}
+            activeMatches={activeMatches}
+            teams={teams}
             onStart={() => void handleStart(court.id)}
-            starting={startMatch.isPending}
+            starting={startMatch.isPending || rematchMatch.isPending}
             canScore={canScore && participant.canUseCourtsideScoring}
             isOfficial={isOfficial}
             pointsPerMatch={pointsPerMatch}
             scores={scores}
-            onPersistScore={(a, b) => liveMatch && persistScore(liveMatch, a, b)}
+            onPersistScore={(a, b, meta) => liveMatch && persistScore(liveMatch, a, b, meta)}
             onFinalize={() => liveMatch && void handleFinalize(liveMatch)}
             scoreSyncing={liveScore.isPending}
             finalizePending={finalizeScore.isPending}

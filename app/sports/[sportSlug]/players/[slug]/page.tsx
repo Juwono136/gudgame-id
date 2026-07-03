@@ -55,6 +55,7 @@ export default async function PlayerWikiPage({ params }: PageProps) {
     entity,
     ownerUserId,
     sportId: entity.sportId,
+    sportSlug,
   });
 
   const equipment = equipmentFromAttributes(entity.attributes);

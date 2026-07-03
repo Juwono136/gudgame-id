@@ -4,9 +4,9 @@ import { ExternalLink, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  buildGoogleMapsEmbedUrl,
-  resolveGoogleMapsOpenUrl,
-} from "@/lib/maps/google-maps-url";
+  buildVenueEmbedUrl,
+  resolveVenueOpenUrl,
+} from "@/lib/maps/venue-maps-url";
 
 type VenueMapsFieldProps = {
   venue: string;
@@ -21,8 +21,8 @@ export function VenueMapsField({
   onVenueChange,
   onMapsUrlChange,
 }: VenueMapsFieldProps) {
-  const embedUrl = buildGoogleMapsEmbedUrl(mapsUrl, venue);
-  const openUrl = resolveGoogleMapsOpenUrl(mapsUrl, venue);
+  const embedUrl = buildVenueEmbedUrl(mapsUrl, venue);
+  const openUrl = resolveVenueOpenUrl(mapsUrl, venue);
 
   return (
     <div className="space-y-4">
@@ -37,11 +37,11 @@ export function VenueMapsField({
           />
         </div>
         <div>
-          <Label>Google Maps link</Label>
+          <Label>Maps link</Label>
           <Input
             value={mapsUrl}
             onChange={(e) => onMapsUrlChange(e.target.value)}
-            placeholder="https://maps.google.com/…"
+            placeholder="https://www.openstreetmap.org/…"
             type="url"
             className="mt-1.5 border-cp-border bg-cp-bg-input"
           />

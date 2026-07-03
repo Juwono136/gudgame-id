@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, desc, eq, inArray, max } from "drizzle-orm";
+import { and, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { tournamentReclubMatches } from "@/db/schema/tournament-matches";
+import { tournamentBracketMatches, tournamentReclubMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertTeamsNotInActiveBracket } from "@/lib/tournaments/brackets/active-teams";
@@ -78,17 +78,29 @@ async function getTeamPlayerNames(teamId: string): Promise<string[]> {
   return rows.map((r) => r.name).filter(Boolean);
 }
 
+export type StartReclubRoundOptions = {
+  courtId?: string;
+  playType?: "round" | "friendly";
+  bracketMatchId?: string;
+  /** When starting multiple courts in one logical round, pass the same sessionRound. */
+  sessionRound?: number;
+};
+
 export async function startReclubRound(
   tournament: TournamentDetail,
   userId: string,
   teamAId: string,
   teamBId: string,
-  courtId?: string,
+  options?: string | StartReclubRoundOptions,
 ): Promise<ReclubMatchView> {
   assertReclubSessionPlayable(tournament);
 
+  const opts: StartReclubRoundOptions =
+    typeof options === "string" ? { courtId: options } : (options ?? {});
+  const playType = opts.playType ?? "round";
+
   const db = getDb();
-  let resolvedCourtId = courtId;
+  let resolvedCourtId = opts.courtId;
   if (!resolvedCourtId) {
     const courts = await listTournamentCourts(tournament.id);
     const available = courts.find((c) => !c.activeMatchId);
@@ -107,14 +119,76 @@ export async function startReclubRound(
     .from(tournamentReclubMatches)
     .where(eq(tournamentReclubMatches.tournamentId, tournament.id));
 
-  const roundNumber = Number(maxRound?.max ?? 0) + 1;
+  let roundNumber =
+    opts.sessionRound != null && opts.sessionRound > 0
+      ? opts.sessionRound
+      : Number(maxRound?.max ?? 0) + 1;
   const maxRounds = getMaxRounds(tournament);
 
-  if (maxRounds != null && roundNumber > maxRounds) {
-    throw new AppError(`This session is limited to ${maxRounds} round(s).`, {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
+  if (playType === "friendly" && opts.bracketMatchId) {
+    const [bracketRow] = await db
+      .select({ roundNumber: tournamentBracketMatches.roundNumber })
+      .from(tournamentBracketMatches)
+      .where(
+        and(
+          eq(tournamentBracketMatches.id, opts.bracketMatchId),
+          eq(tournamentBracketMatches.tournamentId, tournament.id),
+        ),
+      )
+      .limit(1);
+    if (bracketRow) {
+      roundNumber = bracketRow.roundNumber;
+    }
+  }
+
+  if (playType !== "friendly" && maxRounds != null) {
+    const [{ count: completedRounds }] = await db
+      .select({
+        count: sql<number>`count(distinct ${tournamentReclubMatches.roundNumber})::int`,
+      })
+      .from(tournamentReclubMatches)
+      .where(
+        and(
+          eq(tournamentReclubMatches.tournamentId, tournament.id),
+          eq(tournamentReclubMatches.status, "completed"),
+          sql`coalesce(${tournamentReclubMatches.metadata}->>'playType', 'round') != 'friendly'`,
+        ),
+      );
+
+    const activeOnRound = await db
+      .select({ id: tournamentReclubMatches.id })
+      .from(tournamentReclubMatches)
+      .where(
+        and(
+          eq(tournamentReclubMatches.tournamentId, tournament.id),
+          eq(tournamentReclubMatches.status, "in_progress"),
+          eq(tournamentReclubMatches.roundNumber, roundNumber),
+          sql`coalesce(${tournamentReclubMatches.metadata}->>'playType', 'round') != 'friendly'`,
+        ),
+      )
+      .limit(1);
+
+    const existingCompletedOnRound = await db
+      .select({ id: tournamentReclubMatches.id })
+      .from(tournamentReclubMatches)
+      .where(
+        and(
+          eq(tournamentReclubMatches.tournamentId, tournament.id),
+          eq(tournamentReclubMatches.status, "completed"),
+          eq(tournamentReclubMatches.roundNumber, roundNumber),
+        ),
+      )
+      .limit(1);
+
+    const isNewRound =
+      activeOnRound.length === 0 && existingCompletedOnRound.length === 0;
+
+    if (isNewRound && Number(completedRounds ?? 0) >= maxRounds) {
+      throw new AppError(`This session is limited to ${maxRounds} round(s).`, {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
   }
 
   const [teamA] = await db
@@ -153,6 +227,21 @@ export async function startReclubRound(
       ? computeTimerEndsAt(startedAt, getTournamentRoundDurationMinutes(tournament))
       : null;
 
+  const friendlyPlayNumber =
+    playType === "friendly"
+      ? (
+          await db
+            .select({ id: tournamentReclubMatches.id })
+            .from(tournamentReclubMatches)
+            .where(
+              and(
+                eq(tournamentReclubMatches.tournamentId, tournament.id),
+                sql`${tournamentReclubMatches.metadata}->>'playType' = 'friendly'`,
+              ),
+            )
+        ).length + 1
+      : null;
+
   const [created] = await db
     .insert(tournamentReclubMatches)
     .values({
@@ -167,10 +256,17 @@ export async function startReclubRound(
       startedAt,
       timerEndsAt,
       recordedByUserId: userId,
+      summary:
+        playType === "friendly"
+          ? `Friendly · ${teamA.name} vs ${teamB.name}`
+          : undefined,
       metadata: {
         teamAPlayers,
         teamBPlayers,
         scoreEvents: [],
+        playType,
+        playNumber: friendlyPlayNumber ?? undefined,
+        bracketMatchId: opts.bracketMatchId,
       },
     })
     .returning();
@@ -178,6 +274,8 @@ export async function startReclubRound(
   if (!created) {
     throw new AppError("Could not start round", { code: "DATABASE_ERROR", statusCode: 500 });
   }
+
+  await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   return mapReclubMatchRow(created);
 }
@@ -218,6 +316,7 @@ export async function completeReclubRound(
       status: "completed",
       endedAt,
       recordedByUserId: userId,
+      courtId: null,
     })
     .where(eq(tournamentReclubMatches.id, matchId))
     .returning();
