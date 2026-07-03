@@ -190,10 +190,19 @@ jobs:
           HEALTH_CHECK_TOKEN: ${{ secrets.HEALTH_CHECK_TOKEN }}
         run: |
           sleep 12
-          curl -fsS \
+          set +e
+          HTTP_CODE="$(curl -sS -o /tmp/tandingbase-health.json -w '%{http_code}' \
             -H "X-Health-Token: ${HEALTH_CHECK_TOKEN}" \
-            "http://127.0.0.1:3000/api/health" \
-            | jq -e '.status == "healthy" or .status == "degraded"'
+            "http://127.0.0.1:3000/api/health")"
+          echo "Health HTTP status: ${HTTP_CODE}"
+          cat /tmp/tandingbase-health.json | jq . 2>/dev/null || cat /tmp/tandingbase-health.json
+          if [ "${HTTP_CODE}" = "500" ] || [ "${HTTP_CODE}" = "000" ]; then
+            echo "--- tandingbase-app logs (last 80 lines) ---"
+            docker logs tandingbase-app --tail 80 2>&1 || true
+          fi
+          set -e
+          test "${HTTP_CODE}" = "200" -o "${HTTP_CODE}" = "207" -o "${HTTP_CODE}" = "503"
+          jq -e '.status == "healthy" or .status == "degraded"' /tmp/tandingbase-health.json
 
       - name: Verify payout cron sidecar
         run: |

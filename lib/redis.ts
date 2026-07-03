@@ -39,7 +39,18 @@ export async function pingRedis(): Promise<
   { ok: true } | { ok: false; error: string }
 > {
   try {
-    const client = getRedis();
+    const redisUrl = process.env.REDIS_URL?.trim();
+    if (!redisUrl) {
+      return { ok: false, error: "REDIS_URL is not set" };
+    }
+    const client =
+      globalForRedis[REDIS_GLOBAL_KEY] ??
+      new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        connectTimeout: 10_000,
+        lazyConnect: true,
+        enableReadyCheck: true,
+      });
     if (client.status === "wait") {
       await client.connect();
     }

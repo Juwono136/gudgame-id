@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  if (!isHealthCheckAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const skipStorage = searchParams.get("skipStorage") === "1";
-
   try {
+    if (!isHealthCheckAuthorized(request)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const skipStorage = searchParams.get("skipStorage") === "1";
+
     const report = await runHealthChecks({ skipStorage });
     const httpStatus =
       report.status === "healthy"

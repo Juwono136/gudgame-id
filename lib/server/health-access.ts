@@ -1,5 +1,4 @@
 import { timingSafeEqual } from "node:crypto";
-import { getServerEnv } from "@/lib/config/env.server";
 
 function safeCompareToken(provided: string, expected: string): boolean {
   try {
@@ -12,12 +11,15 @@ function safeCompareToken(provided: string, expected: string): boolean {
   }
 }
 
-/** In production, optional HEALTH_CHECK_TOKEN protects detailed infra responses. */
+/**
+ * Health auth must not call getServerEnv() — invalid production env would throw
+ * and turn a diagnostic 503 into an opaque HTTP 500.
+ */
 export function isHealthCheckAuthorized(request: Request): boolean {
-  const env = getServerEnv();
-  const token = env.HEALTH_CHECK_TOKEN;
+  const nodeEnv = process.env.NODE_ENV ?? "development";
+  const token = process.env.HEALTH_CHECK_TOKEN?.trim();
 
-  if (env.NODE_ENV !== "production" || !token) {
+  if (nodeEnv !== "production" || !token) {
     return true;
   }
 
