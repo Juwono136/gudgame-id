@@ -239,7 +239,7 @@ export async function startReclubRound(
     )
     .limit(1);
 
-  let americanoPairing = opts.americanoPairing;
+  const americanoPairing = opts.americanoPairing;
   let teamAName = teamA?.name ?? null;
   let teamBName = teamB?.name ?? null;
   let teamAPlayers: string[] = [];

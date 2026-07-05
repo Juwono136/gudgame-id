@@ -66,13 +66,6 @@ export function getBusyTeamIds(
   return ids;
 }
 
-function findSquadForPlayer(
-  squads: LobbyTeamView[],
-  playerId: string,
-): LobbyTeamView | undefined {
-  return squads.find((s) => s.members?.some((m) => m.userId === playerId));
-}
-
 export function reshuffleSquadsOnIdleCourts(input: {
   idleCourtIds: string[];
   squads: LobbyTeamView[];
