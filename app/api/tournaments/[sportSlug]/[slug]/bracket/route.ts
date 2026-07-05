@@ -5,6 +5,7 @@ import { listBracketMatches, hasBracket } from "@/lib/tournaments/brackets/servi
 import { ensureBracketStructure } from "@/lib/tournaments/brackets/provision-structure";
 import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboard";
 import { shouldExposeBracketPublicData } from "@/lib/tournaments/lifecycle-guards";
+import { normalizeBracketMatchesForDisplay } from "@/lib/tournaments/match-display-status";
 import { isBracketSeedingFinalized } from "@/lib/tournaments/settings";
 
 export const runtime = "nodejs";
@@ -32,10 +33,11 @@ export async function GET(
       return jsonSuccess({ matches: [], leaderboard: [], generated: false, seedingFinalized: false });
     }
 
-    const [matches, leaderboard] = await Promise.all([
+    const [matchesRaw, leaderboard] = await Promise.all([
       listBracketMatches(tournament.id),
       buildTournamentLeaderboard(tournament.id),
     ]);
+    const matches = normalizeBracketMatchesForDisplay(matchesRaw, tournament.status);
 
     const seedingFinalized = isBracketSeedingFinalized(tournament);
 

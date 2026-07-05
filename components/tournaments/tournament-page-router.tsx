@@ -4,7 +4,6 @@ import { ReclubTournamentPage } from "@/components/tournaments/reclub-tournament
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
-import { canManageTournament } from "@/lib/tournaments/permissions";
 import { isOfficialType, normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
@@ -24,9 +23,6 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
   const userId = session?.user?.id ?? null;
   const isAuthenticated = Boolean(userId);
   const roles = userId ? await getUserRoleAssignments(userId) : [];
-  const canManage = userId
-    ? canManageTournament(roles, tournament.createdBy, userId)
-    : false;
 
   const summary = await getRegistrationSummary(
     tournament.id,
@@ -67,7 +63,8 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
         tournament={tournament}
         summary={summary}
         isAuthenticated={isAuthenticated}
-        canManage={participant.isRuntimeManager}
+        canManage={participant.canAccessManagePage}
+        canEdit={participant.isOwner}
         participant={participant}
         venueMapsUrl={getVenueMapsUrl(tournament)}
         ruleSections={ruleSections}
@@ -94,7 +91,8 @@ export async function TournamentPageRouter({ tournament }: TournamentPageRouterP
       summary={summary}
       isAuthenticated={isAuthenticated}
       initialUserTeamId={userTeamId}
-      canManage={participant.isRuntimeManager}
+      canManage={participant.canAccessManagePage}
+      canEdit={participant.isOwner}
       participant={participant}
     />
   );

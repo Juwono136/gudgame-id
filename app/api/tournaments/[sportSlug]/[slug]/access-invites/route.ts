@@ -25,7 +25,10 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
     if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
+      throw new AppError("Only the tournament organizer can manage staff invites.", {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      });
     }
 
     const invites = await listAccessInvites(tournament);
@@ -48,7 +51,10 @@ export async function POST(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
     if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
+      throw new AppError("Only the tournament organizer can manage staff invites.", {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      });
     }
 
     const body = await request.json();
@@ -86,7 +92,10 @@ export async function DELETE(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
     if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
+      throw new AppError("Only the tournament organizer can manage staff invites.", {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      });
     }
 
     const url = new URL(request.url);

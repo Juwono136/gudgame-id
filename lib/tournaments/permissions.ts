@@ -56,18 +56,33 @@ export function assertCanCreateTournamentType(
   }
 }
 
+/** Tournament creator — full owner rights (edit, invites, registrations). */
+export function isTournamentOwner(
+  createdByUserId: string | null,
+  currentUserId: string,
+): boolean {
+  return Boolean(createdByUserId && createdByUserId === currentUserId);
+}
+
+/**
+ * Full tournament ownership (edit settings, staff invites, registrations).
+ * Platform super admins do NOT inherit access to tournaments they did not create.
+ */
 export function canManageTournament(
   roles: AppRole[],
   createdByUserId: string | null,
   currentUserId: string,
 ): boolean {
-  if (roles.includes("super_admin") || hasPermission(roles, "admin.wiki.manage")) {
-    return true;
-  }
-  if (roles.includes("host") && createdByUserId === currentUserId) {
-    return true;
-  }
-  return createdByUserId === currentUserId;
+  void roles;
+  return isTournamentOwner(createdByUserId, currentUserId);
+}
+
+export function canAccessTournamentManagePage(
+  createdByUserId: string | null,
+  currentUserId: string,
+  grantRole?: string | null,
+): boolean {
+  return isTournamentOwner(createdByUserId, currentUserId) || Boolean(grantRole);
 }
 
 export type AccessGrantCapabilities = {

@@ -1,5 +1,6 @@
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
+import { resolveEffectiveMatchStatus } from "@/lib/tournaments/match-display-status";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import { getFunMatchSessionViews } from "@/lib/tournaments/fun-match/session-views";
 import {
@@ -28,15 +29,23 @@ function isActiveMatchStatus(status: string): boolean {
   return status === "completed" || status === "in_progress";
 }
 
-export function mapReclubMatchesToRecentRows(matches: ReclubMatchView[]): RecentMatchRow[] {
+function effectiveStatus(status: string, tournamentStatus?: string | null): string {
+  return resolveEffectiveMatchStatus(status, tournamentStatus ?? null);
+}
+
+export function mapReclubMatchesToRecentRows(
+  matches: ReclubMatchView[],
+  tournamentStatus?: string | null,
+): RecentMatchRow[] {
   const rows = matches
     .filter((m) => isActiveMatchStatus(m.status) && m.teamAName && m.teamBName)
     .map((m) => {
+      const status = effectiveStatus(m.status, tournamentStatus);
       const players = [...m.teamAPlayers, ...m.teamBPlayers].filter(Boolean);
       const scoreA = m.scoreA;
       const scoreB = m.scoreB;
       let winnerName: string | null = null;
-      if (m.status === "completed" && scoreA != null && scoreB != null && scoreA !== scoreB) {
+      if (status === "completed" && scoreA != null && scoreB != null && scoreA !== scoreB) {
         winnerName = scoreA > scoreB ? m.teamAName! : m.teamBName!;
       }
 
@@ -48,7 +57,7 @@ export function mapReclubMatchesToRecentRows(matches: ReclubMatchView[]): Recent
         teamBName: m.teamBName!,
         scoreA,
         scoreB,
-        status: m.status,
+        status,
         playedAt: m.endedAt ?? m.startedAt,
         playersSummary: players.length ? players.join(" · ") : null,
         durationSeconds: m.durationSeconds,
@@ -76,15 +85,19 @@ export function mapReclubMatchesToRecentRows(matches: ReclubMatchView[]): Recent
 /** Recent rounds for overview — same source as Live Score & History tabs. */
 export function mapLivePayloadToRecentRows(
   liveData: TournamentLivePayload | undefined,
+  tournamentStatus?: string | null,
 ): RecentMatchRow[] {
   if (!liveData?.matches?.length) return [];
   const views = getFunMatchSessionViews(liveData).filter(
     (m) => m.status === "completed" || m.status === "in_progress",
   );
-  return mapReclubMatchesToRecentRows(views);
+  return mapReclubMatchesToRecentRows(views, tournamentStatus);
 }
 
-export function mapBracketMatchesToRecentRows(matches: BracketMatchView[]): RecentMatchRow[] {
+export function mapBracketMatchesToRecentRows(
+  matches: BracketMatchView[],
+  tournamentStatus?: string | null,
+): RecentMatchRow[] {
   if (!matches.length) return [];
 
   const maxRound = Math.max(...matches.map((m) => m.roundNumber), 1);
@@ -92,10 +105,11 @@ export function mapBracketMatchesToRecentRows(matches: BracketMatchView[]): Rece
   const rows = matches
     .filter((m) => m.status !== "bye" && m.teamAName && m.teamBName)
     .map((m) => {
+      const status = effectiveStatus(m.status, tournamentStatus);
       const scoreA = m.scoreA;
       const scoreB = m.scoreB;
       let winnerName: string | null = null;
-      if (m.status === "completed" && scoreA != null && scoreB != null && scoreA !== scoreB) {
+      if (status === "completed" && scoreA != null && scoreB != null && scoreA !== scoreB) {
         winnerName = scoreA > scoreB ? m.teamAName! : m.teamBName!;
       } else if (m.winnerTeamId) {
         winnerName =
@@ -114,8 +128,8 @@ export function mapBracketMatchesToRecentRows(matches: BracketMatchView[]): Rece
         teamBName: m.teamBName!,
         scoreA,
         scoreB,
-        status: m.status,
-        playedAt: null,
+        status,
+        playedAt: m.completedAt,
         playersSummary: null,
         durationSeconds: null,
         winnerName,

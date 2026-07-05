@@ -12,6 +12,11 @@ import {
   getTournamentLivePhase,
   shouldExposeLivePublicData,
 } from "@/lib/tournaments/lifecycle-guards";
+import {
+  isTournamentLivePhaseTerminal,
+  normalizeBracketMatchesForDisplay,
+  normalizeReclubMatchesForDisplay,
+} from "@/lib/tournaments/match-display-status";
 import { TOURNAMENT_NOT_STARTED_MESSAGE } from "@/lib/tournaments/core/types";
 import { listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
@@ -127,19 +132,29 @@ export async function buildTournamentLivePayload(
 ): Promise<TournamentLivePayload> {
   const phase = getTournamentLivePhase(tournament);
   const isLiveOrDone = shouldExposeLivePublicData(tournament);
+  const tournamentEnded = isTournamentLivePhaseTerminal(phase);
 
   const isFunMatch = isFunMatchType(tournament.tournamentType);
   const includeBracket = tournament.format !== "americano";
   const includeLobbyRounds = supportsRoundBasedPlay(tournament);
 
   const db = getDb();
-  const [bracketMatches, leaderboard, teams, lobbyMatches, courts] = await Promise.all([
+  const [bracketMatchesRaw, leaderboard, teams, lobbyMatchesRaw, courts] = await Promise.all([
     includeBracket ? listBracketMatches(tournament.id) : Promise.resolve([]),
     includeBracket ? buildTournamentLeaderboard(tournament.id) : Promise.resolve([]),
     listLobbyTeamsDetailed(tournament.id),
     includeLobbyRounds ? listReclubMatches(tournament.id) : Promise.resolve([]),
     provisionTournamentCourts(tournament),
   ]);
+
+  const bracketMatches = normalizeBracketMatchesForDisplay(
+    bracketMatchesRaw,
+    tournament.status,
+  );
+  const lobbyMatches = normalizeReclubMatchesForDisplay(
+    lobbyMatchesRaw,
+    tournament.status,
+  );
 
   const teamIds = teams.map((t) => t.id);
   const members =
@@ -173,12 +188,14 @@ export async function buildTournamentLivePayload(
       })),
   }));
 
-  const lobbyLiveMatches = isLiveOrDone
-    ? lobbyMatches.filter((m) => m.status === "in_progress").map(mapReclubToLiveMatch)
-    : [];
-  const bracketLiveMatches = isLiveOrDone
-    ? bracketMatches.filter((m) => m.status === "in_progress").map(mapBracketToLiveMatch)
-    : [];
+  const lobbyLiveMatches =
+    isLiveOrDone && !tournamentEnded
+      ? lobbyMatches.filter((m) => m.status === "in_progress").map(mapReclubToLiveMatch)
+      : [];
+  const bracketLiveMatches =
+    isLiveOrDone && !tournamentEnded
+      ? bracketMatches.filter((m) => m.status === "in_progress").map(mapBracketToLiveMatch)
+      : [];
 
   const lobbyBracketIds = new Set(
     lobbyMatches.map((m) => m.bracketMatchId ?? (m.sourceKind === "bracket" ? m.id : null)).filter(Boolean),

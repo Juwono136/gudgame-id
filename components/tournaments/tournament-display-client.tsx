@@ -14,6 +14,7 @@ import { DisplayVenueShell } from "@/components/tournaments/display-venue-shell"
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { isOfficialType } from "@/lib/tournaments/core/types";
+import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
 import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
 
 type TournamentDisplayClientProps = {
@@ -47,6 +48,7 @@ const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
 function pickActiveMatch(
   matches: LiveMatchView[],
   matchId: string | null,
+  tournamentStatus?: string | null,
 ): LiveMatchView | null {
   if (!matches.length) return null;
 
@@ -56,7 +58,10 @@ function pickActiveMatch(
   }
 
   const inProgress = matches.find(
-    (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
+    (m) =>
+      isMatchLiveForTournament(m.status ?? "pending", tournamentStatus) &&
+      m.teamAName &&
+      m.teamBName,
   );
   if (inProgress) return inProgress;
 
@@ -174,14 +179,17 @@ export function TournamentDisplayClient({
   const activeMatches = useMemo(
     () =>
       (data?.matches ?? []).filter(
-        (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
+        (m) =>
+          isMatchLiveForTournament(m.status, data?.tournament.status) &&
+          m.teamAName &&
+          m.teamBName,
       ) as LiveMatchView[],
-    [data?.matches],
+    [data?.matches, data?.tournament.status],
   );
 
   const activeMatch = useMemo(
-    () => pickActiveMatch(data?.matches ?? [], matchId),
-    [data?.matches, matchId],
+    () => pickActiveMatch(data?.matches ?? [], matchId, data?.tournament.status),
+    [data?.matches, data?.tournament.status, matchId],
   );
 
   const featuredMatch = useMemo(() => {
@@ -375,7 +383,13 @@ export function TournamentDisplayClient({
           <div ref={containerRef} className="animate-in fade-in duration-700 p-6" key={slideKey}>
             <h1 className="text-2xl font-bold text-white">{data.tournament.name}</h1>
             <p className="mt-1 text-sm text-white/60">
-              Bracket · {bracketMatches.filter((m) => m.status === "in_progress").length} live
+              Bracket ·{" "}
+              {
+                bracketMatches.filter((m) =>
+                  isMatchLiveForTournament(m.status ?? "pending", data.tournament.status),
+                ).length
+              }{" "}
+              live
             </p>
             {bracketMatches.length > 0 ? (
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -383,7 +397,7 @@ export function TournamentDisplayClient({
                   <div
                     key={m.id}
                     className={
-                      m.status === "in_progress"
+                      isMatchLiveForTournament(m.status ?? "pending", data.tournament.status)
                         ? "rounded-xl border border-red-500/40 bg-red-950/30 p-4 backdrop-blur-sm"
                         : "rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
                     }
@@ -447,7 +461,10 @@ export function TournamentDisplayClient({
   }
 
   const subtitle = buildSubtitle(data.tournament.name, featuredMatch, isOfficial);
-  const isLiveNow = featuredMatch.status === "in_progress";
+  const isLiveNow = isMatchLiveForTournament(
+    featuredMatch.status ?? "pending",
+    data.tournament.status,
+  );
 
   return (
     <DisplayVenueShell>

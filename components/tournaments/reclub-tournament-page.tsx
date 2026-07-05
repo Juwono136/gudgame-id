@@ -104,7 +104,10 @@ type ReclubTournamentPageProps = {
   summary: TournamentRegistrationSummary;
   isAuthenticated: boolean;
   initialUserTeamId?: string | null;
+  /** May open manage workspace (owner or invited staff). */
   canManage?: boolean;
+  /** May edit tournament settings (owner only). */
+  canEdit?: boolean;
   participant?: TournamentParticipantContext;
 };
 
@@ -136,6 +139,7 @@ export function ReclubTournamentPage({
   isAuthenticated,
   initialUserTeamId = null,
   canManage: canManageProp = false,
+  canEdit: canEditProp = false,
   participant: participantProp,
 }: ReclubTournamentPageProps) {
   const router = useRouter();
@@ -403,7 +407,10 @@ export function ReclubTournamentPage({
     });
   };
 
-  const recentRoundRows = useMemo(() => mapLivePayloadToRecentRows(liveData), [liveData]);
+  const recentRoundRows = useMemo(
+    () => mapLivePayloadToRecentRows(liveData, tournament.status),
+    [liveData, tournament.status],
+  );
   const captainUserIdByTeam = useMemo(
     () =>
       Object.fromEntries(
@@ -424,12 +431,12 @@ export function ReclubTournamentPage({
           name={tournament.name}
           phase={tournament.status === "live" ? "live" : tournament.status === "completed" ? "completed" : "not_started"}
           canManage={canManage}
-          canEdit
-          editHref={tournamentEditUrl(tournament.id, canManageProp ? "host" : "player")}
-          listHref={canManageProp ? dashboardRoutes.hostTournaments : dashboardRoutes.tournaments}
+          canEdit={canEditProp}
+          editHref={canEditProp ? tournamentEditUrl(tournament.id, "host") : undefined}
+          listHref={canEditProp ? dashboardRoutes.hostTournaments : dashboardRoutes.tournaments}
           onManageClick={handleManageClick}
-          showCreateActions={isAuthenticated}
-          canCreateOfficial={canManageProp}
+          showCreateActions={isAuthenticated && canEditProp}
+          canCreateOfficial={canEditProp}
         />
       ) : null}
 

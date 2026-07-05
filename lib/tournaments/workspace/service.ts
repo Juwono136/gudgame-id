@@ -254,6 +254,16 @@ export async function updateTournamentStatus(
     .set({ status })
     .where(eq(tournaments.id, tournamentId));
 
+  if (status === "completed" || status === "cancelled") {
+    const { finalizeStaleActiveMatches } = await import(
+      "@/lib/tournaments/lifecycle/finalize-active-matches"
+    );
+    await finalizeStaleActiveMatches(
+      tournamentId,
+      status === "cancelled" ? "cancelled" : "completed",
+    );
+  }
+
   const updated = await getTournamentById(tournamentId);
   if (!updated) {
     throw new AppError("Update failed", { code: "DATABASE_ERROR", statusCode: 500 });

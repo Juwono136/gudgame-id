@@ -111,12 +111,19 @@ export function TournamentManageShell({
   const visibleSections = useMemo(() => {
     return SECTIONS.filter((s) => {
       if (s.id === "bracket" && !isElimination) return false;
-      if (s.id === "registrations" && !isOfficial) return false;
+      if (s.id === "registrations" && (!isOfficial || !access.isOwner)) return false;
       if (s.id === "players" && !isFunMatch) return false;
       if (s.id === "invites" && !access.isOwner) return false;
+      if (
+        !access.isOwner &&
+        access.grantRole === "scorekeeper" &&
+        s.id === "bracket"
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [isElimination, isOfficial, isFunMatch, access.isOwner]);
+  }, [access.grantRole, access.isOwner, isElimination, isOfficial, isFunMatch]);
 
   const initialSection =
     (searchParams.get("section") as ManageSection | null) ?? "dashboard";
@@ -367,7 +374,8 @@ export function TournamentManageShell({
                 <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                   <h2 className="text-base font-semibold text-foreground">Staff access</h2>
                   <p className="mt-1 text-sm text-cp-muted">
-                    Invite scorekeepers and bracket managers. Only you (the host) can manage invites.
+                    Invite scorekeepers and bracket managers. Only you (the organizer) can create or
+                    revoke staff invites — platform admins cannot access this tournament unless invited.
                   </p>
                   <div className="mt-4">
                     <TournamentAccessInvitesPanel

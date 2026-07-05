@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournaments, type TournamentStatus } from "@/db/schema/tournaments";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
+import { finalizeStaleActiveMatches } from "@/lib/tournaments/lifecycle/finalize-active-matches";
 
 type DateInput = Date | string | null | undefined;
 
@@ -74,6 +75,13 @@ export async function syncTournamentStatusFromSchedule(
     .update(tournaments)
     .set({ status: computed, updatedAt: new Date() })
     .where(eq(tournaments.id, row.id));
+
+  if (computed === "completed" || computed === "cancelled") {
+    await finalizeStaleActiveMatches(
+      row.id,
+      computed === "cancelled" ? "cancelled" : "completed",
+    );
+  }
 
   await invalidateTournamentCaches(row.sportSlug, row.slug);
   return computed;

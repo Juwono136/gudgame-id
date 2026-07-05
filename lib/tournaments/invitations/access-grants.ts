@@ -239,6 +239,12 @@ export async function redeemAccessInvite(input: {
   if (grant.status === "revoked") {
     throw new AppError("This invite has been revoked.", { code: "FORBIDDEN", statusCode: 403 });
   }
+  if (grant.status === "accepted" && grant.userId === input.userId) {
+    return {
+      tournamentId: grant.tournamentId,
+      role: grant.role as AccessGrantRole,
+    };
+  }
   if (grant.status === "accepted" && grant.userId && grant.userId !== input.userId) {
     throw new AppError("This invite has already been used.", { code: "CONFLICT", statusCode: 409 });
   }

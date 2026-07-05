@@ -1,12 +1,20 @@
 import type { AppRole } from "@/lib/roles/constants";
 import { AppError } from "@/lib/errors";
-import { canManageLiveScoring } from "@/lib/tournaments/permissions";
+import {
+  canAccessTournamentManagePage,
+  canManageLiveScoring,
+  isTournamentOwner,
+} from "@/lib/tournaments/permissions";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 
 export type TournamentParticipantContext = {
   isAuthenticated: boolean;
   userId: string | null;
   userTeamId: string | null;
+  /** Tournament creator — edit settings, invites, registrations. */
+  isOwner: boolean;
+  /** Owner or invited staff — may open the manage workspace. */
+  canAccessManagePage: boolean;
   isHost: boolean;
   isParticipant: boolean;
   isRuntimeManager: boolean;
@@ -28,6 +36,12 @@ export function buildTournamentParticipantContext(input: {
   const isAuthenticated = Boolean(input.userId);
   const userTeamId = input.userTeamId;
   const isParticipant = Boolean(userTeamId);
+  const isOwner = input.userId
+    ? isTournamentOwner(createdBy, input.userId)
+    : false;
+  const canAccessManagePage = input.userId
+    ? canAccessTournamentManagePage(createdBy, input.userId, input.grantRole)
+    : false;
   const isRuntimeManager = input.userId
     ? canManageLiveScoring(input.roles, tournamentStub, input.userId, input.grantRole)
     : false;
@@ -36,6 +50,8 @@ export function buildTournamentParticipantContext(input: {
     isAuthenticated,
     userId: input.userId,
     userTeamId,
+    isOwner,
+    canAccessManagePage,
     isHost: isRuntimeManager,
     isParticipant,
     isRuntimeManager,

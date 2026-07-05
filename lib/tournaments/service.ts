@@ -469,6 +469,11 @@ export async function getTournamentBySlug(
         endsAt: row.endsAt,
       });
 
+      const { finalizeStaleActiveMatchesIfNeeded } = await import(
+        "@/lib/tournaments/lifecycle/finalize-active-matches"
+      );
+      await finalizeStaleActiveMatchesIfNeeded(row.id, syncedStatus, row.sportSlug, row.slug);
+
       const rich = coerceTournamentRichFields({
         summary: row.summary,
         description: row.description,
@@ -775,6 +780,14 @@ export async function updateTournament(
     (status === "completed" || status === "cancelled") &&
     current?.status !== status
   ) {
+    const { finalizeStaleActiveMatches } = await import(
+      "@/lib/tournaments/lifecycle/finalize-active-matches"
+    );
+    await finalizeStaleActiveMatches(
+      id,
+      status === "cancelled" ? "cancelled" : "completed",
+    );
+
     const { archiveTournamentSnapshot } = await import(
       "@/lib/tournaments/archives/service"
     );

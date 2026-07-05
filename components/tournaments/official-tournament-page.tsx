@@ -58,6 +58,7 @@ import {
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { mapBracketMatchesToRecentRows, mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
+import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
 import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
 import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
 import {
@@ -102,7 +103,10 @@ type OfficialTournamentPageProps = {
   summary: TournamentRegistrationSummary;
   isAuthenticated: boolean;
   participant: TournamentParticipantContext;
+  /** May open manage workspace (owner or invited staff). */
   canManage?: boolean;
+  /** May edit tournament settings (owner only). */
+  canEdit?: boolean;
   venueMapsUrl?: string | null;
   ruleSections?: TournamentRuleSections;
   gearItems?: TournamentGearRuleItem[];
@@ -117,6 +121,7 @@ export function OfficialTournamentPage({
   isAuthenticated,
   participant,
   canManage = false,
+  canEdit = false,
   venueMapsUrl = null,
   ruleSections,
   gearItems = [],
@@ -313,16 +318,19 @@ export function OfficialTournamentPage({
 
   const recentMatchRows = useMemo(() => {
     if (!isElimination) {
-      return mapReclubMatchesToRecentRows(americanoLobby?.matches ?? []);
+      return mapReclubMatchesToRecentRows(americanoLobby?.matches ?? [], tournament.status);
     }
-    return mapBracketMatchesToRecentRows(bracket?.matches ?? []);
-  }, [americanoLobby?.matches, bracket?.matches, isElimination]);
+    return mapBracketMatchesToRecentRows(bracket?.matches ?? [], tournament.status);
+  }, [americanoLobby?.matches, bracket?.matches, isElimination, tournament.status]);
 
   const activeOfficialMatches = useMemo(() => {
     if (isElimination) {
       return (bracket?.matches ?? [])
         .filter(
-          (match) => match.status === "in_progress" && match.teamAName && match.teamBName,
+          (match) =>
+            isMatchLiveForTournament(match.status, tournament.status) &&
+            match.teamAName &&
+            match.teamBName,
         )
         .map((match) => ({
           id: match.id,
@@ -338,7 +346,10 @@ export function OfficialTournamentPage({
     }
     const liveRounds =
       liveData?.matches?.filter(
-        (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
+        (m) =>
+          isMatchLiveForTournament(m.status, tournament.status) &&
+          m.teamAName &&
+          m.teamBName,
       ) ?? [];
     if (liveRounds.length) {
       return liveRounds.map((liveRound) => ({
@@ -368,7 +379,7 @@ export function OfficialTournamentPage({
         matchNumber: undefined,
       },
     ];
-  }, [americanoLobby?.activeMatch, bracket?.matches, isElimination, liveData?.matches]);
+  }, [americanoLobby?.activeMatch, bracket?.matches, isElimination, liveData?.matches, tournament.status]);
 
   const officialTeams = useMemo(() => {
     if (!isElimination) return americanoLobby?.teams ?? [];
@@ -468,20 +479,20 @@ export function OfficialTournamentPage({
 
   return (
     <TournamentDetailPageShell>
-      {participant.isRuntimeManager ? (
+      {participant.canAccessManagePage ? (
         <TournamentSessionChrome
           sportSlug={tournament.sportSlug}
           slug={tournament.slug}
           tournamentId={tournament.id}
           name={tournament.name}
           phase={livePhase}
-          canManage={participant.isRuntimeManager}
-          canEdit={canManage}
-          editHref={canManage ? tournamentEditUrl(tournament.id, "host") : undefined}
+          canManage={canManage}
+          canEdit={canEdit}
+          editHref={canEdit ? tournamentEditUrl(tournament.id, "host") : undefined}
           listHref={dashboardRoutes.hostTournaments}
           onManageClick={handleManageClick}
-          showCreateActions={isAuthenticated}
-          canCreateOfficial={canManage}
+          showCreateActions={isAuthenticated && participant.isOwner}
+          canCreateOfficial={participant.isOwner}
         />
       ) : null}
       <TournamentHeroBanner coverImageUrl={tournament.coverImageUrl} variant="official">
@@ -908,7 +919,7 @@ export function OfficialTournamentPage({
               />
             ) : null}
 
-            {participant.isRuntimeManager ? (
+            {participant.isOwner ? (
               <Button
                 type="button"
                 variant="outline"

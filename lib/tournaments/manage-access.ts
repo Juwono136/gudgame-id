@@ -4,9 +4,10 @@ import type { AppRole } from "@/lib/roles/constants";
 import { AppError } from "@/lib/errors";
 import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
 import {
+  canAccessTournamentManagePage,
   canManageBracketSetup,
   canManageLiveScoring,
-  canManageTournament,
+  isTournamentOwner,
 } from "@/lib/tournaments/permissions";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
@@ -24,8 +25,12 @@ export async function resolveTournamentManageAccess(
   roles: AppRole[],
 ): Promise<TournamentManageAccess> {
   const grantRole = await getActiveAccessGrantRole(tournament.id, userId);
-  const isOwner = canManageTournament(roles, tournament.createdBy, userId);
-  const canAccessManagePage = isOwner || grantRole != null;
+  const isOwner = isTournamentOwner(tournament.createdBy, userId);
+  const canAccessManagePage = canAccessTournamentManagePage(
+    tournament.createdBy,
+    userId,
+    grantRole,
+  );
   const canManageBracket = canManageBracketSetup(roles, tournament, userId, grantRole);
   const canManageScoring = canManageLiveScoring(roles, tournament, userId, grantRole);
 

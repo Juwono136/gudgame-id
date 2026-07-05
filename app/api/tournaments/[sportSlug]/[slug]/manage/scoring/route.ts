@@ -13,6 +13,11 @@ import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { AppError } from "@/lib/errors";
 import { computeManageWorkspaceStats } from "@/lib/tournaments/stats/from-manage-workspace";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
+import {
+  isMatchLiveForTournament,
+  normalizeBracketMatchesForDisplay,
+  normalizeReclubMatchesForDisplay,
+} from "@/lib/tournaments/match-display-status";
 
 export const runtime = "nodejs";
 
@@ -36,7 +41,7 @@ export async function GET(
     const isElimination = tournament.format !== "americano";
     const isFunMatch = isFunMatchType(tournament.tournamentType);
 
-    const [teams, reclubMatches, activeReclubMatches, bracketMatches, summary, teamsInActiveBracket, bracketEligibleTeamIds] =
+    const [teams, reclubMatchesRaw, activeReclubMatchesRaw, bracketMatchesRaw, summary, teamsInActiveBracket, bracketEligibleTeamIds] =
       await Promise.all([
         listLobbyTeamsDetailed(tournament.id),
         isElimination && !isFunMatch ? Promise.resolve([]) : listReclubMatches(tournament.id),
@@ -61,7 +66,21 @@ export async function GET(
           : Promise.resolve([] as string[]),
       ]);
 
-    const activeBracketMatches = bracketMatches.filter((m) => m.status === "in_progress");
+    const reclubMatches = normalizeReclubMatchesForDisplay(
+      reclubMatchesRaw,
+      tournament.status,
+    );
+    const bracketMatches = normalizeBracketMatchesForDisplay(
+      bracketMatchesRaw,
+      tournament.status,
+    );
+    const activeReclubMatches = activeReclubMatchesRaw.filter((m) =>
+      isMatchLiveForTournament(m.status, tournament.status),
+    );
+
+    const activeBracketMatches = bracketMatches.filter((m) =>
+      isMatchLiveForTournament(m.status, tournament.status),
+    );
 
     const sessionStats: TournamentSessionStats = computeManageWorkspaceStats({
       tournament,
