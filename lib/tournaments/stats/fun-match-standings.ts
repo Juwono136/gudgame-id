@@ -140,8 +140,11 @@ export function computeFunMatchSquadStandings(
 export function computeFunMatchStandings(
   matches: ReclubMatchView[],
   teams: LobbyTeamView[],
+  options?: { americano?: boolean },
 ): { players: FunMatchStandingsRow[]; squads: FunMatchSquadStandingsRow[] } {
-  const players = enrichPlayerStandings(computeFunMatchPlayerLeaderboard(matches, teams));
+  const players = enrichPlayerStandings(
+    computeFunMatchPlayerLeaderboard(matches, teams, { americano: options?.americano }),
+  );
   const squads = computeFunMatchSquadStandings(matches, teams);
   return { players, squads };
 }

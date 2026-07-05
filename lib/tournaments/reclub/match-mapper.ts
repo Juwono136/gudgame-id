@@ -34,5 +34,6 @@ export function mapReclubMatchRow(
     roundLabel: meta.roundLabel ?? null,
     playType: meta.playType ?? null,
     playNumber: meta.playNumber ?? null,
+    americanoPairing: meta.americanoPairing ?? null,
   };
 }

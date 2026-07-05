@@ -1,3 +1,4 @@
+import type { AmericanoMatchPairing } from "@/lib/tournaments/americano/types";
 import type { MatchScoreEvent, MatchScoreAction } from "@/lib/tournaments/scoring/match-score-events";
 import {
   appendMatchScoreEvent,
@@ -12,6 +13,7 @@ export type ReclubMatchMetadata = {
   scoreEvents?: MatchScoreEvent[];
   teamAPlayers?: string[];
   teamBPlayers?: string[];
+  americanoPairing?: AmericanoMatchPairing;
   playType?: "round" | "friendly" | "bracket" | "bracket_rematch";
   playNumber?: number;
   bracketMatchId?: string;
@@ -19,6 +21,23 @@ export type ReclubMatchMetadata = {
   roundLabel?: string;
   source?: string;
 };
+
+function parseAmericanoPairingSide(raw: unknown): [string, string] | null {
+  if (!Array.isArray(raw) || raw.length !== 2) return null;
+  const a = raw[0];
+  const b = raw[1];
+  if (typeof a !== "string" || typeof b !== "string" || !a || !b) return null;
+  return [a, b];
+}
+
+function parseAmericanoPairing(raw: unknown): AmericanoMatchPairing | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const sideA = parseAmericanoPairingSide(obj.sideA);
+  const sideB = parseAmericanoPairingSide(obj.sideB);
+  if (!sideA || !sideB) return undefined;
+  return { sideA, sideB };
+}
 
 export function parseReclubMatchMetadata(raw: unknown): ReclubMatchMetadata {
   if (!raw || typeof raw !== "object") return {};
@@ -33,6 +52,7 @@ export function parseReclubMatchMetadata(raw: unknown): ReclubMatchMetadata {
     teamBPlayers: Array.isArray(obj.teamBPlayers)
       ? (obj.teamBPlayers as string[])
       : undefined,
+    americanoPairing: parseAmericanoPairing(obj.americanoPairing),
     playType:
       playType === "round" ||
       playType === "friendly" ||

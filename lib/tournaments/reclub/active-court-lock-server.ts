@@ -16,6 +16,37 @@ async function loadTeamMemberIds(teamIds: string[]): Promise<string[]> {
   return [...new Set(rows.map((r) => r.userId))];
 }
 
+export async function assertAmericanoPlayersAvailableForCourt(
+  activeMatches: ReclubMatchView[],
+  playerIds: string[],
+  courtId: string,
+): Promise<void> {
+  const others = activeMatches.filter((m) => m.courtId !== courtId);
+  const activePlayerIds = new Set<string>();
+
+  for (const match of others) {
+    if (match.americanoPairing) {
+      for (const id of [...match.americanoPairing.sideA, ...match.americanoPairing.sideB]) {
+        activePlayerIds.add(id);
+      }
+      continue;
+    }
+
+    const ids = await loadTeamMemberIds(
+      [match.teamAId, match.teamBId].filter((id): id is string => Boolean(id)),
+    );
+    ids.forEach((id) => activePlayerIds.add(id));
+  }
+
+  const overlap = playerIds.find((id) => activePlayerIds.has(id));
+  if (overlap) {
+    throw new AppError(
+      "One or more players are already active on another court. Finish that match first.",
+      { code: "CONFLICT", statusCode: 409 },
+    );
+  }
+}
+
 export async function assertTeamsAvailableForCourt(
   activeMatches: ReclubMatchView[],
   teamAId: string,

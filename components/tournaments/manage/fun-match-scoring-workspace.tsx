@@ -24,6 +24,14 @@ import { useRenameTournamentCourt } from "@/hooks/use-tournament-courts";
 import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { planAmericanoRound } from "@/lib/tournaments/americano/round-planner";
+import {
+  applyAmericanoPlanToIdleCourts,
+  assignmentsToCourtState,
+  decodeCourtAmericanoPairing,
+  flattenAmericanoPlayers,
+  getBusyPlayerIds,
+  isAmericanoPairKey,
+} from "@/lib/tournaments/americano/court-assignments";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import {
   getMaxRounds,
@@ -50,6 +58,7 @@ import {
 import {
   FunMatchPlayerStandingsTable,
 } from "@/components/tournaments/fun-match/fun-match-standings-table";
+import { FunMatchStatsLegend } from "@/components/tournaments/fun-match/fun-match-stats-legend";
 import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import { computeOfficialPlayerStandings } from "@/lib/tournaments/stats/official-standings";
@@ -167,12 +176,21 @@ export function FunMatchScoringWorkspace({
     [allMatchesForDisplay],
   );
 
+  const isAmericanoMode = !isBracketMode && tournament.format === "americano";
+  const americanoPlayers = useMemo(() => flattenAmericanoPlayers(teams), [teams]);
+  const busyPlayerIds = useMemo(
+    () => getBusyPlayerIds(activeMatches, teams),
+    [activeMatches, teams],
+  );
+
   const { players: playerStandings } = useMemo(
-    () => computeFunMatchStandings(
-      allMatchesForDisplay.filter((m) => m.status === "completed"),
-      teams,
-    ),
-    [allMatchesForDisplay, teams],
+    () =>
+      computeFunMatchStandings(
+        allMatchesForDisplay.filter((m) => m.status === "completed"),
+        teams,
+        { americano: isAmericanoMode },
+      ),
+    [allMatchesForDisplay, teams, isAmericanoMode],
   );
 
   const { players: officialPlayerStandings } = useMemo(
@@ -181,8 +199,9 @@ export function FunMatchScoringWorkspace({
         bracketMatches,
         matches,
         teams,
+        { americano: isAmericanoMode },
       ),
-    [bracketMatches, matches, teams],
+    [bracketMatches, matches, teams, isAmericanoMode],
   );
 
   const matchByCourt = useMemo(() => {
@@ -231,51 +250,56 @@ export function FunMatchScoringWorkspace({
   );
 
   const allPlayers = useMemo(
-    () =>
-      teams.flatMap((t) =>
-        (t.members ?? []).map((m) => ({
-          id: m.userId,
-          name: m.displayName ?? "Player",
-        })),
-      ),
-    [teams],
+    () => americanoPlayers.map((p) => ({ id: p.id, name: p.name })),
+    [americanoPlayers],
   );
 
   const roundPlan = useMemo(() => {
-    if (tournament.format !== "americano" || allPlayers.length < 4) return null;
+    if (!isAmericanoMode || allPlayers.length < 4) return null;
+    const availablePlayers = americanoPlayers.filter((p) => !busyPlayerIds.has(p.id));
+    if (availablePlayers.length < 4) return null;
     return planAmericanoRound({
-      players: allPlayers,
-      courtCount: courts.length || 1,
+      players: availablePlayers.map((p) => ({ id: p.id, name: p.name })),
+      courtCount: courts.filter((c) => !matchByCourt.get(c.id)).length || courts.length || 1,
       roundNumber: currentRound,
       seed: tournament.id.charCodeAt(0) + reshuffleSeed,
     });
-  }, [allPlayers, courts.length, currentRound, reshuffleSeed, tournament.format, tournament.id]);
+  }, [
+    allPlayers.length,
+    americanoPlayers,
+    busyPlayerIds,
+    courts,
+    currentRound,
+    isAmericanoMode,
+    matchByCourt,
+    reshuffleSeed,
+    tournament.id,
+  ]);
 
   const applyRoundPlanToCourts = useCallback(() => {
-    if (!roundPlan?.pairings.length) return;
-    const idleCourts = courts.filter((c) => !matchByCourt.get(c.id));
-    const nextA: Record<string, string> = { ...teamAByCourt };
-    const nextB: Record<string, string> = { ...teamBByCourt };
-
-    roundPlan.pairings.forEach((pairing, idx) => {
-      const court = idleCourts[idx];
-      if (!court) return;
-      const squadA = squadsWithPlayers.find((s) =>
-        s.members?.some((m) => m.userId === pairing.teamA[0]?.id),
-      );
-      const squadB = squadsWithPlayers.find((s) =>
-        s.members?.some((m) => m.userId === pairing.teamB[0]?.id),
-      );
-      if (squadA && squadB && squadA.id !== squadB.id) {
-        nextA[court.id] = squadA.id;
-        nextB[court.id] = squadB.id;
-      }
+    const idleCourtIds = courts.filter((c) => !matchByCourt.get(c.id)).map((c) => c.id);
+    const result = applyAmericanoPlanToIdleCourts({
+      plan: roundPlan,
+      idleCourtIds,
+      teams,
+      busyPlayerIds,
     });
 
-    setTeamAByCourt(nextA);
-    setTeamBByCourt(nextB);
-    toast.success("Round plan applied to idle courts");
-  }, [courts, matchByCourt, roundPlan, squadsWithPlayers, teamAByCourt, teamBByCourt]);
+    if (!result.ok) {
+      toast.message(result.message);
+      return;
+    }
+
+    const state = assignmentsToCourtState(result.assignments);
+    setTeamAByCourt((prev) => ({ ...prev, ...state.teamAByCourt }));
+    setTeamBByCourt((prev) => ({ ...prev, ...state.teamBByCourt }));
+
+    toast.success("Round plan applied to idle courts", {
+      description: result.restingNames.length
+        ? `Resting this round: ${result.restingNames.join(", ")}`
+        : `${result.assignments.length} court${result.assignments.length === 1 ? "" : "s"} assigned — review pairings, then start.`,
+    });
+  }, [busyPlayerIds, courts, matchByCourt, roundPlan, teams]);
 
   const handleReshuffle = useCallback(() => {
     const idleCourtIds = courts.filter((c) => !matchByCourt.get(c.id)).map((c) => c.id);
@@ -302,7 +326,6 @@ export function FunMatchScoringWorkspace({
       startableMatches: startableBracketMatches,
       activeReclub: activeMatches,
       activeBracket: activeBracketMatches,
-      players: allPlayers,
       roundNumber: currentRound,
       seed,
     });
@@ -386,12 +409,51 @@ export function FunMatchScoringWorkspace({
     tournament.id,
   ]);
 
+  const resolveAmericanoStart = useCallback(
+    (courtId: string) => {
+      const teamAKey = teamAByCourt[courtId];
+      const teamBKey = teamBByCourt[courtId];
+      if (!isAmericanoPairKey(teamAKey) || !isAmericanoPairKey(teamBKey)) return null;
+
+      const pairing = decodeCourtAmericanoPairing(teamAKey, teamBKey);
+      if (!pairing) return null;
+
+      const playerById = new Map(americanoPlayers.map((p) => [p.id, p]));
+      const sideASquads = pairing.sideA.map((id) => playerById.get(id)?.squadId).filter(Boolean);
+      const sideBSquads = pairing.sideB.map((id) => playerById.get(id)?.squadId).filter(Boolean);
+      if (sideASquads.length !== 2 || sideBSquads.length !== 2) return null;
+
+      return {
+        teamAId: sideASquads[0]!,
+        teamBId: sideBSquads[0]!,
+        americanoPairing: pairing,
+      };
+    },
+    [americanoPlayers, teamAByCourt, teamBByCourt],
+  );
+
   const handleStartOnCourt = async (courtId: string) => {
     const bracketMatchId = bracketPickByCourt[courtId];
     if (isBracketMode && bracketMatchId) {
       await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId });
       setBracketPickByCourt((p) => ({ ...p, [courtId]: "" }));
       void refetch();
+      return;
+    }
+
+    if (isAmericanoMode) {
+      const payload = resolveAmericanoStart(courtId);
+      if (!payload) {
+        toast.error("Apply the round plan or reshuffle idle courts first");
+        return;
+      }
+      await startRound.mutateAsync({
+        ...payload,
+        courtId,
+        sessionRound: currentRound,
+      });
+      setTeamAByCourt((p) => ({ ...p, [courtId]: "" }));
+      setTeamBByCourt((p) => ({ ...p, [courtId]: "" }));
       return;
     }
 
@@ -422,6 +484,21 @@ export function FunMatchScoringWorkspace({
         started++;
         continue;
       }
+
+      if (isAmericanoMode) {
+        const payload = resolveAmericanoStart(court.id);
+        if (!payload) continue;
+        await startRound.mutateAsync({
+          ...payload,
+          courtId: court.id,
+          sessionRound: currentRound,
+        });
+        setTeamAByCourt((p) => ({ ...p, [court.id]: "" }));
+        setTeamBByCourt((p) => ({ ...p, [court.id]: "" }));
+        started++;
+        continue;
+      }
+
       const teamAId = teamAByCourt[court.id];
       const teamBId = teamBByCourt[court.id];
       if (!teamAId || !teamBId || teamAId === teamBId) continue;
@@ -435,8 +512,13 @@ export function FunMatchScoringWorkspace({
       setTeamBByCourt((p) => ({ ...p, [court.id]: "" }));
       started++;
     }
-    if (!started) toast.message("Assign squads or bracket matches on idle courts first");
-    else toast.success(`Started ${started} court${started === 1 ? "" : "s"}`);
+    if (!started) {
+      toast.message(
+        isAmericanoMode
+          ? "Apply the round plan to idle courts first"
+          : "Assign squads or bracket matches on idle courts first",
+      );
+    } else toast.success(`Started ${started} court${started === 1 ? "" : "s"}`);
   };
 
   const handleFinishRound = async () => {
@@ -608,8 +690,14 @@ export function FunMatchScoringWorkspace({
         <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
           {isFetching ? "Refreshing…" : "Refresh"}
         </Button>
-        {!isOfficialWorkspace && canScore && tournament.format === "americano" ? (
-          <Button type="button" variant="outline" size="sm" onClick={applyRoundPlanToCourts}>
+        {!isBracketMode && canScore && isAmericanoMode ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={applyRoundPlanToCourts}
+            title="Assign this round's 2v2 partner rotation to idle courts"
+          >
             Apply plan
           </Button>
         ) : null}
@@ -648,12 +736,16 @@ export function FunMatchScoringWorkspace({
         scoringRules={scoringRules}
         starting={startRound.isPending || startBracketOnCourt.isPending}
         maxRounds={maxRounds}
-        onReshuffle={!isOfficialWorkspace && canScore ? handleReshuffle : undefined}
+        onReshuffle={
+          canScore && (!isOfficialWorkspace || isAmericanoMode) ? handleReshuffle : undefined
+        }
         onStartAllCourts={canScore ? () => void handleStartAllCourts() : undefined}
         onFinishRound={canScore ? () => void handleFinishRound() : undefined}
         hasActiveMatches={hasActive}
         toolbar={toolbar}
         accentVariant={accentVariant}
+        isAmericanoMode={isAmericanoMode}
+        americanoPlayers={americanoPlayers}
       />
 
       {editingCourtId ? (
@@ -685,8 +777,13 @@ export function FunMatchScoringWorkspace({
         <p className="mt-1 text-sm text-cp-muted">
           {isOfficialWorkspace
             ? "Player standings with ranking points and logged scoring activity."
-            : "Player standings update when matches are finalized."}
+            : isAmericanoMode
+              ? "Rankings follow Americano rules — total points each player scored across rounds."
+              : "Player standings update when matches are finalized."}
         </p>
+        {isAmericanoMode && !isOfficialWorkspace ? (
+          <FunMatchStatsLegend variant="americano" className="mt-3" compact />
+        ) : null}
         <div className="mt-4">
           {isOfficialWorkspace ? (
             <OfficialPlayerStandingsTable rows={officialPlayerStandings} />

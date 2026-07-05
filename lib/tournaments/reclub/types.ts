@@ -1,3 +1,4 @@
+import type { AmericanoMatchPairing } from "@/lib/tournaments/americano/types";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
 import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import type { ReclubScoreEvent } from "@/lib/tournaments/reclub/score-events";
@@ -27,6 +28,8 @@ export type ReclubMatchView = {
   roundLabel?: string | null;
   playType?: ReclubPlayType | null;
   playNumber?: number | null;
+  /** Individual player IDs for each side when format is Americano (2v2). */
+  americanoPairing?: AmericanoMatchPairing | null;
 };
 
 export type ReclubMatchesListQuery = {

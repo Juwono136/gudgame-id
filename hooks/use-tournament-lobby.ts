@@ -105,6 +105,10 @@ export function useStartReclubRound(sportSlug: string, slug: string) {
       playType?: "round" | "friendly";
       bracketMatchId?: string;
       sessionRound?: number;
+      americanoPairing?: {
+        sideA: [string, string];
+        sideB: [string, string];
+      };
     }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/matches/start`, {
         method: "POST",

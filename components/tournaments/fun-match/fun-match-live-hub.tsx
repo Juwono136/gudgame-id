@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { FunMatchRoundsPanel } from "@/components/tournaments/fun-match/fun-match-rounds-panel";
 import type { FunMatchRoundGroup } from "@/lib/tournaments/reclub/round-groups";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import type { AmericanoPlayerRef } from "@/lib/tournaments/americano/court-assignments";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,8 @@ type FunMatchLiveHubProps = {
   toolbar?: ReactNode;
   className?: string;
   accentVariant?: "fun" | "official";
+  isAmericanoMode?: boolean;
+  americanoPlayers?: AmericanoPlayerRef[];
 };
 
 export function FunMatchLiveHub({
@@ -83,6 +86,8 @@ export function FunMatchLiveHub({
   toolbar,
   className,
   accentVariant = "fun",
+  isAmericanoMode = false,
+  americanoPlayers = [],
 }: FunMatchLiveHubProps) {
   return (
     <div className={cn("space-y-4", className)}>
@@ -116,6 +121,8 @@ export function FunMatchLiveHub({
         onFinishRound={onFinishRound}
         hasActiveMatches={hasActiveMatches}
         accentVariant={accentVariant}
+        isAmericanoMode={isAmericanoMode}
+        americanoPlayers={americanoPlayers}
       />
     </div>
   );

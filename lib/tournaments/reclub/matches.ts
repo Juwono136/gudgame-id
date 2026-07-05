@@ -14,6 +14,7 @@ import { getMaxRounds, getTournamentRoundDurationMinutes, getTournamentScoringTy
 import { computeTimerEndsAt } from "@/lib/tournaments/scoring/engine";
 import { syncOfficialMatchToPlayerHistory, syncReclubMatchToPlayerHistory } from "@/lib/tournaments/stats/sync";
 import { isOfficialType } from "@/lib/tournaments/core/types";
+import type { AmericanoMatchPairing } from "@/lib/tournaments/americano/types";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
@@ -78,12 +79,44 @@ async function getTeamPlayerNames(teamId: string): Promise<string[]> {
   return rows.map((r) => r.name).filter(Boolean);
 }
 
+async function getPlayerNamesByIds(userIds: string[]): Promise<string[]> {
+  if (!userIds.length) return [];
+  const rows = await getDb()
+    .select({ id: user.id, name: user.name })
+    .from(user)
+    .where(inArray(user.id, userIds));
+  const byId = new Map(rows.map((r) => [r.id, r.name ?? "Player"]));
+  return userIds.map((id) => byId.get(id) ?? "Player");
+}
+
+async function resolveSquadIdForPlayer(
+  tournamentId: string,
+  playerId: string,
+): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ teamId: tournamentTeamMembers.teamId })
+    .from(tournamentTeamMembers)
+    .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+    .where(
+      and(
+        eq(tournamentTeamMembers.userId, playerId),
+        eq(tournamentTeams.tournamentId, tournamentId),
+      ),
+    )
+    .limit(1);
+  return row?.teamId ?? null;
+}
+
+export { resolveSquadIdForPlayer };
+
 export type StartReclubRoundOptions = {
   courtId?: string;
   playType?: "round" | "friendly";
   bracketMatchId?: string;
   /** When starting multiple courts in one logical round, pass the same sessionRound. */
   sessionRound?: number;
+  /** Four individual players for Americano doubles (partners on each side). */
+  americanoPairing?: AmericanoMatchPairing;
 };
 
 export async function startReclubRound(
@@ -206,6 +239,31 @@ export async function startReclubRound(
     )
     .limit(1);
 
+  let americanoPairing = opts.americanoPairing;
+  let teamAName = teamA?.name ?? null;
+  let teamBName = teamB?.name ?? null;
+  let teamAPlayers: string[] = [];
+  let teamBPlayers: string[] = [];
+
+  if (americanoPairing) {
+    const sideIds = [...americanoPairing.sideA, ...americanoPairing.sideB];
+    if (new Set(sideIds).size < 4) {
+      throw new AppError("Americano courts need four distinct players", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    const [sideAPlayers, sideBPlayers] = await Promise.all([
+      getPlayerNamesByIds([...americanoPairing.sideA]),
+      getPlayerNamesByIds([...americanoPairing.sideB]),
+    ]);
+    teamAPlayers = sideAPlayers;
+    teamBPlayers = sideBPlayers;
+    teamAName = sideAPlayers.join(" / ");
+    teamBName = sideBPlayers.join(" / ");
+  }
+
   if (!teamA || !teamB) {
     throw new AppError("Invalid teams", { code: "VALIDATION_ERROR", statusCode: 422 });
   }
@@ -213,12 +271,25 @@ export async function startReclubRound(
   await assertTeamsNotInActiveBracket(tournament.id, teamAId, teamBId);
 
   const activeOnCourts = await getActiveReclubMatches(tournament.id);
-  await assertTeamsAvailableForCourt(activeOnCourts, teamAId, teamBId, resolvedCourtId);
+  if (americanoPairing) {
+    const { assertAmericanoPlayersAvailableForCourt } = await import(
+      "@/lib/tournaments/reclub/active-court-lock-server"
+    );
+    await assertAmericanoPlayersAvailableForCourt(
+      activeOnCourts,
+      [...americanoPairing.sideA, ...americanoPairing.sideB],
+      resolvedCourtId,
+    );
+  } else {
+    await assertTeamsAvailableForCourt(activeOnCourts, teamAId, teamBId, resolvedCourtId);
+  }
 
-  const [teamAPlayers, teamBPlayers] = await Promise.all([
-    getTeamPlayerNames(teamAId),
-    getTeamPlayerNames(teamBId),
-  ]);
+  if (!teamAPlayers.length || !teamBPlayers.length) {
+    [teamAPlayers, teamBPlayers] = await Promise.all([
+      getTeamPlayerNames(teamAId),
+      getTeamPlayerNames(teamBId),
+    ]);
+  }
 
   const startedAt = new Date();
   const scoringType = getTournamentScoringType(tournament);
@@ -250,8 +321,8 @@ export async function startReclubRound(
       courtId: resolvedCourtId,
       teamAId,
       teamBId,
-      teamAName: teamA.name,
-      teamBName: teamB.name,
+      teamAName: teamAName ?? teamA.name,
+      teamBName: teamBName ?? teamB.name,
       status: "in_progress",
       startedAt,
       timerEndsAt,
@@ -267,6 +338,7 @@ export async function startReclubRound(
         playType,
         playNumber: friendlyPlayNumber ?? undefined,
         bracketMatchId: opts.bracketMatchId,
+        americanoPairing: americanoPairing ?? undefined,
       },
     })
     .returning();

@@ -2,7 +2,13 @@ import {
   isBracketMatchLockedForCourt,
 } from "@/lib/tournaments/brackets/active-court-lock";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
-import { planAmericanoRound, type AmericanoPlayer } from "@/lib/tournaments/americano/round-planner";
+import {
+  applyAmericanoPlanToIdleCourts,
+  assignmentsToCourtState,
+  flattenAmericanoPlayers,
+  type AmericanoPlayerRef,
+} from "@/lib/tournaments/americano/court-assignments";
+import { planAmericanoRound } from "@/lib/tournaments/americano/round-planner";
 import { buildActiveCourtLockState } from "@/lib/tournaments/reclub/active-court-lock";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
@@ -130,37 +136,44 @@ export function reshuffleBracketOnIdleCourts(input: {
 
 export function reshuffleAmericanoOnIdleCourts(input: {
   idleCourtIds: string[];
-  players: AmericanoPlayer[];
+  players: AmericanoPlayerRef[];
   squads: LobbyTeamView[];
   roundNumber: number;
   seed: number;
+  busyPlayerIds?: Set<string>;
 }): { assignments: SquadCourtAssignment[]; restingPlayerNames: string[] } {
+  const availablePlayers = input.busyPlayerIds
+    ? input.players.filter((p) => !input.busyPlayerIds!.has(p.id))
+    : input.players;
+
   const plan = planAmericanoRound({
-    players: input.players,
+    players: availablePlayers.map((p) => ({ id: p.id, name: p.name })),
     courtCount: input.idleCourtIds.length || 1,
     roundNumber: input.roundNumber,
     seed: input.seed,
   });
 
-  const assignments: SquadCourtAssignment[] = [];
-
-  plan.pairings.forEach((pairing, idx) => {
-    const courtId = input.idleCourtIds[idx];
-    if (!courtId) return;
-    const squadA = findSquadForPlayer(input.squads, pairing.teamA[0]?.id ?? "");
-    const squadB = findSquadForPlayer(input.squads, pairing.teamB[0]?.id ?? "");
-    if (squadA && squadB && squadA.id !== squadB.id) {
-      assignments.push({
-        courtId,
-        teamAId: squadA.id,
-        teamBId: squadB.id,
-      });
-    }
+  const result = applyAmericanoPlanToIdleCourts({
+    plan,
+    idleCourtIds: input.idleCourtIds,
+    teams: input.squads,
+    busyPlayerIds: input.busyPlayerIds,
   });
+
+  if (!result.ok) {
+    return { assignments: [], restingPlayerNames: plan.resting.map((p) => p.name) };
+  }
+
+  const courtState = assignmentsToCourtState(result.assignments);
+  const assignments: SquadCourtAssignment[] = result.assignments.map((assignment) => ({
+    courtId: assignment.courtId,
+    teamAId: courtState.teamAByCourt[assignment.courtId]!,
+    teamBId: courtState.teamBByCourt[assignment.courtId]!,
+  }));
 
   return {
     assignments,
-    restingPlayerNames: plan.resting.map((p) => p.name),
+    restingPlayerNames: result.restingNames,
   };
 }
 
@@ -172,7 +185,6 @@ export function planIdleCourtReshuffle(input: {
   startableMatches?: BracketMatchView[];
   activeReclub?: Pick<ReclubMatchView, "teamAId" | "teamBId" | "courtId">[];
   activeBracket?: BracketMatchView[];
-  players?: AmericanoPlayer[];
   roundNumber?: number;
   seed: number;
 }): ReshuffleIdleCourtsResult {
@@ -190,15 +202,27 @@ export function planIdleCourtReshuffle(input: {
     };
   }
 
-  if (input.mode === "americano" && input.players && input.players.length >= 4) {
-    const { assignments, restingPlayerNames } = reshuffleAmericanoOnIdleCourts({
-      idleCourtIds: input.idleCourtIds,
-      players: input.players,
-      squads: input.squads,
-      roundNumber: input.roundNumber ?? 1,
-      seed: input.seed,
-    });
-    return { kind: "americano", assignments, restingPlayerNames };
+  if (input.mode === "americano") {
+    const players = flattenAmericanoPlayers(input.squads);
+    if (players.length >= 4) {
+      const busyPlayerIds = new Set<string>();
+      for (const teamId of input.busyTeamIds) {
+        const squad = input.squads.find((s) => s.id === teamId);
+        for (const member of squad?.members ?? []) {
+          busyPlayerIds.add(member.userId);
+        }
+      }
+
+      const { assignments, restingPlayerNames } = reshuffleAmericanoOnIdleCourts({
+        idleCourtIds: input.idleCourtIds,
+        players,
+        squads: input.squads,
+        roundNumber: input.roundNumber ?? 1,
+        seed: input.seed,
+        busyPlayerIds,
+      });
+      return { kind: "americano", assignments, restingPlayerNames };
+    }
   }
 
   const { assignments, restingSquadNames } = reshuffleSquadsOnIdleCourts({

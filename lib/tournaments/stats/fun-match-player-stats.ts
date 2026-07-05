@@ -1,6 +1,11 @@
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 
+export type FunMatchPlayerLeaderboardOptions = {
+  /** Americano ranks by total points scored per player, not W/L ranking points. */
+  americano?: boolean;
+};
+
 export type FunMatchPlayerLeaderboardRow = {
   userId: string;
   name: string;
@@ -22,7 +27,9 @@ export type FunMatchPlayerLeaderboardRow = {
 export function computeFunMatchPlayerLeaderboard(
   matches: ReclubMatchView[],
   teams: LobbyTeamView[],
+  options?: FunMatchPlayerLeaderboardOptions,
 ): FunMatchPlayerLeaderboardRow[] {
+  const americano = options?.americano ?? false;
   const playerMeta = new Map<string, { name: string; teamName: string }>();
   for (const team of teams) {
     for (const m of team.members ?? []) {
@@ -73,49 +80,75 @@ export function computeFunMatchPlayerLeaderboard(
   for (const match of completed) {
     const scoreA = match.scoreA ?? 0;
     const scoreB = match.scoreB ?? 0;
-    const teamA = findTeam(match, "a");
-    const teamB = findTeam(match, "b");
-    const playersA = teamA?.members?.length
-      ? teamA.members
-      : (match.teamAPlayers ?? []).map((name, i) => ({
-          userId: `lineup-a-${match.id}-${i}`,
-          displayName: name,
-        }));
-    const playersB = teamB?.members?.length
-      ? teamB.members
-      : (match.teamBPlayers ?? []).map((name, i) => ({
-          userId: `lineup-b-${match.id}-${i}`,
-          displayName: name,
-        }));
-
     const aWon = scoreA > scoreB;
     const bWon = scoreB > scoreA;
     const tied = scoreA === scoreB;
 
+    type SidePlayer = { userId: string; displayName: string };
+
+    let playersA: SidePlayer[] = [];
+    let playersB: SidePlayer[] = [];
+
+    if (match.americanoPairing) {
+      playersA = match.americanoPairing.sideA.map((userId, index) => ({
+        userId,
+        displayName: match.teamAPlayers[index] ?? playerMeta.get(userId)?.name ?? "Player",
+      }));
+      playersB = match.americanoPairing.sideB.map((userId, index) => ({
+        userId,
+        displayName: match.teamBPlayers[index] ?? playerMeta.get(userId)?.name ?? "Player",
+      }));
+    } else {
+      const teamA = findTeam(match, "a");
+      const teamB = findTeam(match, "b");
+      playersA = teamA?.members?.length
+        ? teamA.members.map((m) => ({
+            userId: m.userId,
+            displayName: m.displayName ?? "Player",
+          }))
+        : (match.teamAPlayers ?? []).map((name, i) => ({
+            userId: `lineup-a-${match.id}-${i}`,
+            displayName: name,
+          }));
+      playersB = teamB?.members?.length
+        ? teamB.members.map((m) => ({
+            userId: m.userId,
+            displayName: m.displayName ?? "Player",
+          }))
+        : (match.teamBPlayers ?? []).map((name, i) => ({
+            userId: `lineup-b-${match.id}-${i}`,
+            displayName: name,
+          }));
+    }
+
     for (const p of playersA) {
-      const row = ensure(p.userId, p.displayName ?? "Player", match.teamAName ?? "Squad");
+      const row = ensure(p.userId, p.displayName, match.teamAName ?? "Squad");
       row.games += 1;
       row.pointsFor += scoreA;
       row.pointsAgainst += scoreB;
       if (tied) row.ties += 1;
       else if (aWon) row.wins += 1;
       else row.losses += 1;
-      row.points += aWon ? 3 : tied ? 1 : 0;
+      row.points += americano ? scoreA : aWon ? 3 : tied ? 1 : 0;
     }
 
     for (const p of playersB) {
-      const row = ensure(p.userId, p.displayName ?? "Player", match.teamBName ?? "Squad");
+      const row = ensure(p.userId, p.displayName, match.teamBName ?? "Squad");
       row.games += 1;
       row.pointsFor += scoreB;
       row.pointsAgainst += scoreA;
       if (tied) row.ties += 1;
       else if (bWon) row.wins += 1;
       else row.losses += 1;
-      row.points += bWon ? 3 : tied ? 1 : 0;
+      row.points += americano ? scoreB : bWon ? 3 : tied ? 1 : 0;
     }
   }
 
   return [...stats.values()]
     .map((r) => ({ ...r, diff: r.pointsFor - r.pointsAgainst }))
-    .sort((a, b) => b.points - a.points || b.diff - a.diff || b.wins - a.wins);
+    .sort((a, b) =>
+      americano
+        ? b.points - a.points || b.diff - a.diff || b.wins - a.wins
+        : b.points - a.points || b.diff - a.diff || b.wins - a.wins,
+    );
 }

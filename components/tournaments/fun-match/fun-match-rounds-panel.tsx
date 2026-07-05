@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { FunMatchRoundGroup } from "@/lib/tournaments/reclub/round-groups";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import type { AmericanoPlayerRef } from "@/lib/tournaments/americano/court-assignments";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { getReclubMatchHistoryKey } from "@/lib/tournaments/reclub/types";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
@@ -54,6 +55,8 @@ type FunMatchRoundsPanelProps = {
   onFinishRound?: () => void;
   hasActiveMatches?: boolean;
   accentVariant?: "fun" | "official";
+  isAmericanoMode?: boolean;
+  americanoPlayers?: AmericanoPlayerRef[];
 };
 
 function roundTitle(roundNumber: number, group: FunMatchRoundGroup): string {
@@ -94,6 +97,8 @@ export function FunMatchRoundsPanel({
   onFinishRound,
   hasActiveMatches,
   accentVariant = "fun",
+  isAmericanoMode = false,
+  americanoPlayers = [],
 }: FunMatchRoundsPanelProps) {
   const accentLabel = accentVariant === "official" ? "text-cp-primary" : "text-emerald-400";
   const [search, setSearch] = useState("");
@@ -250,6 +255,8 @@ export function FunMatchRoundsPanel({
                     scoringRules={scoringRules}
                     onEditCourtName={() => onEditCourtName(court.id, court.name)}
                     accentVariant={accentVariant}
+                    isAmericanoMode={isAmericanoMode}
+                    americanoPlayers={americanoPlayers}
                   />
                 ))}
             </div>

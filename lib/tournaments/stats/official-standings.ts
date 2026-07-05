@@ -430,6 +430,7 @@ export function computeOfficialPlayerStandings(
   bracketMatches: BracketMatchView[],
   reclubMatches: ReclubMatchView[],
   teams: LobbyTeamView[],
+  options?: { americano?: boolean },
 ): {
   players: OfficialPlayerStandingRow[];
   squads: OfficialSquadStandingRow[];
@@ -442,7 +443,9 @@ export function computeOfficialPlayerStandings(
   const bracketSquads = computeBracketSquadStandings(completedBracket, teams);
   const squads = mergeSquadRows(reclubSquads, bracketSquads);
 
-  const reclubPlayers = computeFunMatchPlayerLeaderboard(completedReclub, teams);
+  const reclubPlayers = computeFunMatchPlayerLeaderboard(completedReclub, teams, {
+    americano: options?.americano,
+  });
   const bracketPlayers = computeBracketPlayerLeaderboard(completedBracket, teams);
   const basePlayers = mergePlayerRows(reclubPlayers, bracketPlayers);
 

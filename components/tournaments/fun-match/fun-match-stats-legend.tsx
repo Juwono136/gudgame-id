@@ -2,7 +2,16 @@
 
 import { cn } from "@/lib/utils";
 
-export type TournamentStatsLegendVariant = "fun" | "official-player";
+export type TournamentStatsLegendVariant = "fun" | "official-player" | "americano";
+
+const AMERICANO_STAT_LEGEND = [
+  { abbr: "W-L-T", description: "Wins, losses, and ties" },
+  { abbr: "WR", description: "Win rate (%)" },
+  { abbr: "Diff", description: "Point difference (scored minus conceded)" },
+  { abbr: "+M", description: "Compensation points for fewer games played" },
+  { abbr: "P", description: "Total individual points scored (Americano ranking)" },
+  { abbr: "G", description: "Games played" },
+] as const;
 
 const FUN_STAT_LEGEND = [
   { abbr: "W-L-T", description: "Wins, losses, and ties" },
@@ -35,7 +44,11 @@ export function FunMatchStatsLegend({
   variant = "fun",
 }: FunMatchStatsLegendProps) {
   const items =
-    variant === "official-player" ? OFFICIAL_PLAYER_STAT_LEGEND : FUN_STAT_LEGEND;
+    variant === "official-player"
+      ? OFFICIAL_PLAYER_STAT_LEGEND
+      : variant === "americano"
+        ? AMERICANO_STAT_LEGEND
+        : FUN_STAT_LEGEND;
 
   if (compact) {
     return (

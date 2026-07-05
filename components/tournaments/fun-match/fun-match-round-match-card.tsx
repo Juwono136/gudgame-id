@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/select";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import {
+  isAmericanoPairKey,
+  resolveAmericanoPairLabels,
+  type AmericanoPlayerRef,
+} from "@/lib/tournaments/americano/court-assignments";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import {
   canIncrementScore,
@@ -54,6 +59,8 @@ type FunMatchRoundMatchCardProps = {
   onEditCourtName?: () => void;
   readOnly?: boolean;
   accentVariant?: "fun" | "official";
+  isAmericanoMode?: boolean;
+  americanoPlayers?: AmericanoPlayerRef[];
 };
 
 function TeamColumn({
@@ -188,6 +195,8 @@ export function FunMatchRoundMatchCard({
   onEditCourtName,
   readOnly,
   accentVariant = "fun",
+  isAmericanoMode = false,
+  americanoPlayers = [],
 }: FunMatchRoundMatchCardProps) {
   const finalBadgeClass =
     accentVariant === "official"
@@ -243,22 +252,40 @@ export function FunMatchRoundMatchCard({
   const teamA = teams.find((t) => t.id === teamAId);
   const teamB = teams.find((t) => t.id === teamBId);
   const pickedBracket = startableBracketMatches.find((m) => m.id === bracketMatchId);
+  const americanoLabels =
+    isAmericanoMode && isAmericanoPairKey(teamAId) && isAmericanoPairKey(teamBId)
+      ? resolveAmericanoPairLabels(teamAId, teamBId, americanoPlayers)
+      : null;
 
-  const leftTeamName = match?.teamAName ?? pickedBracket?.teamAName ?? teamA?.name ?? null;
-  const rightTeamName = match?.teamBName ?? pickedBracket?.teamBName ?? teamB?.name ?? null;
+  const leftTeamName =
+    match?.teamAName ??
+    pickedBracket?.teamAName ??
+    americanoLabels?.sideALabel ??
+    teamA?.name ??
+    null;
+  const rightTeamName =
+    match?.teamBName ??
+    pickedBracket?.teamBName ??
+    americanoLabels?.sideBLabel ??
+    teamB?.name ??
+    null;
 
   const leftPlayers =
     match?.teamAPlayers?.length
       ? match.teamAPlayers
       : pickedBracket?.teamAPlayers?.length
         ? pickedBracket.teamAPlayers
-        : teamA?.members?.map((m) => m.displayName ?? "Player") ?? [];
+        : americanoLabels?.sideAPlayers.length
+          ? americanoLabels.sideAPlayers
+          : teamA?.members?.map((m) => m.displayName ?? "Player") ?? [];
   const rightPlayers =
     match?.teamBPlayers?.length
       ? match.teamBPlayers
       : pickedBracket?.teamBPlayers?.length
         ? pickedBracket.teamBPlayers
-        : teamB?.members?.map((m) => m.displayName ?? "Player") ?? [];
+        : americanoLabels?.sideBPlayers.length
+          ? americanoLabels.sideBPlayers
+          : teamB?.members?.map((m) => m.displayName ?? "Player") ?? [];
 
   const rules: ScoringRules | undefined =
     scoringRules ??
@@ -281,8 +308,11 @@ export function FunMatchRoundMatchCard({
     rules && isLive ? canIncrementScore(scoreA, scoreB, "b", rules) : true;
 
   const canStartBracket = useBracketPicker && Boolean(bracketMatchId);
+  const canStartAmericano = isAmericanoMode && Boolean(americanoLabels);
   const canStartSquads =
-    !useBracketPicker && Boolean(teamAId && teamBId && teamAId !== teamBId);
+    !useBracketPicker &&
+    !isAmericanoMode &&
+    Boolean(teamAId && teamBId && teamAId !== teamBId);
 
   const scoreReadOnly = readOnly || !isLive;
   const scoreBoxes = (
@@ -393,6 +423,10 @@ export function FunMatchRoundMatchCard({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : isAmericanoMode ? (
+                <span className="text-[11px] text-cp-muted">
+                  {americanoLabels ? "Pairings ready" : "Use Apply plan or Reshuffle"}
+                </span>
               ) : (
                 <>
                   <Select
@@ -437,7 +471,7 @@ export function FunMatchRoundMatchCard({
                 type="button"
                 size="sm"
                 className="h-8 gap-1"
-                disabled={(!canStartBracket && !canStartSquads) || starting}
+                disabled={(!canStartBracket && !canStartSquads && !canStartAmericano) || starting}
                 onClick={onStart}
               >
                 <Play className="h-3.5 w-3.5" />
