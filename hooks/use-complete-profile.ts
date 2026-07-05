@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
-import { dashboardRoutes } from "@/lib/constants/routes";
+import { siteRoutes } from "@/lib/constants/routes";
 import { invalidateSessionContext } from "@/lib/session/invalidate-session-context";
 
 export function useCompleteProfileMutation() {
@@ -36,7 +36,7 @@ export function useCompleteProfileMutation() {
       toast.success("Profile updated", {
         description: payload.message ?? "Your account details are now complete.",
       });
-      router.push(dashboardRoutes.home);
+      router.push(siteRoutes.home);
       router.refresh();
     },
   });

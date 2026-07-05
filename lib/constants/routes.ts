@@ -1,3 +1,7 @@
+export const siteRoutes = {
+  home: "/",
+} as const;
+
 export const authRoutes = {
   login: "/login",
   register: "/register",

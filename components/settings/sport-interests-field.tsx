@@ -47,13 +47,13 @@ export function SportInterestsField({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div>
+      {/* <div>
         <Label>Sports you follow</Label>
         <p className="mt-1 text-xs text-cp-muted">
           Tap to select sports you play or follow. Published player profiles are created for each
           sport you follow once that discipline is enabled on TandingBase.
         </p>
-      </div>
+      </div> */}
 
       {value.length > 0 ? (
         <div className="flex flex-wrap gap-1.5 rounded-xl border border-cp-primary/20 bg-cp-primary/5 p-2.5">
