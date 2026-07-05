@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { BracketTreeView } from "@/components/tournaments/bracket-tree-view";
 import { BracketPlayReadinessCard } from "@/components/tournaments/manage/bracket-play-readiness-card";
+import { BracketSeedingStatusBanner } from "@/components/tournaments/manage/bracket-seeding-status-banner";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
@@ -42,9 +43,16 @@ import {
   cpSelectContentClass,
   cpSelectItemClass,
   cpSelectTriggerClass,
+  cpAlertInfoSurfaceClass,
+  cpFunAccentTextClass,
 } from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
+import {
+  canResetBracketTree,
+  getBracketSeedingUiState,
+  isBracketSeedingLocked,
+} from "@/lib/tournaments/brackets/seeding-state";
 
 async function runBracketMutation(action: () => Promise<unknown>) {
   try {
@@ -57,9 +65,14 @@ async function runBracketMutation(action: () => Promise<unknown>) {
 type BracketManagePanelProps = {
   tournament: TournamentDetail;
   participant: TournamentParticipantContext;
+  onOpenLiveScoring?: () => void;
 };
 
-export function BracketManagePanel({ tournament, participant }: BracketManagePanelProps) {
+export function BracketManagePanel({
+  tournament,
+  participant,
+  onOpenLiveScoring,
+}: BracketManagePanelProps) {
   const { confirm } = useConfirmDialog();
   const isOfficial = isOfficialType(tournament.tournamentType);
   const courtCount = getTournamentCourtCount(tournament);
@@ -109,11 +122,25 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
   const placedTeamCount = placedTeamIds.size;
   const matchScoringHint = getTournamentMatchScoringHint(tournament);
 
-  const playStarted = matches.some(
-    (m) => m.status === "in_progress" || m.status === "completed",
+  const seedingLocked = isBracketSeedingLocked(matches, tournament.status);
+  const seedingUi = useMemo(
+    () => getBracketSeedingUiState(matches, tournament.status),
+    [matches, tournament.status],
   );
-  const seedingLocked = playStarted || tournament.status === "completed";
-  const resetLocked = seedingLocked || tournament.status === "live";
+  const resetLocked = !canResetBracketTree(matches, tournament.status);
+  const canRandomReseed =
+    generated && !seedingLocked && seedableTeams.length >= 2 && tournament.format !== "americano";
+  const liveScoringHref = `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=scoring`;
+
+  const teamsForPicker = useMemo(() => {
+    if (!seedSlot) return unplacedTeams;
+    const match = matches.find((m) => m.id === seedSlot.matchId);
+    const currentId =
+      seedSlot.slot === "a" ? match?.teamAId : match?.teamBId;
+    return seedableTeams.filter(
+      (t) => !placedTeamIds.has(t.id) || t.id === currentId,
+    );
+  }, [seedSlot, unplacedTeams, matches, seedableTeams, placedTeamIds]);
 
   const selectedMatchLabel = useMemo(() => {
     if (!seedSlot) return null;
@@ -139,6 +166,22 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
       });
       return;
     }
+
+    if (generated && seedMode === "random") {
+      const ok = await confirm({
+        title: "Randomly reshuffle round one?",
+        description:
+          "All current round-one placements are cleared and eligible teams are randomly re-seeded. This is only allowed before any match is scored.",
+        confirmLabel: "Random seed",
+      });
+      if (!ok) return;
+      await runBracketMutation(async () => {
+        await generate.mutateAsync("random");
+        await refetch();
+      });
+      return;
+    }
+
     if (generated) return;
 
     const label =
@@ -222,7 +265,7 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <GitBranch className={cn("h-5 w-5", isOfficial ? "text-cp-primary" : "text-emerald-400")} />
+              <GitBranch className={cn("h-5 w-5", isOfficial ? "text-cp-primary" : cpFunAccentTextClass)} />
               Bracket setup
             </h2>
             <p className="mt-1 max-w-xl text-sm text-cp-muted">
@@ -242,7 +285,7 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
         {!generated ? (
           <>
             {tournament.status === "live" ? (
-              <p className="mt-4 rounded-lg border border-sky-500/25 bg-sky-950/20 px-3 py-2 text-sm text-sky-100/90">
+              <p className={cn("mt-4 px-3 py-2 text-sm", cpAlertInfoSurfaceClass)}>
                 Tournament is live — open the bracket tree and place teams before scoring matches.
               </p>
             ) : null}
@@ -271,48 +314,69 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
             </div>
           </>
         ) : (
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <p className={cn("text-sm", isOfficial ? "text-cp-primary/90" : "text-emerald-200/80")}>
-              {seedingLocked
-                ? "Seeding is locked once bracket matches have been scored."
-                : seedingFinalized
-                  ? tournament.status === "live"
-                    ? "Bracket is ready for live scoring."
-                    : "Bracket saved. Adjust seeding while upcoming, or add teams via reset if needed."
-                  : placedTeamCount > 0
-                    ? `${placedTeamCount} team${placedTeamCount === 1 ? "" : "s"} placed — add more anytime, then save when ready.`
-                    : "Click a round-one slot below and place your first team."}
-            </p>
+          <>
+            <BracketSeedingStatusBanner
+              state={seedingUi}
+              liveScoringHref={liveScoringHref}
+              onOpenLiveScoring={onOpenLiveScoring}
+              variant={isOfficial ? "official" : "fun"}
+            />
             {!seedingLocked ? (
-              <div className="flex flex-wrap gap-2">
-                {!seedingFinalized && placedTeamCount >= 1 ? (
-                  <Button
-                    type="button"
-                    disabled={finalize.isPending}
-                    onClick={() => void handleFinalize()}
-                  >
-                    {finalize.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                    )}
-                    Save bracket
-                  </Button>
-                ) : null}
-                {!resetLocked ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={resetBracket.isPending}
-                    onClick={() => void handleReset()}
-                  >
-                    Reset bracket
-                  </Button>
-                ) : null}
+              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-cp-border/80 bg-cp-elevated/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
+                  Seeding actions
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {canRandomReseed ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={generate.isPending}
+                      onClick={() => void handleGenerate("random")}
+                    >
+                      {generate.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Shuffle className="mr-2 h-4 w-4" />
+                      )}
+                      Random seed
+                    </Button>
+                  ) : null}
+                  {!seedingFinalized && placedTeamCount >= 1 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={finalize.isPending}
+                      onClick={() => void handleFinalize()}
+                    >
+                      {finalize.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      )}
+                      Save bracket
+                    </Button>
+                  ) : null}
+                  {!resetLocked ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={resetBracket.isPending}
+                      onClick={() => void handleReset()}
+                    >
+                      Reset bracket
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="text-xs text-cp-muted">
+                  Manual edit: scroll to the bracket tree below → click a round-one slot → choose a
+                  team in the picker that appears.
+                </p>
               </div>
             ) : null}
-          </div>
+          </>
         )}
       </section>
 
@@ -361,7 +425,7 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
                         <SelectItem value="__none__" className={cpSelectItemClass}>
                           Choose team…
                         </SelectItem>
-                        {unplacedTeams.map((t) => (
+                        {teamsForPicker.map((t) => (
                           <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
                             {t.name}
                             {t.members?.length
@@ -386,9 +450,9 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
                     Cancel
                   </Button>
                 </div>
-                {unplacedTeams.length === 0 ? (
+                {teamsForPicker.length === 0 ? (
                   <p className="mt-2 text-xs text-cp-muted">
-                    No unplaced teams left — save the bracket or wait for new registrations.
+                    No eligible teams for this slot — confirm registrations or add squad members first.
                   </p>
                 ) : null}
               </div>
@@ -414,6 +478,7 @@ export function BracketManagePanel({ tournament, participant }: BracketManagePan
               courtCount={courtCount}
               seedingFinalized={seedingFinalized}
               accentVariant={isOfficial ? "official" : "fun"}
+              onOpenLiveScoring={onOpenLiveScoring}
             />
           ) : null}
         </>

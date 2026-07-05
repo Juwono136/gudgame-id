@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -34,6 +34,7 @@ import type { TournamentParticipantContext } from "@/lib/tournaments/participant
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { useManageTournamentDetail } from "@/hooks/use-manage-tournament-detail";
 import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
+import { cpBadgeSuccessClass, cpBadgeWarningClass } from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -133,6 +134,15 @@ export function TournamentManageShell({
     },
     [router, tournament.slug, tournament.sportSlug],
   );
+
+  useEffect(() => {
+    const param = searchParams.get("section") as ManageSection | null;
+    const next =
+      param && visibleSections.some((s) => s.id === param) ? param : null;
+    if (next) {
+      setSection(next);
+    }
+  }, [searchParams, visibleSections]);
 
   const livePhase =
     tournament.status === "live"
@@ -300,7 +310,11 @@ export function TournamentManageShell({
             ) : null}
 
             {section === "bracket" && isElimination && access.canManageBracket ? (
-              <BracketManagePanel tournament={tournament} participant={participant} />
+              <BracketManagePanel
+                tournament={tournament}
+                participant={participant}
+                onOpenLiveScoring={() => navigateSection("scoring")}
+              />
             ) : null}
 
             {section === "players" && isFunMatch ? (
@@ -326,11 +340,11 @@ export function TournamentManageShell({
                       </p>
                     </div>
                     {tournament.officialBilling === "paid" ? (
-                      <Badge className="border-amber-500/30 bg-amber-950/30 text-amber-200">
+                      <Badge className={cpBadgeWarningClass}>
                         {OFFICIAL_BILLING_LABELS.paid} — payment status per player below
                       </Badge>
                     ) : (
-                      <Badge className="border-emerald-500/30 bg-emerald-950/30 text-emerald-200">
+                      <Badge className={cpBadgeSuccessClass}>
                         {OFFICIAL_BILLING_LABELS.free}
                       </Badge>
                     )}

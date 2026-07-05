@@ -78,14 +78,18 @@ export function BracketTreeView({
   const { roundNumbers, totalRounds, gridSlots, rowHeight, rowGap, columnHeight } = useMemo(() => {
     const nums = [...new Set(visibleMatches.map((m) => m.roundNumber))].sort((a, b) => a - b);
     const max = nums.length ? Math.max(...nums) : 0;
-    const firstRoundCount = visibleMatches.filter((m) => m.roundNumber === nums[0]).length;
+    const firstRound = nums[0];
+    const firstRoundCount =
+      firstRound == null
+        ? 1
+        : Math.max(matches.filter((m) => m.roundNumber === firstRound).length, 1);
     const layout = getBracketGridLayout(firstRoundCount);
     return {
       roundNumbers: nums,
       totalRounds: max,
       ...layout,
     };
-  }, [visibleMatches]);
+  }, [visibleMatches, matches]);
 
   const rounds = useMemo(() => {
     const map = new Map<number, BracketMatchView[]>();
@@ -190,6 +194,7 @@ export function BracketTreeView({
   useLayoutEffect(() => {
     measureConnectors();
     const tree = treeRef.current;
+    const scroller = scrollRef.current;
     if (!tree) return;
 
     const observer = new ResizeObserver(() => {
@@ -202,12 +207,14 @@ export function BracketTreeView({
 
     const onResize = () => measureConnectors();
     window.addEventListener("resize", onResize);
+    scroller?.addEventListener("scroll", onResize, { passive: true });
 
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", onResize);
+      scroller?.removeEventListener("scroll", onResize);
     };
-  }, [measureConnectors, visibleMatches, roundNumbers, columnHeight]);
+  }, [measureConnectors, visibleMatches, roundNumbers, columnHeight, seedingMode]);
 
   if (!matches.length) {
     return (
@@ -313,16 +320,19 @@ export function BracketTreeView({
                     >
                       {roundMatches.map((m, i) => {
                         const status = matchStatusLabel(m);
-                        const slotIndex = m.matchNumber - 1;
                         return (
                           <motion.div
                             key={m.id}
                             ref={registerMatchRef(m.id)}
-                            style={matchGridStyle(round, slotIndex)}
-                            initial={{ opacity: 0, y: 6 }}
+                            style={matchGridStyle(round, i)}
+                            initial={seedingMode ? false : { opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: roundIndex * 0.04 + i * 0.03 }}
-                            onAnimationComplete={measureConnectors}
+                            transition={
+                              seedingMode
+                                ? { duration: 0 }
+                                : { delay: roundIndex * 0.04 + i * 0.03 }
+                            }
+                            onAnimationComplete={seedingMode ? undefined : measureConnectors}
                             className={cn(
                               "relative overflow-hidden rounded-xl border bg-cp-card shadow-sm",
                               m.status === "completed"

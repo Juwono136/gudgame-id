@@ -40,7 +40,10 @@ export type BracketMatchView = {
   status: string;
   nextMatchId: string | null;
   courtId: string | null;
+  /** Match clock start (from scheduled_at when the match was started on court). */
   startedAt: string | null;
+  scheduledAt: string | null;
+  completedAt: string | null;
   scoreEvents: MatchScoreEvent[];
 };
 
@@ -75,10 +78,9 @@ async function mapBracketRowToView(
     status: row.status,
     nextMatchId: row.nextMatchId,
     courtId: row.courtId,
-    startedAt:
-      row.status === "in_progress" && row.scheduledAt
-        ? row.scheduledAt.toISOString()
-        : null,
+    startedAt: row.scheduledAt?.toISOString() ?? null,
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    completedAt: row.completedAt?.toISOString() ?? null,
     scoreEvents: meta.scoreEvents ?? [],
   };
 }

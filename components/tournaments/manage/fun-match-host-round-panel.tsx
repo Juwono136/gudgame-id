@@ -19,6 +19,8 @@ import {
   cpSelectContentClass,
   cpSelectItemClass,
   cpSelectTriggerClass,
+  cpFunHostPanelClass,
+  cpAlertWarningInlineTextClass,
 } from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 
@@ -93,18 +95,13 @@ export function FunMatchHostRoundPanel({
   };
 
   return (
-    <section
-      className={cn(
-        "rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-4 sm:p-5",
-        className,
-      )}
-    >
+    <section className={cn(cpFunHostPanelClass, className)}>
       <h3 className="font-semibold text-foreground">Host controls</h3>
       <p className="mt-1 text-sm text-cp-muted">
         Pick two squads and start the next lobby round. For multi-court play, assign teams per court
         below after starting.
         {teamsInActiveBracket.size > 0 ? (
-          <span className="mt-1 block text-amber-300/90">
+          <span className={cn("mt-1 block", cpAlertWarningInlineTextClass)}>
             Squads in an active bracket match cannot start a lobby round until finalized.
           </span>
         ) : null}

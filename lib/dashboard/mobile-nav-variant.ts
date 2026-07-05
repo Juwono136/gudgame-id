@@ -11,7 +11,7 @@ export function resolveDashboardMobileNavVariant(
 
   if (pathname.startsWith("/dashboard/settings")) {
     if (roles.includes("player")) return "player";
-    if (roles.includes("host") || roles.includes("super_admin")) return "host";
+    if (roles.includes("host")) return "host";
   }
 
   const onPublicAppShell =
@@ -23,7 +23,7 @@ export function resolveDashboardMobileNavVariant(
 
   if (onPublicAppShell) {
     if (roles.includes("player")) return "player";
-    if (roles.includes("host") || roles.includes("super_admin")) return "host";
+    if (roles.includes("host")) return "host";
   }
 
   return "player";

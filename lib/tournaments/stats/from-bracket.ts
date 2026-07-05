@@ -1,5 +1,6 @@
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LeaderboardEntry } from "@/lib/tournaments/brackets/leaderboard";
+import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import { computeTournamentSessionStats } from "@/lib/tournaments/stats/compute";
 import type {
   StatsMatchInput,
@@ -21,7 +22,7 @@ function toStatsMatch(match: BracketMatchView): StatsMatchInput | null {
     scoreA: match.scoreA ?? 0,
     scoreB: match.scoreB ?? 0,
     status: match.status,
-    durationSeconds: null,
+    durationSeconds: resolveBracketMatchDurationSeconds(match),
   };
 }
 

@@ -53,6 +53,7 @@ export default async function TournamentRegisterConfirmPage({
         tournament={tournament}
         registrationId={registrationId}
         teamName={status.teamName ?? "Team"}
+        teamMembers={status.teamMembers}
       />
     </PageShell>
   );

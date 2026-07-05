@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { DashboardSportSelector } from "@/components/dashboard/dashboard-sport-selector";
 import type { AppRole } from "@/lib/roles/constants";
+import { canShowHostWorkspaceSwitcher } from "@/lib/roles/workspace-ui";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import { cn } from "@/lib/utils";
 
@@ -112,7 +113,7 @@ function useDashboardNavState(variant: "player" | "host") {
 
 /** Desktop sidebar — vertical navigation (lg+). */
 export function DashboardNav({ roles, variant = "player", className }: DashboardNavProps) {
-  const isHost = roles.includes("host") || roles.includes("super_admin");
+  const showHostWorkspace = canShowHostWorkspaceSwitcher(roles);
   const items = variant === "host" ? HOST_ITEMS : PLAYER_ITEMS;
   const { isActive } = useDashboardNavState(variant);
 
@@ -151,9 +152,9 @@ export function DashboardNav({ roles, variant = "player", className }: Dashboard
         })}
       </div>
 
-      {(variant === "player" && isHost) || variant === "host" ? (
+      {(variant === "player" && showHostWorkspace) || variant === "host" ? (
         <div className="mt-2 border-t border-cp-border/60 pt-2">
-          {variant === "player" && isHost ? (
+          {variant === "player" && showHostWorkspace ? (
             <Link
               href={dashboardRoutes.host}
               className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-cp-muted transition-colors hover:bg-cp-elevated/60 hover:text-cp-primary"

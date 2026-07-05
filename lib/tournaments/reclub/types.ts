@@ -1,3 +1,5 @@
+import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
+import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import type { ReclubScoreEvent } from "@/lib/tournaments/reclub/score-events";
 
 export type ReclubPlayType = "round" | "friendly" | "bracket" | "bracket_rematch";
@@ -94,6 +96,10 @@ export type BracketMatchStatsSource = {
   scoreA: number | null;
   scoreB: number | null;
   status: string;
+  scheduledAt?: string | null;
+  completedAt?: string | null;
+  startedAt?: string | null;
+  scoreEvents?: MatchScoreEvent[];
 };
 
 export function bracketMatchToReclubView(m: BracketMatchStatsSource): ReclubMatchView {
@@ -106,11 +112,11 @@ export function bracketMatchToReclubView(m: BracketMatchStatsSource): ReclubMatc
     teamBName: m.teamBName,
     scoreA: m.scoreA,
     scoreB: m.scoreB,
-    durationSeconds: null,
+    durationSeconds: resolveBracketMatchDurationSeconds(m),
     summary: null,
     status: m.status,
-    startedAt: null,
-    endedAt: null,
+    startedAt: m.scheduledAt ?? m.startedAt ?? null,
+    endedAt: m.completedAt ?? null,
     courtId: null,
     timerEndsAt: null,
     teamAPlayers: m.teamAPlayers ?? [],

@@ -1,26 +1,40 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { BarChart3, History } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatStatDuration } from "@/lib/tournaments/stats/compute";
+import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getReclubMatchHistoryKey, type ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
+import {
+  cpBadgeLiveClass,
+  cpFunAccentTextClass,
+  cpLossTextClass,
+} from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 
 type HistoryRow = {
   id: string;
   teamAName: string | null;
   teamBName: string | null;
+  teamAPlayers: string[];
+  teamBPlayers: string[];
   scoreA: number | null;
   scoreB: number | null;
   roundLabel: string;
   durationSeconds: number | null;
   endedAt: string | null;
 };
+
+function formatPlayerLine(players: string[]): string | null {
+  const names = players.map((p) => p.trim()).filter(Boolean);
+  return names.length ? names.join(", ") : null;
+}
 
 type ManageScoringHistoryPanelProps = {
   sessionStats?: TournamentSessionStats;
@@ -61,6 +75,8 @@ function buildHistoryRows(
       id: getReclubMatchHistoryKey(m),
       teamAName: m.teamAName,
       teamBName: m.teamBName,
+      teamAPlayers: m.teamAPlayers ?? [],
+      teamBPlayers: m.teamBPlayers ?? [],
       scoreA: m.scoreA,
       scoreB: m.scoreB,
       roundLabel: formatHistoryRoundLabel(m),
@@ -74,11 +90,13 @@ function buildHistoryRows(
       id: `bracket-slot-${m.id}`,
       teamAName: m.teamAName,
       teamBName: m.teamBName,
+      teamAPlayers: m.teamAPlayers ?? [],
+      teamBPlayers: m.teamBPlayers ?? [],
       scoreA: m.scoreA,
       scoreB: m.scoreB,
       roundLabel: `R${m.roundNumber} · M${m.matchNumber}`,
-      durationSeconds: null,
-      endedAt: null,
+      durationSeconds: resolveBracketMatchDurationSeconds(m),
+      endedAt: m.completedAt,
     }));
 
   const seen = new Set<string>();
@@ -107,9 +125,18 @@ export function ManageScoringHistoryPanel({
   standingsMode = "americano",
   isLoading,
 }: ManageScoringHistoryPanelProps) {
-  const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
+  const accent = variant === "official" ? "text-cp-primary" : cpFunAccentTextClass;
   const completed = buildHistoryRows(matches, bracketMatches);
   const liveCount = sessionStats?.inProgressMatches ?? matches.filter((m) => m.status === "in_progress").length;
+  const playersByTeam = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const player of sessionStats?.players ?? []) {
+      const list = map.get(player.teamName) ?? [];
+      list.push(player.displayName);
+      map.set(player.teamName, list);
+    }
+    return map;
+  }, [sessionStats?.players]);
 
   if (isLoading && !sessionStats) {
     return (
@@ -133,7 +160,7 @@ export function ManageScoringHistoryPanel({
             </p>
           </div>
           {liveCount > 0 ? (
-            <Badge className="border-red-500/30 bg-red-950/30 text-red-200">
+            <Badge className={cpBadgeLiveClass}>
               {liveCount} live
             </Badge>
           ) : null}
@@ -175,11 +202,20 @@ export function ManageScoringHistoryPanel({
                 </tr>
               </thead>
               <tbody>
-                {sessionStats.teams.slice(0, 8).map((team) => (
+                {sessionStats.teams.slice(0, 8).map((team) => {
+                  const roster = playersByTeam.get(team.name) ?? [];
+                  return (
                   <tr key={team.name} className="border-b border-cp-border/60 last:border-0">
-                    <td className="px-3 py-2 font-medium text-foreground">{team.name}</td>
+                    <td className="px-3 py-2">
+                      <p className="font-medium text-foreground">{team.name}</p>
+                      {roster.length ? (
+                        <p className="mt-0.5 text-[11px] leading-snug text-cp-muted">
+                          {roster.join(", ")}
+                        </p>
+                      ) : null}
+                    </td>
                     <td className={cn("px-3 py-2 text-center font-semibold", accent)}>{team.wins}</td>
-                    <td className="px-3 py-2 text-center text-red-300/90">{team.losses}</td>
+                    <td className={cn("px-3 py-2 text-center", cpLossTextClass)}>{team.losses}</td>
                     {standingsMode === "americano" ? (
                       <td className="px-3 py-2 text-center tabular-nums text-foreground">
                         {team.pointsFor}
@@ -187,7 +223,8 @@ export function ManageScoringHistoryPanel({
                       </td>
                     ) : null}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -218,7 +255,21 @@ export function ManageScoringHistoryPanel({
                       {m.teamAName ?? "Team A"}{" "}
                       <span className="text-cp-muted">vs</span> {m.teamBName ?? "Team B"}
                     </p>
-                    <p className="text-xs text-cp-muted">
+                    {formatPlayerLine(m.teamAPlayers) || formatPlayerLine(m.teamBPlayers) ? (
+                      <p className="mt-0.5 text-[11px] leading-snug text-cp-muted">
+                        {[
+                          formatPlayerLine(m.teamAPlayers)
+                            ? `${m.teamAName ?? "Team A"}: ${formatPlayerLine(m.teamAPlayers)}`
+                            : null,
+                          formatPlayerLine(m.teamBPlayers)
+                            ? `${m.teamBName ?? "Team B"}: ${formatPlayerLine(m.teamBPlayers)}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-xs text-cp-muted">
                       {m.roundLabel}
                       {m.durationSeconds != null
                         ? ` · ${formatStatDuration(m.durationSeconds)}`
@@ -250,7 +301,7 @@ export function TournamentPlayersLiveStatsPanel({
   variant,
   emptyMessage,
 }: TournamentPlayersLiveStatsPanelProps) {
-  const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
+  const accent = variant === "official" ? "text-cp-primary" : cpFunAccentTextClass;
   const teamLabel = variant === "official" ? "Team" : "Squad";
   const hasActivity = stats.completedMatches > 0 || stats.inProgressMatches > 0;
 
@@ -354,7 +405,7 @@ export function TournamentPlayersLiveStatsPanel({
                   <td className={cn("px-4 py-3 text-center font-semibold", accent)}>
                     {player.teamWins}
                   </td>
-                  <td className="px-4 py-3 text-center text-red-300/90">{player.teamLosses}</td>
+                  <td className={cn("px-4 py-3 text-center", cpLossTextClass)}>{player.teamLosses}</td>
                   <td className="px-4 py-3 text-center tabular-nums">{player.teamPlayed}</td>
                 </tr>
               ))}

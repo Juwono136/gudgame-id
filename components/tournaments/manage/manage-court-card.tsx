@@ -25,6 +25,7 @@ import {
   cpSelectContentClass,
   cpSelectItemClass,
   cpSelectTriggerClass,
+  cpStatusAmberClass,
 } from "@/lib/styles/surface-classes";
 
 function useLiveTimer(startedAt: string | null, active: boolean) {
@@ -204,7 +205,7 @@ export const ManageCourtCard = memo(function ManageCourtCard({
                 match
                   ? "bg-red-500/15 text-red-400"
                   : busy
-                    ? "bg-amber-500/15 text-amber-400"
+                    ? cpStatusAmberClass
                     : "bg-cp-elevated text-cp-muted",
               )}
             >

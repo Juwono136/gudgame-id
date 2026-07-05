@@ -39,6 +39,12 @@ import {
   cpSelectItemClass,
   cpSelectTriggerClass,
   manageCourtGridClassName,
+  cpAlertWarningCompactSurfaceClass,
+  cpAlertWarningOutlineButtonClass,
+  cpBadgeDangerClass,
+  cpBadgeSuccessClass,
+  cpEmeraldGhostButtonClass,
+  cpStatusAmberClass,
 } from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 
@@ -300,7 +306,7 @@ function BracketCourtCard({
                   : friendlyLiveMatch
                     ? "bg-emerald-500/15 text-emerald-400"
                     : busy
-                      ? "bg-amber-500/15 text-amber-400"
+                      ? cpStatusAmberClass
                       : "bg-cp-elevated text-cp-muted",
               )}
             >
@@ -319,7 +325,7 @@ function BracketCourtCard({
             <span className="rounded-full border border-cp-primary/30 bg-cp-primary/10 px-2 py-0.5 text-cp-primary">
               {pointsPerMatch} pts
             </span>
-            <span className="rounded-full border border-red-500/30 bg-red-950/30 px-2 py-0.5 text-red-300">
+            <span className={cn("rounded-full px-2 py-0.5", cpBadgeDangerClass)}>
               Live
             </span>
             <span className="rounded-full border border-cp-border bg-cp-elevated/50 px-2 py-0.5 tabular-nums text-cp-muted">
@@ -363,13 +369,13 @@ function BracketCourtCard({
           {canScore ? (
             isTied ? (
               <div className="mt-auto space-y-2">
-                <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-center text-xs text-amber-200">
+                <p className={cn("px-3 py-2", cpAlertWarningCompactSurfaceClass)}>
                   Scores are tied — replay this match before finalizing.
                 </p>
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full border-amber-500/40"
+                  className={cn("w-full", cpAlertWarningOutlineButtonClass)}
                   disabled={replayingTie}
                   onClick={onReplayTie}
                 >
@@ -398,7 +404,7 @@ function BracketCourtCard({
       ) : friendlyLiveMatch ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide sm:gap-2 sm:text-xs">
-            <span className="rounded-full border border-emerald-500/30 bg-emerald-950/30 px-2 py-0.5 text-emerald-300">
+            <span className={cn("rounded-full px-2 py-0.5", cpBadgeSuccessClass)}>
               Friendly game
             </span>
             <span className="rounded-full border border-cp-border bg-cp-elevated/50 px-2 py-0.5 tabular-nums text-cp-muted">
@@ -433,7 +439,7 @@ function BracketCourtCard({
             <Button
               type="button"
               variant="secondary"
-              className="mt-auto w-full border-emerald-500/40 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/40"
+              className={cn("mt-auto w-full", cpEmeraldGhostButtonClass)}
               disabled={friendlyCompletePending}
               onClick={() => onFriendlyComplete(friendlyElapsed)}
             >

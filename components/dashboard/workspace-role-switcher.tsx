@@ -5,6 +5,7 @@ import { LayoutGroup, motion } from "framer-motion";
 import { Trophy, Users } from "lucide-react";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
+import { canShowHostWorkspaceSwitcher } from "@/lib/roles/workspace-ui";
 import { cn } from "@/lib/utils";
 
 type WorkspaceRoleSwitcherProps = {
@@ -29,8 +30,7 @@ const SEGMENTS = [
 ];
 
 export function WorkspaceRoleSwitcher({ roles, variant, className }: WorkspaceRoleSwitcherProps) {
-  const isHost = roles.includes("host") || roles.includes("super_admin");
-  if (!isHost) return null;
+  if (!canShowHostWorkspaceSwitcher(roles)) return null;
 
   return (
     <div className={cn("lg:hidden", className)}>

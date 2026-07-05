@@ -177,8 +177,12 @@ async function main(): Promise<void> {
     userId = existing.id;
     await markBootstrapUserReady(userId, name);
     await syncCredentialPassword(userId, password);
-    await setUserRoles(userId, [...BOOTSTRAP_ROLES]);
-    console.log(`[bootstrap-admin] OK: ${existing.email} updated (super_admin, password synced)`);
+    const existingRoles = await getUserRoleAssignments(userId);
+    const mergedRoles = [...new Set([...existingRoles, ...BOOTSTRAP_ROLES])];
+    await setUserRoles(userId, mergedRoles);
+    console.log(
+      `[bootstrap-admin] OK: ${existing.email} updated (roles: ${mergedRoles.join(", ")}, password synced)`,
+    );
   } else {
     userId = await createBootstrapUser(email, password, name);
     console.log(`[bootstrap-admin] OK: ${email} created with super_admin role`);

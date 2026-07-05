@@ -22,6 +22,7 @@ export function useTournamentLive(sportSlug: string, slug: string, enabled = tru
       return json.data;
     },
     enabled: Boolean(sportSlug && slug && enabled),
+    staleTime: 0,
     refetchInterval: (query) => {
       const phase = query.state.data?.phase;
       if (phase === "live") return 1500;

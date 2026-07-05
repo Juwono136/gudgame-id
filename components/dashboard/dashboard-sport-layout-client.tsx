@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { WorkspaceRoleSwitcher } from "@/components/dashboard/workspace-role-switcher";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
+import { canShowHostWorkspaceSwitcher } from "@/lib/roles/workspace-ui";
 
 type DashboardSportLayoutClientProps = {
   children: React.ReactNode;
@@ -16,7 +17,9 @@ export function DashboardSportLayoutClient({
   roles,
 }: DashboardSportLayoutClientProps) {
   const pathname = usePathname();
-  const hideRoleSwitcher = pathname?.startsWith(dashboardRoutes.completeProfile);
+  const hideRoleSwitcher =
+    pathname?.startsWith(dashboardRoutes.completeProfile) ||
+    !canShowHostWorkspaceSwitcher(roles);
   const variant: "player" | "host" = pathname?.startsWith("/dashboard/host") ? "host" : "player";
 
   return (

@@ -15,6 +15,7 @@ import {
 import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { listBracketEligibleTeamsForGenerate } from "@/lib/tournaments/brackets/eligible-teams";
 import { applyRoundOneSeeding } from "@/lib/tournaments/brackets/round-one";
+import { clearBracketSeedingForReshuffle } from "@/lib/tournaments/brackets/clear-seeding";
 import { ensureBracketStructure } from "@/lib/tournaments/brackets/provision-structure";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -79,10 +80,28 @@ export async function generateTournamentBracket(
   }
 
   if (structureExists && round1HasTeams && seedMode === "random") {
-    throw new AppError(
-      "Round one already has teams. Reset the bracket or adjust seeding manually.",
-      { code: "CONFLICT", statusCode: 409 },
-    );
+    const teams = await listBracketEligibleTeamsForGenerate(tournament);
+    if (teams.length < 2) {
+      throw new AppError(
+        isFunMatchType(tournament.tournamentType)
+          ? "Need at least 2 squads with players to random seed"
+          : "Need at least 2 confirmed teams to random seed",
+        { code: "VALIDATION_ERROR", statusCode: 422 },
+      );
+    }
+
+    const round1Ids = await clearBracketSeedingForReshuffle(tournament.id);
+    const shuffled = shuffleTeams(teams);
+    await applyRoundOneSeeding(tournament.id, round1Ids, shuffled);
+    const total = await db
+      .select({ id: tournamentBracketMatches.id })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    await patchTournamentBracketSettings(tournament, {
+      bracketSeedMode: "random",
+      bracketSeedingFinalized: true,
+    });
+    return { matchCount: total.length, seedMode: "random" };
   }
 
   if (structureExists && !round1HasTeams && seedMode === "manual") {

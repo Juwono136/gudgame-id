@@ -102,7 +102,7 @@ export function ManagePlayerRosterPanel({ sportSlug, slug }: ManagePlayerRosterP
                 type="button"
                 variant="outline"
                 size="sm"
-                className="shrink-0 border-red-500/30 text-red-400 hover:bg-red-950/30 hover:text-red-300"
+                className="shrink-0 border-red-300/80 text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
                 disabled={removePlayer.isPending}
                 onClick={() => void handleRemove(row.userId, row.displayName)}
               >

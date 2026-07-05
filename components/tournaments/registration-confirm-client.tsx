@@ -19,12 +19,14 @@ type RegistrationConfirmClientProps = {
   tournament: TournamentDetail;
   registrationId: string;
   teamName: string;
+  teamMembers: { userId: string; displayName: string; role: string }[];
 };
 
 export function RegistrationConfirmClient({
   tournament,
   registrationId,
   teamName,
+  teamMembers,
 }: RegistrationConfirmClientProps) {
   const router = useRouter();
   const { confirm } = useConfirmDialog();
@@ -113,11 +115,33 @@ export function RegistrationConfirmClient({
 
         <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-7">
           <div className="grid gap-4 rounded-xl border border-cp-border bg-cp-elevated/40 p-4 sm:grid-cols-2 sm:p-5">
-            <div className="min-w-0">
+            <div className="min-w-0 sm:col-span-2">
               <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">Team name</p>
               <p className="mt-1.5 truncate text-lg font-semibold text-foreground">{teamName}</p>
+              {teamMembers.length ? (
+                <div className="mt-4 border-t border-cp-border/60 pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">
+                    Players ({teamMembers.length})
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {teamMembers.map((member) => (
+                      <li
+                        key={member.userId}
+                        className="flex items-center justify-between gap-3 text-sm text-foreground"
+                      >
+                        <span className="min-w-0 truncate">{member.displayName}</span>
+                        {member.role === "captain" ? (
+                          <span className="shrink-0 rounded-full border border-cp-border bg-cp-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
+                            Captain
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
-            <div className="min-w-0 sm:text-right">
+            <div className="min-w-0 sm:col-span-2 sm:text-right">
               <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">
                 Registration fee (after confirm)
               </p>

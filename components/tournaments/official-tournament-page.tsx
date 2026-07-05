@@ -559,31 +559,21 @@ export function OfficialTournamentPage({
                 <Radio className="h-4 w-4 animate-pulse" />
                 Official live score
               </p>
-              <h2 className="mt-2 text-lg font-bold text-foreground sm:text-xl">
-                {activeOfficialMatch.teamAName} vs {activeOfficialMatch.teamBName}
-              </h2>
-              <p className="mt-1 text-sm text-cp-muted">
+              <p className="mt-2 text-sm font-medium text-foreground">
                 Round {activeOfficialMatch.roundNumber} · Match{" "}
                 {activeOfficialMatch.matchNumber}
               </p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-cp-muted">
+                Live now
+              </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="rounded-2xl border border-cp-primary/25 bg-cp-bg/70 px-5 py-3 text-center shadow-[0_8px_32px_rgba(0,71,255,0.10)]">
-                <p className="text-4xl font-bold tabular-nums text-foreground">
-                  {activeOfficialMatch.scoreA ?? 0} : {activeOfficialMatch.scoreB ?? 0}
-                </p>
-                <p className="mt-1 text-xs font-medium uppercase tracking-wider text-cp-muted">
-                  Live now
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                className="border-cp-primary/30 bg-cp-card/70"
-                onClick={() => navigateTab(isElimination ? "Bracket" : "Live Score")}
-              >
-                {isElimination ? "View bracket" : "View live score"}
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="border-cp-primary/30 bg-cp-card/70"
+              onClick={() => navigateTab(isElimination ? "Bracket" : "Live Score")}
+            >
+              {isElimination ? "View bracket" : "View live score"}
+            </Button>
           </div>
         </section>
       ) : null}

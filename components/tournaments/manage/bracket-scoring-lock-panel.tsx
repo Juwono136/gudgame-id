@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import {
+  cpAlertSuccessStepClass,
+  cpAlertWarningIconBoxClass,
+  cpAlertWarningIconClass,
+  cpAlertWarningOutlineButtonClass,
+  cpAlertWarningPanelClass,
+  cpFunAccentTextClass,
+} from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 
 type BracketScoringLockPanelProps = {
@@ -67,11 +75,16 @@ export function BracketScoringLockPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-950/20 to-cp-card p-5 sm:p-6">
+    <div className={cpAlertWarningPanelClass}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-950/40">
-            <Lock className="h-5 w-5 text-amber-300" />
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center",
+              cpAlertWarningIconBoxClass,
+            )}
+          >
+            <Lock className={cn("h-5 w-5", cpAlertWarningIconClass)} />
           </div>
           <div>
             <h3 className="text-base font-semibold text-foreground">
@@ -85,7 +98,12 @@ export function BracketScoringLockPanel({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline" className="border-amber-500/30">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className={cpAlertWarningOutlineButtonClass}
+          >
             <Link href={editUrl}>Set status to Live</Link>
           </Button>
           <Button asChild size="sm" variant="outline">
@@ -105,12 +123,12 @@ export function BracketScoringLockPanel({
             className={cn(
               "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
               step.done
-                ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
+                ? cpAlertSuccessStepClass
                 : "border-cp-border/80 bg-cp-elevated/20 text-cp-muted",
             )}
           >
             <CheckCircle2
-              className={cn("h-4 w-4 shrink-0", step.done ? "text-emerald-400" : "opacity-35")}
+              className={cn("h-4 w-4 shrink-0", step.done ? cpFunAccentTextClass : "opacity-35")}
             />
             {step.label}
           </li>

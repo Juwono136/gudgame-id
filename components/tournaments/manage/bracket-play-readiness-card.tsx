@@ -7,6 +7,18 @@ import { Button } from "@/components/ui/button";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import {
+  cpAlertWarningBodyTextClass,
+  cpAlertWarningIconClass,
+  cpAlertWarningOutlineButtonClass,
+  cpAlertWarningStepBadgeClass,
+  cpAlertWarningStrongTextClass,
+  cpAlertWarningSubtextClass,
+  cpAlertWarningSurfaceClass,
+  cpFunAccentSurfaceClass,
+  cpFunAccentTextClass,
+  cpOfficialAccentSurfaceClass,
+} from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 
 type BracketPlayReadinessCardProps = {
@@ -19,6 +31,7 @@ type BracketPlayReadinessCardProps = {
   courtCount: number;
   seedingFinalized: boolean;
   accentVariant?: "official" | "fun";
+  onOpenLiveScoring?: () => void;
 };
 
 export function BracketPlayReadinessCard({
@@ -31,6 +44,7 @@ export function BracketPlayReadinessCard({
   courtCount,
   seedingFinalized,
   accentVariant = "official",
+  onOpenLiveScoring,
 }: BracketPlayReadinessCardProps) {
   const liveScoringUrl = `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=scoring`;
   const editUrl = tournamentEditUrl(tournamentId, "host");
@@ -44,13 +58,41 @@ export function BracketPlayReadinessCard({
   const isLive = tournamentStatus === "live";
   const isCompleted = tournamentStatus === "completed";
 
+  const liveScoringButton = (
+    label: string,
+    options?: { size?: "sm" | "default"; className?: string; showRadio?: boolean; showArrow?: boolean },
+  ) => {
+    const { size = "default", className, showRadio = false, showArrow = false } = options ?? {};
+    const content = (
+      <>
+        {showRadio ? <Radio className="mr-1.5 h-3.5 w-3.5" /> : null}
+        {label}
+        {showArrow ? <ArrowRight className="ml-2 h-4 w-4" /> : null}
+      </>
+    );
+
+    if (onOpenLiveScoring) {
+      return (
+        <Button type="button" size={size} className={className} onClick={onOpenLiveScoring}>
+          {content}
+        </Button>
+      );
+    }
+
+    return (
+      <Button asChild size={size} className={className}>
+        <Link href={liveScoringUrl}>{content}</Link>
+      </Button>
+    );
+  };
+
   return (
     <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <Swords
-              className={cn("h-4 w-4", isOfficial ? "text-cp-primary" : "text-emerald-400")}
+              className={cn("h-4 w-4", isOfficial ? "text-cp-primary" : cpFunAccentTextClass)}
             />
             {isLive ? "Live play" : isCompleted ? "Bracket results" : "Next: live play"}
           </h3>
@@ -79,56 +121,53 @@ export function BracketPlayReadinessCard({
       </div>
 
       {!isLive && !isCompleted ? (
-        <div className="mt-5 rounded-xl border border-amber-500/25 bg-amber-950/15 p-4 sm:p-5">
+        <div className={cn("mt-5 p-4 sm:p-5", cpAlertWarningSurfaceClass)}>
           <div className="flex items-start gap-3">
-            <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+            <Lock className={cn("mt-0.5 h-5 w-5 shrink-0", cpAlertWarningIconClass)} />
             <div className="min-w-0 flex-1 space-y-3">
-              <p className="text-sm font-medium text-amber-100">
+              <p className={cn("text-sm font-medium", cpAlertWarningBodyTextClass)}>
                 Scoring is locked while the tournament is upcoming
               </p>
-              <ol className="space-y-2 text-sm text-amber-100/80">
+              <ol className={cn("space-y-2 text-sm", cpAlertWarningSubtextClass)}>
                 <li className="flex items-center gap-2">
                   <CheckCircle2
                     className={cn(
                       "h-4 w-4 shrink-0",
-                      seedingFinalized ? "text-emerald-400" : "opacity-40",
+                      seedingFinalized ? cpFunAccentTextClass : "opacity-40",
                     )}
                   />
                   Bracket generated & seeding saved
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-400/50 text-[10px] font-bold text-amber-200">
-                    2
-                  </span>
-                  Set tournament status to <strong className="text-amber-50">Live</strong> in
-                  tournament settings
+                  <span className={cpAlertWarningStepBadgeClass}>2</span>
+                  Set tournament status to{" "}
+                  <strong className={cpAlertWarningStrongTextClass}>Live</strong> in tournament
+                  settings
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-400/50 text-[10px] font-bold text-amber-200">
-                    3
-                  </span>
-                  Open <strong className="text-amber-50">Live scoring</strong> to assign courts
-                  and score matches
+                  <span className={cpAlertWarningStepBadgeClass}>3</span>
+                  Open <strong className={cpAlertWarningStrongTextClass}>Live scoring</strong> to
+                  assign courts and score matches
                 </li>
               </ol>
               <div className="flex flex-wrap gap-2 pt-1">
-                <Button asChild size="sm" variant="outline" className="border-amber-500/30">
-                  <Link href={editUrl}>Edit tournament status</Link>
-                </Button>
                 <Button
                   asChild
                   size="sm"
-                  className={cn(
+                  variant="outline"
+                  className={cpAlertWarningOutlineButtonClass}
+                >
+                  <Link href={editUrl}>Edit tournament status</Link>
+                </Button>
+                {liveScoringButton("Preview Live scoring", {
+                  size: "sm",
+                  showRadio: true,
+                  className: cn(
                     isOfficial
                       ? "bg-cp-primary hover:bg-cp-primary-light"
                       : "bg-emerald-600 hover:bg-emerald-500",
-                  )}
-                >
-                  <Link href={liveScoringUrl}>
-                    <Radio className="mr-1.5 h-3.5 w-3.5" />
-                    Preview Live scoring
-                  </Link>
-                </Button>
+                  ),
+                })}
               </div>
             </div>
           </div>
@@ -139,29 +178,22 @@ export function BracketPlayReadinessCard({
         <div
           className={cn(
             "mt-5 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between",
-            isOfficial
-              ? "border-cp-primary/25 bg-cp-primary/5"
-              : "border-emerald-500/25 bg-emerald-950/20",
+            isOfficial ? cpOfficialAccentSurfaceClass : cpFunAccentSurfaceClass,
           )}
         >
           <p className="text-sm text-foreground">
             Multi-court bracket scoring is ready — assign each ready match to a court and finalize
             results there.
           </p>
-          <Button
-            asChild
-            className={cn(
+          {liveScoringButton("Open Live scoring", {
+            showArrow: true,
+            className: cn(
               "shrink-0",
               isOfficial
                 ? "bg-cp-primary hover:bg-cp-primary-light"
                 : "bg-emerald-600 hover:bg-emerald-500",
-            )}
-          >
-            <Link href={liveScoringUrl}>
-              Open Live scoring
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+            ),
+          })}
         </div>
       ) : null}
 
@@ -207,7 +239,7 @@ export function BracketPlayReadinessCard({
                 <span
                   className={cn(
                     "font-mono text-sm font-semibold",
-                    isOfficial ? "text-cp-primary" : "text-emerald-400",
+                    isOfficial ? "text-cp-primary" : cpFunAccentTextClass,
                   )}
                 >
                   {m.scoreA ?? 0} – {m.scoreB ?? 0}

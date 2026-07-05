@@ -568,9 +568,9 @@ export function ReclubTournamentPage({
               <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
                 Live round {activeMatch.roundNumber}
               </p>
-              <h2 className="text-lg font-bold text-foreground sm:text-xl">
-                {activeMatch.teamAName} vs {activeMatch.teamBName}
-              </h2>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {activeMatch.roundLabel ?? "Session in progress"}
+              </p>
               <p className="mt-1 inline-flex items-center gap-2 text-sm text-amber-200/80">
                 <Timer className="h-4 w-4 animate-pulse" />
                 {formatDuration(liveElapsed)}
@@ -607,13 +607,6 @@ export function ReclubTournamentPage({
                   <Trophy className="mr-2 h-4 w-4" />
                   End match now
                 </Button>
-              </div>
-            ) : activeMatch.scoreA != null || activeMatch.scoreB != null ? (
-              <div className="text-center">
-                <p className="text-3xl font-bold tabular-nums text-foreground sm:text-4xl">
-                  {activeMatch.scoreA ?? 0} : {activeMatch.scoreB ?? 0}
-                </p>
-                <p className="mt-1 text-xs text-cp-muted">Live score</p>
               </div>
             ) : (
               <Badge variant="warning">Match in progress</Badge>

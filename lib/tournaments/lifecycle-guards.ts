@@ -51,13 +51,6 @@ export function assertBracketSeedingEditable(tournament: TournamentDetail): void
 }
 
 export function assertBracketSeedingResetAllowed(tournament: TournamentDetail): void {
-  const phase = getTournamentLivePhase(tournament);
-  if (phase === "live") {
-    throw new AppError(
-      "Bracket cannot be reset while the tournament is live. Finish or cancel active matches first.",
-      { code: "FORBIDDEN", statusCode: 403 },
-    );
-  }
   assertBracketSeedingEditable(tournament);
 }
 

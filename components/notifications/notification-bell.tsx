@@ -206,20 +206,16 @@ export function NotificationBell({ className }: { className?: string }) {
   const handleRead = useCallback(
     (item: NotificationItem) => {
       const href = resolveNotificationHref(item);
-      const navigate = () => {
-        if (href) {
-          setModalOpen(false);
-          setDropdownOpen(false);
-          router.push(href);
-        }
-      };
+      setModalOpen(false);
+      setDropdownOpen(false);
 
-      if (item.readAt) {
-        navigate();
-        return;
+      if (href) {
+        router.push(href);
       }
 
-      void markRead.mutateAsync(item.id).finally(navigate);
+      if (!item.readAt) {
+        markRead.mutate(item.id);
+      }
     },
     [markRead, router],
   );
@@ -320,31 +316,31 @@ export function NotificationBell({ className }: { className?: string }) {
         }}
       >
         <DialogContent className="flex max-h-[min(90vh,720px)] w-[min(100vw-1.5rem,520px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <DialogHeader className="shrink-0 space-y-0 border-b border-cp-border px-4 py-4 sm:px-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <DialogTitle className="text-lg">All notifications</DialogTitle>
-                <DialogDescription className="mt-1 text-sm text-cp-muted">
-                  {totalCount > 0
-                    ? `${totalCount} total${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`
-                    : "Search and browse your notification history."}
-                </DialogDescription>
-              </div>
-              {unreadCount > 0 ? (
+          <DialogHeader className="shrink-0 space-y-3 border-b border-cp-border px-4 py-4 pr-14 sm:px-5 sm:pr-14">
+            <div className="space-y-1">
+              <DialogTitle className="text-lg">All notifications</DialogTitle>
+              <DialogDescription className="text-sm text-cp-muted">
+                {totalCount > 0
+                  ? `${totalCount} total${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`
+                  : "Search and browse your notification history."}
+              </DialogDescription>
+            </div>
+            {unreadCount > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 shrink-0 text-xs"
+                  className="h-8 text-xs"
                   disabled={markAllRead.isPending}
                   onClick={() => markAllRead.mutate()}
                 >
-                  <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                  <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
                   Mark all read
                 </Button>
-              ) : null}
-            </div>
-            <div className="relative mt-4">
+              </div>
+            ) : null}
+            <div className="relative">
               <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
               <Input
                 value={search}
@@ -379,7 +375,7 @@ export function NotificationBell({ className }: { className?: string }) {
             )}
           </div>
 
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-cp-border px-4 py-3 sm:px-5">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-cp-border px-4 py-3 sm:px-5">
             <p className="text-[11px] text-cp-muted">
               {allItems.length > 0 && totalCount > allItems.length
                 ? `Showing ${allItems.length} of ${totalCount}`
@@ -387,12 +383,27 @@ export function NotificationBell({ className }: { className?: string }) {
                   ? `${allItems.length} notification${allItems.length === 1 ? "" : "s"}`
                   : null}
             </p>
-            <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" asChild>
-              <Link href="/dashboard/settings">
-                <Settings className="mr-1.5 h-3.5 w-3.5" />
-                Preferences
-              </Link>
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {unreadCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs sm:hidden"
+                  disabled={markAllRead.isPending}
+                  onClick={() => markAllRead.mutate()}
+                >
+                  <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
+                  Mark all read
+                </Button>
+              ) : null}
+              <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" asChild>
+                <Link href="/dashboard/settings">
+                  <Settings className="mr-1.5 h-3.5 w-3.5" />
+                  Preferences
+                </Link>
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

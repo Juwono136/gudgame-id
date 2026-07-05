@@ -34,7 +34,8 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import { isFunMatchType, isOfficialType } from "@/lib/tournaments/core/types";
 import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
-import { manageCourtGridClassName } from "@/lib/styles/surface-classes";
+import { manageCourtGridClassName, cpAlertDangerSubtextClass, cpAlertDangerSurfaceClass, cpAlertDangerTextClass } from "@/lib/styles/surface-classes";
+import { cn } from "@/lib/utils";
 
 type CourtScoringGridProps = {
   tournament: TournamentDetail;
@@ -255,9 +256,9 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
 
   if (isError) {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-950/20 p-6 text-center">
-        <p className="text-sm font-medium text-red-200">Could not load scoring</p>
-        <p className="mt-1 text-sm text-red-200/70">{error?.message ?? "Unknown error"}</p>
+      <div className={cn("p-6 text-center", cpAlertDangerSurfaceClass)}>
+        <p className={cn("text-sm font-medium", cpAlertDangerTextClass)}>Could not load scoring</p>
+        <p className={cn("mt-1 text-sm", cpAlertDangerSubtextClass)}>{error?.message ?? "Unknown error"}</p>
         <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void refetch()}>
           Retry
         </Button>

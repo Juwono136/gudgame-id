@@ -36,7 +36,12 @@ import {
 } from "@/lib/tournaments/reclub/session-lifecycle";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { cn } from "@/lib/utils";
+import { cpFunHostPanelClass, cpFunAccentTextClass } from "@/lib/styles/surface-classes";
 import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
+import {
+  canResetBracketTree,
+  isBracketSeedingLocked,
+} from "@/lib/tournaments/brackets/seeding-state";
 
 type ReclubBracketPanelProps = {
   sportSlug: string;
@@ -74,11 +79,8 @@ export function ReclubBracketPanel({
   const matches = data?.matches ?? [];
   const generated = hasPublicBracketTree(data);
   const seedingFinalized = data?.seedingFinalized ?? false;
-  const playStarted = matches.some(
-    (m) => m.status === "in_progress" || m.status === "completed",
-  );
-  const seedingLocked = playStarted || tournamentStatus === "completed";
-  const resetLocked = seedingLocked || tournamentStatus === "live";
+  const seedingLocked = isBracketSeedingLocked(matches, tournamentStatus);
+  const resetLocked = !canResetBracketTree(matches, tournamentStatus);
   const canSeed = canManage && generated && !seedingLocked && canPlay;
 
   const placedTeamIds = useMemo(() => {
@@ -109,7 +111,7 @@ export function ReclubBracketPanel({
     tournamentStatus !== "cancelled";
 
   const canRandomSeed =
-    canManage && generated && !seedingLocked && canPlay && activeSquads >= 2 && !round1HasTeams;
+    canManage && generated && !seedingLocked && canPlay && activeSquads >= 2;
 
   if (isLoading) {
     return (
@@ -124,7 +126,7 @@ export function ReclubBracketPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <GitBranch className="h-5 w-5 text-emerald-400" />
+            <GitBranch className={cn("h-5 w-5", cpFunAccentTextClass)} />
             Elimination bracket
           </h2>
           <p className="mt-1 max-w-xl text-sm text-cp-muted">
@@ -143,7 +145,7 @@ export function ReclubBracketPanel({
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl border border-dashed border-cp-border bg-cp-card/40 p-8 text-center"
         >
-          <Sparkles className="mx-auto h-8 w-8 text-emerald-400/80" />
+          <Sparkles className={cn("mx-auto h-8 w-8", cpFunAccentTextClass, "opacity-80")} />
           <p className="mt-3 text-sm text-cp-muted">
             {activeSquads < 2
               ? "Need at least 2 squads with players. The bracket tree appears automatically once the session is ready."
@@ -223,6 +225,14 @@ export function ReclubBracketPanel({
                   variant="outline"
                   disabled={generate.isPending}
                   onClick={async () => {
+                    const ok = await confirm({
+                      title: round1HasTeams ? "Randomly reshuffle round one?" : "Random seed bracket?",
+                      description: round1HasTeams
+                        ? "Current placements are cleared and squads are randomly re-seeded. Allowed only before any match is scored."
+                        : "Squads will be randomly placed in round one.",
+                      confirmLabel: "Random seed",
+                    });
+                    if (!ok) return;
                     try {
                       await generate.mutateAsync("random");
                       await refetch();
@@ -327,8 +337,8 @@ function BracketSeedingPool({
   const activeSquad = squads.find((s) => `squad-${s.id}` === activeId);
 
   return (
-    <section className="rounded-2xl border border-emerald-500/25 bg-emerald-950/15 p-4 sm:p-5">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
+    <section className={cpFunHostPanelClass}>
+      <h3 className={cn("flex items-center gap-2 text-sm font-semibold", cpFunAccentTextClass)}>
         <Users className="h-4 w-4" />
         Seed squads — drag into round one slots
       </h3>
@@ -412,7 +422,7 @@ function SlotDropZone({
       className={cn(
         "flex min-h-9 items-center justify-center rounded-lg border border-dashed px-2 py-1.5 text-xs transition-colors",
         isOver
-          ? "border-emerald-400 bg-emerald-500/10 text-emerald-200"
+          ? "border-emerald-500 bg-emerald-50 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-200"
           : "border-cp-border text-cp-muted",
       )}
     >

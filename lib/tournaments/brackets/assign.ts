@@ -6,7 +6,6 @@ import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { assertBracketSetupAllowed } from "@/lib/tournaments/lifecycle-guards";
-import { assertBracketPlayNotStarted } from "@/lib/tournaments/brackets/play-guard";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import { assertTeamBracketEligible } from "@/lib/tournaments/brackets/eligible-teams";
@@ -56,7 +55,6 @@ export async function assignTeamToBracketSlot(
   }
 
   assertBracketSetupAllowed(tournament);
-  await assertBracketPlayNotStarted(tournament.id);
 
   if (match.status !== "pending") {
     throw new AppError("This match has already started or finished", {

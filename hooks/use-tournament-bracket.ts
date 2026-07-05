@@ -10,7 +10,7 @@ import type {
   OfficialTournamentStaffMember,
   OfficialTournamentStaffRole,
 } from "@/lib/tournaments/settings";
-import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
+import { tournamentQueryKeys, invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 
 type UseTournamentBracketOptions = {
   enabled?: boolean;
@@ -24,8 +24,9 @@ export function useTournamentBracket(
   const canFetch = Boolean(sportSlug && slug) && (options?.enabled ?? true);
 
   return useQuery({
-    queryKey: ["tournaments", "bracket", sportSlug, slug],
+    queryKey: tournamentQueryKeys.bracket(sportSlug, slug),
     enabled: canFetch,
+    staleTime: 0,
     queryFn: async () => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket`);
       const json = await parseJsonResponse<{
@@ -46,15 +47,10 @@ export function useTournamentBracket(
     refetchInterval: (query) => {
       const data = query.state.data;
       const matches = data?.matches ?? [];
-      if (matches.some((m) => m.status === "in_progress")) return 5000;
-      if (data?.seedingFinalized === false) {
-        const hasPlacedTeams = matches.some(
-          (m) => m.roundNumber === 1 && (m.teamAId || m.teamBId),
-        );
-        if (hasPlacedTeams) return 8000;
-      }
-      if (matches.some((m) => m.status === "pending" || m.status === "bye")) return 15000;
-      return 30000;
+      if (matches.some((m) => m.status === "in_progress")) return 3000;
+      if (data?.seedingFinalized === false) return 4000;
+      if (matches.some((m) => m.status === "pending" || m.status === "bye")) return 8000;
+      return 15000;
     },
   });
 }
@@ -92,7 +88,7 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
     },
     onSuccess: (match) => {
       qc.setQueryData(
-        ["tournaments", "bracket", sportSlug, slug],
+        tournamentQueryKeys.bracket(sportSlug, slug),
         (prev: { matches: BracketMatchView[]; leaderboard: LeaderboardEntry[]; generated: boolean } | undefined) => {
           if (!prev) return prev;
           return {
@@ -101,8 +97,7 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
           };
         },
       );
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      invalidateTournamentQueries(qc, sportSlug, slug);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -128,9 +123,7 @@ export function useGenerateReclubBracket(sportSlug: string, slug: string) {
       return json.data;
     },
     onSuccess: (_data, seedMode) => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "lobby", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       toast.success(
         seedMode === "random"
           ? "Bracket generated with random seeding"
@@ -162,7 +155,7 @@ export function useAssignBracketTeam(sportSlug: string, slug: string) {
     },
     onSuccess: (match) => {
       qc.setQueryData(
-        ["tournaments", "bracket", sportSlug, slug],
+        tournamentQueryKeys.bracket(sportSlug, slug),
         (prev: { matches: BracketMatchView[]; leaderboard: LeaderboardEntry[]; generated: boolean } | undefined) => {
           if (!prev) return prev;
           return {
@@ -172,7 +165,7 @@ export function useAssignBracketTeam(sportSlug: string, slug: string) {
           };
         },
       );
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       toast.success("Squad placed");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -199,9 +192,7 @@ export function useGeneratePublicBracket(sportSlug: string, slug: string) {
       return json.data;
     },
     onSuccess: (_data, seedMode) => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       toast.success(
         seedMode === "random"
           ? "Bracket generated with random seeding"
@@ -230,9 +221,7 @@ export function useFinalizeBracketSeeding(sportSlug: string, slug: string) {
       return json.data;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       toast.success("Bracket seeding saved — ready for live scoring");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -257,9 +246,7 @@ export function useResetBracket(sportSlug: string, slug: string) {
       return json.data;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       toast.success("Bracket reset — you can generate again");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -286,9 +273,7 @@ export function useRematchBracketMatch(sportSlug: string, slug: string) {
       return json.data.match;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       void qc.invalidateQueries({ queryKey: ["reclub", "matches", sportSlug, slug] });
       toast.success("Match reset — ready to play again");
     },
@@ -316,9 +301,7 @@ export function useStartBracketMatchOnCourt(sportSlug: string, slug: string) {
       return json.data.match;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      invalidateTournamentQueries(qc, sportSlug, slug);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -374,10 +357,7 @@ export function useSubmitBracketScore(sportSlug: string, slug: string) {
       return json.data;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "bracket", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: ["reclub", "matches", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "lobby", sportSlug, slug] });
-      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      invalidateTournamentQueries(qc, sportSlug, slug);
       toast.success("Score saved — session history updated");
     },
     onError: (e: Error) => toast.error(e.message),

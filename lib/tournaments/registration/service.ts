@@ -1,7 +1,8 @@
 import "server-only";
 
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { user } from "@/db/schema/auth";
 import { sports } from "@/db/schema/sports";
 import {
   tournamentRegistrations,
@@ -340,6 +341,13 @@ export type OfficialRegistrationInput = {
   memberUserIds: string[];
 };
 
+export type RegistrationTeamMemberView = {
+  userId: string;
+  displayName: string;
+  role: string;
+  slotIndex: number;
+};
+
 export type UserRegistrationStatus = {
   status:
     | "none"
@@ -351,6 +359,7 @@ export type UserRegistrationStatus = {
   registrationId: string | null;
   teamId: string | null;
   teamName: string | null;
+  teamMembers: RegistrationTeamMemberView[];
   paymentStatus: string | null;
   paymentId: string | null;
   invoiceUrl: string | null;
@@ -397,6 +406,31 @@ async function countActiveRegistrations(tournamentId: string): Promise<number> {
       ),
     );
   return Number(row?.count ?? 0);
+}
+
+async function getRegistrationTeamMembers(
+  teamId: string | null,
+): Promise<RegistrationTeamMemberView[]> {
+  if (!teamId) return [];
+
+  const rows = await getDb()
+    .select({
+      userId: tournamentTeamMembers.userId,
+      slotIndex: tournamentTeamMembers.slotIndex,
+      role: tournamentTeamMembers.role,
+      displayName: sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`,
+    })
+    .from(tournamentTeamMembers)
+    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .where(eq(tournamentTeamMembers.teamId, teamId))
+    .orderBy(asc(tournamentTeamMembers.slotIndex));
+
+  return rows.map((row) => ({
+    userId: row.userId,
+    displayName: row.displayName,
+    role: row.role,
+    slotIndex: row.slotIndex,
+  }));
 }
 
 export async function getUserRegistrationStatus(
@@ -448,6 +482,7 @@ export async function getUserRegistrationStatus(
       registrationId: null,
       teamId: null,
       teamName: null,
+      teamMembers: [],
       paymentStatus: null,
       paymentId: null,
       invoiceUrl: null,
@@ -463,12 +498,14 @@ export async function getUserRegistrationStatus(
     sportSlug: row.sportSlug,
     slug: row.tournamentSlug,
   };
+  const teamMembers = await getRegistrationTeamMembers(row.teamId);
 
   return {
     status,
     registrationId: row.registrationId,
     teamId: row.teamId,
     teamName: row.teamName,
+    teamMembers,
     paymentStatus: row.paymentStatus,
     paymentId: row.paymentId,
     invoiceUrl: row.invoiceUrl,

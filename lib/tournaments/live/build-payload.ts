@@ -20,6 +20,7 @@ import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
 import { getTournamentDisplayConfig } from "@/lib/tournaments/settings";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
+import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import { computeTournamentSessionStats } from "@/lib/tournaments/stats/compute";
 import type { StatsMatchInput, TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -117,7 +118,7 @@ function toStatsMatchFromBracket(m: BracketMatchView): StatsMatchInput | null {
     scoreA: m.scoreA ?? 0,
     scoreB: m.scoreB ?? 0,
     status: m.status,
-    durationSeconds: null,
+    durationSeconds: resolveBracketMatchDurationSeconds(m),
   };
 }
 
@@ -245,7 +246,7 @@ export async function buildTournamentLivePayload(
       label: historyLabelForBracket(m, maxBracketRound),
       summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
       score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
-      endedAt: null,
+      endedAt: m.completedAt,
       playType: "bracket" as const,
       roundNumber: m.roundNumber,
       teamAId: m.teamAId ?? null,
