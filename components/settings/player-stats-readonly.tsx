@@ -18,7 +18,7 @@ export function PlayerStatsReadonly({ profile }: PlayerStatsReadonlyProps) {
     return (
       <div className="rounded-xl border border-dashed border-cp-border bg-cp-elevated/40 p-5 text-center dark:bg-cp-elevated/20">
         <p className="text-sm text-cp-muted">
-          Tournament statistics will appear here once you compete in events on TandingBase.
+          Tournament statistics will appear here once you compete in events on Gud Game.
         </p>
       </div>
     );

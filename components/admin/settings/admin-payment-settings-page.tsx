@@ -31,7 +31,7 @@ const ADMIN_PAYMENTS_TABS = [
     id: "ledger",
     label: "Payment ledger",
     description:
-      "Search and review every registration payment across all official tournaments on TandingBase.",
+      "Search and review every registration payment across all official tournaments on Gud Game.",
     icon: Receipt,
   },
   {

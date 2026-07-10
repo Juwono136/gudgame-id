@@ -7,7 +7,7 @@ import { requirePlayerDashboardAccess } from "@/lib/auth/role-guard";
 
 export const metadata = {
   title: "Player Dashboard",
-  description: "Your TandingBase player hub — profile, stats, and settings.",
+  description: "Your Gud Game player hub — profile, stats, and settings.",
 };
 
 export default async function DashboardPage() {

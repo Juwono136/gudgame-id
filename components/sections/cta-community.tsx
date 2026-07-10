@@ -183,7 +183,7 @@ export default function CTACommunity() {
             Join the Community
           </h2>
           <p className="relative mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-cp-muted sm:text-base">
-            TandingBase is built by enthusiasts, for enthusiasts. Create an account to track
+            Gud Game is built by enthusiasts, for enthusiasts. Create an account to track
             your gear, follow your favorite pros, and contribute to the knowledge base.
           </p>
 

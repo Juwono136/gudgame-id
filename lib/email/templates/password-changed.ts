@@ -35,7 +35,7 @@ export function renderPasswordChangedTemplate(data: PasswordChangedTemplateData)
   const bodyHtml = `
     <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Password updated</h1>
     <p style="margin:0 0 8px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#0047FF;">${userName}</strong>, your <strong>${appName}</strong> account password was changed successfully.
+      Hi <strong style="color:#00BF8B;">${userName}</strong>, your <strong>${appName}</strong> account password was changed successfully.
     </p>
     <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#4B5563;">
       Changed on <strong>${changedAt}</strong>. Use your new password the next time you sign in.
@@ -44,7 +44,7 @@ export function renderPasswordChangedTemplate(data: PasswordChangedTemplateData)
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
       <tr>
         <td align="center">
-          <a href="${loginUrl}" class="email-btn" style="display:inline-block;padding:16px 40px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#0047FF;box-shadow:0 4px 14px rgba(0,71,255,0.4);letter-spacing:0.05em;">
+          <a href="${loginUrl}" class="email-btn" style="display:inline-block;padding:16px 40px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#00BF8B;box-shadow:0 4px 14px rgba(0,191,139,0.4);letter-spacing:0.05em;">
             SIGN IN TO ${appName.toUpperCase()}
           </a>
         </td>
@@ -69,7 +69,7 @@ export function renderPasswordChangedTemplate(data: PasswordChangedTemplateData)
     bodyHtml,
     heroTag: "Account security",
     footerNote:
-      "Never share your password. TandingBase will never ask for your password by email.",
+      "Never share your password. Gud Game will never ask for your password by email.",
   });
 
   const text = [

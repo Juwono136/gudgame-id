@@ -37,7 +37,7 @@ export default async function CheckEmailPage({ searchParams }: PageProps) {
         </p>
         <Link
           href={loginHref}
-          className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#0033C0]"
+          className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#00a67a]"
         >
           Back to Sign In
         </Link>

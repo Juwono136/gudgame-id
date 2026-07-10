@@ -419,7 +419,7 @@ export function BracketTreeView({
 
                   {isFinalRound ? (
                     <div className="ml-1 flex shrink-0 items-center self-center sm:ml-2">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cp-primary/30 bg-cp-primary/10 shadow-[0_0_20px_rgba(0,71,255,0.12)] sm:h-12 sm:w-12 lg:h-14 lg:w-14">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cp-primary/30 bg-cp-primary/10 shadow-[0_0_20px_rgba(0,191,139,0.12)] sm:h-12 sm:w-12 lg:h-14 lg:w-14">
                         <Trophy className="h-5 w-5 text-cp-primary/80 sm:h-6 sm:w-6 lg:h-7 lg:w-7" />
                       </div>
                     </div>

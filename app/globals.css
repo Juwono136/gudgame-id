@@ -4,40 +4,42 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* TandingBase design tokens — shared brand */
+/* Gud Game design tokens — shared brand */
 :root {
-  --cp-primary: #0047ff;
-  --cp-primary-dark: #001257;
-  --cp-primary-mid: #00228a;
-  --cp-primary-light: #0033c0;
+  --cp-primary: #00bf8b;
+  --cp-primary-dark: #032921;
+  --cp-primary-mid: #042822;
+  --cp-primary-light: #00a67a;
+  --cp-primary-hover: #00a67a;
   --cp-accent-red: #b82800;
   --cp-accent-red-dark: #3d0700;
-  --cp-green-deep: #062016;
-  --cp-green-mid: #1c352a;
-  --cp-green-soft: #4a6457;
-  --cp-green-mint: #daf8e7;
+  --cp-green-deep: #032921;
+  --cp-green-mid: #042822;
+  --cp-green-soft: #4a8f7a;
+  --cp-green-mint: #b7f1c9;
   --cp-gray: #757683;
-  --cp-hero-overlay: #e8eef8;
-  --cp-badge-green: #daf8e7;
-  --cp-badge-border: rgba(218, 248, 231, 0.35);
-  --cp-primary-glow: rgba(0, 71, 255, 0.22);
-  --cp-logo-accent: #0047ff;
+  --cp-hero-overlay: #e8faf3;
+  --cp-badge-green: #b7f1c9;
+  --cp-badge-border: rgba(183, 241, 201, 0.45);
+  --cp-primary-glow: rgba(0, 191, 139, 0.25);
+  --cp-logo-accent: #00bf8b;
+  --cp-logo-mint: #b7f1c9;
 
   /* Light mode surfaces */
-  --cp-bg: #f4f6fb;
+  --cp-bg: #f5faf8;
   --cp-bg-card: #ffffff;
-  --cp-bg-input: #f1f5f9;
+  --cp-bg-input: #eef6f2;
   --cp-surface: #ffffff;
-  --cp-surface-elevated: #f1f5f9;
-  --cp-surface-muted: #e2e8f0;
+  --cp-surface-elevated: #eef6f2;
+  --cp-surface-muted: #dceee6;
   --cp-sidebar: #ffffff;
-  --cp-border: #e2e8f0;
-  --cp-border-subtle: #f1f5f9;
-  --cp-text: #0f172a;
-  --cp-text-muted: #64748b;
-  --cp-text-dim: #94a3b8;
-  --cp-lavender: #f0efff;
-  --cp-lavender-alt: #f0effe;
+  --cp-border: #d4ebe3;
+  --cp-border-subtle: #e8f5ef;
+  --cp-text: #032921;
+  --cp-text-muted: #4a6b60;
+  --cp-text-dim: #6b8f82;
+  --cp-lavender: #e8faf3;
+  --cp-lavender-alt: #dff5eb;
 
   color-scheme: light;
 
@@ -48,7 +50,7 @@
   --popover: var(--cp-bg-card);
   --popover-foreground: var(--cp-text);
   --primary: var(--cp-primary);
-  --primary-foreground: #ffffff;
+  --primary-foreground: #000000;
   --secondary: var(--cp-surface-elevated);
   --secondary-foreground: var(--cp-text);
   --muted: var(--cp-surface-elevated);
@@ -64,22 +66,23 @@
 }
 
 .dark {
-  --cp-primary-glow: rgba(0, 71, 255, 0.45);
-  --cp-logo-accent: #7eb3ff;
-  --cp-hero-overlay: #062016;
+  --cp-primary-glow: rgba(0, 191, 139, 0.35);
+  --cp-logo-accent: #b7f1c9;
+  --cp-logo-mint: #b7f1c9;
+  --cp-hero-overlay: #032921;
 
-  --cp-bg: #0b0e14;
-  --cp-bg-card: #191b25;
-  --cp-bg-input: #2e303a;
-  --cp-surface: #191b25;
-  --cp-surface-elevated: #2e303a;
-  --cp-surface-muted: #454651;
-  --cp-sidebar: #12141d;
-  --cp-border: #454651;
-  --cp-border-subtle: #2e303a;
+  --cp-bg: #000000;
+  --cp-bg-card: #032921;
+  --cp-bg-input: #042822;
+  --cp-surface: #032921;
+  --cp-surface-elevated: #042822;
+  --cp-surface-muted: #0a3d32;
+  --cp-sidebar: #000000;
+  --cp-border: #0a3d32;
+  --cp-border-subtle: #042822;
   --cp-text: #ffffff;
-  --cp-text-muted: #757683;
-  --cp-text-dim: #64748b;
+  --cp-text-muted: #b7f1c9;
+  --cp-text-dim: #6b8f82;
 
   color-scheme: dark;
 
@@ -111,6 +114,7 @@
   --color-cp-border: var(--cp-border);
   --color-cp-primary: var(--cp-primary);
   --color-cp-logo-accent: var(--cp-logo-accent);
+  --color-cp-logo-mint: var(--cp-logo-mint);
   --color-cp-muted: var(--cp-text-muted);
   --color-cp-text-dim: var(--cp-text-dim);
   --color-cp-bg-input: var(--cp-bg-input);
@@ -170,7 +174,7 @@
 
 @layer utilities {
   .text-gradient-primary {
-    @apply bg-linear-to-r from-[#0033C0] via-[#0047FF] to-[#F0EFFF] bg-clip-text text-transparent;
+    @apply bg-linear-to-r from-[#032921] via-[#00BF8B] to-[#B7F1C9] bg-clip-text text-transparent;
   }
   .glow-primary {
     box-shadow: 0 0 32px var(--cp-primary-glow);

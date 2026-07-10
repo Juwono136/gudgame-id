@@ -460,7 +460,7 @@ export function RegistrationCheckoutClient({
           <div className="mt-6 overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card lg:mt-0">
             <div className="border-b border-cp-border bg-cp-elevated/30 px-5 py-5 sm:px-6 sm:py-6">
               <p className="text-[11px] font-semibold uppercase tracking-widest text-cp-primary">
-                Secure checkout · TandingBase
+                Secure checkout · Gud Game
               </p>
               <h1 className="mt-2 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {instructions ? "Complete your payment" : "Choose payment method"}
@@ -487,7 +487,7 @@ export function RegistrationCheckoutClient({
                           "group flex min-h-[5.5rem] items-start gap-3 rounded-xl border p-4 text-left transition-all",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary/50",
                           active
-                            ? "border-cp-primary bg-cp-primary/10 shadow-[0_0_0_1px_rgba(0,71,255,0.25)]"
+                            ? "border-cp-primary bg-cp-primary/10 shadow-[0_0_0_1px_rgba(0,191,139,0.25)]"
                             : "border-cp-border bg-cp-elevated/30 hover:border-cp-primary/40 hover:bg-cp-elevated/60",
                           busy && "pointer-events-none opacity-60",
                         )}

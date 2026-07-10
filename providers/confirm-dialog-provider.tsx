@@ -122,7 +122,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                   "btn-interactive h-10 w-full rounded-lg font-semibold sm:w-auto",
                   isDestructive
                     ? "bg-[#ff6b6b] text-primary-foreground hover:bg-[#e85555]"
-                    : "bg-cp-primary text-primary-foreground hover:bg-[#0033C0]",
+                    : "bg-cp-primary text-primary-foreground hover:bg-[#00a67a]",
                 )}
                 onClick={(e) => {
                   e.preventDefault();

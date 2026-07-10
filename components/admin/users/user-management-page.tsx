@@ -250,7 +250,7 @@ export function UserManagementPage({ context }: UserManagementPageProps) {
         className="space-y-6"
       >
         <p className="text-sm leading-relaxed text-cp-muted">
-          Control access levels and monitor activity for the TandingBase staff ecosystem.
+          Control access levels and monitor activity for the Gud Game staff ecosystem.
         </p>
 
         {/* Stats */}

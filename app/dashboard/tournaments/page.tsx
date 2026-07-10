@@ -6,7 +6,7 @@ import { requireRoleGuardContext } from "@/lib/auth/role-guard";
 
 export const metadata = {
   title: "Tournament History",
-  description: "Your complete tournament placement history on TandingBase.",
+  description: "Your complete tournament placement history on Gud Game.",
 };
 
 export default async function PlayerTournamentsPage() {

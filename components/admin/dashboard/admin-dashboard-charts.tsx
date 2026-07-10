@@ -19,15 +19,15 @@ import type { AdminDashboardStats } from "@/lib/admin/dashboard/service";
 import { cn } from "@/lib/utils";
 
 const CHART_COLORS = {
-  primary: "#0047ff",
-  players: "#0047ff",
+  primary: "#00BF8B",
+  players: "#00BF8B",
   teams: "#f59e0b",
   gear: "#10b981",
   muted: "#64748b",
   grid: "rgba(148, 163, 184, 0.15)",
 };
 
-const PIE_COLORS = ["#0047ff", "#10b981", "#f59e0b", "#8b5cf6"];
+const PIE_COLORS = ["#00BF8B", "#B7F1C9", "#042822", "#032921"];
 
 type ChartCardProps = {
   title: string;

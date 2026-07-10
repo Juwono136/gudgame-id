@@ -6,7 +6,7 @@ import { requireRoleGuardContext } from "@/lib/auth/role-guard";
 
 export const metadata = {
   title: "Payments & Registrations",
-  description: "Your official tournament payment history on TandingBase.",
+  description: "Your official tournament payment history on Gud Game.",
 };
 
 export default async function PlayerPaymentsRoute() {

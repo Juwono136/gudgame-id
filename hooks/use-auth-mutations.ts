@@ -118,7 +118,7 @@ export function useLoginMutation() {
       }
 
       toast.success("Welcome back!", {
-        description: "Welcome back to TandingBase!",
+        description: "Welcome back to Gud Game!",
       });
 
       if (mustChangePassword) {
@@ -181,12 +181,12 @@ async function finishAuthRedirect(
     }
 
     if (options?.isNewUser) {
-      toast.success("Welcome to TandingBase!", {
+      toast.success("Welcome to Gud Game!", {
         description: "Your Google account is connected. Check your inbox for a welcome email.",
       });
     } else {
       toast.success("Signed in with Google", {
-        description: "Welcome back to TandingBase!",
+        description: "Welcome back to Gud Game!",
       });
     }
 

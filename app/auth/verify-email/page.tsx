@@ -42,11 +42,11 @@ export default async function VerifyEmailResultPage({ searchParams }: PageProps)
             <h1 className="mt-6 text-2xl font-bold text-white">Email verified</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-400">
               Your email is confirmed. Sign in to continue
-              {callbackUrl ? " to the tournament or page you were joining." : " to TandingBase."}
+              {callbackUrl ? " to the tournament or page you were joining." : " to Gud Game."}
             </p>
             <Link
               href={loginHref}
-              className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#0033C0]"
+              className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#00a67a]"
             >
               Sign In
             </Link>
@@ -65,7 +65,7 @@ export default async function VerifyEmailResultPage({ searchParams }: PageProps)
             </p>
             <Link
               href={authRoutes.login}
-              className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#0033C0]"
+              className="btn-interactive mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-8 text-sm font-semibold text-white hover:bg-[#00a67a]"
             >
               Go to Sign In
             </Link>
@@ -89,7 +89,7 @@ export default async function VerifyEmailResultPage({ searchParams }: PageProps)
             <div className="mt-8 flex flex-col gap-2 sm:flex-row">
               <Link
                 href={authRoutes.login}
-                className="btn-interactive inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-6 text-sm font-semibold text-white hover:bg-[#0033C0]"
+                className="btn-interactive inline-flex h-11 items-center justify-center rounded-lg bg-cp-primary px-6 text-sm font-semibold text-white hover:bg-[#00a67a]"
               >
                 Sign In
               </Link>

@@ -18,7 +18,7 @@ export function renderHostPayoutFailedTemplate(
   const bodyHtml = `
     <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Payout needs attention</h1>
     <p style="margin:0 0 20px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#0047FF;">${escapeHtml(data.hostName)}</strong>,
+      Hi <strong style="color:#00BF8B;">${escapeHtml(data.hostName)}</strong>,
       we could not complete a scheduled transfer of <strong>${escapeHtml(data.amountFormatted)}</strong>
       to <strong>${escapeHtml(data.maskedAccount)}</strong>.
     </p>
@@ -36,7 +36,7 @@ export function renderHostPayoutFailedTemplate(
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
       <tr>
         <td align="center">
-          <a href="${paymentsUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#0047FF;text-decoration:none;border-radius:10px;border:2px solid #0047FF;">
+          <a href="${paymentsUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#00BF8B;text-decoration:none;border-radius:10px;border:2px solid #00BF8B;">
             Review payout settings
           </a>
         </td>

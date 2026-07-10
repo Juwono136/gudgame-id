@@ -219,9 +219,9 @@ export function GlobalSearchBox({
             type="submit"
             disabled={query.trim().length < 2}
             className={cn(
-              "btn-interactive inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-cp-primary font-semibold text-white transition-colors hover:bg-[#0033C0] disabled:cursor-not-allowed disabled:opacity-50",
+              "btn-interactive inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-cp-primary font-semibold text-white transition-colors hover:bg-[#00a67a] disabled:cursor-not-allowed disabled:opacity-50",
               isHero
-                ? "px-4 py-2.5 text-xs shadow-[0_4px_20px_rgba(0,71,255,0.4)] sm:text-sm"
+                ? "px-4 py-2.5 text-xs shadow-[0_4px_20px_rgba(0,191,139,0.4)] sm:text-sm"
                 : "h-9 px-3 text-xs sm:px-4 sm:text-sm",
             )}
           >

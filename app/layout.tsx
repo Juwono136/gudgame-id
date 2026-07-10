@@ -30,11 +30,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: brandAssets.favicon, sizes: "any" },
-      { url: brandAssets.logo, sizes: "128x128", type: "image/png" },
-      { url: brandAssets.logo512, sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: brandAssets.logo, sizes: "512x512", type: "image/png" },
     ],
-    shortcut: brandAssets.favicon,
+    shortcut: "/favicon.ico",
     apple: [{ url: brandAssets.logo512, sizes: "512x512", type: "image/png" }],
   },
   appleWebApp: {
@@ -58,10 +57,10 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans">
         <NextTopLoader
-          color="#0047FF"
+          color="#00BF8B"
           height={3}
           showSpinner={false}
-          shadow="0 0 12px rgba(0,71,255,0.45)"
+          shadow="0 0 12px rgba(0,191,139,0.45)"
         />
         <AppProviders>{children}</AppProviders>
       </body>

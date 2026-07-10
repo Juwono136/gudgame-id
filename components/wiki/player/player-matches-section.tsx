@@ -89,7 +89,7 @@ export function PlayerRecentMatchesSection({
             <p className="text-sm font-medium text-foreground">No recent matches</p>
             <p className="max-w-sm text-xs text-cp-muted">
               Match history will appear here after this player competes in tournaments on
-              TandingBase.
+              Gud Game.
             </p>
             {viewAllHref ? (
               <Button asChild variant="outline" size="sm" className="mt-2 border-cp-border">

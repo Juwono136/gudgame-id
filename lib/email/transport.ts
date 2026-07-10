@@ -46,7 +46,7 @@ export async function sendRawEmail(params: {
     });
 
     await transport.sendMail({
-      from: `"TandingBase" <${user}>`,
+      from: `"Gud Game" <${user}>`,
       to: params.to,
       subject: params.subject,
       html: params.html,

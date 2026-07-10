@@ -113,7 +113,7 @@ export function AdminPaymentFeeSettingsCard() {
         <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-cp-primary" />
         <p className="text-xs leading-relaxed text-cp-muted sm:text-sm">
           <strong className="font-medium text-foreground">Platform owner only.</strong> These fees
-          apply to every official (paid) tournament registration across TandingBase. Hosts cannot
+          apply to every official (paid) tournament registration across Gud Game. Hosts cannot
           change them — they only receive payouts after your commission is deducted.
         </p>
       </div>
@@ -203,7 +203,7 @@ export function AdminPaymentFeeSettingsCard() {
             </div>
           </dl>
           <p className="mt-4 text-xs leading-relaxed text-cp-muted">
-            The fixed IDR commission is TandingBase platform revenue. The percentage is passed
+            The fixed IDR commission is Gud Game platform revenue. The percentage is passed
             through to cover variable payment-gateway fees so hosts are not charged for gateway
             costs.
           </p>

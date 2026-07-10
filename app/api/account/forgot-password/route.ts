@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "No TandingBase account is registered with this email. Check the spelling or create an account.",
+            "No Gud Game account is registered with this email. Check the spelling or create an account.",
           code: "ACCOUNT_NOT_FOUND",
         },
         { status: 404 },

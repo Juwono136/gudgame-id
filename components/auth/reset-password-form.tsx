@@ -74,7 +74,7 @@ export function ResetPasswordForm() {
           </p>
           <Button
             asChild
-            className="btn-interactive h-11 w-full rounded-lg bg-cp-primary font-semibold text-white hover:bg-[#0033C0]"
+            className="btn-interactive h-11 w-full rounded-lg bg-cp-primary font-semibold text-white hover:bg-[#00a67a]"
           >
             <Link href={authRoutes.forgotPassword}>Forgot password</Link>
           </Button>
@@ -87,7 +87,7 @@ export function ResetPasswordForm() {
     <AuthSimpleShell
       wide
       formTitle="Set a new password"
-      formSubtitle="Choose a strong password you have not used on TandingBase before."
+      formSubtitle="Choose a strong password you have not used on Gud Game before."
       footer={
         <p className="text-sm text-cp-muted">
           <Link
@@ -147,7 +147,7 @@ export function ResetPasswordForm() {
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#0033C0]",
+            "btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#00a67a]",
           )}
         >
           {isSubmitting ? (

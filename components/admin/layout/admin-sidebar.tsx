@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { BrandWordmark } from "@/components/brand/brand-wordmark";
 import { adminRoutes } from "@/lib/constants/routes";
 import { filterAdminNav, isAdminNavActive } from "@/lib/admin/navigation";
 import type { AdminSessionContext } from "@/lib/admin/types";
@@ -38,16 +37,12 @@ export function AdminSidebar({
       {/* Top bar: logo + close (mobile) */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-cp-border px-4 py-4">
         <div className="min-w-0 flex-1">
-          {embedded ? (
-            <BrandLogo size="sm" />
-          ) : (
-            <>
-              <BrandWordmark size="lg" className="font-bold" />
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cp-muted">
-                Master Console
-              </p>
-            </>
-          )}
+          <BrandLogo size="sm" href="/admin" />
+          {!embedded ? (
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cp-muted">
+              Master Console
+            </p>
+          ) : null}
         </div>
         {onClose ? (
           <button

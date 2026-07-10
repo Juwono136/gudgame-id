@@ -317,7 +317,7 @@ export async function upsertPlayerWikiProfile(
         context: {
           fieldErrors: {
             sportInterests: [
-              "Choose at least one sport in Settings that is already enabled on TandingBase.",
+              "Choose at least one sport in Settings that is already enabled on Gud Game.",
             ],
           },
         },

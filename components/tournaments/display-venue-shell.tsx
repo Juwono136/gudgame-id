@@ -21,7 +21,7 @@ export function DisplayVenueShell({ children, className }: DisplayVenueShellProp
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(0,71,255,0.35),transparent_55%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(0,191,139,0.35),transparent_55%)]"
         aria-hidden
       />
       <div

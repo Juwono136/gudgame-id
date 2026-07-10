@@ -9,7 +9,7 @@ import { getPaymentInvoiceDocument } from "@/lib/tournaments/payments/payment-in
 
 export const metadata = {
   title: "Payment receipt",
-  description: "Official tournament payment receipt on TandingBase.",
+  description: "Official tournament payment receipt on Gud Game.",
 };
 
 type PageProps = {

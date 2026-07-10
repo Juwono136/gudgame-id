@@ -46,7 +46,7 @@ export function renderRegistrationConfirmedTemplate(
   const bodyHtml = `
     <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">You're officially in</h1>
     <p style="margin:0 0 8px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#0047FF;">${userName}</strong>, payment received — your team is confirmed for
+      Hi <strong style="color:#00BF8B;">${userName}</strong>, payment received — your team is confirmed for
       <strong>${tournamentName}</strong>.
     </p>
     <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#4B5563;">
@@ -58,7 +58,7 @@ export function renderRegistrationConfirmedTemplate(
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 12px;">
       <tr>
         <td align="center">
-          <a href="${receiptUrl}" class="email-btn" style="display:inline-block;padding:16px 36px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#0047FF;box-shadow:0 4px 14px rgba(0,71,255,0.35);letter-spacing:0.04em;">
+          <a href="${receiptUrl}" class="email-btn" style="display:inline-block;padding:16px 36px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#00BF8B;box-shadow:0 4px 14px rgba(0,191,139,0.35);letter-spacing:0.04em;">
             VIEW &amp; DOWNLOAD RECEIPT
           </a>
         </td>
@@ -66,13 +66,13 @@ export function renderRegistrationConfirmedTemplate(
     </table>
 
     <p style="margin:0 0 24px;text-align:center;font-size:13px;line-height:1.6;color:#6B7280;">
-      Receipt also saved in <a href="${paymentsUrl}" style="color:#0047FF;text-decoration:none;font-weight:600;">Payments</a> on your dashboard.
+      Receipt also saved in <a href="${paymentsUrl}" style="color:#00BF8B;text-decoration:none;font-weight:600;">Payments</a> on your dashboard.
     </p>
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background-color:#F8FAFC;border:1px solid #E5E7EB;border-radius:12px;">
       <tr>
         <td style="padding:18px 20px;">
-          <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0047FF;">Event details</p>
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#00BF8B;">Event details</p>
           <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Sport:</strong> ${sportName}</p>
           <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Team:</strong> ${teamName}</p>
           <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Dates:</strong> ${escapeHtml(data.dateRange)}</p>
@@ -94,7 +94,7 @@ export function renderRegistrationConfirmedTemplate(
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
       <tr>
         <td align="center">
-          <a href="${tournamentUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#0047FF;text-decoration:none;border-radius:10px;border:2px solid #0047FF;">
+          <a href="${tournamentUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#00BF8B;text-decoration:none;border-radius:10px;border:2px solid #00BF8B;">
             View tournament page
           </a>
         </td>

@@ -34,7 +34,7 @@ export function ForgotPasswordForm() {
   return (
     <AuthSimpleShell
       formTitle="Forgot password?"
-      formSubtitle="Enter the email address linked to your TandingBase account."
+      formSubtitle="Enter the email address linked to your Gud Game account."
       footer={
         <p className="text-sm text-cp-muted">
           Remember your password?{" "}
@@ -52,7 +52,7 @@ export function ForgotPasswordForm() {
         onSubmit={handleSubmit((values) =>
           mutation.mutate(values, {
             onError: (err: Error) => {
-              if (err.message.toLowerCase().includes("no tandingbase account")) {
+              if (err.message.toLowerCase().includes("no Gud Game account")) {
                 setError("email", { message: err.message });
               }
             },
@@ -84,7 +84,7 @@ export function ForgotPasswordForm() {
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#0033C0]",
+            "btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#00a67a]",
           )}
         >
           {isSubmitting ? (

@@ -36,7 +36,7 @@ export function GlobalSearchPageClient({
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-cp-muted">
           Search published profiles, equipment, events, and news across live sports on
-          TandingBase.
+          Gud Game.
         </p>
       </div>
 

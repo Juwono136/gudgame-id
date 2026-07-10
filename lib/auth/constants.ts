@@ -11,4 +11,4 @@ export const EMAIL_VERIFICATION_EXPIRES_IN_SECONDS = 60 * 60 * 24; // 24 hours
 export const PASSWORD_RESET_TOKEN_EXPIRES_IN_SECONDS = 60 * 60; // 1 hour
 
 export const EMAIL_LOGO_URL =
-  "https://res.cloudinary.com/dz8dtz5ki/image/upload/v1780292426/icon-logo-512_bjjiuf.png";
+  "https://res.cloudinary.com/dz8dtz5ki/image/upload/v1783658332/logo-gud-game_m1us1n.png";

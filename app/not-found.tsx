@@ -23,9 +23,9 @@ export default function NotFound() {
           <Image
             src={brandAssets.logo}
             alt=""
-            width={80}
-            height={80}
-            className="relative h-16 w-16 sm:h-20 sm:w-20"
+            width={160}
+            height={48}
+            className="relative h-12 w-auto sm:h-14"
           />
         </div>
 
@@ -42,7 +42,7 @@ export default function NotFound() {
         <div className="mt-10 flex w-full max-w-sm flex-col gap-3 sm:flex-row sm:justify-center">
           <Button
             asChild
-            className="btn-interactive h-11 rounded-lg bg-cp-primary font-semibold text-white hover:bg-[#0033C0]"
+            className="btn-interactive h-11 rounded-lg bg-cp-primary font-semibold text-white hover:bg-[#00a67a]"
           >
             <Link href="/">
               <Home className="mr-2 h-4 w-4" />

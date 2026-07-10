@@ -5,7 +5,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export const metadata = {
   title: "Search",
-  description: "Search players, gear, and tournaments on TandingBase.",
+  description: "Search players, gear, and tournaments on Gud Game.",
 };
 
 type PageProps = {

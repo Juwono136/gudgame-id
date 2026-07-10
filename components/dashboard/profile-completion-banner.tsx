@@ -63,7 +63,7 @@ export function ProfileCompletionBanner({
         <Button
           asChild
           size="sm"
-          className="shrink-0 rounded-lg bg-cp-primary text-primary-foreground hover:bg-[#0033C0]"
+          className="shrink-0 rounded-lg bg-cp-primary text-primary-foreground hover:bg-[#00a67a]"
         >
           <Link href={profileSettingsHref}>
             Update in settings

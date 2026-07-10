@@ -121,7 +121,7 @@ export async function processHostScheduledPayout(
       channelCode: primaryBank.bankCode,
       accountNumber: primaryBank.bankAccountNumber,
       accountHolderName: primaryBank.bankAccountHolder,
-      description: `TandingBase ${formatScheduleLabel(payoutSchedule)} tournament payout`,
+      description: `Gud Game ${formatScheduleLabel(payoutSchedule)} tournament payout`,
       forUserId: xenditAccountId,
       idempotencyKey: referenceId,
     });

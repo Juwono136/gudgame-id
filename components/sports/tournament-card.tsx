@@ -51,7 +51,7 @@ export function TournamentCard({ tournament, registrationClosesAt, className }: 
       href={publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}
       className={cn(
         "group block overflow-hidden rounded-xl border border-cp-border bg-cp-card transition-all duration-300",
-        "hover:border-cp-primary/40 hover:shadow-[0_8px_32px_rgba(0,71,255,0.12)]",
+        "hover:border-cp-primary/40 hover:shadow-[0_8px_32px_rgba(0,191,139,0.12)]",
         className,
       )}
     >

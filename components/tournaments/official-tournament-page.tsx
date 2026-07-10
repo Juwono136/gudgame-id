@@ -821,7 +821,7 @@ export function OfficialTournamentPage({
 
         {tab === "Overview" ? (
         <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-[0_8px_32px_rgba(0,71,255,0.12)] sm:p-6">
+          <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-[0_8px_32px_rgba(0,191,139,0.12)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
               {isFreeOfficial ? "Entry" : "Registration fee"}
             </p>

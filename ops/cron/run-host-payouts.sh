@@ -14,7 +14,7 @@ echo "[${TIMESTAMP}] Triggering scheduled host payout job at ${APP_URL}/api/cron
 
 HTTP_CODE="$(curl -sS -o /tmp/payout-cron-response.json -w "%{http_code}" \
   -H "Authorization: Bearer ${CRON_SECRET}" \
-  -H "X-Cron-Source: tandingbase-payout-cron" \
+  -H "X-Cron-Source: gudgame-payout-cron" \
   --connect-timeout 30 \
   --max-time 300 \
   "${APP_URL}/api/cron/host-payouts")"

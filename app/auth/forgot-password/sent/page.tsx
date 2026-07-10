@@ -48,7 +48,7 @@ export default async function ForgotPasswordSentPage() {
             </p>
             <Link
               href={authRoutes.login}
-              className="btn-interactive mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#0033C0]"
+              className="btn-interactive mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#00a67a]"
             >
               Back to Sign In
             </Link>

@@ -357,7 +357,7 @@ export function HostPayoutBankCard({
             </h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-cp-muted">
               Add up to {profile?.maxAccounts ?? 3} accounts. Select one as primary — tournament
-              earnings are deposited there on your chosen schedule. Notifications come from TandingBase
+              earnings are deposited there on your chosen schedule. Notifications come from Gud Game
               only.
             </p>
           </div>

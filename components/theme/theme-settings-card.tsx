@@ -53,7 +53,7 @@ export function ThemeSettingsCard({ variant = "default" }: ThemeSettingsCardProp
     >
       <h2 className="text-base font-semibold text-foreground sm:text-lg">Appearance</h2>
       <p className="mt-1 text-sm text-cp-muted">
-        Choose how TandingBase looks on this device.
+        Choose how Gud Game looks on this device.
       </p>
 
       <div
@@ -73,7 +73,7 @@ export function ThemeSettingsCard({ variant = "default" }: ThemeSettingsCardProp
                 "btn-interactive flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all sm:p-4",
                 isSettings ? "flex-row sm:flex-col sm:items-start" : "flex-col",
                 active
-                  ? "border-cp-primary bg-cp-primary/10 shadow-[0_0_0_1px_rgba(0,71,255,0.15)]"
+                  ? "border-cp-primary bg-cp-primary/10 shadow-[0_0_0_1px_rgba(0,191,139,0.15)]"
                   : "border-cp-border bg-cp-elevated/50 hover:border-cp-primary/40",
               )}
             >

@@ -29,7 +29,7 @@ export function renderResetPasswordTemplate(data: ResetPasswordTemplateData): {
   const bodyHtml = `
     <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Reset your password</h1>
     <p style="margin:0 0 8px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#0047FF;">${userName}</strong>, we received a request to reset the password for your <strong>${appName}</strong> account.
+      Hi <strong style="color:#00BF8B;">${userName}</strong>, we received a request to reset the password for your <strong>${appName}</strong> account.
     </p>
     <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#4B5563;">
       If you made this request, tap the button below to choose a new password. This link works once and expires automatically.
@@ -38,7 +38,7 @@ export function renderResetPasswordTemplate(data: ResetPasswordTemplateData): {
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
       <tr>
         <td align="center">
-          <a href="${resetUrl}" class="email-btn" style="display:inline-block;padding:16px 40px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#0047FF;box-shadow:0 4px 14px rgba(0,71,255,0.4);letter-spacing:0.05em;">
+          <a href="${resetUrl}" class="email-btn" style="display:inline-block;padding:16px 40px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#00BF8B;box-shadow:0 4px 14px rgba(0,191,139,0.4);letter-spacing:0.05em;">
             RESET MY PASSWORD
           </a>
         </td>
@@ -48,7 +48,7 @@ export function renderResetPasswordTemplate(data: ResetPasswordTemplateData): {
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 20px;background-color:#F0F4FF;border:1px solid #C7D7FF;border-radius:12px;">
       <tr>
         <td style="padding:16px 18px;">
-          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0047FF;">What happens next</p>
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#00BF8B;">What happens next</p>
           <ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.75;color:#374151;">
             <li style="margin-bottom:6px;">Open the secure link above</li>
             <li style="margin-bottom:6px;">Enter and confirm your new password</li>
@@ -62,7 +62,7 @@ export function renderResetPasswordTemplate(data: ResetPasswordTemplateData): {
       Button not working? Copy this link:
     </p>
     <p style="margin:0 0 20px;font-size:12px;line-height:1.5;word-break:break-all;">
-      <a href="${resetUrl}" style="color:#0047FF;text-decoration:underline;">${resetUrl}</a>
+      <a href="${resetUrl}" style="color:#00BF8B;text-decoration:underline;">${resetUrl}</a>
     </p>
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF8E6;border:1px solid #F5D76E;border-radius:12px;">
@@ -84,7 +84,7 @@ export function renderResetPasswordTemplate(data: ResetPasswordTemplateData): {
     bodyHtml,
     heroTag: "Secure password reset",
     footerNote:
-      "Never share this email or link. TandingBase will never ask for your password by email.",
+      "Never share this email or link. Gud Game will never ask for your password by email.",
   });
 
   const text = [

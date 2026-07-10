@@ -51,7 +51,7 @@ export function SportInterestsField({
         <Label>Sports you follow</Label>
         <p className="mt-1 text-xs text-cp-muted">
           Tap to select sports you play or follow. Published player profiles are created for each
-          sport you follow once that discipline is enabled on TandingBase.
+          sport you follow once that discipline is enabled on Gud Game.
         </p>
       </div> */}
 

@@ -90,12 +90,12 @@ export function SportHubContent({ sport, live, upcoming, past }: SportHubContent
             <div className="absolute inset-0 bg-gradient-to-r from-cp-bg/95 via-cp-bg/80 to-cp-bg/50" />
           </>
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(0,71,255,0.12),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(0,191,139,0.12),transparent)]" />
         )}
         <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
           <FadeInView>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cp-primary">
-              TandingBase
+              Gud Game
             </p>
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
               {sport.name}

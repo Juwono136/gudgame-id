@@ -28,7 +28,7 @@ export default function Hero() {
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.12),transparent)] dark:bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,71,255,0.22),transparent)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,191,139,0.12),transparent)] dark:bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,191,139,0.22),transparent)]"
           aria-hidden
         />
       </div>

@@ -18,7 +18,7 @@ export function renderHostPayoutDisbursedTemplate(
   const bodyHtml = `
     <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Payout sent to your bank</h1>
     <p style="margin:0 0 20px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#0047FF;">${escapeHtml(data.hostName)}</strong>,
+      Hi <strong style="color:#00BF8B;">${escapeHtml(data.hostName)}</strong>,
       your scheduled tournament earnings have been transferred to your primary bank account.
     </p>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;">
@@ -36,7 +36,7 @@ export function renderHostPayoutDisbursedTemplate(
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0;">
       <tr>
         <td align="center">
-          <a href="${paymentsUrl}" class="email-btn" style="display:inline-block;padding:16px 36px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#0047FF;">
+          <a href="${paymentsUrl}" class="email-btn" style="display:inline-block;padding:16px 36px;font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;background-color:#00BF8B;">
             VIEW PAYOUT HISTORY
           </a>
         </td>

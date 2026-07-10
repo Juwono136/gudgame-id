@@ -27,7 +27,8 @@ export function BrandWordmark({
         className,
       )}
     >
-      Tanding<span className="text-cp-logo-accent">Base</span>
+      <span className={inverted ? "text-[#B7F1C9]" : "text-cp-logo-mint"}>Gud</span>{" "}
+      <span className={inverted ? "text-[#00BF8B]" : "text-cp-logo-accent"}>Game</span>
     </span>
   );
 }

@@ -32,7 +32,7 @@ export type CreateXenditInvoiceInput = {
   splitRuleId?: string;
   /** Restrict available payment channels on the invoice */
   paymentMethods?: XenditPaymentMethod[];
-  /** TandingBase sends its own emails — never use Xendit invoice emails */
+  /** Gud Game sends its own emails — never use Xendit invoice emails */
   shouldSendEmail?: boolean;
 };
 

@@ -1,16 +1,26 @@
 /** Centralized app metadata — safe for client and server. */
 export const siteConfig = {
-  name: "TandingBase",
-  shortName: "TandingBase",
+  name: "Gud Game",
+  shortName: "Gud Game",
   description:
-    "Modern sports encyclopedia — tournaments, live scores, player tiers, wiki, and community for court sports.",
+    "Your home for court sports — tournaments, live scores, player profiles, wiki, and community.",
   defaultLocale: "en",
   defaultSportSlug: "padel",
 } as const;
 
 /** Brand images — single source for UI, metadata, and PWA. */
 export const brandAssets = {
-  logo: "/images/icon-logo.png",
-  logo512: "/images/icon-logo-512.png",
+  logo: "/images/logo-gud-game.png",
+  logo512: "/images/logo-gud-game.png",
   favicon: "/favicon.ico",
+} as const;
+
+/** Shared brand palette for inline styles (emails, charts). */
+export const brandColors = {
+  black: "#000000",
+  forest: "#032921",
+  forestAlt: "#042822",
+  emerald: "#00BF8B",
+  mint: "#B7F1C9",
+  emeraldHover: "#00a67a",
 } as const;

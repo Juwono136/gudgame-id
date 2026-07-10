@@ -19,7 +19,7 @@ export async function fetchHtmlForScrape(
       signal: controller.signal,
       headers: {
         Accept: "text/html,application/xhtml+xml",
-        "User-Agent": "TandingBase-WikiBot/1.0",
+        "User-Agent": "Gud Game-WikiBot/1.0",
       },
       redirect: "follow",
     });

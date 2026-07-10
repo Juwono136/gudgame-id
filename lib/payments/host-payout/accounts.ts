@@ -63,7 +63,7 @@ async function ensureHostProfile(userId: string) {
     throw new AppError("Account email is required.", { code: "VALIDATION_ERROR", statusCode: 400 });
   }
 
-  const businessName = dbUser.clubName?.trim() || dbUser.name?.trim() || "TandingBase Host";
+  const businessName = dbUser.clubName?.trim() || dbUser.name?.trim() || "Gud Game Host";
   const [existing] = await db
     .select()
     .from(hostXenditAccounts)

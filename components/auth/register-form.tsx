@@ -77,7 +77,7 @@ export function RegisterForm({ callbackUrl: callbackUrlProp }: { callbackUrl?: s
       variant="register"
       formSize="wide"
       formTitle="Create Account"
-      formSubtitle="Join TandingBase — add your phone optionally, then complete your profile after signing in."
+      formSubtitle="Join Gud Game — add your phone optionally, then complete your profile after signing in."
       footer={
         <p className="text-sm text-cp-muted">
           Already have an account?{" "}
@@ -150,7 +150,7 @@ export function RegisterForm({ callbackUrl: callbackUrlProp }: { callbackUrl?: s
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "btn-interactive mt-4 h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#0033C0]",
+            "btn-interactive mt-4 h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#00a67a]",
           )}
         >
           {isSubmitting ? (

@@ -34,7 +34,7 @@ const ID_BBOX = "95,-11,141,6";
 
 const NOMINATIM_USER_AGENT =
   process.env.NOMINATIM_USER_AGENT?.trim() ||
-  "TandingBase/1.0 (venue search; contact: support@tandingbase.app)";
+  "Gud Game/1.0 (venue search; contact: support@gudgame.app)";
 
 type PhotonFeature = {
   properties?: {

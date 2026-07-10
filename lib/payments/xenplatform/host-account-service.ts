@@ -99,7 +99,7 @@ export async function setupHostXenditAccount(userId: string): Promise<HostPayout
     });
   }
 
-  const businessName = dbUser.clubName?.trim() || dbUser.name?.trim() || "TandingBase Host";
+  const businessName = dbUser.clubName?.trim() || dbUser.name?.trim() || "Gud Game Host";
 
   try {
     let xenditAccountId = existing?.xenditAccountId;

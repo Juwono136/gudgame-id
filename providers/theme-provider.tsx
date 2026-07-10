@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange={false}
-      storageKey="tandingbase-theme"
+      storageKey="gudgame-theme"
     >
       {children}
     </NextThemesProvider>

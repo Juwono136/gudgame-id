@@ -1,4 +1,4 @@
-name: TandingBase CI/CD
+name: Gud Game CI/CD
 
 on:
   push:
@@ -114,7 +114,7 @@ jobs:
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
 
       # Only recreate app + payout scheduler — never `docker compose down --remove-orphans`.
-      - name: Deploy TandingBase app
+      - name: Deploy Gud Game app
         run: |
           docker compose pull app
           docker compose build payout-cron
@@ -207,15 +207,15 @@ jobs:
       - name: Verify payout cron sidecar
         run: |
           docker compose ps payout-cron
-          STATUS="$(docker inspect -f '{{.State.Status}}' tandingbase-payout-cron 2>/dev/null || echo missing)"
-          HEALTH="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' tandingbase-payout-cron 2>/dev/null || echo missing)"
+          STATUS="$(docker inspect -f '{{.State.Status}}' gudgame-payout-cron 2>/dev/null || echo missing)"
+          HEALTH="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' gudgame-payout-cron 2>/dev/null || echo missing)"
           echo "payout-cron status=${STATUS} health=${HEALTH}"
           if [ "${STATUS}" != "running" ]; then
-            docker logs tandingbase-payout-cron --tail 50 2>&1 || true
+            docker logs gudgame-payout-cron --tail 50 2>&1 || true
             exit 1
           fi
           if [ "${HEALTH}" = "unhealthy" ]; then
-            docker logs tandingbase-payout-cron --tail 50 2>&1 || true
+            docker logs gudgame-payout-cron --tail 50 2>&1 || true
             exit 1
           fi
           echo "payout-cron is running"

@@ -58,7 +58,7 @@ export function DashboardShell({
       <div className="mt-8 rounded-2xl border border-cp-border bg-cp-card/50 p-6 sm:p-8">
         <h2 className="text-lg font-semibold text-foreground">Your court hub</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          You are signed in with a verified TandingBase account. Player profiles,
+          You are signed in with a verified Gud Game account. Player profiles,
           wiki contributions, and tournament tracking will appear here as we roll
           out MVP features.
         </p>

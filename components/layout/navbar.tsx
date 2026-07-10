@@ -195,7 +195,7 @@ export default function Navbar() {
                 <Button
                   size="sm"
                   asChild
-                  className="btn-interactive rounded-lg bg-cp-primary px-2.5 text-[10px] font-semibold tracking-wide text-primary-foreground shadow-[0_4px_14px_rgba(0,71,255,0.35)] hover:bg-[#0033C0] lg:px-3 lg:text-xs"
+                  className="btn-interactive rounded-lg bg-cp-primary px-2.5 text-[10px] font-semibold tracking-wide text-primary-foreground shadow-[0_4px_14px_rgba(0,191,139,0.35)] hover:bg-[#00a67a] lg:px-3 lg:text-xs"
                 >
                   <Link href={authRoutes.login}>LOGIN</Link>
                 </Button>
@@ -331,7 +331,7 @@ export default function Navbar() {
                     </Button>
                     <Button
                       asChild
-                      className="btn-interactive w-full rounded-lg bg-cp-primary font-semibold text-primary-foreground hover:bg-[#0033C0]"
+                      className="btn-interactive w-full rounded-lg bg-cp-primary font-semibold text-primary-foreground hover:bg-[#00a67a]"
                     >
                       <Link href={authRoutes.login} onClick={closeMobile}>
                         <LogIn className="mr-2 h-4 w-4" />

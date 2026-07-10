@@ -61,7 +61,7 @@ export function PlayerHero({
           "dark:from-[#0a1628] dark:via-[#0f1f3d] dark:to-[#152a4a]",
         )}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_20%,rgba(0,71,255,0.35),transparent_55%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_20%,rgba(0,191,139,0.35),transparent_55%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_0%_100%,rgba(0,18,87,0.4),transparent_50%)]" />
 
       <div className="relative grid gap-5 p-5 sm:gap-6 sm:p-8 md:grid-cols-[auto_1fr] md:items-center md:gap-8 lg:gap-10">

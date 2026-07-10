@@ -67,7 +67,7 @@ export function AuthShell({
           sizes="50vw"
         />
         <div
-          className="absolute inset-0 bg-gradient-to-br from-[#0B0E14]/92 via-[#0B0E14]/75 to-[#0047FF]/25"
+          className="absolute inset-0 bg-gradient-to-br from-[#000000]/92 via-[#032921]/80 to-[#00BF8B]/30"
           aria-hidden
         />
         <div className="relative z-10 flex min-h-full w-full flex-col justify-between p-8 xl:p-12">

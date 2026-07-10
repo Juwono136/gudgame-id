@@ -18,7 +18,7 @@ export function renderRegistrationTeamInviteTemplate(
   const bodyHtml = `
     <h1 class="email-hero-title" style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Tournament team invitation</h1>
     <p style="margin:0 0 8px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#0047FF;">${escapeHtml(data.userName)}</strong>,
+      Hi <strong style="color:#00BF8B;">${escapeHtml(data.userName)}</strong>,
       <strong>${escapeHtml(data.captainName)}</strong> added you to team
       <strong>${escapeHtml(data.teamName)}</strong> for
       <strong>${escapeHtml(data.tournamentName)}</strong>.
@@ -28,7 +28,7 @@ export function renderRegistrationTeamInviteTemplate(
       You will receive another email once the team is officially registered.
     </p>
 
-    <a href="${tournamentUrl}" class="email-btn" style="display:inline-block;padding:14px 28px;background-color:#0047FF;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px;">
+    <a href="${tournamentUrl}" class="email-btn" style="display:inline-block;padding:14px 28px;background-color:#00BF8B;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px;">
       View tournament
     </a>
   `;

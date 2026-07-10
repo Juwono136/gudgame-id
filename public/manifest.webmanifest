@@ -1,27 +1,21 @@
 {
-  "name": "TandingBase",
-  "short_name": "TandingBase",
-  "description": "Modern sports encyclopedia — tournaments, players, wiki, and community.",
+  "name": "Gud Game",
+  "short_name": "Gud Game",
+  "description": "Tournaments, live scores, player profiles, wiki, and community for court sports.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f6fb",
-  "theme_color": "#0047FF",
+  "background_color": "#000000",
+  "theme_color": "#00BF8B",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/images/icon-logo.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/images/icon-logo-512.png",
+      "src": "/images/logo-gud-game.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/images/icon-logo-512.png",
+      "src": "/images/logo-gud-game.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

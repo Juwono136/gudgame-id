@@ -5,7 +5,7 @@ import { resolveReclubCreateWorkspace } from "@/lib/tournaments/edit-routes";
 
 export const metadata = {
   title: "Create Fun Match",
-  description: "Start a free community Fun Match on TandingBase.",
+  description: "Start a free community Fun Match on Gud Game.",
 };
 
 export default async function PlayerCreateReclubPage() {

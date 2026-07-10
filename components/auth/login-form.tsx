@@ -46,7 +46,7 @@ export function LoginForm() {
       formSubtitle="Access your dashboard and stats."
       footer={
         <p className="text-sm text-cp-muted">
-          New to TandingBase?{" "}
+          New to Gud Game?{" "}
           <Link
             href={authRoutes.register}
             className="font-semibold text-cp-primary hover:underline"
@@ -156,7 +156,7 @@ export function LoginForm() {
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#0033C0]",
+            "btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#00a67a]",
           )}
         >
           {isSubmitting ? (

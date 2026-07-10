@@ -11,7 +11,7 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps) {
   const { sportSlug } = await params;
   const sport = await getSportBySlug(sportSlug);
-  return { title: sport ? `${sport.name} — TandingBase` : "Sport" };
+  return { title: sport ? `${sport.name} — Gud Game` : "Sport" };
 }
 
 export default async function SportHubPage({ params }: PageProps) {

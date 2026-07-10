@@ -4,7 +4,7 @@ import { requireHostDashboardAccess } from "@/lib/auth/role-guard";
 
 export const metadata = {
   title: "Create Tournament",
-  description: "Create an official tournament or Fun Match as a host on TandingBase.",
+  description: "Create an official tournament or Fun Match as a host on Gud Game.",
 };
 
 export default async function HostCreateTournamentPage() {

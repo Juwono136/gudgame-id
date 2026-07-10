@@ -1,6 +1,6 @@
 import "server-only";
 
-/** Gmail SMTP defaults for TandingBase transactional mail */
+/** Gmail SMTP defaults for Gud Game transactional mail */
 export const GMAIL_SMTP_HOST = "smtp.gmail.com";
 export const GMAIL_SMTP_PORT = 587;
 

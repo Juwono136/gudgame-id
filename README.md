@@ -1,4 +1,4 @@
-# TandingBase
+# Gud Game
 
 Modern, community-driven sports encyclopedia (padel-first MVP). Built with Next.js, PostgreSQL, Redis, and SeaweedFS object storage.
 

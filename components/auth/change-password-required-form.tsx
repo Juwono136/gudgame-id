@@ -135,7 +135,7 @@ export function ChangePasswordRequiredForm() {
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "btn-interactive mt-4 h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#0033C0]",
+            "btn-interactive mt-4 h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-[#00a67a]",
           )}
         >
           {isSubmitting ? (
