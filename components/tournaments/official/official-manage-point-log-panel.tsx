@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { ListOrdered } from "lucide-react";
-import { OfficialPointLogTimeline } from "@/components/tournaments/official/official-point-log-timeline";
+import {
+  OfficialPointLogTimeline,
+  type PointLogMatchContext,
+} from "@/components/tournaments/official/official-point-log-timeline";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
@@ -13,7 +16,22 @@ type LoggedMatch = {
   label: string;
   sublabel: string;
   events: MatchScoreEvent[];
+  context: PointLogMatchContext;
 };
+
+function buildMatchContext(
+  match: Pick<
+    BracketMatchView | ReclubMatchView,
+    "teamAName" | "teamBName" | "teamAPlayers" | "teamBPlayers"
+  >,
+): PointLogMatchContext {
+  return {
+    teamAName: match.teamAName,
+    teamBName: match.teamBName,
+    teamAPlayers: match.teamAPlayers ?? [],
+    teamBPlayers: match.teamBPlayers ?? [],
+  };
+}
 
 type OfficialManagePointLogPanelProps = {
   bracketMatches: BracketMatchView[];
@@ -36,6 +54,7 @@ export function OfficialManagePointLogPanel({
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         sublabel: `Bracket · R${m.roundNumber} · M${m.matchNumber}`,
         events,
+        context: buildMatchContext(m),
       });
     }
     for (const m of reclubMatches) {
@@ -46,6 +65,7 @@ export function OfficialManagePointLogPanel({
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         sublabel: m.roundLabel ?? `Round ${m.roundNumber}`,
         events,
+        context: buildMatchContext(m),
       });
     }
     return rows.sort((a, b) => {
@@ -96,7 +116,10 @@ export function OfficialManagePointLogPanel({
               </li>
             ))}
           </ul>
-          <OfficialPointLogTimeline events={selected?.events ?? []} />
+          <OfficialPointLogTimeline
+            events={selected?.events ?? []}
+            matchContext={selected?.context}
+          />
         </div>
       )}
     </section>

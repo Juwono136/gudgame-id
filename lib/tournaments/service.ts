@@ -11,6 +11,7 @@ import {
   type TournamentType,
 } from "@/db/schema/tournaments";
 import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
+import { shouldProvisionBracketOnCreate } from "@/lib/tournaments/format-capabilities";
 import { withCache } from "@/lib/cache/redis-cache";
 import { AppError } from "@/lib/errors";
 import {
@@ -542,6 +543,13 @@ export async function createTournament(
     equipmentStandardsRules: input.equipmentStandardsRules,
   });
 
+  const sportSlugRow = await getDb()
+    .select({ slug: sports.slug })
+    .from(sports)
+    .where(eq(sports.id, sportId))
+    .limit(1);
+  const sportSlug = sportSlugRow[0]?.slug ?? "padel";
+
   const [created] = await getDb()
     .insert(tournaments)
     .values({
@@ -579,13 +587,16 @@ export async function createTournament(
       coverImageStorageKey: input.coverImageStorageKey?.trim() || null,
       settings: buildTournamentSettings(
         undefined,
-        settingsInputFromUpsert({
-          ...input,
-          eligibilityRules: rich.eligibilityRules ?? undefined,
-          matchFormatRules: rich.matchFormatRules ?? undefined,
-          equipmentStandardsRules: rich.equipmentStandardsRules ?? undefined,
-          rules: rich.rules ?? undefined,
-        }),
+        settingsInputFromUpsert(
+          {
+            ...input,
+            eligibilityRules: rich.eligibilityRules ?? undefined,
+            matchFormatRules: rich.matchFormatRules ?? undefined,
+            equipmentStandardsRules: rich.equipmentStandardsRules ?? undefined,
+            rules: rich.rules ?? undefined,
+          },
+          sportSlug,
+        ),
       ),
       createdBy: userId,
     })
@@ -619,7 +630,7 @@ export async function createTournament(
   const { provisionTournamentCourts } = await import("@/lib/tournaments/courts/service");
   await provisionTournamentCourts(detail);
 
-  if (detail.format !== "americano") {
+  if (shouldProvisionBracketOnCreate(detail.format)) {
     const { ensureBracketStructure } = await import(
       "@/lib/tournaments/brackets/provision-structure"
     );
@@ -679,6 +690,7 @@ export async function updateTournament(
       settings: tournaments.settings,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      officialBilling: tournaments.officialBilling,
       registrationOpensAt: tournaments.registrationOpensAt,
       registrationClosesAt: tournaments.registrationClosesAt,
     })
@@ -686,17 +698,40 @@ export async function updateTournament(
     .where(and(eq(tournaments.id, id), eq(tournaments.sportId, sportId)))
     .limit(1);
 
-  const nextCoverKey = input.coverImageStorageKey?.trim() || null;
-  if (current) {
-    await deleteStoredObjectIfReplaced(current.coverImageStorageKey, nextCoverKey);
+  if (!current) {
+    throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
   }
+
+  const nextCoverKey = input.coverImageStorageKey?.trim() || null;
+  await deleteStoredObjectIfReplaced(current.coverImageStorageKey, nextCoverKey);
 
   const startsAt = parseOptionalDate(input.startsAt);
   const endsAt = parseOptionalDate(input.endsAt);
   const status = resolveStatusOnWrite(input.status, startsAt, endsAt);
 
+  if (
+    input.format === "double_stage" &&
+    status === "live" &&
+    current.status !== "live"
+  ) {
+    const { listConfirmedOfficialTeamIds } = await import(
+      "@/lib/tournaments/registration/official-roster"
+    );
+    const billing =
+      input.tournamentType === "official"
+        ? (input.officialBilling ?? current.officialBilling)
+        : null;
+    const confirmed = await listConfirmedOfficialTeamIds(id, billing);
+    if (confirmed.size < 2) {
+      throw new AppError(
+        "Need at least 2 confirmed teams before this double stage tournament can go live. Add teams or adjust the schedule.",
+        { code: "VALIDATION_ERROR", statusCode: 422 },
+      );
+    }
+  }
+
   const scheduleLocked =
-    current?.tournamentType === "official" &&
+    current.tournamentType === "official" &&
     (current.status === "live" || current.status === "completed");
 
   const registrationOpensAt = scheduleLocked
@@ -714,6 +749,13 @@ export async function updateTournament(
     matchFormatRules: input.matchFormatRules,
     equipmentStandardsRules: input.equipmentStandardsRules,
   });
+
+  const sportSlugRow = await getDb()
+    .select({ slug: sports.slug })
+    .from(sports)
+    .where(eq(sports.id, sportId))
+    .limit(1);
+  const sportSlugForSettings = sportSlugRow[0]?.slug ?? "padel";
 
   const [updated] = await getDb()
     .update(tournaments)
@@ -748,13 +790,16 @@ export async function updateTournament(
       coverImageStorageKey: nextCoverKey,
       settings: buildTournamentSettings(
         (current?.settings as Record<string, unknown>) ?? undefined,
-        settingsInputFromUpsert({
-          ...input,
-          eligibilityRules: rich.eligibilityRules ?? undefined,
-          matchFormatRules: rich.matchFormatRules ?? undefined,
-          equipmentStandardsRules: rich.equipmentStandardsRules ?? undefined,
-          rules: rich.rules ?? undefined,
-        }),
+        settingsInputFromUpsert(
+          {
+            ...input,
+            eligibilityRules: rich.eligibilityRules ?? undefined,
+            matchFormatRules: rich.matchFormatRules ?? undefined,
+            equipmentStandardsRules: rich.equipmentStandardsRules ?? undefined,
+            rules: rich.rules ?? undefined,
+          },
+          sportSlugForSettings,
+        ),
       ),
     })
     .where(and(eq(tournaments.id, id), eq(tournaments.sportId, sportId)))
@@ -797,11 +842,22 @@ export async function updateTournament(
   const { provisionTournamentCourts } = await import("@/lib/tournaments/courts/service");
   await provisionTournamentCourts(detail);
 
-  if (detail.format !== "americano") {
+  if (shouldProvisionBracketOnCreate(detail.format)) {
     const { ensureBracketStructure } = await import(
       "@/lib/tournaments/brackets/provision-structure"
     );
     await ensureBracketStructure(detail);
+  }
+
+  if (
+    detail.format === "double_stage" &&
+    detail.status === "live" &&
+    current?.status !== "live"
+  ) {
+    const { initializeDoubleStageGroups } = await import(
+      "@/lib/tournaments/double-stage/service"
+    );
+    await initializeDoubleStageGroups(detail, { requireTeams: true });
   }
 
   await invalidateTournamentCaches(detail.sportSlug, detail.slug);

@@ -1,4 +1,5 @@
 import type { TournamentLivePhase } from "@/lib/tournaments/core/types";
+import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 
 export type TournamentLivePayload = {
@@ -36,7 +37,8 @@ export type TournamentLivePayload = {
   };
   matches: Array<{
     id: string;
-    type: "americano_round" | "lobby_round" | "bracket";
+    type: "americano_round" | "lobby_round" | "bracket" | "group_stage";
+    groupId?: string;
     roundNumber?: number;
     roundLabel?: string | null;
     matchNumber?: number;
@@ -57,15 +59,7 @@ export type TournamentLivePayload = {
     playType?: string | null;
     playNumber?: number | null;
     durationSeconds?: number | null;
-    scoreEvents?: Array<{
-      at: string;
-      userId: string;
-      userName?: string;
-      scoreA: number;
-      scoreB: number;
-      action: string;
-      side?: string;
-    }>;
+    scoreEvents?: MatchScoreEvent[];
   }>;
   courts?: Array<{
     id: string;
@@ -98,8 +92,16 @@ export type TournamentLivePayload = {
     teamAPlayers?: string[];
     teamBPlayers?: string[];
     bracketMatchId?: string | null;
+    scoreEvents?: MatchScoreEvent[];
   }>;
   leaderboard: unknown[];
+  doubleStage?: {
+    phase: "group" | "knockout";
+    groups: unknown[];
+    knockoutReady: boolean;
+    allGroupMatchesCompleted: boolean;
+    qualifiedCount: number;
+  };
   playerStats: TournamentSessionStats;
   lastUpdatedAt: string;
 };

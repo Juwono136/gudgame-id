@@ -1,4 +1,12 @@
 import { isUuid } from "@/lib/domain/uuid";
+import {
+  getDefaultStandingsScoringForSport,
+  parseDoubleStageSettings,
+  parseStandingsScoring,
+  DEFAULT_DOUBLE_STAGE_SETTINGS,
+  type DoubleStageSettings,
+  type StandingsScoringConfig,
+} from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   coerceRichHtmlField,
@@ -50,6 +58,8 @@ export type TournamentSettings = TournamentRuleSections & {
   officialStaff?: OfficialTournamentStaffMember[];
   bracketSeedMode?: "random" | "manual";
   bracketSeedingFinalized?: boolean;
+  doubleStage?: DoubleStageSettings;
+  standingsScoring?: StandingsScoringConfig;
 };
 
 export const TOURNAMENT_SCORING_TYPES = ["points", "timed"] as const;
@@ -129,7 +139,9 @@ function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
 }
 
 export function getTournamentFormatLabel(format: string | null | undefined): string {
-  return format === "americano" ? "Americano" : "Elimination";
+  if (format === "americano") return "Americano";
+  if (format === "double_stage") return "Double Stage";
+  return "Elimination";
 }
 
 export function getScoringTypeLabel(scoringType: string | null | undefined): string {
@@ -190,6 +202,8 @@ export function parseTournamentSettings(
   const displayConfig = raw.displayConfig;
   const bracketSeedMode = raw.bracketSeedMode;
   const bracketSeedingFinalized = raw.bracketSeedingFinalized;
+  const doubleStage = raw.doubleStage;
+  const standingsScoring = raw.standingsScoring;
 
   const parsedPoints =
     typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
@@ -241,6 +255,8 @@ export function parseTournamentSettings(
         : undefined,
     bracketSeedingFinalized:
       typeof bracketSeedingFinalized === "boolean" ? bracketSeedingFinalized : undefined,
+    doubleStage: parseDoubleStageSettings(doubleStage),
+    standingsScoring: parseStandingsScoring(standingsScoring),
   };
 }
 
@@ -370,6 +386,8 @@ export type TournamentSettingsInput = {
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
   displayConfig?: TournamentDisplayConfig;
+  doubleStage?: DoubleStageSettings;
+  standingsScoring?: StandingsScoringConfig;
 };
 
 export type TournamentSettingsUpsertFields = {
@@ -386,11 +404,49 @@ export type TournamentSettingsUpsertFields = {
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
   displayConfig?: TournamentDisplayConfig;
+  doubleStage?: DoubleStageSettings;
+  standingsScoring?: StandingsScoringConfig;
+  format?: string;
+  maxTeamsPerGroup?: number;
+  teamsAdvancePerGroup?: number;
+  allowDraw?: boolean;
+  winPoints?: number;
+  drawPoints?: number;
+  lossPoints?: number;
+  thirdPlaceEnabled?: boolean;
 };
+
+export function buildFormatSpecificSettingsFromUpsert(
+  input: TournamentSettingsUpsertFields,
+  sportSlug: string,
+): Pick<TournamentSettingsInput, "doubleStage" | "standingsScoring"> {
+  if (input.format !== "double_stage") return {};
+
+  const sportDefaults = getDefaultStandingsScoringForSport(sportSlug);
+  return {
+    doubleStage: {
+      ...DEFAULT_DOUBLE_STAGE_SETTINGS,
+      maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
+      teamsAdvancePerGroup:
+        input.teamsAdvancePerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
+      thirdPlaceEnabled: input.thirdPlaceEnabled ?? false,
+    },
+    standingsScoring: {
+      ...sportDefaults,
+      allowDraw: input.allowDraw ?? sportDefaults.allowDraw,
+      winPoints: input.winPoints ?? sportDefaults.winPoints,
+      drawPoints: input.drawPoints ?? sportDefaults.drawPoints,
+      lossPoints: input.lossPoints ?? sportDefaults.lossPoints,
+    },
+  };
+}
 
 export function settingsInputFromUpsert(
   input: TournamentSettingsUpsertFields,
+  sportSlug?: string,
 ): TournamentSettingsInput {
+  const formatSpecific =
+    sportSlug != null ? buildFormatSpecificSettingsFromUpsert(input, sportSlug) : {};
   return {
     venueMapsUrl: input.venueMapsUrl,
     eligibilityHtml: input.eligibilityRules,
@@ -404,6 +460,8 @@ export function settingsInputFromUpsert(
     deuceConfig: input.deuceConfig,
     roundDurationMinutes: input.roundDurationMinutes,
     displayConfig: input.displayConfig,
+    doubleStage: input.doubleStage ?? formatSpecific.doubleStage,
+    standingsScoring: input.standingsScoring ?? formatSpecific.standingsScoring,
   };
 }
 
@@ -480,6 +538,18 @@ export function buildTournamentSettings(
     next.displayConfig = input.displayConfig;
   } else if ("displayConfig" in input) {
     delete next.displayConfig;
+  }
+
+  if (input.doubleStage) {
+    next.doubleStage = input.doubleStage;
+  } else if ("doubleStage" in input) {
+    delete next.doubleStage;
+  }
+
+  if (input.standingsScoring) {
+    next.standingsScoring = input.standingsScoring;
+  } else if ("standingsScoring" in input) {
+    delete next.standingsScoring;
   }
 
   return next;

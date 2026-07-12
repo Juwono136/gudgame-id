@@ -212,6 +212,8 @@ export function useUpdateReclubLiveScore(sportSlug: string, slug: string) {
       scoreB: number;
       action?: "set" | "increment" | "decrement";
       side?: "a" | "b";
+      scorerName?: string;
+      scorerUserId?: string;
     }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/matches/score`, {
         method: "PATCH",

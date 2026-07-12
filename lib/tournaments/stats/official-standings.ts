@@ -62,11 +62,13 @@ function collectEvents(
     byUser.set(userId, [...list, event]);
   };
 
+  const eventActorId = (event: MatchScoreEvent) => event.scorerUserId ?? event.userId;
+
   for (const m of bracketMatches) {
-    for (const e of m.scoreEvents ?? []) push(e.userId, e);
+    for (const e of m.scoreEvents ?? []) push(eventActorId(e), e);
   }
   for (const m of reclubMatches) {
-    for (const e of m.scoreEvents ?? []) push(e.userId, e);
+    for (const e of m.scoreEvents ?? []) push(eventActorId(e), e);
   }
 
   return byUser;

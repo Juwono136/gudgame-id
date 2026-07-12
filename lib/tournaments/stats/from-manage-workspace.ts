@@ -8,6 +8,10 @@ import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import { computeTournamentSessionStats } from "@/lib/tournaments/stats/compute";
+import { toStatsMatchFromBracket } from "@/lib/tournaments/stats/from-bracket";
+import { toStatsMatchFromGroup } from "@/lib/tournaments/stats/from-group";
 
 function participantsFromTeams(teams: LobbyTeamView[]): TournamentParticipantRow[] {
   return teams.flatMap((team) =>
@@ -36,8 +40,26 @@ export function computeManageWorkspaceStats(input: {
   teams: LobbyTeamView[];
   reclubMatches: ReclubMatchView[];
   bracketMatches: BracketMatchView[];
+  groupMatches?: GroupMatchView[];
   summary: TournamentRegistrationSummary;
 }): TournamentSessionStats {
+  if (input.tournament.format === "double_stage") {
+    const statsTeams = input.teams
+      .filter((t) => t.memberCount > 0)
+      .map((t) => ({ id: t.id, name: t.name, memberCount: t.memberCount }));
+    const groupMatches = (input.groupMatches ?? [])
+      .map(toStatsMatchFromGroup)
+      .filter((m): m is NonNullable<typeof m> => m != null);
+    const bracketMatches = input.bracketMatches
+      .map(toStatsMatchFromBracket)
+      .filter((m): m is NonNullable<typeof m> => m != null);
+    return computeTournamentSessionStats({
+      matches: [...groupMatches, ...bracketMatches],
+      teams: statsTeams,
+      totalPlayers: input.summary.registeredPlayers,
+    });
+  }
+
   const isElimination = input.tournament.format !== "americano";
   const isOfficial = isOfficialType(input.tournament.tournamentType);
 

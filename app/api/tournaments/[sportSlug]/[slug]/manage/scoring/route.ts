@@ -11,6 +11,13 @@ import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { AppError } from "@/lib/errors";
+import {
+  getActiveGroupMatches,
+  buildDoubleStageOverview,
+  initializeDoubleStageGroups,
+  listGroupMatches,
+} from "@/lib/tournaments/double-stage/service";
+import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
 import { computeManageWorkspaceStats } from "@/lib/tournaments/stats/from-manage-workspace";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import {
@@ -36,17 +43,26 @@ export async function GET(
 
     await assertTournamentManagePageAccess(tournament, userId, roles);
 
+    if (tournament.format === "double_stage" && tournament.status === "live") {
+      await initializeDoubleStageGroups(tournament);
+    }
+
     const courts = await provisionTournamentCourts(tournament);
 
-    const isElimination = tournament.format !== "americano";
+    const caps = getFormatCapabilities(tournament);
     const isFunMatch = isFunMatchType(tournament.tournamentType);
+    const inGroupPhase = caps.hasGroupStage;
+    const showBracket = caps.hasBracket;
 
-    const [teams, reclubMatchesRaw, activeReclubMatchesRaw, bracketMatchesRaw, summary, teamsInActiveBracket, bracketEligibleTeamIds] =
+    const [teams, reclubMatchesRaw, activeReclubMatchesRaw, bracketMatchesRaw, groupMatchesRaw, activeGroupMatchesRaw, doubleStageOverview, summary, teamsInActiveBracket, bracketEligibleTeamIds] =
       await Promise.all([
         listLobbyTeamsDetailed(tournament.id),
-        isElimination && !isFunMatch ? Promise.resolve([]) : listReclubMatches(tournament.id),
-        isElimination && !isFunMatch ? Promise.resolve([]) : getActiveReclubMatches(tournament.id),
-        isElimination ? listBracketMatches(tournament.id) : Promise.resolve([]),
+        !caps.hasLobbyRounds ? Promise.resolve([]) : listReclubMatches(tournament.id),
+        !caps.hasLobbyRounds ? Promise.resolve([]) : getActiveReclubMatches(tournament.id),
+        showBracket ? listBracketMatches(tournament.id) : Promise.resolve([]),
+        inGroupPhase || caps.isDoubleStage ? listGroupMatches(tournament.id) : Promise.resolve([]),
+        inGroupPhase ? getActiveGroupMatches(tournament.id) : Promise.resolve([]),
+        caps.isDoubleStage ? buildDoubleStageOverview(tournament) : Promise.resolve(null),
         getRegistrationSummary(
           tournament.id,
           tournament.maxTeams,
@@ -60,8 +76,8 @@ export async function GET(
           normalizeTournamentType(tournament.tournamentType),
           tournament.officialBilling,
         ),
-        isElimination ? getTeamsInActiveBracketMatches(tournament.id) : Promise.resolve([]),
-        isElimination
+        showBracket ? getTeamsInActiveBracketMatches(tournament.id) : Promise.resolve([]),
+        showBracket || caps.isDoubleStage
           ? listBracketEligibleTeamIds(tournament).then((ids) => [...ids])
           : Promise.resolve([] as string[]),
       ]);
@@ -87,17 +103,21 @@ export async function GET(
       teams,
       reclubMatches,
       bracketMatches,
+      groupMatches: groupMatchesRaw,
       summary,
     });
 
     return jsonSuccess({
-      mode: isElimination ? "bracket" : "rounds",
+      mode: caps.manageScoringMode,
       courts,
       teams,
       reclubMatches,
       activeReclubMatches,
       bracketMatches,
       activeBracketMatches,
+      groupMatches: groupMatchesRaw,
+      activeGroupMatches: activeGroupMatchesRaw,
+      doubleStage: doubleStageOverview,
       summary,
       teamsInActiveBracket,
       bracketEligibleTeamIds,

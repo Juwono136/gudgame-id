@@ -136,15 +136,16 @@ export function ReclubTournamentWizard({
   backLabel,
   onBack,
 }: ReclubTournamentWizardProps) {
-  const isEdit = Boolean(initial && tournamentId);
+  const resolvedTournamentId = tournamentId ?? initial?.id ?? "";
+  const isEdit = Boolean(resolvedTournamentId);
   const dashboardSport = useDashboardSportOptional();
   const router = useRouter();
   const { confirm } = useConfirmDialog();
   const playerReclubCreate = useCreatePlayerReclubTournament();
   const adminReclubCreate = useCreateTournament();
-  const hostUpdate = useUpdateHostTournament(tournamentId ?? "");
-  const playerUpdate = useUpdateManageTournament(tournamentId ?? "");
-  const adminUpdate = useUpdateAdminTournament(tournamentId ?? "");
+  const hostUpdate = useUpdateHostTournament(resolvedTournamentId);
+  const playerUpdate = useUpdateManageTournament(resolvedTournamentId);
+  const adminUpdate = useUpdateAdminTournament(resolvedTournamentId);
   const createMutation =
     workspace === "admin" ? adminReclubCreate : playerReclubCreate;
   const updateMutation =
@@ -293,7 +294,7 @@ export function ReclubTournamentWizard({
       const uploaded = await uploadTournamentCoverClient(
         cover.pendingFile,
         sportSlug,
-        tournamentId,
+        resolvedTournamentId || undefined,
       );
       coverKey = uploaded.storageKey;
     } else if (cover.storageKey) {
@@ -345,17 +346,17 @@ export function ReclubTournamentWizard({
     try {
       const payload = await buildPayload();
 
-      if (isEdit && tournamentId) {
+      if (isEdit) {
         updateMutation.mutate(payload, {
-          onSuccess: () => {
+          onSuccess: (updated) => {
             if (workspace === "admin") {
               router.push(adminRoutes.wikiEntities);
               return;
             }
             router.push(
               tournamentAfterSaveUrl(workspace, {
-                sportSlug,
-                slug: initial?.slug ?? slug,
+                sportSlug: updated.sportSlug,
+                slug: updated.slug,
               }),
             );
           },

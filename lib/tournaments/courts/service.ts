@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournamentCourts } from "@/db/schema/tournament-courts";
+import { tournamentGroupMatches } from "@/db/schema/tournament-groups";
 import { tournamentReclubMatches, tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { AppError } from "@/lib/errors";
 import { getTournamentCourtCount } from "@/lib/tournaments/settings";
@@ -24,7 +25,7 @@ export async function listTournamentCourts(tournamentId: string): Promise<Tourna
     .where(eq(tournamentCourts.tournamentId, tournamentId))
     .orderBy(asc(tournamentCourts.sortOrder), asc(tournamentCourts.courtNumber));
 
-  const [reclubActive, bracketActive] = await Promise.all([
+  const [reclubActive, bracketActive, groupActive] = await Promise.all([
     db
       .select({ id: tournamentReclubMatches.id, courtId: tournamentReclubMatches.courtId })
       .from(tournamentReclubMatches)
@@ -43,10 +44,19 @@ export async function listTournamentCourts(tournamentId: string): Promise<Tourna
           eq(tournamentBracketMatches.status, "in_progress"),
         ),
       ),
+    db
+      .select({ id: tournamentGroupMatches.id, courtId: tournamentGroupMatches.courtId })
+      .from(tournamentGroupMatches)
+      .where(
+        and(
+          eq(tournamentGroupMatches.tournamentId, tournamentId),
+          eq(tournamentGroupMatches.status, "in_progress"),
+        ),
+      ),
   ]);
 
   const activeByCourt = new Map<string, string>();
-  for (const m of [...reclubActive, ...bracketActive]) {
+  for (const m of [...reclubActive, ...bracketActive, ...groupActive]) {
     if (m.courtId) activeByCourt.set(m.courtId, m.id);
   }
 

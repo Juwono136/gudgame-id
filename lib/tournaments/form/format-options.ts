@@ -34,11 +34,29 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
       "Clear path to a single champion",
     ],
   },
+  double_stage: {
+    value: "double_stage",
+    label: "Double Stage",
+    shortLabel: "Double Stage",
+    description:
+      "Group stage round-robin followed by single elimination knockout for qualifiers.",
+    bullets: [
+      "Teams play round-robin within groups",
+      "Top teams advance to knockout bracket",
+      "Automatic standings, seeding, and bracket generation",
+    ],
+  },
 };
 
 /** Formats enabled for a sport (defaults to both; extend via sport admin config later). */
-export function getAllowedFormatsForSport(sportSlug: string): TournamentFormat[] {
+export function getAllowedFormatsForSport(
+  sportSlug: string,
+  options?: { officialOnly?: boolean },
+): TournamentFormat[] {
   const defaults = getSportTournamentDefaults(sportSlug);
+  if (options?.officialOnly) {
+    return ["double_stage", "single_elimination", "americano"];
+  }
   if (defaults.defaultFormat === "americano") {
     return ["americano", "single_elimination"];
   }

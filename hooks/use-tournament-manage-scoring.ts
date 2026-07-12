@@ -11,14 +11,20 @@ import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { TournamentCourtView } from "@/hooks/use-tournament-courts";
 import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
+import type { DoubleStageOverview } from "@/lib/tournaments/double-stage/service";
+import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+
 export type ManageScoringPayload = {
-  mode: "rounds" | "bracket";
+  mode: "rounds" | "bracket" | "groups";
   courts: TournamentCourtView[];
   teams: LobbyTeamView[];
   reclubMatches: ReclubMatchView[];
   activeReclubMatches: ReclubMatchView[];
   bracketMatches: BracketMatchView[];
   activeBracketMatches: BracketMatchView[];
+  groupMatches?: GroupMatchView[];
+  activeGroupMatches?: GroupMatchView[];
+  doubleStage?: DoubleStageOverview | null;
   summary: TournamentRegistrationSummary;
   tournament: {
     id: string;
@@ -63,7 +69,8 @@ export function useTournamentManageScoring(
       if (!data) return false;
       const hasLive =
         data.activeReclubMatches.length > 0 ||
-        data.activeBracketMatches.length > 0;
+        data.activeBracketMatches.length > 0 ||
+        (data.activeGroupMatches?.length ?? 0) > 0;
       return hasLive ? 5000 : 15000;
     },
     staleTime: 0,

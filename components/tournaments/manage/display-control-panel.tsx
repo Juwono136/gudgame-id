@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Monitor, Play, Save } from "lucide-react";
+import { Copy, Loader2, Monitor, Play, Save } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateTournamentDisplayConfig } from "@/hooks/use-tournament-manage-display";
+import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import {
@@ -87,8 +89,24 @@ export function DisplayControlPanel({ tournament, onSaved }: DisplayControlPanel
   const [autoRotate, setAutoRotate] = useState(initial.autoRotate);
   const [intervalSec, setIntervalSec] = useState(initial.intervalSec);
   const save = useUpdateTournamentDisplayConfig(tournament.sportSlug, tournament.slug);
+  const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
+  const courts = liveData?.courts ?? [];
 
   const displayPath = publicSportRoutes.tournamentDisplay(tournament.sportSlug, tournament.slug);
+
+  const copyCourtDisplayUrl = async (courtId: string, courtName: string) => {
+    const url = `${window.location.origin}${publicSportRoutes.tournamentDisplayCourt(
+      tournament.sportSlug,
+      tournament.slug,
+      courtId,
+    )}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`Copied ${courtName} display URL`);
+    } catch {
+      toast.error("Could not copy URL");
+    }
+  };
 
   useEffect(() => {
     const next = resolveDisplayPanelState(tournament);
@@ -218,6 +236,38 @@ export function DisplayControlPanel({ tournament, onSaved }: DisplayControlPanel
             Save display settings
           </Button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-4 py-3 text-sm text-cp-muted">
+        <p className="font-medium text-foreground">Per-court display URLs</p>
+        <p className="mt-1 text-xs sm:text-sm">
+          Pin a venue TV to one court — rotation is disabled when a court is pinned.
+        </p>
+        {courts.length ? (
+          <ul className="mt-3 space-y-2">
+            {[...courts]
+              .sort((a, b) => (a.sortOrder ?? a.courtNumber) - (b.sortOrder ?? b.courtNumber))
+              .map((court) => (
+                <li
+                  key={court.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cp-border/60 bg-cp-card/40 px-3 py-2"
+                >
+                  <span className="text-sm font-medium text-foreground">{court.name}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void copyCourtDisplayUrl(court.id, court.name)}
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />
+                    Copy display URL
+                  </Button>
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs">Courts appear here once the tournament is provisioned.</p>
+        )}
       </div>
 
       <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-4 py-3 text-sm text-cp-muted">

@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Clock } from "lucide-react";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
-import { formatPlayerNameList } from "@/lib/format/player-names";
+import {
+  describeScoreEvent,
+  type PointLogMatchContext,
+} from "@/lib/tournaments/scoring/event-labels";
+export type { PointLogMatchContext } from "@/lib/tournaments/scoring/event-labels";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,37 +23,6 @@ function formatTime(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-export type PointLogMatchContext = {
-  teamAName?: string | null;
-  teamBName?: string | null;
-  teamAPlayers?: string[];
-  teamBPlayers?: string[];
-};
-
-function sideLabel(
-  side: "a" | "b" | undefined,
-  context?: PointLogMatchContext,
-): string {
-  if (!side) return "Match";
-  const teamName = side === "a" ? context?.teamAName : context?.teamBName;
-  const players = side === "a" ? context?.teamAPlayers : context?.teamBPlayers;
-  const playerLine = formatPlayerNameList(players);
-  if (playerLine && teamName) return `${teamName} (${playerLine})`;
-  if (playerLine) return playerLine;
-  if (teamName) return teamName;
-  return `Team ${side.toUpperCase()}`;
-}
-
-function describeEvent(e: MatchScoreEvent, context?: PointLogMatchContext): string {
-  if (e.action === "increment" && e.side) {
-    return `+1 · ${sideLabel(e.side, context)} → ${e.scoreA}:${e.scoreB}`;
-  }
-  if (e.action === "decrement" && e.side) {
-    return `−1 · ${sideLabel(e.side, context)} → ${e.scoreA}:${e.scoreB}`;
-  }
-  return `Score set to ${e.scoreA}:${e.scoreB}`;
 }
 
 type OfficialPointLogTimelineProps = {
@@ -101,7 +74,7 @@ export function OfficialPointLogTimeline({
         </p>
         {latest ? (
           <p className="mt-1 text-sm font-medium text-foreground">
-            Latest: {describeEvent(latest, matchContext)}
+            Latest: {describeScoreEvent(latest, matchContext)}
           </p>
         ) : null}
       </div>
@@ -116,7 +89,9 @@ export function OfficialPointLogTimeline({
               <Clock className="hidden h-3 w-3 sm:inline" />
               {formatTime(e.at)}
             </span>
-            <span className="min-w-0 leading-snug text-foreground">{describeEvent(e, matchContext)}</span>
+            <span className="min-w-0 leading-snug text-foreground">
+              {describeScoreEvent(e, matchContext)}
+            </span>
           </li>
         ))}
       </ol>

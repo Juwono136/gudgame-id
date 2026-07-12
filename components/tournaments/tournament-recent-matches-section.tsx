@@ -14,6 +14,8 @@ type TournamentRecentMatchesSectionProps = {
   /** Official: show section even when empty (bracket pending / no results yet). */
   alwaysShow?: boolean;
   emptyMessage?: string;
+  /** Label for the empty-state CTA when onViewAll is set. */
+  emptyActionLabel?: string;
 };
 
 function formatWhen(iso: string | null): string {
@@ -76,6 +78,7 @@ export function TournamentRecentMatchesSection({
   onViewAll,
   alwaysShow = false,
   emptyMessage,
+  emptyActionLabel,
 }: TournamentRecentMatchesSectionProps) {
   const isOfficial = variant === "official";
   const title = isOfficial ? "Recent matches" : "Recent rounds";
@@ -98,7 +101,7 @@ export function TournamentRecentMatchesSection({
           </h2>
           <p className="mt-0.5 text-xs text-cp-muted">
             {isOfficial
-              ? "Latest bracket results — tap Full history for the complete draw."
+              ? "Latest results — tap Full history for the complete match log."
               : "Latest lobby and bracket rounds from this session."}
           </p>
         </div>
@@ -131,7 +134,7 @@ export function TournamentRecentMatchesSection({
               className="mt-2 border-cp-border"
               onClick={onViewAll}
             >
-              Open bracket
+              {emptyActionLabel ?? (isOfficial ? "View history" : "Open bracket")}
               <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           ) : null}

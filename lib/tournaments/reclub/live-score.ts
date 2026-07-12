@@ -11,6 +11,7 @@ import {
   parseReclubMatchMetadata,
   type ReclubScoreEvent,
 } from "@/lib/tournaments/reclub/score-events";
+import { buildMatchScoreEvent } from "@/lib/tournaments/scoring/build-score-event";
 import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
 import {
   getTournamentDeuceConfig,
@@ -41,6 +42,8 @@ export async function updateReclubLiveScore(
     scoreB: number;
     action?: ReclubScoreEvent["action"];
     side?: ReclubScoreEvent["side"];
+    scorerName?: string;
+    scorerUserId?: string;
   },
 ): Promise<ReclubMatchView> {
   const db = getDb();
@@ -90,15 +93,12 @@ export async function updateReclubLiveScore(
   }
 
   const prevMeta = parseReclubMatchMetadata(existing.metadata);
-  const event: ReclubScoreEvent = {
-    at: new Date().toISOString(),
-    userId,
-    userName: userName ?? undefined,
-    scoreA,
-    scoreB,
+  const event = buildMatchScoreEvent(userId, userName, scoreA, scoreB, {
     action: input.action ?? "set",
     side: input.side,
-  };
+    scorerName: input.scorerName,
+    scorerUserId: input.scorerUserId,
+  });
   const metadata = appendScoreEvent(prevMeta, event);
 
   const [updated] = await db

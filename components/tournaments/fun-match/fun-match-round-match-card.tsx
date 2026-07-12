@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Minus, Pencil, Play, Plus, Radio } from "lucide-react";
 import { DeuceScoreBadge } from "@/components/tournaments/fun-match/deuce-score-badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import {
+  buildGroupCourtLockState,
+  groupMatchLockReason,
+  isGroupMatchLockedForCourt,
+} from "@/lib/tournaments/double-stage/group-court-lock";
+import {
+  formatGroupFixtureLabel,
+  type StartableGroupFixture,
+} from "@/lib/tournaments/double-stage/view-mappers";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import {
   isAmericanoPairKey,
@@ -28,6 +38,7 @@ import {
   cpSelectItemClass,
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
+import { uniquePlayerNames } from "@/lib/format/player-names";
 import { cn } from "@/lib/utils";
 
 const SELECT_NONE = "__none__";
@@ -41,11 +52,16 @@ type FunMatchRoundMatchCardProps = {
   teamBId?: string;
   bracketMatchId?: string;
   startableBracketMatches?: BracketMatchView[];
+  startableGroupMatches?: StartableGroupFixture[];
+  groupMatchId?: string;
+  activeGroupMatches?: GroupMatchView[];
+  isGroupStageMode?: boolean;
+  onGroupPickChange?: (v: string) => void;
   onTeamAChange?: (v: string) => void;
   onTeamBChange?: (v: string) => void;
   onBracketPickChange?: (v: string) => void;
   onStart?: () => void;
-  starting?: boolean;
+  isStarting?: boolean;
   canManage?: boolean;
   pointsPerMatch?: number;
   scoringRules?: ScoringRules;
@@ -54,6 +70,8 @@ type FunMatchRoundMatchCardProps = {
     scoreB: number;
     action?: "increment" | "decrement" | "set";
     side?: "a" | "b";
+    scorerName?: string;
+    scorerUserId?: string;
   }) => void;
   onComplete?: () => void;
   onEditCourtName?: () => void;
@@ -182,11 +200,16 @@ export function FunMatchRoundMatchCard({
   teamBId = "",
   bracketMatchId = "",
   startableBracketMatches = [],
+  startableGroupMatches = [],
+  groupMatchId = "",
+  activeGroupMatches = [],
+  isGroupStageMode = false,
+  onGroupPickChange,
   onTeamAChange,
   onTeamBChange,
   onBracketPickChange,
   onStart,
-  starting,
+  isStarting,
   canManage,
   pointsPerMatch = 16,
   scoringRules,
@@ -205,7 +228,13 @@ export function FunMatchRoundMatchCard({
   const isLive = match?.status === "in_progress";
   const isDone = match?.status === "completed";
   const isPlanning = !match && canManage && !readOnly;
-  const useBracketPicker = isPlanning && startableBracketMatches.length > 0;
+  const useGroupPicker = isPlanning && isGroupStageMode && startableGroupMatches.length > 0;
+  const useBracketPicker =
+    isPlanning && !useGroupPicker && startableBracketMatches.length > 0;
+  const groupLock = useMemo(
+    () => buildGroupCourtLockState(activeGroupMatches),
+    [activeGroupMatches],
+  );
 
   const serverScoreA = match?.scoreA ?? 0;
   const serverScoreB = match?.scoreB ?? 0;
@@ -227,7 +256,7 @@ export function FunMatchRoundMatchCard({
   const scoreB = localScores?.b ?? serverScoreB;
 
   const adjustScore = useCallback(
-    (side: "a" | "b", delta: 1 | -1) => {
+    (side: "a" | "b", delta: 1 | -1, scorerName?: string) => {
       if (!onScoreChange || readOnly || !isLive) return;
       setLocalScores((prev) => {
         const baseA = prev?.a ?? serverScoreA;
@@ -241,6 +270,7 @@ export function FunMatchRoundMatchCard({
             scoreB: nextB,
             action: delta > 0 ? "increment" : "decrement",
             side,
+            scorerName: delta > 0 ? scorerName : undefined,
           });
         }, 100);
         return { a: nextA, b: nextB };
@@ -252,6 +282,7 @@ export function FunMatchRoundMatchCard({
   const teamA = teams.find((t) => t.id === teamAId);
   const teamB = teams.find((t) => t.id === teamBId);
   const pickedBracket = startableBracketMatches.find((m) => m.id === bracketMatchId);
+  const pickedGroup = startableGroupMatches.find((m) => m.id === groupMatchId);
   const americanoLabels =
     isAmericanoMode && isAmericanoPairKey(teamAId) && isAmericanoPairKey(teamBId)
       ? resolveAmericanoPairLabels(teamAId, teamBId, americanoPlayers)
@@ -259,12 +290,14 @@ export function FunMatchRoundMatchCard({
 
   const leftTeamName =
     match?.teamAName ??
+    pickedGroup?.teamAName ??
     pickedBracket?.teamAName ??
     americanoLabels?.sideALabel ??
     teamA?.name ??
     null;
   const rightTeamName =
     match?.teamBName ??
+    pickedGroup?.teamBName ??
     pickedBracket?.teamBName ??
     americanoLabels?.sideBLabel ??
     teamB?.name ??
@@ -273,7 +306,9 @@ export function FunMatchRoundMatchCard({
   const leftPlayers =
     match?.teamAPlayers?.length
       ? match.teamAPlayers
-      : pickedBracket?.teamAPlayers?.length
+      : pickedGroup?.teamAPlayers?.length
+        ? pickedGroup.teamAPlayers.map((p) => p.displayName)
+        : pickedBracket?.teamAPlayers?.length
         ? pickedBracket.teamAPlayers
         : americanoLabels?.sideAPlayers.length
           ? americanoLabels.sideAPlayers
@@ -281,11 +316,20 @@ export function FunMatchRoundMatchCard({
   const rightPlayers =
     match?.teamBPlayers?.length
       ? match.teamBPlayers
-      : pickedBracket?.teamBPlayers?.length
+      : pickedGroup?.teamBPlayers?.length
+        ? pickedGroup.teamBPlayers.map((p) => p.displayName)
+        : pickedBracket?.teamBPlayers?.length
         ? pickedBracket.teamBPlayers
         : americanoLabels?.sideBPlayers.length
           ? americanoLabels.sideBPlayers
           : teamB?.members?.map((m) => m.displayName ?? "Player") ?? [];
+
+  const leftPlayerNames = uniquePlayerNames(leftPlayers);
+  const rightPlayerNames = uniquePlayerNames(rightPlayers);
+  const leftSingleScorer = leftPlayerNames.length === 1 ? leftPlayerNames[0]! : undefined;
+  const rightSingleScorer = rightPlayerNames.length === 1 ? rightPlayerNames[0]! : undefined;
+  const usePlayerPointButtons =
+    isLive && !readOnly && (leftPlayerNames.length > 1 || rightPlayerNames.length > 1);
 
   const rules: ScoringRules | undefined =
     scoringRules ??
@@ -307,6 +351,7 @@ export function FunMatchRoundMatchCard({
   const canIncB =
     rules && isLive ? canIncrementScore(scoreA, scoreB, "b", rules) : true;
 
+  const canStartGroup = useGroupPicker && Boolean(groupMatchId);
   const canStartBracket = useBracketPicker && Boolean(bracketMatchId);
   const canStartAmericano = isAmericanoMode && Boolean(americanoLabels);
   const canStartSquads =
@@ -322,21 +367,57 @@ export function FunMatchRoundMatchCard({
           score={scoreA}
           readOnly={scoreReadOnly}
           disabled={!canManage}
-          canInc={canIncA}
+          canInc={canIncA && !usePlayerPointButtons}
           compact={scoreReadOnly}
-          onIncrement={() => adjustScore("a", 1)}
+          onIncrement={() => adjustScore("a", 1, leftSingleScorer)}
           onDecrement={() => adjustScore("a", -1)}
         />
         <ScoreBox
           score={scoreB}
           readOnly={scoreReadOnly}
           disabled={!canManage}
-          canInc={canIncB}
+          canInc={canIncB && !usePlayerPointButtons}
           compact={scoreReadOnly}
-          onIncrement={() => adjustScore("b", 1)}
+          onIncrement={() => adjustScore("b", 1, rightSingleScorer)}
           onDecrement={() => adjustScore("b", -1)}
         />
       </div>
+      {usePlayerPointButtons ? (
+        <div className="grid w-full max-w-md grid-cols-2 gap-2 px-1">
+          <div className="flex flex-wrap justify-center gap-1">
+            {leftPlayerNames.map((name) => (
+              <Button
+                key={`a-${name}`}
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 max-w-full truncate rounded-full px-2 text-[10px]"
+                disabled={!canManage || !canIncA}
+                onClick={() => adjustScore("a", 1, name)}
+              >
+                <Plus className="mr-0.5 h-3 w-3 shrink-0" />
+                {name}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap justify-center gap-1">
+            {rightPlayerNames.map((name) => (
+              <Button
+                key={`b-${name}`}
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 max-w-full truncate rounded-full px-2 text-[10px]"
+                disabled={!canManage || !canIncB}
+                onClick={() => adjustScore("b", 1, name)}
+              >
+                <Plus className="mr-0.5 h-3 w-3 shrink-0" />
+                {name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {isLive && rules ? (
         <DeuceScoreBadge scoreA={scoreA} scoreB={scoreB} rules={rules} />
       ) : null}
@@ -402,7 +483,37 @@ export function FunMatchRoundMatchCard({
 
           {isPlanning ? (
             <>
-              {useBracketPicker ? (
+              {useGroupPicker ? (
+                <Select
+                  value={groupMatchId || SELECT_NONE}
+                  onValueChange={(v) => onGroupPickChange?.(v === SELECT_NONE ? "" : v)}
+                >
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "h-8 w-[12rem] text-xs sm:w-56")}>
+                    <SelectValue placeholder="Group fixture" />
+                  </SelectTrigger>
+                  <SelectContent className={cpSelectContentClass}>
+                    <SelectItem value={SELECT_NONE} className={cpSelectItemClass}>
+                      Group fixture…
+                    </SelectItem>
+                    {startableGroupMatches.map((m) => {
+                      const locked = isGroupMatchLockedForCourt(m, groupLock);
+                      const reason = groupMatchLockReason(m, groupLock);
+                      return (
+                        <SelectItem
+                          key={m.id}
+                          value={m.id}
+                          disabled={locked}
+                          className={cpSelectItemClass}
+                          title={reason ?? undefined}
+                        >
+                          {formatGroupFixtureLabel(m)}
+                          {locked ? " (busy)" : ""}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : useBracketPicker ? (
                 <Select
                   value={bracketMatchId || SELECT_NONE}
                   onValueChange={(v) =>
@@ -471,7 +582,7 @@ export function FunMatchRoundMatchCard({
                 type="button"
                 size="sm"
                 className="h-8 gap-1"
-                disabled={(!canStartBracket && !canStartSquads && !canStartAmericano) || starting}
+                disabled={(!canStartGroup && !canStartBracket && !canStartSquads && !canStartAmericano) || isStarting}
                 onClick={onStart}
               >
                 <Play className="h-3.5 w-3.5" />

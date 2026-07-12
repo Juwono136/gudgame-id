@@ -56,6 +56,9 @@ function formatHistoryRoundLabel(m: ReclubMatchView): string {
   if (m.playType === "bracket" || m.sourceKind === "bracket") {
     return `Bracket · R${m.roundNumber}`;
   }
+  if (m.playType === "group_stage" || m.sourceKind === "group_stage") {
+    return m.roundLabel ?? "Group stage";
+  }
   return `Round ${m.roundNumber}`;
 }
 

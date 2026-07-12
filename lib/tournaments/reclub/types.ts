@@ -3,7 +3,7 @@ import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-even
 import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import type { ReclubScoreEvent } from "@/lib/tournaments/reclub/score-events";
 
-export type ReclubPlayType = "round" | "friendly" | "bracket" | "bracket_rematch";
+export type ReclubPlayType = "round" | "friendly" | "bracket" | "bracket_rematch" | "group_stage";
 
 export type ReclubMatchView = {
   id: string; roundNumber: number;
@@ -23,7 +23,7 @@ export type ReclubMatchView = {
   teamAPlayers: string[];
   teamBPlayers: string[];
   scoreEvents: ReclubScoreEvent[];
-  sourceKind?: "round" | "bracket";
+  sourceKind?: "round" | "bracket" | "group_stage";
   bracketMatchId?: string | null;
   roundLabel?: string | null;
   playType?: ReclubPlayType | null;

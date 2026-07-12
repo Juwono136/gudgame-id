@@ -17,7 +17,7 @@ function nextPowerOfTwo(n: number): number {
  * Safe to call multiple times — no-op when rows already exist.
  */
 export async function ensureBracketStructure(tournament: TournamentDetail): Promise<boolean> {
-  if (tournament.format === "americano") return false;
+  if (tournament.format === "americano" || tournament.format === "double_stage") return false;
 
   const db = getDb();
   const existing = await db

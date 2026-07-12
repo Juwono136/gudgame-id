@@ -48,6 +48,16 @@ export async function generateTournamentBracket(
     });
   }
 
+  if (tournament.format === "double_stage") {
+    const { getDoubleStagePhase } = await import("@/lib/tournaments/format-capabilities");
+    if (getDoubleStagePhase(tournament) === "group") {
+      throw new AppError(
+        "Complete the group stage and use Buat Bracket Otomatis to generate the knockout bracket.",
+        { code: "FORBIDDEN", statusCode: 403 },
+      );
+    }
+  }
+
   const seedMode = options?.seedMode ?? "manual";
   const db = getDb();
 

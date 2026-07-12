@@ -82,7 +82,10 @@ export const tournamentHeroStyles = {
   metaRow:
     "mt-4 flex flex-col gap-2.5 text-sm font-medium text-foreground/90 drop-shadow-sm sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-4",
   metaItem: "inline-flex min-w-0 items-center gap-1.5",
-  statusBadge: "border-cp-border/80 bg-cp-bg/50 uppercase text-foreground/90 backdrop-blur-sm",
+  statusBadge: cn(
+    "border border-cp-border/80 bg-cp-bg/85 uppercase text-foreground shadow-sm backdrop-blur-md",
+    "dark:bg-cp-bg/55 dark:text-foreground/95",
+  ),
 } as const;
 
 type TournamentTabNavProps<T extends string> = {

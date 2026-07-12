@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
+  LayoutGrid,
   Monitor,
   Radio,
   Swords,
@@ -15,6 +16,8 @@ import {
 } from "lucide-react";
 import { FadeInView } from "@/components/motion/fade-in";
 import { FunMatchScoringWorkspace } from "@/components/tournaments/manage/fun-match-scoring-workspace";
+import { DoubleStageBracketAwaitingPanel } from "@/components/tournaments/manage/double-stage-bracket-awaiting-panel";
+import { DoubleStageManagePanel } from "@/components/tournaments/manage/double-stage-manage-panel";
 import { BracketManagePanel } from "@/components/tournaments/manage/bracket-manage-panel";
 import { DisplayControlPanel } from "@/components/tournaments/manage/display-control-panel";
 import { ManageOfficialDashboardPanel } from "@/components/tournaments/manage/manage-official-dashboard-panel";
@@ -25,6 +28,7 @@ import { TournamentParticipantsPanel } from "@/components/tournaments/tournament
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import { isFunMatchType, isOfficialType, supportsPlayerInvites } from "@/lib/tournaments/core/types";
@@ -35,10 +39,12 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import { useManageTournamentDetail } from "@/hooks/use-manage-tournament-detail";
 import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import { cpBadgeSuccessClass, cpBadgeWarningClass } from "@/lib/styles/surface-classes";
+import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "groups", label: "Groups", icon: LayoutGrid },
   { id: "scoring", label: "Live scoring", icon: Radio },
   { id: "bracket", label: "Bracket", icon: Swords },
   { id: "players", label: "Players", icon: UserRound },
@@ -54,9 +60,13 @@ const SECTION_META: Record<ManageSection, { title: string; description: string }
     title: "Dashboard",
     description: "Overview and shortcuts for running this event.",
   },
+  groups: {
+    title: "Groups",
+    description: "Group standings, fixtures, and qualification progress (read-only overview).",
+  },
   scoring: {
     title: "Live scoring",
-    description: "Assign courts, start matches, and update scores in real time.",
+    description: "Start matches and record scores in real time.",
   },
   bracket: {
     title: "Bracket",
@@ -103,14 +113,15 @@ export function TournamentManageShell({
       initialTournament.slug,
       initialTournament,
     );
+  const caps = getFormatCapabilities(tournament);
   const isOfficial = isOfficialType(tournament.tournamentType);
   const isFunMatch = isFunMatchType(tournament.tournamentType);
-  const isElimination = tournament.format !== "americano";
   const canInvitePlayers = supportsPlayerInvites(tournament);
 
   const visibleSections = useMemo(() => {
     return SECTIONS.filter((s) => {
-      if (s.id === "bracket" && !isElimination) return false;
+      if (s.id === "groups" && !caps.showGroupsTab) return false;
+      if (s.id === "bracket" && !caps.showBracketTab) return false;
       if (s.id === "registrations" && (!isOfficial || !access.isOwner)) return false;
       if (s.id === "players" && !isFunMatch) return false;
       if (s.id === "invites" && !access.isOwner) return false;
@@ -123,7 +134,7 @@ export function TournamentManageShell({
       }
       return true;
     });
-  }, [access.grantRole, access.isOwner, isElimination, isOfficial, isFunMatch]);
+  }, [access.grantRole, access.isOwner, caps, isOfficial, isFunMatch]);
 
   const initialSection =
     (searchParams.get("section") as ManageSection | null) ?? "dashboard";
@@ -132,15 +143,26 @@ export function TournamentManageShell({
       visibleSections.some((s) => s.id === initialSection) ? initialSection : "dashboard";
     return requested;
   });
+  const [sectionReady, setSectionReady] = useState(true);
 
   const navigateSection = useCallback(
     (next: ManageSection) => {
+      if (next === section) return;
+      setSectionReady(false);
       setSection(next);
       const url = `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=${next}`;
       router.replace(url, { scroll: false });
     },
-    [router, tournament.slug, tournament.sportSlug],
+    [router, section, tournament.slug, tournament.sportSlug],
   );
+
+  useEffect(() => {
+    setSectionReady(false);
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => setSectionReady(true));
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [section]);
 
   useEffect(() => {
     const param = searchParams.get("section") as ManageSection | null;
@@ -150,6 +172,39 @@ export function TournamentManageShell({
       setSection(next);
     }
   }, [searchParams, visibleSections]);
+
+  const sectionMeta = useMemo(() => {
+    const base = SECTION_META[section];
+    if (!caps.isDoubleStage) return base;
+    if (section === "groups") {
+      return {
+        title: base.title,
+        description:
+          "Standings and fixtures for each group. Score matches in Live scoring — this tab updates automatically.",
+      };
+    }
+    if (section === "scoring" && caps.hasGroupStage) {
+      return {
+        title: "Live scoring — group stage",
+        description:
+          "Start group fixtures and save final scores. Standings sync to the Groups tab instantly.",
+      };
+    }
+    if (section === "scoring" && caps.isDoubleStage && !caps.hasGroupStage) {
+      return {
+        title: "Live scoring — knockout",
+        description: "Score elimination bracket matches on courts in real time.",
+      };
+    }
+    if (section === "bracket" && caps.isDoubleStage && caps.hasGroupStage) {
+      return {
+        title: "Bracket",
+        description:
+          "Knockout bracket setup unlocks after the group stage. Track progress here, then generate the draw from Groups.",
+      };
+    }
+    return base;
+  }, [caps.hasGroupStage, caps.isDoubleStage, section]);
 
   const livePhase =
     tournament.status === "live"
@@ -207,12 +262,19 @@ export function TournamentManageShell({
         <main className="min-w-0 flex-1 space-y-6">
           {section !== "dashboard" ? (
             <header className="rounded-2xl border border-cp-border bg-cp-card/60 px-5 py-4">
-              <h1 className="text-xl font-semibold text-foreground">{SECTION_META[section].title}</h1>
-              <p className="mt-1 text-sm text-cp-muted">{SECTION_META[section].description}</p>
+              <h1 className="text-xl font-semibold text-foreground">{sectionMeta.title}</h1>
+              <p className="mt-1 text-sm text-cp-muted">{sectionMeta.description}</p>
             </header>
           ) : null}
 
-          <FadeInView key={section}>
+          <div className="relative min-h-[280px]">
+            {!sectionReady ? (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border border-cp-border bg-cp-background/80 backdrop-blur-[2px]">
+                <LoadingSpinner label="Loading section…" />
+              </div>
+            ) : null}
+
+            <FadeInView key={section}>
             {section === "dashboard" ? (
               <div className="space-y-4">
                 <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
@@ -241,10 +303,16 @@ export function TournamentManageShell({
                         Live scoring
                       </Button>
                     ) : null}
-                    {isElimination && access.canManageBracket ? (
+                    {caps.showBracketTab && access.canManageBracket && !caps.hasGroupStage ? (
                       <Button size="sm" variant="secondary" onClick={() => navigateSection("bracket")}>
                         <Trophy className="mr-1.5 h-4 w-4" />
                         Bracket setup
+                      </Button>
+                    ) : null}
+                    {caps.showGroupsTab ? (
+                      <Button size="sm" variant="secondary" onClick={() => navigateSection("groups")}>
+                        <LayoutGrid className="mr-1.5 h-4 w-4" />
+                        Groups
                       </Button>
                     ) : null}
                     {canEdit ? (
@@ -282,17 +350,44 @@ export function TournamentManageShell({
                     </div>
                   </div>
                 )}
-                <ol className="rounded-2xl border border-cp-border bg-cp-card/60 p-5 text-sm text-cp-muted">
-                  <li className="font-medium text-foreground">Quick start</li>
-                  <li className="mt-2">1. Open Live scoring → assign courts and start matches</li>
-                  {isElimination ? (
-                    <li>2. Bracket tab → generate & save seeding → set status Live</li>
-                  ) : (
-                    <li>2. Use round planner for Americano rotations across courts</li>
-                  )}
-                  <li>3. Open Display for venue screens</li>
-                </ol>
+                {caps.isDoubleStage ? (
+                  <ol className="rounded-2xl border border-cp-border bg-cp-card/60 p-5 text-sm text-cp-muted">
+                    <li className="font-medium text-foreground">Quick start — double stage</li>
+                    <li className="mt-2">
+                      1. <span className="text-foreground">Groups</span> — check standings & fixtures
+                    </li>
+                    <li>
+                      2. <span className="text-foreground">Live scoring</span> — start & save group
+                      match scores
+                    </li>
+                    <li>
+                      3. When all group matches finish →{" "}
+                      <span className="text-foreground">Generate knockout bracket</span> on Groups
+                    </li>
+                    <li>
+                      4. Score elimination in Live scoring — open Display for venue screens
+                    </li>
+                  </ol>
+                ) : (
+                  <ol className="rounded-2xl border border-cp-border bg-cp-card/60 p-5 text-sm text-cp-muted">
+                    <li className="font-medium text-foreground">Quick start</li>
+                    <li className="mt-2">1. Open Live scoring → assign courts and start matches</li>
+                    {caps.showBracketTab ? (
+                      <li>2. Bracket tab → generate & save seeding → set status Live</li>
+                    ) : (
+                      <li>2. Use round planner for Americano rotations across courts</li>
+                    )}
+                    <li>3. Open Display for venue screens</li>
+                  </ol>
+                )}
               </div>
+            ) : null}
+
+            {section === "groups" && caps.showGroupsTab ? (
+              <DoubleStageManagePanel
+                tournament={tournament}
+                onOpenLiveScoring={() => navigateSection("scoring")}
+              />
             ) : null}
 
             {section === "scoring" && !access.canManageScoring ? (
@@ -301,7 +396,9 @@ export function TournamentManageShell({
               </div>
             ) : null}
 
-            {section === "scoring" && access.canManageScoring ? (
+            {section === "scoring" &&
+            access.canManageScoring &&
+            !(caps.isDoubleStage && caps.hasGroupStage) ? (
               <FunMatchScoringWorkspace
                 tournament={tournament}
                 participant={participant}
@@ -310,18 +407,37 @@ export function TournamentManageShell({
               />
             ) : null}
 
-            {section === "bracket" && isElimination && !access.canManageBracket ? (
+            {section === "scoring" &&
+            access.canManageScoring &&
+            caps.isDoubleStage &&
+            caps.hasGroupStage ? (
+              <FunMatchScoringWorkspace
+                tournament={tournament}
+                participant={participant}
+                livePhase={livePhase}
+                workspaceVariant="official"
+              />
+            ) : null}
+
+            {section === "bracket" && caps.showBracketTab && !access.canManageBracket ? (
               <div className="rounded-2xl border border-cp-border bg-cp-card p-6 text-sm text-cp-muted">
                 You do not have permission to manage the bracket for this tournament.
               </div>
             ) : null}
 
-            {section === "bracket" && isElimination && access.canManageBracket ? (
-              <BracketManagePanel
-                tournament={tournament}
-                participant={participant}
-                onOpenLiveScoring={() => navigateSection("scoring")}
-              />
+            {section === "bracket" && caps.showBracketTab && access.canManageBracket ? (
+              caps.isDoubleStage && caps.hasGroupStage ? (
+                <DoubleStageBracketAwaitingPanel
+                  tournament={tournament}
+                  onOpenGroups={() => navigateSection("groups")}
+                />
+              ) : (
+                <BracketManagePanel
+                  tournament={tournament}
+                  participant={participant}
+                  onOpenLiveScoring={() => navigateSection("scoring")}
+                />
+              )
             ) : null}
 
             {section === "players" && isFunMatch ? (
@@ -418,7 +534,8 @@ export function TournamentManageShell({
                 onSaved={() => void refetchTournament()}
               />
             ) : null}
-          </FadeInView>
+            </FadeInView>
+          </div>
         </main>
       </div>
     </div>

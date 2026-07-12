@@ -27,6 +27,8 @@ import { FunMatchPublicHistoryTab } from "@/components/tournaments/fun-match/fun
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
 import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
 import { mapLivePayloadToRecentRows } from "@/lib/tournaments/recent-matches";
+import { TournamentLiveBanner } from "@/components/tournaments/public/tournament-live-banner";
+import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { ReclubSquadLobby } from "@/components/tournaments/reclub/reclub-squad-lobby";
 import { ReclubSessionStatusBanner } from "@/components/tournaments/reclub/reclub-session-status-banner";
 import { ReclubRulesPanel } from "@/components/tournaments/reclub-rules-panel";
@@ -45,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   getTournamentStatusBadgeClass,
   getTournamentTypeBadgeClass,
-  tournamentHeroStatusBadgeBase,
+  statusBadgeClass,
 } from "@/lib/styles/status-badges";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -219,6 +221,36 @@ export function ReclubTournamentPage({
   );
 
   const canUseHostControls = participant.canUseHostControls;
+
+  const liveCourts = liveData?.courts ?? data?.courts ?? [];
+  const bannerMatches = useMemo(() => {
+    const fromLive =
+      liveData?.matches?.filter(
+        (m) => m.status === "in_progress" && m.teamAName && m.teamBName,
+      ) ?? [];
+    if (fromLive.length) {
+      return fromLive.map((m) => ({
+        id: m.id,
+        courtLabel: resolveCourtLabel(m.courtId, liveCourts),
+        teamAName: m.teamAName ?? "Squad A",
+        teamBName: m.teamBName ?? "Squad B",
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        roundNumber: m.roundNumber,
+      }));
+    }
+    return activeMatches.map((m) => ({
+      id: m.id,
+      courtLabel: resolveCourtLabel(m.courtId, liveCourts),
+      teamAName: m.teamAName ?? "Squad A",
+      teamBName: m.teamBName ?? "Squad B",
+      scoreA: m.scoreA,
+      scoreB: m.scoreB,
+      roundNumber: m.roundNumber,
+    }));
+  }, [activeMatches, liveCourts, liveData?.matches]);
+  const showHostScoringBanner =
+    bannerMatches.length === 1 && canUseHostControls && Boolean(activeMatch);
 
   const liveElapsed = useLiveTimer(activeMatch?.startedAt ?? null, Boolean(activeMatch));
   const mapsUrl = getVenueMapsUrl(tournament);
@@ -475,19 +507,28 @@ export function ReclubTournamentPage({
 
         <FadeInView className="mt-5 sm:mt-6">
           <div className="flex flex-wrap gap-2">
-            <Badge className={cn("border-0", getTournamentTypeBadgeClass("fun_match"))}>
+            <Badge
+              className={cn(
+                tournamentHeroStyles.statusBadge,
+                getTournamentTypeBadgeClass("fun_match"),
+              )}
+            >
               <Gamepad2 className="mr-1 h-3 w-3" />
               Fun Match — free play
             </Badge>
             <Badge
               className={cn(
-                tournamentHeroStatusBadgeBase,
+                tournamentHeroStyles.statusBadge,
                 getTournamentStatusBadgeClass(tournament.status),
               )}
             >
               {getPhaseLabel(livePhase)}
             </Badge>
-            {isFetching && !isLoading ? <Badge variant="muted">Syncing…</Badge> : null}
+            {isFetching && !isLoading ? (
+              <Badge variant="muted" className={tournamentHeroStyles.statusBadge}>
+                Syncing…
+              </Badge>
+            ) : null}
           </div>
 
           <h1 className={tournamentHeroStyles.title}>{tournament.name}</h1>
@@ -563,8 +604,15 @@ export function ReclubTournamentPage({
         <ReclubSessionStatusBanner session={tournament} className="mt-4" />
       </div>
 
-      {/* Live round banner */}
-      {activeMatch ? (
+      <TournamentLiveBanner
+        matches={showHostScoringBanner ? [] : bannerMatches}
+        variant="fun"
+        onViewLive={() => setTab("Live Score")}
+        viewLiveLabel="View live score"
+      />
+
+      {/* Live round banner — host inline scoring for a single court only */}
+      {showHostScoringBanner && activeMatch ? (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}

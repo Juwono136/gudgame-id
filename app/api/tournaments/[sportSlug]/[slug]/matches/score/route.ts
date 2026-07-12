@@ -20,6 +20,8 @@ const bodySchema = z.object({
   scoreB: z.coerce.number().int().min(0).max(99),
   action: z.enum(["set", "increment", "decrement"]).optional(),
   side: z.enum(["a", "b"]).optional(),
+  scorerName: z.string().trim().min(1).max(120).optional(),
+  scorerUserId: z.string().uuid().optional(),
 });
 
 export async function PATCH(
@@ -62,6 +64,8 @@ export async function PATCH(
         scoreB: parsed.data.scoreB,
         action: parsed.data.action,
         side: parsed.data.side,
+        scorerName: parsed.data.scorerName,
+        scorerUserId: parsed.data.scorerUserId,
       },
     );
 

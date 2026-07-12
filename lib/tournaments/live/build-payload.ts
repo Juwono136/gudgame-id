@@ -10,8 +10,15 @@ import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/bra
 import { isFunMatchType, supportsRoundBasedPlay } from "@/lib/tournaments/core/types";
 import {
   getTournamentLivePhase,
+  shouldExposeBracketPublicData,
+  shouldExposeGroupStagePublicData,
   shouldExposeLivePublicData,
 } from "@/lib/tournaments/lifecycle-guards";
+import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
+import {
+  buildDoubleStageOverview,
+  listGroupMatches,
+} from "@/lib/tournaments/double-stage/service";
 import {
   isTournamentLivePhaseTerminal,
   normalizeBracketMatchesForDisplay,
@@ -27,9 +34,32 @@ import { getTournamentDisplayConfig } from "@/lib/tournaments/settings";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
 import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import { computeTournamentSessionStats } from "@/lib/tournaments/stats/compute";
+import { toStatsMatchFromGroup } from "@/lib/tournaments/stats/from-group";
 import type { StatsMatchInput, TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
+import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+
+function mapGroupToLiveMatch(m: GroupMatchView) {
+  return {
+    id: m.id,
+    type: "group_stage" as const,
+    groupId: m.groupId,
+    teamAId: m.teamAId,
+    teamBId: m.teamBId,
+    teamAName: m.teamAName,
+    teamBName: m.teamBName,
+    scoreA: m.scoreA,
+    scoreB: m.scoreB,
+    status: m.status,
+    startedAt: m.startedAt,
+    endedAt: m.completedAt,
+    courtId: m.courtId,
+    teamAPlayers: (m.teamAPlayers ?? []).map((p) => p.displayName).filter(Boolean),
+    teamBPlayers: (m.teamBPlayers ?? []).map((p) => p.displayName).filter(Boolean),
+    scoreEvents: m.scoreEvents ?? [],
+  };
+}
 
 function mapReclubToLiveMatch(m: ReclubMatchView) {
   return {
@@ -134,17 +164,22 @@ export async function buildTournamentLivePayload(
   const isLiveOrDone = shouldExposeLivePublicData(tournament);
   const tournamentEnded = isTournamentLivePhaseTerminal(phase);
 
+  const caps = getFormatCapabilities(tournament);
   const isFunMatch = isFunMatchType(tournament.tournamentType);
-  const includeBracket = tournament.format !== "americano";
+  const includeBracket = shouldExposeBracketPublicData(tournament);
+  const includeGroupStage = shouldExposeGroupStagePublicData(tournament);
   const includeLobbyRounds = supportsRoundBasedPlay(tournament);
 
   const db = getDb();
-  const [bracketMatchesRaw, leaderboard, teams, lobbyMatchesRaw, courts] = await Promise.all([
+  const [bracketMatchesRaw, leaderboard, teams, lobbyMatchesRaw, courts, groupMatchesRaw, doubleStageOverview] =
+    await Promise.all([
     includeBracket ? listBracketMatches(tournament.id) : Promise.resolve([]),
     includeBracket ? buildTournamentLeaderboard(tournament.id) : Promise.resolve([]),
     listLobbyTeamsDetailed(tournament.id),
     includeLobbyRounds ? listReclubMatches(tournament.id) : Promise.resolve([]),
     provisionTournamentCourts(tournament),
+    includeGroupStage ? listGroupMatches(tournament.id) : Promise.resolve([]),
+    includeGroupStage ? buildDoubleStageOverview(tournament) : Promise.resolve(null),
   ]);
 
   const bracketMatches = normalizeBracketMatchesForDisplay(
@@ -188,6 +223,13 @@ export async function buildTournamentLivePayload(
       })),
   }));
 
+  const groupSessionMatches =
+    isLiveOrDone && includeGroupStage && caps.hasGroupStage
+      ? groupMatchesRaw
+          .filter((m) => m.status === "in_progress" || m.status === "completed")
+          .map(mapGroupToLiveMatch)
+      : [];
+
   const lobbyLiveMatches =
     isLiveOrDone && !tournamentEnded
       ? lobbyMatches.filter((m) => m.status === "in_progress").map(mapReclubToLiveMatch)
@@ -203,11 +245,13 @@ export async function buildTournamentLivePayload(
 
   const bracketLiveNotInLobby = bracketLiveMatches.filter((m) => !lobbyBracketIds.has(m.id));
 
-  const activeLiveMatches = includeLobbyRounds
-    ? isFunMatch
-      ? lobbyLiveMatches
-      : [...lobbyLiveMatches, ...bracketLiveNotInLobby]
-    : bracketLiveMatches;
+  const activeLiveMatches = includeGroupStage && caps.hasGroupStage
+    ? groupSessionMatches
+    : includeLobbyRounds
+      ? isFunMatch
+        ? lobbyLiveMatches
+        : [...lobbyLiveMatches, ...bracketLiveNotInLobby]
+      : bracketLiveMatches;
 
   const funMatchSessionMatches =
     isLiveOrDone && isFunMatch
@@ -275,7 +319,25 @@ export async function buildTournamentLivePayload(
       bracketMatchId: m.id,
     }));
 
-  const matchHistory = [...lobbyHistory, ...bracketHistory].sort((a, b) => {
+  const groupHistory = groupMatchesRaw
+    .filter((m) => m.status === "completed")
+    .map((m) => ({
+      id: m.id,
+      label: "Group stage",
+      summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
+      score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
+      endedAt: m.completedAt,
+      playType: "group_stage" as const,
+      teamAId: m.teamAId,
+      teamBId: m.teamBId,
+      teamAName: m.teamAName,
+      teamBName: m.teamBName,
+      teamAPlayers: m.teamAPlayers.map((p) => p.displayName).filter(Boolean),
+      teamBPlayers: m.teamBPlayers.map((p) => p.displayName).filter(Boolean),
+      scoreEvents: m.scoreEvents,
+    }));
+
+  const matchHistory = [...groupHistory, ...lobbyHistory, ...bracketHistory].sort((a, b) => {
     const at = new Date(a.endedAt ?? 0).getTime();
     const bt = new Date(b.endedAt ?? 0).getTime();
     return bt - at;
@@ -284,6 +346,11 @@ export async function buildTournamentLivePayload(
   const statsMatches: StatsMatchInput[] = [
     ...lobbyMatches.map(toStatsMatchFromReclub).filter((m): m is StatsMatchInput => m != null),
     ...bracketMatches.map(toStatsMatchFromBracket).filter((m): m is StatsMatchInput => m != null),
+    ...(includeGroupStage
+      ? groupMatchesRaw
+          .map(toStatsMatchFromGroup)
+          .filter((m): m is StatsMatchInput => m != null)
+      : []),
   ];
 
   const statsTeams = teams
@@ -330,8 +397,26 @@ export async function buildTournamentLivePayload(
       generated: bracketMatches.length > 0,
     },
     matches: matchesPayload,
-    matchHistory: includeLobbyRounds ? matchHistory : bracketHistory,
+    matchHistory:
+      includeGroupStage && !includeLobbyRounds
+        ? [...groupHistory, ...bracketHistory].sort((a, b) => {
+            const at = new Date(a.endedAt ?? 0).getTime();
+            const bt = new Date(b.endedAt ?? 0).getTime();
+            return bt - at;
+          })
+        : includeLobbyRounds
+          ? matchHistory
+          : bracketHistory,
     leaderboard,
+    doubleStage: doubleStageOverview
+      ? {
+          phase: doubleStageOverview.phase,
+          groups: doubleStageOverview.groups,
+          knockoutReady: doubleStageOverview.knockoutReady,
+          allGroupMatchesCompleted: doubleStageOverview.allGroupMatchesCompleted,
+          qualifiedCount: doubleStageOverview.qualifiedCount,
+        }
+      : undefined,
     playerStats: sessionStats,
     lastUpdatedAt: new Date().toISOString(),
   };

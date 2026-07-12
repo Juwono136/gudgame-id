@@ -2,7 +2,11 @@
 
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { uniquePlayerNames } from "@/lib/format/player-names";
+import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
+
+export type { ScoreAdjustOptions };
 
 type LiveScoreboardProps = {
   teamAName: string;
@@ -11,8 +15,8 @@ type LiveScoreboardProps = {
   teamBPlayers?: string[];
   scoreA: number;
   scoreB: number;
-  onScoreAChange: (next: number) => void;
-  onScoreBChange: (next: number) => void;
+  onScoreAChange: (next: number, options?: ScoreAdjustOptions) => void;
+  onScoreBChange: (next: number, options?: ScoreAdjustOptions) => void;
   maxScore?: number;
   disabled?: boolean;
   status?: "idle" | "syncing" | "saved" | "error";
@@ -30,7 +34,7 @@ function ScoreColumn({
 }: {
   label: string;
   score: number;
-  onChange: (n: number) => void;
+  onChange: (n: number, options?: ScoreAdjustOptions) => void;
   maxScore: number;
   disabled?: boolean;
 }) {
@@ -81,53 +85,86 @@ function CompactScoreRow({
   label: string;
   players?: string[];
   score: number;
-  onChange: (n: number) => void;
+  onChange: (n: number, options?: ScoreAdjustOptions) => void;
   maxScore: number;
   disabled?: boolean;
 }) {
-  const playerLine = players?.length ? players.join(" / ") : null;
+  const playerList = uniquePlayerNames(players);
+  const singlePlayer = playerList.length === 1 ? playerList[0]! : null;
+  const usePlayerButtons = playerList.length > 1;
+
+  const increment = (options?: ScoreAdjustOptions) => {
+    if (score >= maxScore) return;
+    onChange(Math.min(maxScore, score + 1), options);
+  };
+
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-2 py-2 sm:gap-3 sm:px-3">
-      <div className="min-w-0 flex-1">
-        <p
-          className="break-words text-xs font-semibold leading-snug text-foreground sm:text-sm"
-          title={label}
-        >
-          {label}
-        </p>
-        {playerLine ? (
-          <p className="mt-0.5 break-words text-[10px] leading-snug text-cp-muted sm:text-[11px]">
-            {playerLine}
+    <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-2 py-2 sm:px-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <p
+            className="break-words text-xs font-semibold leading-snug text-foreground sm:text-sm"
+            title={label}
+          >
+            {label}
           </p>
-        ) : null}
+          {playerList.length > 0 && !usePlayerButtons ? (
+            <p className="mt-0.5 break-words text-[10px] leading-snug text-cp-muted sm:text-[11px]">
+              {playerList.join(" / ")}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 shrink-0 rounded-full border-cp-border"
+            disabled={disabled || score <= 0}
+            onClick={() => onChange(Math.max(0, score - 1))}
+            aria-label={`Decrease ${label} score`}
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <span className="w-8 text-center text-2xl font-bold tabular-nums text-foreground sm:w-10 sm:text-3xl">
+            {score}
+          </span>
+          {!usePlayerButtons ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9 shrink-0 rounded-full border-cp-border"
+              disabled={disabled || score >= maxScore}
+              onClick={() => increment(singlePlayer ? { scorerName: singlePlayer } : undefined)}
+              aria-label={`Increase ${label} score`}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          ) : (
+            <span className="w-9 shrink-0 sm:w-10" aria-hidden />
+          )}
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          className="h-9 w-9 shrink-0 rounded-full border-cp-border"
-          disabled={disabled || score <= 0}
-          onClick={() => onChange(Math.max(0, score - 1))}
-          aria-label={`Decrease ${label} score`}
-        >
-          <Minus className="h-4 w-4" />
-        </Button>
-        <span className="w-8 text-center text-2xl font-bold tabular-nums text-foreground sm:w-10 sm:text-3xl">
-          {score}
-        </span>
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          className="h-9 w-9 shrink-0 rounded-full border-cp-border"
-          disabled={disabled || score >= maxScore}
-          onClick={() => onChange(Math.min(maxScore, score + 1))}
-          aria-label={`Increase ${label} score`}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
+      {usePlayerButtons ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {playerList.map((playerName) => (
+            <Button
+              key={playerName}
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 max-w-full truncate rounded-full border-cp-primary/30 px-2.5 text-[11px] font-medium text-foreground hover:bg-cp-primary/10"
+              disabled={disabled || score >= maxScore}
+              onClick={() => increment({ scorerName: playerName })}
+              aria-label={`Award point to ${playerName}`}
+            >
+              <Plus className="mr-1 h-3 w-3 shrink-0 text-cp-primary" />
+              <span className="truncate">{playerName}</span>
+            </Button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { AmericanoPlayerRef } from "@/lib/tournaments/americano/court-assignments";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import type { StartableGroupFixture } from "@/lib/tournaments/double-stage/view-mappers";
 import { cn } from "@/lib/utils";
 
 type CourtView = { id: string; name: string; courtNumber: number };
@@ -21,7 +23,12 @@ type FunMatchLiveHubProps = {
   teamBByCourt?: Record<string, string>;
   bracketPickByCourt?: Record<string, string>;
   startableBracketMatches?: BracketMatchView[];
+  startableGroupMatches?: StartableGroupFixture[];
+  activeGroupMatches?: GroupMatchView[];
   isBracketMode?: boolean;
+  isGroupStageMode?: boolean;
+  groupPickByCourt?: Record<string, string>;
+  onGroupPickChange?: (courtId: string, matchId: string) => void;
   onTeamAChange?: (courtId: string, v: string) => void;
   onTeamBChange?: (courtId: string, v: string) => void;
   onBracketPickChange?: (courtId: string, matchId: string) => void;
@@ -33,7 +40,10 @@ type FunMatchLiveHubProps = {
       scoreB: number;
       action?: "increment" | "decrement" | "set";
       side?: "a" | "b";
+      scorerName?: string;
+      scorerUserId?: string;
       isBracket?: boolean;
+      isGroup?: boolean;
     },
   ) => void;
   onCompleteMatch?: (match: ReclubMatchView) => void;
@@ -42,7 +52,8 @@ type FunMatchLiveHubProps = {
   readOnly?: boolean;
   pointsPerMatch: number;
   scoringRules?: import("@/lib/tournaments/scoring/engine").ScoringRules;
-  starting?: boolean;
+  isCourtStarting?: (courtId: string) => boolean;
+  startingAll?: boolean;
   maxRounds?: number | null;
   onReshuffle?: () => void;
   onStartAllCourts?: () => void;
@@ -65,7 +76,12 @@ export function FunMatchLiveHub({
   teamBByCourt = {},
   bracketPickByCourt = {},
   startableBracketMatches = [],
+  startableGroupMatches = [],
+  activeGroupMatches = [],
   isBracketMode = false,
+  isGroupStageMode = false,
+  groupPickByCourt = {},
+  onGroupPickChange = () => {},
   onTeamAChange = () => {},
   onTeamBChange = () => {},
   onBracketPickChange = () => {},
@@ -77,7 +93,8 @@ export function FunMatchLiveHub({
   readOnly = true,
   pointsPerMatch,
   scoringRules,
-  starting,
+  isCourtStarting,
+  startingAll,
   maxRounds,
   onReshuffle,
   onStartAllCourts,
@@ -102,7 +119,12 @@ export function FunMatchLiveHub({
         teamBByCourt={teamBByCourt}
         bracketPickByCourt={bracketPickByCourt}
         startableBracketMatches={startableBracketMatches}
+        startableGroupMatches={startableGroupMatches}
+        activeGroupMatches={activeGroupMatches}
         isBracketMode={isBracketMode}
+        isGroupStageMode={isGroupStageMode}
+        groupPickByCourt={groupPickByCourt}
+        onGroupPickChange={onGroupPickChange}
         onTeamAChange={onTeamAChange}
         onTeamBChange={onTeamBChange}
         onBracketPickChange={onBracketPickChange}
@@ -114,7 +136,8 @@ export function FunMatchLiveHub({
         readOnly={readOnly}
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
-        starting={starting}
+        isCourtStarting={isCourtStarting}
+        startingAll={startingAll}
         maxRounds={maxRounds}
         onReshuffle={onReshuffle}
         onStartAllCourts={onStartAllCourts}

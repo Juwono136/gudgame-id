@@ -67,7 +67,23 @@ import {
   cpAlertDangerSurfaceClass,
   cpAlertDangerTextClass,
 } from "@/lib/styles/surface-classes";
+import {
+  useFinalizeGroupScore,
+  useStartGroupMatchOnCourt,
+  useUpdateGroupLiveScore,
+} from "@/hooks/use-double-stage-group-score";
+import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
+import {
+  buildGroupCourtLockState,
+  isGroupMatchLockedForCourt,
+} from "@/lib/tournaments/double-stage/group-court-lock";
+import {
+  groupMatchToReclubView,
+  type StartableGroupFixture,
+} from "@/lib/tournaments/double-stage/view-mappers";
+import { computeParallelCapacity } from "@/lib/tournaments/courts/parallel-capacity";
 import { cn } from "@/lib/utils";
+import { parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import type { ScoringRules } from "@/lib/tournaments/scoring/engine";
 
 type FunMatchScoringWorkspaceProps = {
@@ -96,18 +112,26 @@ export function FunMatchScoringWorkspace({
   const startBracketOnCourt = useStartBracketMatchOnCourt(tournament.sportSlug, tournament.slug);
   const updateBracketScore = useUpdateBracketLiveScore(tournament.sportSlug, tournament.slug);
   const finalizeBracketScore = useSubmitBracketScore(tournament.sportSlug, tournament.slug);
+  const startGroupOnCourt = useStartGroupMatchOnCourt(tournament.sportSlug, tournament.slug);
+  const updateGroupScore = useUpdateGroupLiveScore(tournament.sportSlug, tournament.slug);
+  const finalizeGroupScore = useFinalizeGroupScore(tournament.sportSlug, tournament.slug);
 
   const isBracketMode = data?.mode === "bracket";
+  const isGroupStageMode = data?.mode === "groups";
   const courts = data?.courts ?? [];
   const teams = data?.teams ?? [];
   const matches = data?.reclubMatches ?? [];
   const activeMatches = data?.activeReclubMatches ?? [];
   const bracketMatches = data?.bracketMatches ?? [];
   const activeBracketMatches = data?.activeBracketMatches ?? [];
+  const groupMatches = data?.groupMatches ?? [];
+  const activeGroupMatches = data?.activeGroupMatches ?? [];
+  const doubleStageOverview = data?.doubleStage;
   const sessionStats = data?.sessionStats;
   const canScore = participant.canUseCourtsideScoring && livePhase === "live";
   const isOfficialWorkspace =
     workspaceVariant === "official" || isOfficialType(tournament.tournamentType);
+  const isDoubleStageTournament = tournament.format === "double_stage";
   const accentVariant = isOfficialWorkspace ? "official" : "fun";
   const pointsPerMatch = getTournamentPointsPerMatch(tournament);
   const scoringType = getTournamentScoringType(tournament);
@@ -128,7 +152,9 @@ export function FunMatchScoringWorkspace({
   const [teamAByCourt, setTeamAByCourt] = useState<Record<string, string>>({});
   const [teamBByCourt, setTeamBByCourt] = useState<Record<string, string>>({});
   const [bracketPickByCourt, setBracketPickByCourt] = useState<Record<string, string>>({});
+  const [groupPickByCourt, setGroupPickByCourt] = useState<Record<string, string>>({});
   const [reshuffleSeed, setReshuffleSeed] = useState(0);
+  const [startingAllCourts, setStartingAllCourts] = useState(false);
   const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
   const [courtNameDraft, setCourtNameDraft] = useState("");
 
@@ -193,16 +219,81 @@ export function FunMatchScoringWorkspace({
     [allMatchesForDisplay, teams, isAmericanoMode],
   );
 
-  const { players: officialPlayerStandings } = useMemo(
+  const allowGroupDraw = useMemo(() => {
+    const raw = (tournament.settings as Record<string, unknown>)?.standingsScoring;
+    return parseStandingsScoring(raw).allowDraw;
+  }, [tournament.settings]);
+
+  const groupNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of doubleStageOverview?.groups ?? []) {
+      map.set(g.id, g.name);
+    }
+    return map;
+  }, [doubleStageOverview?.groups]);
+
+  const groupMatchesAsReclub = useMemo(
     () =>
-      computeOfficialPlayerStandings(
+      groupMatches.map((m) => groupMatchToReclubView(m, groupNameById.get(m.groupId))),
+    [groupMatches, groupNameById],
+  );
+
+  const officialSessionReclubMatches = useMemo(() => {
+    if (isOfficialWorkspace && isDoubleStageTournament) {
+      return groupMatchesAsReclub;
+    }
+    if (isGroupStageMode) return groupMatchesAsReclub;
+    return matches;
+  }, [
+    groupMatchesAsReclub,
+    isDoubleStageTournament,
+    isGroupStageMode,
+    isOfficialWorkspace,
+    matches,
+  ]);
+
+  const { players: officialPlayerStandings } = useMemo(
+    () => {
+      if (isOfficialWorkspace && isDoubleStageTournament) {
+        const groupReclub = groupMatchesAsReclub.filter(
+          (m) => m.status === "completed" || m.status === "in_progress",
+        );
+        return computeOfficialPlayerStandings(bracketMatches, groupReclub, teams, {
+          americano: false,
+        });
+      }
+      return computeOfficialPlayerStandings(
         bracketMatches,
         matches,
         teams,
         { americano: isAmericanoMode },
-      ),
-    [bracketMatches, matches, teams, isAmericanoMode],
+      );
+    },
+    [
+      bracketMatches,
+      groupMatchesAsReclub,
+      isAmericanoMode,
+      isDoubleStageTournament,
+      isOfficialWorkspace,
+      matches,
+      teams,
+    ],
   );
+
+  const startableGroupMatches = useMemo((): StartableGroupFixture[] => {
+    if (!isGroupStageMode) return [];
+    return groupMatches
+      .filter((m) => m.status === "pending" && m.teamAId && m.teamBId)
+      .map((m) => ({
+        ...m,
+        groupName: groupNameById.get(m.groupId) ?? "Group",
+      }))
+      .sort((a, b) => {
+        const ga = a.groupName.localeCompare(b.groupName);
+        if (ga !== 0) return ga;
+        return a.matchNumber - b.matchNumber;
+      });
+  }, [groupMatches, groupNameById, isGroupStageMode]);
 
   const matchByCourt = useMemo(() => {
     const map = new Map<string, ReclubMatchView>();
@@ -230,8 +321,42 @@ export function FunMatchScoringWorkspace({
         );
       }
     }
+    for (const gm of activeGroupMatches) {
+      if (gm.courtId) {
+        map.set(
+          gm.courtId,
+          groupMatchToReclubView(gm, groupNameById.get(gm.groupId)),
+        );
+      }
+    }
     return map;
-  }, [activeMatches, activeBracketMatches]);
+  }, [activeMatches, activeBracketMatches, activeGroupMatches, groupNameById]);
+
+  const groupStageRoundGroups = useMemo(() => {
+    if (!isGroupStageMode) return roundGroups;
+    const completed = groupMatchesAsReclub.filter((m) => m.status === "completed");
+    const live = groupMatchesAsReclub.filter((m) => m.status === "in_progress");
+    const groups = [];
+    if (completed.length) {
+      groups.push({
+        roundNumber: 1,
+        matches: completed,
+        liveCount: 0,
+        completedCount: completed.length,
+      });
+    }
+    if (live.length) {
+      groups.push({
+        roundNumber: 2,
+        matches: live,
+        liveCount: live.length,
+        completedCount: 0,
+      });
+    }
+    return groups;
+  }, [groupMatchesAsReclub, isGroupStageMode, roundGroups]);
+
+  const displayRoundGroups = isGroupStageMode ? groupStageRoundGroups : roundGroups;
 
   const startableBracketMatches = useMemo(
     () =>
@@ -247,6 +372,61 @@ export function FunMatchScoringWorkspace({
           return a.matchNumber - b.matchNumber;
         }),
     [bracketMatches],
+  );
+
+  const parallelCapacityMode = isGroupStageMode
+    ? "groups"
+    : isBracketMode
+      ? "bracket"
+      : isAmericanoMode
+        ? "americano"
+        : "squads";
+
+  const parallelCapacity = useMemo(
+    () =>
+      computeParallelCapacity({
+        courts: courts.map((c) => ({ id: c.id, name: c.name })),
+        mode: parallelCapacityMode,
+        activeReclub: activeMatches,
+        activeBracket: activeBracketMatches,
+        activeGroup: activeGroupMatches,
+        squads: squadsWithPlayers,
+        startableBracket: startableBracketMatches,
+        startableGroup: startableGroupMatches,
+        roundNumber: currentRound,
+        seed: tournament.id.charCodeAt(0) + reshuffleSeed,
+      }),
+    [
+      activeBracketMatches,
+      activeGroupMatches,
+      activeMatches,
+      courts,
+      currentRound,
+      isAmericanoMode,
+      isBracketMode,
+      isGroupStageMode,
+      parallelCapacityMode,
+      reshuffleSeed,
+      squadsWithPlayers,
+      startableBracketMatches,
+      startableGroupMatches,
+      tournament.id,
+    ],
+  );
+
+  const isCourtStarting = useCallback(
+    (courtId: string) =>
+      (startRound.isPending && startRound.variables?.courtId === courtId) ||
+      (startBracketOnCourt.isPending && startBracketOnCourt.variables?.courtId === courtId) ||
+      (startGroupOnCourt.isPending && startGroupOnCourt.variables?.courtId === courtId),
+    [
+      startBracketOnCourt.isPending,
+      startBracketOnCourt.variables?.courtId,
+      startGroupOnCourt.isPending,
+      startGroupOnCourt.variables?.courtId,
+      startRound.isPending,
+      startRound.variables?.courtId,
+    ],
   );
 
   const allPlayers = useMemo(
@@ -311,6 +491,35 @@ export function FunMatchScoringWorkspace({
     const nextSeed = reshuffleSeed + 1;
     const seed = tournament.id.charCodeAt(0) + nextSeed;
     const busyTeamIds = getBusyTeamIds(activeMatches, activeBracketMatches);
+
+    if (isGroupStageMode) {
+      const lock = buildGroupCourtLockState(activeGroupMatches);
+      const nextPick = { ...groupPickByCourt };
+      for (const courtId of idleCourtIds) {
+        nextPick[courtId] = "";
+        const match = startableGroupMatches.find((m) => !isGroupMatchLockedForCourt(m, lock));
+        if (match) {
+          nextPick[courtId] = match.id;
+          if (match.teamAId) lock.busyTeamIds.add(match.teamAId);
+          if (match.teamBId) lock.busyTeamIds.add(match.teamBId);
+        }
+      }
+      setGroupPickByCourt(nextPick);
+      setReshuffleSeed((s) => s + 1);
+      const assigned = idleCourtIds.filter((id) => nextPick[id]).length;
+      if (!assigned) {
+        toast.message("No available group fixtures for idle courts", {
+          description:
+            parallelCapacity.blockReason ??
+            "Teams may still be playing on other courts.",
+        });
+        return;
+      }
+      toast.success("Group fixtures assigned to idle courts", {
+        description: `${assigned} court${assigned === 1 ? "" : "s"} ready — review before starting.`,
+      });
+      return;
+    }
 
     const mode = isBracketMode
       ? "bracket"
@@ -433,6 +642,14 @@ export function FunMatchScoringWorkspace({
   );
 
   const handleStartOnCourt = async (courtId: string) => {
+    const groupMatchId = groupPickByCourt[courtId];
+    if (isGroupStageMode && groupMatchId) {
+      await startGroupOnCourt.mutateAsync({ matchId: groupMatchId, courtId });
+      setGroupPickByCourt((p) => ({ ...p, [courtId]: "" }));
+      void refetch();
+      return;
+    }
+
     const bracketMatchId = bracketPickByCourt[courtId];
     if (isBracketMode && bracketMatchId) {
       await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId });
@@ -474,55 +691,76 @@ export function FunMatchScoringWorkspace({
   };
 
   const handleStartAllCourts = async () => {
-    const idleCourts = courts.filter((c) => !matchByCourt.get(c.id));
-    let started = 0;
-    for (const court of idleCourts) {
-      const bracketMatchId = bracketPickByCourt[court.id];
-      if (isBracketMode && bracketMatchId) {
-        await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId: court.id });
-        setBracketPickByCourt((p) => ({ ...p, [court.id]: "" }));
-        started++;
-        continue;
-      }
+    setStartingAllCourts(true);
+    try {
+      const idleCourts = courts.filter((c) => !matchByCourt.get(c.id));
+      let started = 0;
+      for (const court of idleCourts) {
+        const groupMatchId = groupPickByCourt[court.id];
+        if (isGroupStageMode && groupMatchId) {
+          await startGroupOnCourt.mutateAsync({ matchId: groupMatchId, courtId: court.id });
+          setGroupPickByCourt((p) => ({ ...p, [court.id]: "" }));
+          started++;
+          continue;
+        }
 
-      if (isAmericanoMode) {
-        const payload = resolveAmericanoStart(court.id);
-        if (!payload) continue;
+        const bracketMatchId = bracketPickByCourt[court.id];
+        if (isBracketMode && bracketMatchId) {
+          await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId: court.id });
+          setBracketPickByCourt((p) => ({ ...p, [court.id]: "" }));
+          started++;
+          continue;
+        }
+
+        if (isAmericanoMode) {
+          const payload = resolveAmericanoStart(court.id);
+          if (!payload) continue;
+          await startRound.mutateAsync({
+            ...payload,
+            courtId: court.id,
+            sessionRound: currentRound,
+          });
+          setTeamAByCourt((p) => ({ ...p, [court.id]: "" }));
+          setTeamBByCourt((p) => ({ ...p, [court.id]: "" }));
+          started++;
+          continue;
+        }
+
+        const teamAId = teamAByCourt[court.id];
+        const teamBId = teamBByCourt[court.id];
+        if (!teamAId || !teamBId || teamAId === teamBId) continue;
         await startRound.mutateAsync({
-          ...payload,
+          teamAId,
+          teamBId,
           courtId: court.id,
           sessionRound: currentRound,
         });
         setTeamAByCourt((p) => ({ ...p, [court.id]: "" }));
         setTeamBByCourt((p) => ({ ...p, [court.id]: "" }));
         started++;
-        continue;
       }
-
-      const teamAId = teamAByCourt[court.id];
-      const teamBId = teamBByCourt[court.id];
-      if (!teamAId || !teamBId || teamAId === teamBId) continue;
-      await startRound.mutateAsync({
-        teamAId,
-        teamBId,
-        courtId: court.id,
-        sessionRound: currentRound,
-      });
-      setTeamAByCourt((p) => ({ ...p, [court.id]: "" }));
-      setTeamBByCourt((p) => ({ ...p, [court.id]: "" }));
-      started++;
+      if (!started) {
+        toast.message(
+          isGroupStageMode
+            ? "Assign group fixtures on idle courts first"
+            : isAmericanoMode
+              ? "Apply the round plan to idle courts first"
+              : "Assign squads or bracket matches on idle courts first",
+          {
+            description: parallelCapacity.blockReason ?? undefined,
+          },
+        );
+      } else {
+        toast.success(`Started ${started} court${started === 1 ? "" : "s"}`);
+      }
+    } finally {
+      setStartingAllCourts(false);
     }
-    if (!started) {
-      toast.message(
-        isAmericanoMode
-          ? "Apply the round plan to idle courts first"
-          : "Assign squads or bracket matches on idle courts first",
-      );
-    } else toast.success(`Started ${started} court${started === 1 ? "" : "s"}`);
   };
 
   const handleFinishRound = async () => {
-    const liveCount = activeMatches.length + activeBracketMatches.length;
+    const liveCount =
+      activeMatches.length + activeBracketMatches.length + activeGroupMatches.length;
     if (!liveCount) {
       toast.message("No live matches to finalize");
       return;
@@ -556,6 +794,24 @@ export function FunMatchScoringWorkspace({
       await finalizeBracketScore.mutateAsync({ matchId: bm.id, scoreA, scoreB });
     }
 
+    for (const gm of activeGroupMatches) {
+      const scoreA = gm.scoreA ?? 0;
+      const scoreB = gm.scoreB ?? 0;
+      if (scoreA === scoreB && !allowGroupDraw) {
+        toast.error(`Tied score on ${gm.teamAName} vs ${gm.teamBName} — finalize individually`);
+        continue;
+      }
+      const elapsed = gm.startedAt
+        ? Math.max(0, Math.floor((Date.now() - new Date(gm.startedAt).getTime()) / 1000))
+        : 0;
+      await finalizeGroupScore.mutateAsync({
+        matchId: gm.id,
+        scoreA,
+        scoreB,
+        durationSeconds: elapsed,
+      });
+    }
+
     void refetch();
     toast.success("Round saved to history");
   };
@@ -568,9 +824,24 @@ export function FunMatchScoringWorkspace({
         scoreB: number;
         action?: "increment" | "decrement" | "set";
         side?: "a" | "b";
+        scorerName?: string;
+        scorerUserId?: string;
         isBracket?: boolean;
+        isGroup?: boolean;
       },
     ) => {
+      if (input.isGroup) {
+        updateGroupScore.mutate({
+          matchId,
+          scoreA: input.scoreA,
+          scoreB: input.scoreB,
+          scoreAction: input.action,
+          side: input.side,
+          scorerName: input.scorerName,
+          scorerUserId: input.scorerUserId,
+        });
+        return;
+      }
       if (input.isBracket) {
         updateBracketScore.mutate({
           matchId,
@@ -578,21 +849,33 @@ export function FunMatchScoringWorkspace({
           scoreB: input.scoreB,
           action: input.action,
           side: input.side,
+          scorerName: input.scorerName,
+          scorerUserId: input.scorerUserId,
         });
         return;
       }
-      updateScore.mutate({ matchId, ...input });
+      updateScore.mutate({
+        matchId,
+        scoreA: input.scoreA,
+        scoreB: input.scoreB,
+        action: input.action,
+        side: input.side,
+        scorerName: input.scorerName,
+        scorerUserId: input.scorerUserId,
+      });
     },
-    [updateBracketScore, updateScore],
+    [updateBracketScore, updateGroupScore, updateScore],
   );
 
   const handleComplete = useCallback(
     async (match: ReclubMatchView) => {
+      const isGroup =
+        match.sourceKind === "group_stage" || match.playType === "group_stage";
       const isBracket = match.sourceKind === "bracket" || match.playType === "bracket";
       const scoreA = match.scoreA ?? 0;
       const scoreB = match.scoreB ?? 0;
 
-      if (scoreA === scoreB) {
+      if (scoreA === scoreB && !(isGroup && allowGroupDraw)) {
         toast.error("Scores are tied — adjust before finalizing");
         return;
       }
@@ -604,7 +887,17 @@ export function FunMatchScoringWorkspace({
       });
       if (!ok) return;
 
-      if (isBracket) {
+      if (isGroup) {
+        const elapsed = match.startedAt
+          ? Math.max(0, Math.floor((Date.now() - new Date(match.startedAt).getTime()) / 1000))
+          : 0;
+        await finalizeGroupScore.mutateAsync({
+          matchId: match.id,
+          scoreA,
+          scoreB,
+          durationSeconds: elapsed,
+        });
+      } else if (isBracket) {
         await finalizeBracketScore.mutateAsync({ matchId: match.id, scoreA, scoreB });
       } else {
         const elapsed = match.startedAt
@@ -619,7 +912,7 @@ export function FunMatchScoringWorkspace({
       }
       void refetch();
     },
-    [completeRound, confirm, finalizeBracketScore, refetch],
+    [allowGroupDraw, completeRound, confirm, finalizeBracketScore, finalizeGroupScore, refetch],
   );
 
   const handleEditCourtName = useCallback((courtId: string, currentName: string) => {
@@ -659,13 +952,25 @@ export function FunMatchScoringWorkspace({
     );
   }
 
+  if (isGroupStageMode && doubleStageOverview?.phase === "knockout") {
+    return (
+      <div className="rounded-xl border border-cp-primary/30 bg-cp-primary/5 p-6 text-sm text-cp-muted">
+        Group stage is complete. Score knockout matches here (bracket mode) or use the Bracket tab.
+      </div>
+    );
+  }
+
   const toolbar = (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cp-border bg-cp-card/60 px-4 py-3">
       <div className="space-y-2">
         <p className="text-sm text-cp-muted">
           {scoringLabel} · {matchScoringHint} · {courtCountSetting} court
           {courtCountSetting === 1 ? "" : "s"}
-          {isBracketMode ? " · elimination" : " · americano"}
+          {isGroupStageMode
+            ? " · group stage"
+            : isBracketMode
+              ? " · elimination"
+              : " · americano"}
           {roundPlan && roundPlan.resting.length > 0
             ? ` · resting: ${roundPlan.resting.map((p) => p.name).join(", ")}`
             : ""}
@@ -706,12 +1011,41 @@ export function FunMatchScoringWorkspace({
   );
 
   const hasActive =
-    activeMatches.length > 0 || activeBracketMatches.length > 0;
+    activeMatches.length > 0 ||
+    activeBracketMatches.length > 0 ||
+    activeGroupMatches.length > 0;
+
+  const pendingGroupCount = startableGroupMatches.length;
 
   return (
     <div className="space-y-5">
+      {isGroupStageMode ? (
+        <>
+          <DoubleStageConfigBanner tournament={tournament} />
+          {pendingGroupCount > 0 ? (
+            <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
+              <span className="font-medium text-foreground">Group stage live scoring.</span> Assign
+              fixtures to courts, start matches, then finalize scores. Standings update on the{" "}
+              <span className="font-medium text-foreground">Groups</span> tab automatically.
+              <span className="mt-1 block text-xs">
+                {pendingGroupCount} group fixture{pendingGroupCount === 1 ? "" : "s"} remaining.
+              </span>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {courts.length > 0 ? (
+        <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
+          <span className="font-medium text-foreground">{parallelCapacity.bannerText}</span>
+          {parallelCapacity.blockReason && parallelCapacity.idleCourtCount > 0 ? (
+            <span className="mt-1 block text-xs">{parallelCapacity.blockReason}</span>
+          ) : null}
+        </div>
+      ) : null}
+
       <FunMatchLiveHub
-        roundGroups={roundGroups}
+        roundGroups={displayRoundGroups}
         currentRound={currentRound}
         courts={courts}
         teams={teams}
@@ -719,8 +1053,15 @@ export function FunMatchScoringWorkspace({
         teamAByCourt={teamAByCourt}
         teamBByCourt={teamBByCourt}
         bracketPickByCourt={bracketPickByCourt}
+        groupPickByCourt={groupPickByCourt}
         startableBracketMatches={startableBracketMatches}
+        startableGroupMatches={startableGroupMatches}
+        activeGroupMatches={activeGroupMatches}
         isBracketMode={isBracketMode}
+        isGroupStageMode={isGroupStageMode}
+        onGroupPickChange={(courtId, v) =>
+          setGroupPickByCourt((p) => ({ ...p, [courtId]: v }))
+        }
         onTeamAChange={(courtId, v) => setTeamAByCourt((p) => ({ ...p, [courtId]: v }))}
         onTeamBChange={(courtId, v) => setTeamBByCourt((p) => ({ ...p, [courtId]: v }))}
         onBracketPickChange={(courtId, v) =>
@@ -734,10 +1075,13 @@ export function FunMatchScoringWorkspace({
         readOnly={!canScore}
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
-        starting={startRound.isPending || startBracketOnCourt.isPending}
+        isCourtStarting={isCourtStarting}
+        startingAll={startingAllCourts}
         maxRounds={maxRounds}
         onReshuffle={
-          canScore && (!isOfficialWorkspace || isAmericanoMode) ? handleReshuffle : undefined
+          canScore && (!isOfficialWorkspace || isAmericanoMode || isGroupStageMode)
+            ? handleReshuffle
+            : undefined
         }
         onStartAllCourts={canScore ? () => void handleStartAllCourts() : undefined}
         onFinishRound={canScore ? () => void handleFinishRound() : undefined}
@@ -770,50 +1114,60 @@ export function FunMatchScoringWorkspace({
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
-        <h3 className="text-base font-semibold text-foreground">
-          {isOfficialWorkspace ? "Official leaderboard" : "Leaderboard"}
-        </h3>
-        <p className="mt-1 text-sm text-cp-muted">
-          {isOfficialWorkspace
-            ? "Player standings with ranking points and logged scoring activity."
-            : isAmericanoMode
-              ? "Rankings follow Americano rules — total points each player scored across rounds."
-              : "Player standings update when matches are finalized."}
-        </p>
-        {isAmericanoMode && !isOfficialWorkspace ? (
-          <FunMatchStatsLegend variant="americano" className="mt-3" compact />
-        ) : null}
-        <div className="mt-4">
+      {!isGroupStageMode || isOfficialWorkspace ? (
+        <>
+          <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
+            <h3 className="text-base font-semibold text-foreground">
+              {isOfficialWorkspace ? "Official leaderboard" : "Leaderboard"}
+            </h3>
+            <p className="mt-1 text-sm text-cp-muted">
+              {isOfficialWorkspace
+                ? isDoubleStageTournament
+                  ? "Player standings from group stage and knockout matches."
+                  : isGroupStageMode
+                  ? "Player standings from completed and live group fixtures."
+                  : "Player standings with ranking points and logged scoring activity."
+                : isAmericanoMode
+                  ? "Rankings follow Americano rules — total points each player scored across rounds."
+                  : "Player standings update when matches are finalized."}
+            </p>
+            {isAmericanoMode && !isOfficialWorkspace ? (
+              <FunMatchStatsLegend variant="americano" className="mt-3" compact />
+            ) : null}
+            <div className="mt-4">
+              {isOfficialWorkspace ? (
+                <OfficialPlayerStandingsTable rows={officialPlayerStandings} />
+              ) : (
+                <FunMatchPlayerStandingsTable rows={playerStandings} />
+              )}
+            </div>
+          </section>
+
+          <ManageScoringHistoryPanel
+            sessionStats={sessionStats}
+            matches={officialSessionReclubMatches}
+            bracketMatches={bracketMatches}
+            variant={isOfficialWorkspace ? "official" : "reclub"}
+            standingsMode={isBracketMode ? "elimination" : isGroupStageMode ? "americano" : "americano"}
+            isLoading={isFetching && !sessionStats}
+          />
+
           {isOfficialWorkspace ? (
-            <OfficialPlayerStandingsTable rows={officialPlayerStandings} />
-          ) : (
-            <FunMatchPlayerStandingsTable rows={playerStandings} />
-          )}
-        </div>
-      </section>
-
-      <ManageScoringHistoryPanel
-        sessionStats={sessionStats}
-        matches={matches}
-        bracketMatches={bracketMatches}
-        variant={isOfficialWorkspace ? "official" : "reclub"}
-        standingsMode={isBracketMode ? "elimination" : "americano"}
-        isLoading={isFetching && !sessionStats}
-      />
-
-      {isOfficialWorkspace ? (
-        <OfficialManagePointLogPanel
-          bracketMatches={bracketMatches}
-          reclubMatches={matches}
-          categoryLabel={tournament.categoryLabel}
-        />
+            <OfficialManagePointLogPanel
+              bracketMatches={bracketMatches}
+              reclubMatches={officialSessionReclubMatches}
+              categoryLabel={tournament.categoryLabel}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {(startRound.isPending ||
         completeRound.isPending ||
         startBracketOnCourt.isPending ||
-        finalizeBracketScore.isPending) && <LoadingOverlay show />}
+        finalizeBracketScore.isPending ||
+        startGroupOnCourt.isPending ||
+        finalizeGroupScore.isPending) && <LoadingOverlay show />}
     </div>
   );
 }

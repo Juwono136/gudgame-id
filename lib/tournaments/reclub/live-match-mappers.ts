@@ -20,10 +20,15 @@ export function liveMatchesToReclubViews(liveData: TournamentLivePayload): Reclu
     timerEndsAt: m.timerEndsAt ?? null,
     teamAPlayers: m.teamAPlayers ?? [],
     teamBPlayers: m.teamBPlayers ?? [],
-    scoreEvents: [],
+    scoreEvents: (m.scoreEvents ?? []) as ReclubMatchView["scoreEvents"],
     playType: m.playType as ReclubMatchView["playType"],
     playNumber: m.playNumber ?? null,
-    sourceKind: m.type === "bracket" ? "bracket" : "round",
+    sourceKind:
+      m.type === "bracket"
+        ? "bracket"
+        : m.type === "group_stage"
+          ? "group_stage"
+          : "round",
     teamAId: m.teamAId ?? null,
     teamBId: m.teamBId ?? null,
     bracketMatchId: m.bracketMatchId ?? null,

@@ -41,6 +41,7 @@ export type TournamentCategory = (typeof TOURNAMENT_CATEGORIES)[number];
 export const TOURNAMENT_FORMATS = [
   "americano",
   "single_elimination",
+  "double_stage",
   "double_elimination",
   "round_robin",
   "groups",

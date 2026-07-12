@@ -39,8 +39,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateTournament, useUpdateAdminTournament } from "@/hooks/use-tournaments";
-import { useCreateHostTournament } from "@/hooks/use-host-tournaments";
-import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
+import {
+  useCreateHostTournament,
+  useUpdateHostTournament,
+} from "@/hooks/use-host-tournaments";
 import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import {
   tournamentAfterCreateUrl,
@@ -75,6 +77,7 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
+import { parseDoubleStageSettings, parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import { cn } from "@/lib/utils";
 import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
 
@@ -136,7 +139,8 @@ export function TournamentCreateWizard({
   initialTournamentType,
   initialOfficialBilling,
 }: TournamentCreateWizardProps) {
-  const isEdit = Boolean(initial && tournamentId);
+  const resolvedTournamentId = tournamentId ?? initial?.id ?? "";
+  const isEdit = Boolean(resolvedTournamentId);
   const dashboardSport = useDashboardSportOptional();
   const resolvedSportSlug =
     isEdit || mode === "admin"
@@ -144,11 +148,12 @@ export function TournamentCreateWizard({
       : (dashboardSport?.sportSlug ?? sportSlug);
   const adminCreate = useCreateTournament();
   const hostCreate = useCreateHostTournament();
-  const adminUpdate = useUpdateAdminTournament(tournamentId ?? "");
-  const hostUpdate = useUpdateManageTournament(tournamentId ?? "");
+  const adminUpdate = useUpdateAdminTournament(resolvedTournamentId);
+  const hostUpdate = useUpdateHostTournament(resolvedTournamentId);
   const updateMutation = mode === "admin" ? adminUpdate : hostUpdate;
   const createMutation = mode === "host" ? hostCreate : adminCreate;
   const router = useRouter();
+  const submitLockRef = useRef(false);
   const [stepIndex, setStepIndex] = useState(0);
   const currentStepId = STEPS[stepIndex]?.id ?? "basics";
 
@@ -212,7 +217,30 @@ export function TournamentCreateWizard({
     toLocalDatetime(initial?.registrationClosesAt),
   );
   const [matchType, setMatchType] = useState<TournamentUpsertInput["format"]>(
-    initial?.format === "americano" ? "americano" : "single_elimination",
+    initial?.format === "americano"
+      ? "americano"
+      : initial?.format === "double_stage"
+        ? "double_stage"
+        : "single_elimination",
+  );
+  const initialDs = initial
+    ? parseDoubleStageSettings((initial.settings as Record<string, unknown>)?.doubleStage)
+    : null;
+  const initialStandings = initial
+    ? parseStandingsScoring((initial.settings as Record<string, unknown>)?.standingsScoring)
+    : null;
+  const [maxTeamsPerGroup, setMaxTeamsPerGroup] = useState(
+    String(initialDs?.maxTeamsPerGroup ?? 4),
+  );
+  const [teamsAdvancePerGroup, setTeamsAdvancePerGroup] = useState(
+    String(initialDs?.teamsAdvancePerGroup ?? 2),
+  );
+  const [allowDraw, setAllowDraw] = useState(initialStandings?.allowDraw ?? false);
+  const [winPoints, setWinPoints] = useState(String(initialStandings?.winPoints ?? 3));
+  const [drawPoints, setDrawPoints] = useState(String(initialStandings?.drawPoints ?? 1));
+  const [lossPoints, setLossPoints] = useState(String(initialStandings?.lossPoints ?? 0));
+  const [thirdPlaceEnabled, setThirdPlaceEnabled] = useState(
+    initialDs?.thirdPlaceEnabled ?? false,
   );
   const [scoringType, setScoringType] = useState<TournamentScoringType>(
     initial ? getTournamentScoringType(initial) : "points",
@@ -268,7 +296,13 @@ export function TournamentCreateWizard({
     setPlayersPerTeam(String(initial.playersPerTeam ?? sportDefaults.playersPerTeam));
     setCategoryLabel((initial.categoryLabel as TournamentCategoryOption | "") ?? "");
     setRegistrationClosesAt(toLocalDatetime(initial.registrationClosesAt));
-    setMatchType(initial.format === "americano" ? "americano" : "single_elimination");
+    setMatchType(
+      initial.format === "americano"
+        ? "americano"
+        : initial.format === "double_stage"
+          ? "double_stage"
+          : "single_elimination",
+    );
     setScoringType(getTournamentScoringType(initial));
     setPointsPerMatch(String(getTournamentPointsPerMatch(initial)));
     setCourtCount(String(getTournamentCourtCount(initial)));
@@ -318,6 +352,17 @@ export function TournamentCreateWizard({
       roundDurationMinutes:
         scoringType === "timed" ? Number(roundDurationMinutes) || 15 : undefined,
       courtCount: Number(courtCount) || 1,
+      ...(matchType === "double_stage"
+        ? {
+            maxTeamsPerGroup: Number(maxTeamsPerGroup) || 4,
+            teamsAdvancePerGroup: Number(teamsAdvancePerGroup) || 2,
+            allowDraw,
+            winPoints: Number(winPoints) || 3,
+            drawPoints: Number(drawPoints) || 1,
+            lossPoints: Number(lossPoints) || 0,
+            thirdPlaceEnabled,
+          }
+        : {}),
     };
   };
 
@@ -343,7 +388,11 @@ export function TournamentCreateWizard({
         toast.error("Choose a category: Male, Female, or Mix");
         return false;
       }
-      if (matchType !== "americano" && matchType !== "single_elimination") {
+      if (
+        matchType !== "americano" &&
+        matchType !== "single_elimination" &&
+        matchType !== "double_stage"
+      ) {
         toast.error("Choose a match type");
         return false;
       }
@@ -461,7 +510,7 @@ export function TournamentCreateWizard({
       const uploaded = await uploadTournamentCoverClient(
         cover.pendingFile,
         resolvedSportSlug,
-        tournamentId,
+        resolvedTournamentId || undefined,
       );
       return uploaded.storageKey;
     }
@@ -469,41 +518,39 @@ export function TournamentCreateWizard({
   };
 
   const handleSubmit = async () => {
+    if (submitLockRef.current) return;
     if (!validateAllSteps()) return;
+    submitLockRef.current = true;
     setSubmitting(true);
     try {
       const coverKey = await resolveCoverStorageKey();
       const payload = buildPayload(coverKey);
 
       if (isEdit) {
-        updateMutation.mutate(payload, {
-          onSuccess: () => {
-            if (mode === "admin") {
-              router.push(adminRoutes.wikiEntities);
-            } else {
-              router.push(
-                tournamentAfterSaveUrl(workspace, {
-                  sportSlug: resolvedSportSlug,
-                  slug: initial?.slug ?? resolvedSlug,
-                }),
-              );
-            }
-          },
-        });
+        const updated = await updateMutation.mutateAsync(payload);
+        if (mode === "admin") {
+          router.push(adminRoutes.wikiEntities);
+        } else {
+          router.push(
+            tournamentAfterSaveUrl(workspace, {
+              sportSlug: updated.sportSlug,
+              slug: updated.slug,
+            }),
+          );
+        }
         return;
       }
-      createMutation.mutate(payload, {
-        onSuccess: (tournament) => {
-          if (mode === "host") {
-            router.push(tournamentAfterCreateUrl("host", tournament));
-          } else {
-            router.push(tournamentAfterCreateUrl(workspace, tournament));
-          }
-        },
-      });
+
+      const tournament = await createMutation.mutateAsync(payload);
+      if (mode === "host") {
+        router.push(tournamentAfterCreateUrl("host", tournament));
+      } else {
+        router.push(tournamentAfterCreateUrl(workspace, tournament));
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Banner upload failed");
+      toast.error(err instanceof Error ? err.message : "Could not save tournament");
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
@@ -643,8 +690,85 @@ export function TournamentCreateWizard({
                     value={matchType}
                     onChange={setMatchType}
                     sportSlug={resolvedSportSlug}
+                    officialOnly={isOfficialType(tournamentType)}
                   />
                 </div>
+                {matchType === "double_stage" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Max teams per group</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={8}
+                        value={maxTeamsPerGroup}
+                        onChange={(e) => setMaxTeamsPerGroup(e.target.value)}
+                        className="border-cp-border bg-cp-elevated"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Teams advancing per group</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={4}
+                        value={teamsAdvancePerGroup}
+                        onChange={(e) => setTeamsAdvancePerGroup(e.target.value)}
+                        className="border-cp-border bg-cp-elevated"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Win points</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={winPoints}
+                        onChange={(e) => setWinPoints(e.target.value)}
+                        className="border-cp-border bg-cp-elevated"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Draw points</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={drawPoints}
+                        onChange={(e) => setDrawPoints(e.target.value)}
+                        className="border-cp-border bg-cp-elevated"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Loss points</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={lossPoints}
+                        onChange={(e) => setLossPoints(e.target.value)}
+                        className="border-cp-border bg-cp-elevated"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <input
+                        id="allow-draw"
+                        type="checkbox"
+                        checked={allowDraw}
+                        onChange={(e) => setAllowDraw(e.target.checked)}
+                        className="h-4 w-4 rounded border-cp-border"
+                      />
+                      <Label htmlFor="allow-draw">Allow draw results in group stage</Label>
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <input
+                        id="third-place"
+                        type="checkbox"
+                        checked={thirdPlaceEnabled}
+                        onChange={(e) => setThirdPlaceEnabled(e.target.checked)}
+                        className="h-4 w-4 rounded border-cp-border"
+                      />
+                      <Label htmlFor="third-place">Include 3rd place match</Label>
+                    </div>
+                  </>
+                ) : null}
                 <div className="space-y-2">
                   <Label>Scoring type</Label>
                   <Select

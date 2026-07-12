@@ -12,7 +12,8 @@ import {
   parseBracketMatchMetadata,
 } from "@/lib/tournaments/brackets/bracket-metadata";
 import { assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
-import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
+import type { MatchScoreEvent, ScoreChangeMeta } from "@/lib/tournaments/scoring/match-score-events";
+import { buildMatchScoreEvent } from "@/lib/tournaments/scoring/build-score-event";
 import {
   applyScoreDelta as engineApplyDelta,
   type ScoringRules,
@@ -320,6 +321,8 @@ export async function updateBracketLiveScore(
     scoreB: number;
     action?: MatchScoreEvent["action"];
     side?: MatchScoreEvent["side"];
+    scorerName?: string;
+    scorerUserId?: string;
   },
 ): Promise<BracketMatchView> {
   if (tournament.format === "americano") {
@@ -388,15 +391,12 @@ export async function updateBracketLiveScore(
   }
 
   const prevMeta = parseBracketMatchMetadata(match.metadata);
-  const event: MatchScoreEvent = {
-    at: new Date().toISOString(),
-    userId,
-    userName: userName ?? undefined,
-    scoreA,
-    scoreB,
+  const event = buildMatchScoreEvent(userId, userName, scoreA, scoreB, {
     action: input.action ?? "set",
     side: input.side,
-  };
+    scorerName: input.scorerName,
+    scorerUserId: input.scorerUserId,
+  });
   const metadata = appendBracketScoreEvent(prevMeta, event);
 
   const [updated] = await db

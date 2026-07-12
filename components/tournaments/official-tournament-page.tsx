@@ -6,10 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
+import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
 import { OfficialPublicBracketTab } from "@/components/tournaments/official/official-public-bracket-tab";
 import { OfficialPublicHistoryStatsTab } from "@/components/tournaments/official/official-public-history-stats-tab";
 import { OfficialPublicPlayersTab } from "@/components/tournaments/official/official-public-players-tab";
-import { OfficialAmericanoScoringPanel } from "@/components/tournaments/official-americano-scoring-panel";
+import { PublicMultiCourtLiveScore } from "@/components/tournaments/public/public-multi-court-live-score";
+import { TournamentLiveBanner } from "@/components/tournaments/public/tournament-live-banner";
 import { PaymentReceiptActions } from "@/components/payments/payment-receipt-actions";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
 import { tournamentTabUrl } from "@/lib/tournaments/manage-mode";
@@ -38,7 +40,7 @@ import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
 import {
   getTournamentStatusBadgeClass,
   getTournamentTypeBadgeClass,
-  tournamentHeroStatusBadgeBase,
+  statusBadgeClass,
 } from "@/lib/styles/status-badges";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -57,7 +59,13 @@ import {
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import { mapBracketMatchesToRecentRows, mapReclubMatchesToRecentRows } from "@/lib/tournaments/recent-matches";
+import { mapBracketMatchesToRecentRows, mapLivePayloadToRecentRows, mapReclubMatchesToRecentRows, mergeRecentMatchRows } from "@/lib/tournaments/recent-matches";
+import {
+  groupHistoryEntryToReclubView,
+} from "@/lib/tournaments/double-stage/view-mappers";
+import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
+import { liveMatchesToReclubViews } from "@/lib/tournaments/reclub/live-match-mappers";
+import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
 import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
 import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
@@ -79,6 +87,7 @@ import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
 import { isActiveRegistrationStatus } from "@/lib/tournaments/registration/urls";
+import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
 import { formatPlayerNameList } from "@/lib/format/player-names";
 
 function formatIdr(amount: number | null | undefined) {
@@ -112,7 +121,7 @@ type OfficialTournamentPageProps = {
   gearItems?: TournamentGearRuleItem[];
 };
 
-const TABS = ["Overview", "Live Score", "Players", "Bracket", "History & stats"] as const;
+const TABS = ["Overview", "Live Score", "Groups", "Players", "Bracket", "History & stats"] as const;
 type OfficialTab = (typeof TABS)[number];
 
 export function OfficialTournamentPage({
@@ -130,11 +139,12 @@ export function OfficialTournamentPage({
   const searchParams = useSearchParams();
   const isFreeOfficial = tournament.officialBilling === "free";
   const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
+  const displayStatus = liveData?.tournament.status ?? tournament.status;
   const livePhase =
     liveData?.phase ??
-    (tournament.status === "live"
+    (displayStatus === "live"
       ? "live"
-      : tournament.status === "completed"
+      : displayStatus === "completed"
         ? "completed"
         : "not_started");
 
@@ -186,10 +196,27 @@ export function OfficialTournamentPage({
   const [publicUrl, setPublicUrl] = useState("");
   const [resumingPayment, setResumingPayment] = useState(false);
   const [editRegistrationOpen, setEditRegistrationOpen] = useState(false);
-  const isElimination = tournament.format !== "americano";
+  const caps = getFormatCapabilities(tournament);
+  const liveDoubleStagePhase = liveData?.doubleStage?.phase;
+  const isDoubleStageKnockout =
+    caps.isDoubleStage &&
+    (liveDoubleStagePhase === "knockout" ||
+      (liveDoubleStagePhase == null && !caps.hasGroupStage));
+  const isDoubleStageGroup = caps.isDoubleStage && !isDoubleStageKnockout;
+  const isElimination = caps.hasBracket || isDoubleStageKnockout;
+  const bracketHasTree = hasPublicBracketTree(
+    liveData?.bracket as { generated?: boolean; matches?: unknown[] } | undefined,
+  );
   const visibleTabs = useMemo((): OfficialTab[] => {
-    return TABS.filter((item) => isElimination || item !== "Bracket");
-  }, [isElimination]);
+    return TABS.filter((item) => {
+      if (item === "Groups" && !caps.showGroupsTab) return false;
+      if (item === "Bracket") {
+        if (!caps.showBracketTab) return false;
+        if (caps.isDoubleStage && !isDoubleStageKnockout && !bracketHasTree) return false;
+      }
+      return true;
+    });
+  }, [caps, bracketHasTree, isDoubleStageKnockout]);
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
   const scoringPrimaryLabel = getTournamentScoringPrimaryLabel(tournament);
   const scoringDetailLabel = getTournamentScoringDetailLabel(tournament);
@@ -198,14 +225,14 @@ export function OfficialTournamentPage({
     setPublicUrl(window.location.href);
   }, []);
   useEffect(() => {
-    if (!isElimination && tab === "Bracket") {
+    if (!visibleTabs.includes(tab)) {
       setTab("Overview");
     }
-  }, [isElimination, tab]);
+  }, [tab, visibleTabs]);
 
   const navigateTab = useCallback(
     (next: OfficialTab) => {
-      if (!isElimination && next === "Bracket") return;
+      if (!visibleTabs.includes(next)) return;
       setTab(next);
       const url =
         next === "Overview"
@@ -213,7 +240,7 @@ export function OfficialTournamentPage({
           : tournamentTabUrl(tournament.sportSlug, tournament.slug, next, false);
       router.replace(url, { scroll: false });
     },
-    [isElimination, router, tournament.slug, tournament.sportSlug, tournamentPublicHref],
+    [router, tournament.slug, tournament.sportSlug, tournamentPublicHref, visibleTabs],
   );
 
   useEffect(() => {
@@ -243,7 +270,17 @@ export function OfficialTournamentPage({
   const { data: bracket, isLoading: bracketLoading } = useTournamentBracket(
     tournament.sportSlug,
     tournament.slug,
-    { enabled: isElimination },
+    {
+      enabled:
+        isElimination &&
+        (tab === "Bracket" ||
+          tab === "Live Score" ||
+          Boolean(
+            liveData?.matches?.some(
+              (m) => m.type === "bracket" && m.status === "in_progress",
+            ),
+          )),
+    },
   );
   const bracketReady = hasPublicBracketTree(bracket);
   const { data: regStatus } = useRegistrationStatus(
@@ -269,7 +306,7 @@ export function OfficialTournamentPage({
   const { data: americanoLobby } = useTournamentLobby(
     tournament.sportSlug,
     tournament.slug,
-    !isElimination,
+    false,
   );
   const { data: participantsData, isLoading: participantsLoading } = useTournamentParticipants(
     tournament.sportSlug,
@@ -277,17 +314,16 @@ export function OfficialTournamentPage({
     1,
     200,
     {
-      enabled:
-        isElimination ||
-        tab === "Players" ||
-        tab === "History & stats" ||
-        tab === "Live Score",
-      refetchInterval: isElimination ? 8_000 : false,
+      enabled: isElimination || isDoubleStageGroup || tab === "Players",
+      refetchInterval: tab === "Players" || tab === "History & stats" ? 30_000 : false,
     },
   );
 
   const sessionStats = useMemo(() => {
-    if (!isElimination) {
+    if (liveData?.playerStats) {
+      return liveData.playerStats;
+    }
+    if (!isElimination && !isDoubleStageGroup) {
       const lobbyMatches = americanoLobby?.matches ?? [];
       const lobbyTeams = americanoLobby?.teams ?? [];
       return computeReclubSessionStats({
@@ -309,31 +345,55 @@ export function OfficialTournamentPage({
     americanoLobby?.teams,
     bracket?.leaderboard,
     bracket?.matches,
+    isDoubleStageGroup,
     isElimination,
+    liveData?.playerStats,
     participantsData?.items,
     summary.registeredPlayers,
     summary.registeredTeams,
     tournament,
   ]);
 
-  const recentMatchRows = useMemo(() => {
-    if (!isElimination) {
-      return mapReclubMatchesToRecentRows(americanoLobby?.matches ?? [], tournament.status);
-    }
-    return mapBracketMatchesToRecentRows(bracket?.matches ?? [], tournament.status);
-  }, [americanoLobby?.matches, bracket?.matches, isElimination, tournament.status]);
+  const goToHistoryStats = useCallback(() => {
+    navigateTab("History & stats");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [navigateTab]);
 
   const activeOfficialMatches = useMemo(() => {
+    const courts = liveData?.courts ?? [];
     if (isElimination) {
+      const liveFromPayload =
+        liveData?.matches?.filter(
+          (m) =>
+            m.type === "bracket" &&
+            isMatchLiveForTournament(m.status, displayStatus) &&
+            m.teamAName &&
+            m.teamBName,
+        ) ?? [];
+      if (liveFromPayload.length) {
+        return liveFromPayload.map((match) => ({
+          id: match.id,
+          courtLabel: resolveCourtLabel(match.courtId, courts),
+          teamAName: match.teamAName ?? "TBD",
+          teamBName: match.teamBName ?? "TBD",
+          teamAPlayers: match.teamAPlayers ?? [],
+          teamBPlayers: match.teamBPlayers ?? [],
+          scoreA: match.scoreA,
+          scoreB: match.scoreB,
+          roundNumber: match.roundNumber,
+          matchNumber: match.matchNumber,
+        }));
+      }
       return (bracket?.matches ?? [])
         .filter(
           (match) =>
-            isMatchLiveForTournament(match.status, tournament.status) &&
+            isMatchLiveForTournament(match.status, displayStatus) &&
             match.teamAName &&
             match.teamBName,
         )
         .map((match) => ({
           id: match.id,
+          courtLabel: resolveCourtLabel(match.courtId, courts),
           teamAName: match.teamAName ?? "TBD",
           teamBName: match.teamBName ?? "TBD",
           teamAPlayers: match.teamAPlayers ?? [],
@@ -347,13 +407,14 @@ export function OfficialTournamentPage({
     const liveRounds =
       liveData?.matches?.filter(
         (m) =>
-          isMatchLiveForTournament(m.status, tournament.status) &&
+          isMatchLiveForTournament(m.status, displayStatus) &&
           m.teamAName &&
           m.teamBName,
       ) ?? [];
     if (liveRounds.length) {
       return liveRounds.map((liveRound) => ({
         id: liveRound.id,
+        courtLabel: resolveCourtLabel(liveRound.courtId, courts),
         teamAName: liveRound.teamAName ?? "TBD",
         teamBName: liveRound.teamBName ?? "TBD",
         teamAPlayers: liveRound.teamAPlayers ?? [],
@@ -369,6 +430,7 @@ export function OfficialTournamentPage({
     return [
       {
         id: single.id,
+        courtLabel: resolveCourtLabel(single.courtId, courts),
         teamAName: single.teamAName ?? "TBD",
         teamBName: single.teamBName ?? "TBD",
         teamAPlayers: single.teamAPlayers ?? [],
@@ -379,10 +441,20 @@ export function OfficialTournamentPage({
         matchNumber: undefined,
       },
     ];
-  }, [americanoLobby?.activeMatch, bracket?.matches, isElimination, liveData?.matches, tournament.status]);
+  }, [
+    americanoLobby?.activeMatch,
+    bracket?.matches,
+    displayStatus,
+    isElimination,
+    liveData?.courts,
+    liveData?.matches,
+  ]);
 
   const officialTeams = useMemo(() => {
-    if (!isElimination) return americanoLobby?.teams ?? [];
+    const useRegisteredTeams = isElimination || caps.isDoubleStage;
+    if (!useRegisteredTeams) {
+      return americanoLobby?.teams ?? [];
+    }
     const fromParticipants = buildOfficialTeamsFromParticipants(
       (participantsData?.items ?? []).map((item) => ({
         userId: item.userId,
@@ -399,14 +471,59 @@ export function OfficialTournamentPage({
   }, [
     americanoLobby?.teams,
     bracket?.matches,
+    caps.isDoubleStage,
     isElimination,
     liveData?.players,
     participantsData?.items,
   ]);
+
   const officialReclubMatches = useMemo(() => {
+    if (caps.isDoubleStage) {
+      const fromHistory = (liveData?.matchHistory ?? [])
+        .filter((entry) => entry.playType === "group_stage")
+        .map(groupHistoryEntryToReclubView);
+      const fromLive = liveData
+        ? liveMatchesToReclubViews({
+            ...liveData,
+            matches: (liveData.matches ?? []).filter((m) => m.type === "group_stage"),
+          })
+        : [];
+      return dedupeReclubMatchViews([...fromHistory, ...fromLive]);
+    }
     if (isElimination) return [];
     return americanoLobby?.matches ?? [];
-  }, [americanoLobby?.matches, isElimination]);
+  }, [americanoLobby?.matches, caps.isDoubleStage, isElimination, liveData]);
+
+  const recentMatchRows = useMemo(() => {
+    if (caps.isDoubleStage) {
+      const groupRows = mapReclubMatchesToRecentRows(
+        officialReclubMatches,
+        displayStatus,
+        null,
+      );
+      const bracketRows = mapBracketMatchesToRecentRows(
+        bracket?.matches ?? [],
+        displayStatus,
+        null,
+      );
+      const liveRows = mapLivePayloadToRecentRows(liveData, displayStatus, null);
+      return mergeRecentMatchRows(groupRows, bracketRows, liveRows);
+    }
+    if (!isElimination) {
+      const fromLive = mapLivePayloadToRecentRows(liveData, displayStatus);
+      if (fromLive.length) return fromLive;
+      return mapReclubMatchesToRecentRows(americanoLobby?.matches ?? [], displayStatus);
+    }
+    return mapBracketMatchesToRecentRows(bracket?.matches ?? [], displayStatus);
+  }, [
+    americanoLobby?.matches,
+    bracket?.matches,
+    caps.isDoubleStage,
+    displayStatus,
+    isElimination,
+    liveData,
+    officialReclubMatches,
+  ]);
 
   const officialBracketMatches = bracket?.matches ?? [];
 
@@ -425,7 +542,7 @@ export function OfficialTournamentPage({
     );
   }, [americanoLobby?.matches, bracket?.matches, historyItems]);
 
-  const activeOfficialMatch = activeOfficialMatches[0] ?? null;
+  const liveScoreMode = caps.isDoubleStage && !isDoubleStageKnockout ? "group_stage" : "rounds";
 
   const handleRegister = async () => {
     if (!isAuthenticated) {
@@ -507,19 +624,29 @@ export function OfficialTournamentPage({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap gap-2">
               {tournament.categoryLabel ? (
-                <Badge variant="accent" className="border-0">
+                <Badge
+                  className={cn(
+                    tournamentHeroStyles.statusBadge,
+                    statusBadgeClass.accent,
+                  )}
+                >
                   {tournament.categoryLabel}
                 </Badge>
               ) : null}
               <Badge
                 className={cn(
-                  tournamentHeroStatusBadgeBase,
-                  getTournamentStatusBadgeClass(tournament.status),
+                  tournamentHeroStyles.statusBadge,
+                  getTournamentStatusBadgeClass(displayStatus),
                 )}
               >
-                {tournament.status}
+                {displayStatus}
               </Badge>
-              <Badge className={cn("border-0", getTournamentTypeBadgeClass("official"))}>
+              <Badge
+                className={cn(
+                  tournamentHeroStyles.statusBadge,
+                  getTournamentTypeBadgeClass("official"),
+                )}
+              >
                 {getOfficialBillingLabel(tournament.officialBilling)}
               </Badge>
             </div>
@@ -562,32 +689,12 @@ export function OfficialTournamentPage({
         </FadeInView>
       </TournamentHeroBanner>
 
-      {activeOfficialMatch ? (
-        <section className="border-b border-cp-primary/30 bg-linear-to-r from-cp-primary/12 via-cp-card to-cp-card">
-          <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-            <div className="min-w-0">
-              <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
-                <Radio className="h-4 w-4 animate-pulse" />
-                Official live score
-              </p>
-              <p className="mt-2 text-sm font-medium text-foreground">
-                Round {activeOfficialMatch.roundNumber} · Match{" "}
-                {activeOfficialMatch.matchNumber}
-              </p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-cp-muted">
-                Live now
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="border-cp-primary/30 bg-cp-card/70"
-              onClick={() => navigateTab(isElimination ? "Bracket" : "Live Score")}
-            >
-              {isElimination ? "View bracket" : "View live score"}
-            </Button>
-          </div>
-        </section>
-      ) : null}
+      <TournamentLiveBanner
+        matches={activeOfficialMatches}
+        variant="official"
+        onViewLive={() => navigateTab(isElimination ? "Bracket" : "Live Score")}
+        viewLiveLabel={isElimination ? "View bracket" : "View live score"}
+      />
 
       <div
         className={cn(
@@ -669,13 +776,18 @@ export function OfficialTournamentPage({
                 rows={recentMatchRows}
                 alwaysShow
                 emptyMessage={
-                  !isElimination
+                  caps.isDoubleStage
+                    ? isDoubleStageKnockout
+                      ? "Group and knockout results will appear here as matches are recorded."
+                      : "Group stage results will appear here as rounds are recorded."
+                    : !isElimination
                     ? "Americano results will appear after rounds are recorded."
                     : bracketReady
                     ? "No match results yet. Seeded bracket matches will appear here as play progresses."
                     : "The host will publish the bracket after registration closes. Results will show here once matches are played."
                 }
-                onViewAll={isElimination ? () => navigateTab("Bracket") : () => navigateTab("Live Score")}
+                onViewAll={goToHistoryStats}
+                emptyActionLabel="View history"
               />
               {tournament.description ? (
                 <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
@@ -703,12 +815,27 @@ export function OfficialTournamentPage({
 
           {tab === "Live Score" ? (
             !isElimination ? (
-              <OfficialAmericanoScoringPanel
-                tournament={tournament}
-                participant={participant}
-                livePhase={livePhase}
-                variant="live"
-              />
+              <div className="space-y-6">
+                <PublicMultiCourtLiveScore
+                  tournament={tournament}
+                  liveData={liveData}
+                  teams={officialTeams}
+                  variant="official"
+                  mode={liveScoreMode}
+                />
+                {liveScoreHistoryItems.length > 0 ? (
+                  <TournamentRoundHistorySection
+                    variant="official"
+                    items={liveScoreHistoryItems}
+                  />
+                ) : liveScoreMode === "group_stage" ? (
+                  <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
+                    <p className="text-sm text-cp-muted">
+                      Group fixtures appear here when the host starts play on each court.
+                    </p>
+                  </section>
+                ) : null}
+              </div>
             ) : (
             <div className="space-y-6">
               {activeOfficialMatches.length > 0 ? (
@@ -790,6 +917,8 @@ export function OfficialTournamentPage({
             )
           ) : null}
 
+          {tab === "Groups" ? <DoubleStageGroupsTab tournament={tournament} /> : null}
+
           {tab === "Bracket" ? (
             <OfficialPublicBracketTab
               sportSlug={tournament.sportSlug}
@@ -801,7 +930,7 @@ export function OfficialTournamentPage({
           ) : null}
 
           {tab === "History & stats" ? (
-            bracketLoading || participantsLoading ? (
+            isElimination && bracketLoading ? (
               <LoadingSpinner label="Loading history & stats…" />
             ) : (
               <OfficialPublicHistoryStatsTab

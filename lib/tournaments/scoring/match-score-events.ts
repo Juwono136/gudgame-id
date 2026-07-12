@@ -8,11 +8,25 @@ export type MatchScoreEvent = {
   at: string;
   userId: string;
   userName?: string;
+  /** Player who scored the point (display name). */
+  scorerName?: string;
+  /** Player who scored the point (when known). */
+  scorerUserId?: string;
   scoreA: number;
   scoreB: number;
   action: MatchScoreAction;
   side?: "a" | "b";
 };
+
+export type ScoreChangeMeta = {
+  action?: MatchScoreAction;
+  side?: "a" | "b";
+  scorerName?: string;
+  scorerUserId?: string;
+};
+
+/** UI callback options when adjusting live scores. */
+export type ScoreAdjustOptions = Pick<ScoreChangeMeta, "scorerName" | "scorerUserId">;
 
 export const FUN_MATCH_MAX_SCORE_EVENTS = 200;
 export const OFFICIAL_MAX_SCORE_EVENTS = 500;

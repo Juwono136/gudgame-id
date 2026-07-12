@@ -10,7 +10,7 @@ import type {
 } from "@/lib/tournaments/stats/types";
 import type { TournamentParticipantRow } from "@/lib/tournaments/participants/query";
 
-function toStatsMatch(match: BracketMatchView): StatsMatchInput | null {
+export function toStatsMatchFromBracket(match: BracketMatchView): StatsMatchInput | null {
   if (match.status === "bye" || !match.teamAName || !match.teamBName) return null;
 
   return {
@@ -24,6 +24,10 @@ function toStatsMatch(match: BracketMatchView): StatsMatchInput | null {
     status: match.status,
     durationSeconds: resolveBracketMatchDurationSeconds(match),
   };
+}
+
+function toStatsMatch(match: BracketMatchView): StatsMatchInput | null {
+  return toStatsMatchFromBracket(match);
 }
 
 function buildTeams(

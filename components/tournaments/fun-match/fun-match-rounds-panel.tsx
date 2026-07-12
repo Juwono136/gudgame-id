@@ -11,6 +11,8 @@ import type { AmericanoPlayerRef } from "@/lib/tournaments/americano/court-assig
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { getReclubMatchHistoryKey } from "@/lib/tournaments/reclub/types";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
+import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import type { StartableGroupFixture } from "@/lib/tournaments/double-stage/view-mappers";
 import type { ScoringRules } from "@/lib/tournaments/scoring/engine";
 import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { cn } from "@/lib/utils";
@@ -27,7 +29,12 @@ type FunMatchRoundsPanelProps = {
   teamBByCourt: Record<string, string>;
   bracketPickByCourt?: Record<string, string>;
   startableBracketMatches?: BracketMatchView[];
+  startableGroupMatches?: StartableGroupFixture[];
+  activeGroupMatches?: GroupMatchView[];
   isBracketMode?: boolean;
+  isGroupStageMode?: boolean;
+  groupPickByCourt?: Record<string, string>;
+  onGroupPickChange?: (courtId: string, matchId: string) => void;
   onTeamAChange: (courtId: string, v: string) => void;
   onTeamBChange: (courtId: string, v: string) => void;
   onBracketPickChange?: (courtId: string, matchId: string) => void;
@@ -39,7 +46,10 @@ type FunMatchRoundsPanelProps = {
       scoreB: number;
       action?: "increment" | "decrement" | "set";
       side?: "a" | "b";
+      scorerName?: string;
+      scorerUserId?: string;
       isBracket?: boolean;
+      isGroup?: boolean;
     },
   ) => void;
   onCompleteMatch: (match: ReclubMatchView) => void;
@@ -48,7 +58,8 @@ type FunMatchRoundsPanelProps = {
   readOnly?: boolean;
   pointsPerMatch: number;
   scoringRules?: ScoringRules;
-  starting?: boolean;
+  isCourtStarting?: (courtId: string) => boolean;
+  startingAll?: boolean;
   maxRounds?: number | null;
   onReshuffle?: () => void;
   onStartAllCourts?: () => void;
@@ -59,7 +70,18 @@ type FunMatchRoundsPanelProps = {
   americanoPlayers?: AmericanoPlayerRef[];
 };
 
-function roundTitle(roundNumber: number, group: FunMatchRoundGroup): string {
+function roundTitle(
+  roundNumber: number,
+  group: FunMatchRoundGroup,
+  isGroupStageMode?: boolean,
+): string {
+  if (isGroupStageMode) {
+    if (group.liveCount > 0) return "Group stage · Live";
+    if (group.completedCount === group.matches.length && group.matches.length > 0) {
+      return "Group stage · Done";
+    }
+    return "Group stage";
+  }
   if (roundNumber >= 9000) return `Round · Extra`;
   const live = group.liveCount > 0;
   const done = group.completedCount === group.matches.length && group.matches.length > 0;
@@ -78,7 +100,12 @@ export function FunMatchRoundsPanel({
   teamBByCourt,
   bracketPickByCourt = {},
   startableBracketMatches = [],
+  startableGroupMatches = [],
+  activeGroupMatches = [],
   isBracketMode = false,
+  isGroupStageMode = false,
+  groupPickByCourt = {},
+  onGroupPickChange,
   onTeamAChange,
   onTeamBChange,
   onBracketPickChange,
@@ -90,7 +117,8 @@ export function FunMatchRoundsPanel({
   readOnly,
   pointsPerMatch,
   scoringRules,
-  starting,
+  isCourtStarting,
+  startingAll,
   maxRounds,
   onReshuffle,
   onStartAllCourts,
@@ -130,10 +158,13 @@ export function FunMatchRoundsPanel({
       <header className="border-b border-cp-border px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-foreground sm:text-base">Match rounds</h3>
+            <h3 className="text-sm font-semibold text-foreground sm:text-base">
+              {isGroupStageMode ? "Group stage courts" : "Match rounds"}
+            </h3>
             <p className="text-xs text-cp-muted">
-              Round {currentRound}
-              {maxRounds != null ? ` of ${maxRounds}` : ""}
+              {isGroupStageMode
+                ? `${courts.length} court${courts.length === 1 ? "" : "s"} · assign group fixtures`
+                : `Round ${currentRound}${maxRounds != null ? ` of ${maxRounds}` : ""}`}
             </p>
           </div>
           {canManage && !readOnly ? (
@@ -145,7 +176,7 @@ export function FunMatchRoundsPanel({
                 </Button>
               ) : null}
               {onStartAllCourts ? (
-                <Button type="button" size="sm" onClick={onStartAllCourts} disabled={starting}>
+                <Button type="button" size="sm" onClick={onStartAllCourts} disabled={startingAll}>
                   <Plus className="mr-1.5 h-4 w-4" />
                   Start all courts
                 </Button>
@@ -179,7 +210,9 @@ export function FunMatchRoundsPanel({
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
         {filteredGroups.length === 0 && !showPlanningSlots ? (
           <p className="py-8 text-center text-sm text-cp-muted">
-            No rounds yet. The host will start matches when the session goes live.
+            {isGroupStageMode
+              ? "Assign group fixtures to idle courts below to start scoring."
+              : "No rounds yet. The host will start matches when the session goes live."}
           </p>
         ) : null}
 
@@ -191,7 +224,7 @@ export function FunMatchRoundsPanel({
                 group.liveCount > 0 ? "text-amber-400" : "text-cp-muted",
               )}
             >
-              {roundTitle(group.roundNumber, group)}
+              {roundTitle(group.roundNumber, group, isGroupStageMode)}
             </h4>
             <div className="space-y-3">
               {group.matches.map((match, matchIndex) => {
@@ -211,7 +244,10 @@ export function FunMatchRoundsPanel({
                     onScoreChange={(input) =>
                       onScoreChange(match.id, {
                         ...input,
-                        isBracket: match.sourceKind === "bracket" || match.playType === "bracket",
+                        isBracket:
+                          match.sourceKind === "bracket" || match.playType === "bracket",
+                        isGroup:
+                          match.sourceKind === "group_stage" || match.playType === "group_stage",
                       })
                     }
                     onComplete={() => onCompleteMatch(match)}
@@ -231,7 +267,7 @@ export function FunMatchRoundsPanel({
         {showPlanningSlots ? (
           <div>
             <h4 className={cn("mb-2 text-xs font-bold uppercase tracking-wider", accentLabel)}>
-              Round #{currentRound} · Up next
+              {isGroupStageMode ? "Idle courts · assign fixtures" : `Round #${currentRound} · Up next`}
             </h4>
             <div className="space-y-3">
               {courts
@@ -244,12 +280,17 @@ export function FunMatchRoundsPanel({
                     teamAId={teamAByCourt[court.id] ?? ""}
                     teamBId={teamBByCourt[court.id] ?? ""}
                     bracketMatchId={bracketPickByCourt[court.id] ?? ""}
+                    groupMatchId={groupPickByCourt[court.id] ?? ""}
                     startableBracketMatches={isBracketMode ? startableBracketMatches : []}
+                    startableGroupMatches={isGroupStageMode ? startableGroupMatches : []}
+                    activeGroupMatches={isGroupStageMode ? activeGroupMatches : []}
+                    isGroupStageMode={isGroupStageMode}
+                    onGroupPickChange={(v) => onGroupPickChange?.(court.id, v)}
                     onTeamAChange={(v) => onTeamAChange(court.id, v)}
                     onTeamBChange={(v) => onTeamBChange(court.id, v)}
                     onBracketPickChange={(v) => onBracketPickChange?.(court.id, v)}
                     onStart={() => onStartCourt(court.id)}
-                    starting={starting}
+                    isStarting={isCourtStarting?.(court.id) ?? false}
                     canManage
                     pointsPerMatch={pointsPerMatch}
                     scoringRules={scoringRules}

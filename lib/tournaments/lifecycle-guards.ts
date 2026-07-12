@@ -7,6 +7,9 @@ import {
   TOURNAMENT_NOT_STARTED_MESSAGE,
   type TournamentLivePhase,
 } from "@/lib/tournaments/core/types";
+import { buildDoubleStageOverview } from "@/lib/tournaments/double-stage/service";
+import { getDoubleStagePhase } from "@/lib/tournaments/format-capabilities";
+import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export function getTournamentLivePhase(tournament: TournamentDetail): TournamentLivePhase {
@@ -55,7 +58,60 @@ export function assertBracketSeedingResetAllowed(tournament: TournamentDetail): 
 }
 
 export function shouldExposeBracketPublicData(tournament: TournamentDetail): boolean {
-  return tournament.format !== "americano";
+  if (tournament.format === "americano") return false;
+  if (tournament.format === "double_stage") {
+    return getDoubleStagePhase(tournament) === "knockout";
+  }
+  return true;
+}
+
+export function shouldExposeGroupStagePublicData(tournament: TournamentDetail): boolean {
+  return tournament.format === "double_stage";
+}
+
+export function assertDoubleStageGroupScoringAllowed(tournament: TournamentDetail): void {
+  assertTournamentLiveForScoring(tournament);
+  if (tournament.format !== "double_stage") {
+    throw new AppError("Not a double stage tournament", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+  const phase = getDoubleStagePhase(tournament);
+  if (phase !== "group") {
+    throw new AppError("Group stage scoring is only allowed during the group phase.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+}
+
+export async function assertDoubleStageAdvanceAllowed(
+  tournament: TournamentDetail,
+): Promise<void> {
+  assertTournamentLiveForScoring(tournament);
+  if (tournament.format !== "double_stage") {
+    throw new AppError("Not a double stage tournament", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+  const ds = parseDoubleStageSettings(
+    (tournament.settings as Record<string, unknown>)?.doubleStage,
+  );
+  if (ds.phase !== "group") {
+    throw new AppError("Knockout bracket has already been generated.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+  const overview = await buildDoubleStageOverview(tournament);
+  if (!overview.allGroupMatchesCompleted) {
+    throw new AppError("Complete all group stage matches before advancing to knockout.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
 }
 
 export function shouldExposeLivePublicData(tournament: TournamentDetail): boolean {

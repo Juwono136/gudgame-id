@@ -179,7 +179,12 @@ function BracketCourtCard({
   onPersistScore: (
     a: number,
     b: number,
-    meta?: { action?: "increment" | "decrement" | "set"; side?: "a" | "b" },
+    meta?: {
+      action?: "increment" | "decrement" | "set";
+      side?: "a" | "b";
+      scorerName?: string;
+      scorerUserId?: string;
+    },
   ) => void;
   onFinalize: () => void;
   scoreSyncing: boolean;
@@ -341,24 +346,24 @@ function BracketCourtCard({
             teamBPlayers={liveMatch.teamBPlayers}
             scoreA={scores.a}
             scoreB={scores.b}
-            onScoreAChange={(n) => {
+            onScoreAChange={(n, options) => {
               const prev = scores.a;
               const meta =
                 n === prev + 1
-                  ? { action: "increment" as const, side: "a" as const }
+                  ? { action: "increment" as const, side: "a" as const, ...options }
                   : n === prev - 1
                     ? { action: "decrement" as const, side: "a" as const }
-                    : { action: "set" as const, side: "a" as const };
+                    : { action: "set" as const, side: "a" as const, ...options };
               onPersistScore(n, scores.b, meta);
             }}
-            onScoreBChange={(n) => {
+            onScoreBChange={(n, options) => {
               const prev = scores.b;
               const meta =
                 n === prev + 1
-                  ? { action: "increment" as const, side: "b" as const }
+                  ? { action: "increment" as const, side: "b" as const, ...options }
                   : n === prev - 1
                     ? { action: "decrement" as const, side: "b" as const }
-                    : { action: "set" as const, side: "b" as const };
+                    : { action: "set" as const, side: "b" as const, ...options };
               onPersistScore(scores.a, n, meta);
             }}
             disabled={!canScore || scoreSyncing || finalizePending}
@@ -700,7 +705,12 @@ export function BracketCourtScoringGrid({
       match: BracketMatchView,
       a: number,
       b: number,
-      meta?: { action?: "increment" | "decrement" | "set"; side?: "a" | "b" },
+      meta?: {
+        action?: "increment" | "decrement" | "set";
+        side?: "a" | "b";
+        scorerName?: string;
+        scorerUserId?: string;
+      },
     ) => {
       setLocalScores((prev) => ({ ...prev, [match.id]: { a, b } }));
       if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
@@ -711,6 +721,8 @@ export function BracketCourtScoringGrid({
           scoreB: b,
           action: meta?.action,
           side: meta?.side,
+          scorerName: meta?.scorerName,
+          scorerUserId: meta?.scorerUserId,
         });
       }, 120);
     },

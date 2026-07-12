@@ -67,14 +67,42 @@ export const tournamentUpsertSchema = z
       .default(21),
     courtCount: z.coerce.number().int().min(1).max(12).default(1),
     roundDurationMinutes: z.coerce.number().int().min(1).max(120).optional(),
+    maxTeamsPerGroup: z.coerce.number().int().min(2).max(8).optional(),
+    teamsAdvancePerGroup: z.coerce.number().int().min(1).max(4).optional(),
+    allowDraw: z.boolean().optional(),
+    winPoints: z.coerce.number().min(0).max(10).optional(),
+    drawPoints: z.coerce.number().min(0).max(10).optional(),
+    lossPoints: z.coerce.number().min(0).max(10).optional(),
+    thirdPlaceEnabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.format !== "americano" && data.format !== "single_elimination") {
+    const allowedFormats = ["americano", "single_elimination", "double_stage"] as const;
+    if (!allowedFormats.includes(data.format as (typeof allowedFormats)[number])) {
       ctx.addIssue({
         code: "custom",
-        message: "Match type must be Americano or Elimination.",
+        message: "Match type must be Americano, Elimination, or Double Stage.",
         path: ["format"],
       });
+    }
+
+    if (data.format === "double_stage" && data.tournamentType !== "official") {
+      ctx.addIssue({
+        code: "custom",
+        message: "Double Stage is only available for official tournaments.",
+        path: ["format"],
+      });
+    }
+
+    if (data.format === "double_stage") {
+      const maxPer = data.maxTeamsPerGroup ?? 4;
+      const advance = data.teamsAdvancePerGroup ?? 2;
+      if (advance > maxPer) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Teams advancing per group cannot exceed max teams per group.",
+          path: ["teamsAdvancePerGroup"],
+        });
+      }
     }
 
     if (data.categoryLabel && !TOURNAMENT_CATEGORIES.includes(data.categoryLabel as never)) {
@@ -166,7 +194,7 @@ export const tournamentsListQuerySchema = z.object({
   createdBy: z.string().trim().min(1).optional(),
   tournamentType: z.enum(["all", ...TOURNAMENT_TYPES] as const).optional(),
   officialBilling: z.enum(["all", ...OFFICIAL_BILLING_TYPES] as const).optional(),
-  format: z.enum(["all", "americano", "single_elimination"] as const).optional(),
+  format: z.enum(["all", "americano", "single_elimination", "double_stage"] as const).optional(),
   category: z.enum(["all", ...TOURNAMENT_CATEGORIES] as const).optional(),
   sortBy: z.enum(["startsAt", "name", "updated"]).default("startsAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),

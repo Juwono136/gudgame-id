@@ -36,6 +36,7 @@ function effectiveStatus(status: string, tournamentStatus?: string | null): stri
 export function mapReclubMatchesToRecentRows(
   matches: ReclubMatchView[],
   tournamentStatus?: string | null,
+  limit: number | null = RECENT_MATCHES_PREVIEW_LIMIT,
 ): RecentMatchRow[] {
   const rows = matches
     .filter((m) => isActiveMatchStatus(m.status) && m.teamAName && m.teamBName)
@@ -78,7 +79,7 @@ export function mapReclubMatchesToRecentRows(
       if (bTime !== aTime) return bTime - aTime;
       return (b.sortRound ?? 0) - (a.sortRound ?? 0);
     })
-    .slice(0, RECENT_MATCHES_PREVIEW_LIMIT)
+    .slice(0, limit ?? undefined)
     .map(({ sortRound: _sortRound, ...row }) => row);
 }
 
@@ -86,17 +87,19 @@ export function mapReclubMatchesToRecentRows(
 export function mapLivePayloadToRecentRows(
   liveData: TournamentLivePayload | undefined,
   tournamentStatus?: string | null,
+  limit: number | null = RECENT_MATCHES_PREVIEW_LIMIT,
 ): RecentMatchRow[] {
   if (!liveData?.matches?.length) return [];
   const views = getFunMatchSessionViews(liveData).filter(
     (m) => m.status === "completed" || m.status === "in_progress",
   );
-  return mapReclubMatchesToRecentRows(views, tournamentStatus);
+  return mapReclubMatchesToRecentRows(views, tournamentStatus, limit);
 }
 
 export function mapBracketMatchesToRecentRows(
   matches: BracketMatchView[],
   tournamentStatus?: string | null,
+  limit: number | null = RECENT_MATCHES_PREVIEW_LIMIT,
 ): RecentMatchRow[] {
   if (!matches.length) return [];
 
@@ -145,6 +148,29 @@ export function mapBracketMatchesToRecentRows(
       if (rankDiff !== 0) return rankDiff;
       return (b.sortRound ?? 0) - (a.sortRound ?? 0);
     })
-    .slice(0, RECENT_MATCHES_PREVIEW_LIMIT)
+    .slice(0, limit ?? undefined)
     .map(({ sortRound: _sortRound, ...row }) => row);
+}
+
+/** Merge recent rows from multiple sources (group + bracket), dedupe by id, keep latest. */
+export function mergeRecentMatchRows(...sources: RecentMatchRow[][]): RecentMatchRow[] {
+  const byId = new Map<string, RecentMatchRow>();
+  for (const source of sources) {
+    for (const row of source) {
+      byId.set(row.id, row);
+    }
+  }
+
+  const statusRank = (s: string) =>
+    s === "in_progress" ? 3 : s === "completed" ? 2 : 1;
+
+  return [...byId.values()]
+    .sort((a, b) => {
+      const rankDiff = statusRank(b.status) - statusRank(a.status);
+      if (rankDiff !== 0) return rankDiff;
+      const aTime = a.playedAt ? new Date(a.playedAt).getTime() : 0;
+      const bTime = b.playedAt ? new Date(b.playedAt).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, RECENT_MATCHES_PREVIEW_LIMIT);
 }

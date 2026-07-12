@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { getPhaseLabel } from "@/lib/tournaments/ui/labels";
 import { isTournamentManageMode } from "@/lib/tournaments/manage-mode";
+import {
+  getTournamentStatusBadgeClass,
+  sessionPhaseBadgeClass,
+} from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type TournamentSessionChromeProps = {
@@ -99,10 +103,10 @@ export function TournamentSessionChrome({
             className={cn(
               "shrink-0 border-0 text-[10px] uppercase",
               phase === "live"
-                ? "bg-red-900/50 text-red-200"
+                ? sessionPhaseBadgeClass.live
                 : phase === "completed"
-                  ? "bg-cp-elevated text-cp-muted"
-                  : "bg-sky-900/40 text-sky-200",
+                  ? sessionPhaseBadgeClass.ended
+                  : sessionPhaseBadgeClass.upcoming,
             )}
           >
             {getPhaseLabel(phase)}
