@@ -58,7 +58,7 @@ export function mapBracketMatchesToHistoryItems(
     .filter((m) => m.status === "completed" && (m.teamAName || m.teamBName))
     .map((m) => ({
       id: m.id,
-      roundLabel: `Bracket · ${getBracketRoundLabel(m.roundNumber, maxRound)} · M${m.matchNumber}`,
+      roundLabel: `Bracket — ${getBracketRoundLabel(m.roundNumber, maxRound)}, Match ${m.matchNumber}`,
       teamAName: m.teamAName,
       teamBName: m.teamBName,
       teamAPlayers: m.teamAPlayers ?? [],

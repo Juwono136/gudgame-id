@@ -1,6 +1,7 @@
 "use client";
 
 import { Trophy, UserPlus } from "lucide-react";
+import { FunMatchStatsLegend } from "@/components/tournaments/fun-match/fun-match-stats-legend";
 import type { FunMatchPlayerLeaderboardRow } from "@/lib/tournaments/stats/fun-match-player-stats";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +95,8 @@ export function FunMatchLeaderboard({ rows, className, compact }: FunMatchLeader
         </div>
       )}
 
-      <footer className="border-t border-cp-border px-4 py-2 text-[10px] text-cp-muted sm:px-5 sm:text-[11px]">
-        G = Games · W-L-T = Win-Loss-Tie · DIFF = Point difference · P = Points (3 win, 1 tie)
+      <footer className="border-t border-cp-border px-4 py-2 sm:px-5">
+        <FunMatchStatsLegend compact />
       </footer>
     </section>
   );

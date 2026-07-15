@@ -206,10 +206,16 @@ export function computeGroupStandings(
     applyMatchResult(map, m, config);
   }
   const ranked = sortStandings([...map.values()], matches, config);
+  // Only lock Qualified/Eliminated once every fixture in the group is completed.
+  // Ranking before that is provisional — badges stay pending.
+  const stageComplete = allGroupMatchesCompleted(matches);
   return ranked.map((row) => ({
     ...row,
-    qualificationStatus:
-      row.rank <= teamsAdvance ? ("qualified" as const) : ("eliminated" as const),
+    qualificationStatus: !stageComplete
+      ? ("pending" as const)
+      : row.rank <= teamsAdvance
+        ? ("qualified" as const)
+        : ("eliminated" as const),
   }));
 }
 

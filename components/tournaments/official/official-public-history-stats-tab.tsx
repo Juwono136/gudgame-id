@@ -48,10 +48,18 @@ export function OfficialPublicHistoryStatsTab({
   userTeamId = null,
 }: OfficialPublicHistoryStatsTabProps) {
   const completedCount = useMemo(() => {
-    const bracketDone = bracketMatches.filter((m) => m.status === "completed").length;
-    const reclubDone = reclubMatches.filter((m) => m.status === "completed").length;
-    return bracketDone + reclubDone;
-  }, [bracketMatches, reclubMatches]);
+    // Prefer session aggregator (already deduped) when available.
+    if (sessionStats.completedMatches > 0) return sessionStats.completedMatches;
+    const bracketIds = new Set(
+      bracketMatches.filter((m) => m.status === "completed").map((m) => m.id),
+    );
+    const reclubDone = reclubMatches.filter((m) => {
+      if (m.status !== "completed") return false;
+      const linked = m.bracketMatchId ?? (m.sourceKind === "bracket" ? m.id : null);
+      return !linked || !bracketIds.has(linked);
+    }).length;
+    return bracketIds.size + reclubDone;
+  }, [bracketMatches, reclubMatches, sessionStats.completedMatches]);
 
   const { players, squads } = useMemo(
     () => computeOfficialPlayerStandings(bracketMatches, reclubMatches, teams),
@@ -62,7 +70,9 @@ export function OfficialPublicHistoryStatsTab({
     const rows: Array<{
       id: string;
       title: string;
-      sub: string;
+      stage: string;
+      players: string | null;
+      eventCount: number;
       events: NonNullable<BracketMatchView["scoreEvents"]>;
       context: PointLogMatchContext;
     }> = [];
@@ -74,13 +84,10 @@ export function OfficialPublicHistoryStatsTab({
       rows.push({
         id: m.id,
         title: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
-        sub: [
-          `R${m.roundNumber} · M${m.matchNumber}`,
+        stage: `Round ${m.roundNumber}, Match ${m.matchNumber}`,
+        players:
           playerLineA || playerLineB ? `${playerLineA || "—"} vs ${playerLineB || "—"}` : null,
-          `${events.length} events`,
-        ]
-          .filter(Boolean)
-          .join(" | "),
+        eventCount: events.length,
         events,
         context: {
           teamAName: m.teamAName,
@@ -98,13 +105,10 @@ export function OfficialPublicHistoryStatsTab({
       rows.push({
         id: m.id,
         title: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
-        sub: [
-          m.roundLabel ?? `Round ${m.roundNumber}`,
+        stage: m.roundLabel ?? `Round ${m.roundNumber}`,
+        players:
           playerLineA || playerLineB ? `${playerLineA || "—"} vs ${playerLineB || "—"}` : null,
-          `${events.length} events`,
-        ]
-          .filter(Boolean)
-          .join(" | "),
+        eventCount: events.length,
         events,
         context: {
           teamAName: m.teamAName,
@@ -145,7 +149,13 @@ export function OfficialPublicHistoryStatsTab({
         </h2>
         <p className="mt-1 text-sm text-cp-muted">
           Squad and player performance from every official match
-          {tournament.categoryLabel ? ` · ${tournament.categoryLabel} category` : ""}.
+          {tournament.categoryLabel ? (
+            <>
+              {" "}
+              <span className="text-foreground/80">({tournament.categoryLabel})</span>
+            </>
+          ) : null}
+          .
         </p>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -241,7 +251,17 @@ export function OfficialPublicHistoryStatsTab({
                       )}
                     >
                       <span className="font-medium text-foreground">{item.title}</span>
-                      <span className="mt-0.5 block text-xs leading-relaxed text-cp-muted">{item.sub}</span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-cp-muted">
+                        {item.stage}
+                      </span>
+                      {item.players ? (
+                        <span className="mt-0.5 block text-xs leading-relaxed text-cp-muted">
+                          {item.players}
+                        </span>
+                      ) : null}
+                      <span className="mt-0.5 block text-[11px] tabular-nums text-cp-muted">
+                        {item.eventCount} scoring events
+                      </span>
                     </button>
                   </li>
                 ))}

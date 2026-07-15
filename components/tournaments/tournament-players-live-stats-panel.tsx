@@ -54,7 +54,7 @@ function formatHistoryRoundLabel(m: ReclubMatchView): string {
     return m.playNumber ? `Bracket rematch #${m.playNumber}` : "Bracket rematch";
   }
   if (m.playType === "bracket" || m.sourceKind === "bracket") {
-    return `Bracket · R${m.roundNumber}`;
+    return `Bracket — Round ${m.roundNumber}`;
   }
   if (m.playType === "group_stage" || m.sourceKind === "group_stage") {
     return m.roundLabel ?? "Group stage";
@@ -97,7 +97,7 @@ function buildHistoryRows(
       teamBPlayers: m.teamBPlayers ?? [],
       scoreA: m.scoreA,
       scoreB: m.scoreB,
-      roundLabel: `R${m.roundNumber} · M${m.matchNumber}`,
+      roundLabel: `Round ${m.roundNumber}, Match ${m.matchNumber}`,
       durationSeconds: resolveBracketMatchDurationSeconds(m),
       endedAt: m.completedAt,
     }));
@@ -259,24 +259,26 @@ export function ManageScoringHistoryPanel({
                       <span className="text-cp-muted">vs</span> {m.teamBName ?? "Team B"}
                     </p>
                     {formatPlayerLine(m.teamAPlayers) || formatPlayerLine(m.teamBPlayers) ? (
-                      <p className="mt-0.5 text-[11px] leading-snug text-cp-muted">
-                        {[
-                          formatPlayerLine(m.teamAPlayers)
-                            ? `${m.teamAName ?? "Team A"}: ${formatPlayerLine(m.teamAPlayers)}`
-                            : null,
-                          formatPlayerLine(m.teamBPlayers)
-                            ? `${m.teamBName ?? "Team B"}: ${formatPlayerLine(m.teamBPlayers)}`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
+                      <div className="mt-0.5 space-y-0.5 text-[11px] leading-snug text-cp-muted">
+                        {formatPlayerLine(m.teamAPlayers) ? (
+                          <p>
+                            {m.teamAName ?? "Team A"}: {formatPlayerLine(m.teamAPlayers)}
+                          </p>
+                        ) : null}
+                        {formatPlayerLine(m.teamBPlayers) ? (
+                          <p>
+                            {m.teamBName ?? "Team B"}: {formatPlayerLine(m.teamBPlayers)}
+                          </p>
+                        ) : null}
+                      </div>
                     ) : null}
                     <p className="mt-1 text-xs text-cp-muted">
                       {m.roundLabel}
-                      {m.durationSeconds != null
-                        ? ` · ${formatStatDuration(m.durationSeconds)}`
-                        : ""}
+                      {m.durationSeconds != null ? (
+                        <span className="ml-2 inline-block tabular-nums">
+                          {formatStatDuration(m.durationSeconds)}
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                   <p className="shrink-0 text-lg font-bold tabular-nums text-foreground">
@@ -433,8 +435,10 @@ export function TournamentPlayersLiveStatsPanel({
                 <p className={cn("text-lg font-bold tabular-nums", accent)}>
                   {player.teamPointsFor} pts
                 </p>
-                <p className="text-xs text-cp-muted">
-                  {player.teamWins}W · {player.teamLosses}L · {player.teamPlayed} played
+                <p className="text-xs leading-snug text-cp-muted">
+                  <span className="block">{player.teamWins}W</span>
+                  <span className="block">{player.teamLosses}L</span>
+                  <span className="block">{player.teamPlayed} played</span>
                 </p>
               </div>
             </article>

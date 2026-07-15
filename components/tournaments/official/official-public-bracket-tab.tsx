@@ -44,7 +44,7 @@ function BracketHistoryCard({
   return (
     <article className="rounded-xl border border-cp-border bg-cp-elevated/20 p-4">
       <h4 className="text-xs font-bold uppercase tracking-wider text-cp-muted">
-        {getBracketRoundLabel(roundNumber, maxRound)} · History
+        {getBracketRoundLabel(roundNumber, maxRound)} history
       </h4>
       <ul className="mt-3 space-y-2">
         {matches.map((m) => {
@@ -268,7 +268,7 @@ export function OfficialPublicBracketTab({
         highlightTeamIds={highlightTeamIds}
         title={
           snapshotMatch
-            ? `${getBracketRoundLabel(snapshotMatch.roundNumber, maxRound)} · M${snapshotMatch.matchNumber}`
+            ? `${getBracketRoundLabel(snapshotMatch.roundNumber, maxRound)}, Match ${snapshotMatch.matchNumber}`
             : "Bracket snapshot"
         }
         description="Full bracket tree at the current state. Drag horizontally to explore."

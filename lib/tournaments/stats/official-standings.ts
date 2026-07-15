@@ -456,11 +456,30 @@ export function computeOfficialPlayerStandings(
     bracketMatches.filter((m) => m.status === "completed" || m.status === "in_progress"),
     reclubMatches.filter((m) => m.status === "completed" || m.status === "in_progress"),
   );
+  const eventsByName = new Map<string, MatchScoreEvent[]>();
+  for (const events of eventsByUser.values()) {
+    for (const event of events) {
+      const nameKey = (event.scorerName ?? event.userName ?? "").trim().toLowerCase();
+      if (!nameKey) continue;
+      const list = eventsByName.get(nameKey) ?? [];
+      list.push(event);
+      eventsByName.set(nameKey, list);
+    }
+  }
 
   const players: OfficialPlayerStandingRow[] = basePlayers
     .map((row) => {
-      const events = eventsByUser.get(row.userId) ?? [];
-      const pointsScored = pointsScoredFromEvents(events);
+      const byId = eventsByUser.get(row.userId) ?? [];
+      const byName = eventsByName.get(row.name.trim().toLowerCase()) ?? [];
+      const events =
+        byId.length > 0
+          ? byId
+          : byName;
+      const loggedIncrements = events.filter((e) => e.action === "increment").length;
+      // Pts+ = rally points attributed to the player's side across completed matches.
+      // Prefer this over raw log counts so boards stay accurate even when live scoring
+      // used absolute `set` updates without per-player increment attribution.
+      const pointsScored = row.pointsFor;
       return {
         ...row,
         winRate:
@@ -468,8 +487,9 @@ export function computeOfficialPlayerStandings(
             ? Math.round(((row.wins / row.games) * 100 + Number.EPSILON) * 10) / 10
             : 0,
         pointsScored,
-        scoringActions: events.filter((e) => e.action === "increment").length,
-        avgPointsPerGame: row.games > 0 ? Math.round((pointsScored / row.games) * 10) / 10 : 0,
+        scoringActions: loggedIncrements > 0 ? loggedIncrements : pointsScored,
+        avgPointsPerGame:
+          row.games > 0 ? Math.round((pointsScored / row.games) * 10) / 10 : 0,
       };
     })
     .sort(

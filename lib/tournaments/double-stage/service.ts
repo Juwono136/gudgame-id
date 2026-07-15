@@ -618,6 +618,33 @@ export async function recordGroupStageScore(
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   const teamPlayerMap = await loadGroupTeamPlayerMap(tournament.id);
+  const teamAPlayers = teamPlayerMap.get(match.teamAId!) ?? [];
+  const teamBPlayers = teamPlayerMap.get(match.teamBId!) ?? [];
+  const participantUserIds = [...teamAPlayers, ...teamBPlayers]
+    .map((p) => p.userId)
+    .filter(Boolean);
+
+  if (participantUserIds.length > 0) {
+    const { syncOfficialMatchToPlayerHistory } = await import("@/lib/tournaments/stats/sync");
+    const groupName =
+      (await db
+        .select({ name: tournamentGroups.name })
+        .from(tournamentGroups)
+        .where(eq(tournamentGroups.id, match.groupId))
+        .limit(1))[0]?.name ?? "Group";
+    await syncOfficialMatchToPlayerHistory({
+      tournament,
+      roundLabel: `Group stage: ${groupName}`,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      scoreA: scores.scoreA,
+      scoreB: scores.scoreB,
+      participantUserIds,
+    });
+  }
+
   return mapGroupMatchView(updated!, teamPlayerMap);
 }
 

@@ -68,7 +68,10 @@ import { liveMatchesToReclubViews } from "@/lib/tournaments/reclub/live-match-ma
 import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
 import { computeOfficialTournamentStats } from "@/lib/tournaments/stats/from-bracket";
-import { computeReclubSessionStats } from "@/lib/tournaments/stats/from-reclub";
+import {
+  computeReclubSessionStats,
+  computeReclubSessionStatsWithBracket,
+} from "@/lib/tournaments/stats/from-reclub";
 import {
   buildOfficialTeamsFromLivePlayers,
   buildOfficialTeamsFromParticipants,
@@ -319,41 +322,6 @@ export function OfficialTournamentPage({
     },
   );
 
-  const sessionStats = useMemo(() => {
-    if (liveData?.playerStats) {
-      return liveData.playerStats;
-    }
-    if (!isElimination && !isDoubleStageGroup) {
-      const lobbyMatches = americanoLobby?.matches ?? [];
-      const lobbyTeams = americanoLobby?.teams ?? [];
-      return computeReclubSessionStats({
-        matches: lobbyMatches,
-        teams: lobbyTeams,
-        totalPlayers: summary.registeredPlayers,
-        maxRounds: getMaxRounds(tournament),
-      });
-    }
-    return computeOfficialTournamentStats({
-      matches: bracket?.matches ?? [],
-      leaderboard: bracket?.leaderboard ?? [],
-      participants: participantsData?.items ?? [],
-      totalPlayers: summary.registeredPlayers,
-      totalTeams: summary.registeredTeams,
-    });
-  }, [
-    americanoLobby?.matches,
-    americanoLobby?.teams,
-    bracket?.leaderboard,
-    bracket?.matches,
-    isDoubleStageGroup,
-    isElimination,
-    liveData?.playerStats,
-    participantsData?.items,
-    summary.registeredPlayers,
-    summary.registeredTeams,
-    tournament,
-  ]);
-
   const goToHistoryStats = useCallback(() => {
     navigateTab("History & stats");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -493,6 +461,52 @@ export function OfficialTournamentPage({
     if (isElimination) return [];
     return americanoLobby?.matches ?? [];
   }, [americanoLobby?.matches, caps.isDoubleStage, isElimination, liveData]);
+
+  const sessionStats = useMemo(() => {
+    if (liveData?.playerStats) {
+      return liveData.playerStats;
+    }
+    if (caps.isDoubleStage) {
+      return computeReclubSessionStatsWithBracket({
+        reclubMatches: officialReclubMatches,
+        bracketMatches: bracket?.matches ?? [],
+        teams: officialTeams,
+        totalPlayers: summary.registeredPlayers,
+        maxRounds: null,
+      });
+    }
+    if (!isElimination) {
+      const lobbyMatches = americanoLobby?.matches ?? [];
+      const lobbyTeams = americanoLobby?.teams ?? [];
+      return computeReclubSessionStats({
+        matches: lobbyMatches,
+        teams: lobbyTeams,
+        totalPlayers: summary.registeredPlayers,
+        maxRounds: getMaxRounds(tournament),
+      });
+    }
+    return computeOfficialTournamentStats({
+      matches: bracket?.matches ?? [],
+      leaderboard: bracket?.leaderboard ?? [],
+      participants: participantsData?.items ?? [],
+      totalPlayers: summary.registeredPlayers,
+      totalTeams: summary.registeredTeams,
+    });
+  }, [
+    americanoLobby?.matches,
+    americanoLobby?.teams,
+    bracket?.leaderboard,
+    bracket?.matches,
+    caps.isDoubleStage,
+    isElimination,
+    liveData?.playerStats,
+    officialReclubMatches,
+    officialTeams,
+    participantsData?.items,
+    summary.registeredPlayers,
+    summary.registeredTeams,
+    tournament,
+  ]);
 
   const recentMatchRows = useMemo(() => {
     if (caps.isDoubleStage) {

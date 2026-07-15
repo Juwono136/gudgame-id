@@ -99,8 +99,17 @@ export function computeReclubSessionStatsWithBracket(input: {
   totalPlayers: number;
   maxRounds: number | null;
 }): TournamentSessionStats {
+  const bracketIds = new Set(
+    input.bracketMatches.map((m) => m.id).filter(Boolean),
+  );
+  // Prefer the bracket row when a reclub copy mirrors the same bracket slot.
+  const reclubWithoutBracketDupes = input.reclubMatches.filter((m) => {
+    const linked = m.bracketMatchId ?? (m.sourceKind === "bracket" ? m.id : null);
+    return !linked || !bracketIds.has(linked);
+  });
+
   const merged: ReclubMatchView[] = [
-    ...input.reclubMatches,
+    ...reclubWithoutBracketDupes,
     ...input.bracketMatches.map(bracketMatchToReclubView),
   ];
 

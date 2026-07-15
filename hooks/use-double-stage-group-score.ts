@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
-import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
+import { invalidateTournamentQueries, tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 function manageScoringQueryKey(sportSlug: string, slug: string) {
   return ["tournaments", "manage-scoring", sportSlug, slug] as const;
@@ -74,10 +74,21 @@ export function useUpdateGroupLiveScore(sportSlug: string, slug: string) {
         scorerName: input.scorerName,
         scorerUserId: input.scorerUserId,
       }),
-    onSuccess: () => {
-      void qc.invalidateQueries({
-        queryKey: manageScoringQueryKey(sportSlug, slug),
-      });
+    onSuccess: (match) => {
+      qc.setQueryData(
+        manageScoringQueryKey(sportSlug, slug),
+        (prev: import("@/hooks/use-tournament-manage-scoring").ManageScoringPayload | undefined) => {
+          if (!prev?.groupMatches) return prev;
+          return {
+            ...prev,
+            groupMatches: prev.groupMatches.map((m) => (m.id === match.id ? match : m)),
+            activeGroupMatches: (prev.activeGroupMatches ?? []).map((m) =>
+              m.id === match.id ? match : m,
+            ),
+          };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
     },
   });
 }

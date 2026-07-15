@@ -75,6 +75,28 @@ describe("computeGroupStandings", () => {
     expect(standings[0]!.teamId).toBe("a");
     expect(standings.filter((s) => s.qualificationStatus === "qualified")).toHaveLength(2);
   });
+
+  it("keeps qualification pending until all group fixtures are completed", () => {
+    const matches = [
+      { teamAId: "a", teamBId: "b", scoreA: 2, scoreB: 0, status: "completed" },
+      { teamAId: "c", teamBId: "d", scoreA: 0, scoreB: 0, status: "pending" },
+    ];
+    const standings = computeGroupStandings(teams, matches, DEFAULT_STANDINGS_SCORING, 2);
+    expect(standings.every((s) => s.qualificationStatus === "pending")).toBe(true);
+  });
+
+  it("keeps qualification pending when no matches have been played", () => {
+    const matches = [
+      { teamAId: "a", teamBId: "b", scoreA: 0, scoreB: 0, status: "pending" },
+      { teamAId: "a", teamBId: "c", scoreA: 0, scoreB: 0, status: "pending" },
+      { teamAId: "a", teamBId: "d", scoreA: 0, scoreB: 0, status: "pending" },
+      { teamAId: "b", teamBId: "c", scoreA: 0, scoreB: 0, status: "pending" },
+      { teamAId: "b", teamBId: "d", scoreA: 0, scoreB: 0, status: "pending" },
+      { teamAId: "c", teamBId: "d", scoreA: 0, scoreB: 0, status: "pending" },
+    ];
+    const standings = computeGroupStandings(teams, matches, DEFAULT_STANDINGS_SCORING, 2);
+    expect(standings.every((s) => s.qualificationStatus === "pending")).toBe(true);
+  });
 });
 
 describe("seeding and play-in", () => {

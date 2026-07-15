@@ -300,11 +300,10 @@ export function FunMatchScoringWorkspace({
     for (const m of activeMatches) {
       if (m.courtId) map.set(m.courtId, m);
     }
-    for (const bm of activeBracketMatches) {
+      for (const bm of activeBracketMatches) {
       if (bm.courtId) {
-        map.set(
-          bm.courtId,
-          bracketMatchToReclubView({
+        map.set(bm.courtId, {
+          ...bracketMatchToReclubView({
             id: bm.id,
             roundNumber: bm.roundNumber,
             matchNumber: bm.matchNumber,
@@ -318,7 +317,8 @@ export function FunMatchScoringWorkspace({
             scoreB: bm.scoreB,
             status: bm.status,
           }),
-        );
+          courtId: bm.courtId,
+        });
       }
     }
     for (const gm of activeGroupMatches) {

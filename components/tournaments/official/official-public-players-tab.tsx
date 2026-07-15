@@ -55,7 +55,12 @@ export function OfficialPublicPlayersTab({
         <h2 className="text-lg font-semibold text-foreground">Official leaderboard</h2>
         <p className="mt-1 text-sm text-cp-muted">
           Full standings with ranking points, point differential, and logged scoring activity.
-          {tournament.categoryLabel ? ` · ${tournament.categoryLabel} category` : ""}
+          {tournament.categoryLabel ? (
+            <>
+              {" "}
+              <span className="text-foreground/80">({tournament.categoryLabel})</span>
+            </>
+          ) : null}
         </p>
         <div className="mt-4">
           <OfficialPlayerStandingsTable rows={players} />

@@ -240,10 +240,28 @@ export function FunMatchRoundMatchCard({
   const serverScoreB = match?.scoreB ?? 0;
   const [localScores, setLocalScores] = useState<{ a: number; b: number } | null>(null);
   const scoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dirtyRef = useRef(false);
+  const localScoresRef = useRef(localScores);
+  localScoresRef.current = localScores;
 
   useEffect(() => {
+    // Reset when switching matches or leaving live state.
+    if (!isLive) {
+      dirtyRef.current = false;
+      setLocalScores(null);
+      return;
+    }
+    // Never clobber in-flight local edits with a stale server snapshot from another court.
+    if (dirtyRef.current) {
+      const pending = localScoresRef.current;
+      if (pending != null && pending.a === serverScoreA && pending.b === serverScoreB) {
+        dirtyRef.current = false;
+        setLocalScores(null);
+      }
+      return;
+    }
     setLocalScores(null);
-  }, [match?.id, serverScoreA, serverScoreB, match?.status]);
+  }, [isLive, match?.id, match?.status, serverScoreA, serverScoreB]);
 
   useEffect(
     () => () => {
@@ -263,16 +281,19 @@ export function FunMatchRoundMatchCard({
         const baseB = prev?.b ?? serverScoreB;
         const nextA = side === "a" ? Math.max(0, baseA + delta) : baseA;
         const nextB = side === "b" ? Math.max(0, baseB + delta) : baseB;
+        dirtyRef.current = true;
         if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
+        // Persist absolute scores (`set`) so debounced multi-taps don't collapse into a
+        // single server-side increment on a stale base (which also races other courts).
         scoreSyncRef.current = setTimeout(() => {
           onScoreChange({
             scoreA: nextA,
             scoreB: nextB,
-            action: delta > 0 ? "increment" : "decrement",
+            action: "set",
             side,
             scorerName: delta > 0 ? scorerName : undefined,
           });
-        }, 100);
+        }, 120);
         return { a: nextA, b: nextB };
       });
     },

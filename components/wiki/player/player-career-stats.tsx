@@ -1,5 +1,9 @@
 import { Trophy } from "lucide-react";
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
+import {
+  formatRankingPoints,
+  nextTierProgress,
+} from "@/lib/player/format-ranking-points";
 import type { PlayerCareerStats } from "@/lib/wiki/player-career-stats";
 
 type PlayerCareerStatsProps = {
@@ -9,19 +13,21 @@ type PlayerCareerStatsProps = {
 function formatStat(value: number | null, suffix = ""): string {
   if (value == null) return "—";
   if (suffix === "%") return `${value}%`;
-  if (suffix === "#") return `#${value.toLocaleString()}`;
-  return value.toLocaleString();
+  if (suffix === "#") return `#${value.toLocaleString("en-US")}`;
+  return value.toLocaleString("en-US");
 }
 
-const METRICS = [
-  { key: "worldRank" as const, label: "Current rank", format: "#" },
-  { key: "totalPoints" as const, label: "Total points", format: "" },
-  { key: "winRate" as const, label: "Win rate", format: "%" },
-] as const;
+const TIER_PATH = ["Pemula", "Menengah", "Pro", "Gold"] as const;
 
 export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
   const hasAnyStat =
-    METRICS.some((m) => stats[m.key] != null) || stats.tier != null;
+    stats.worldRank != null ||
+    stats.totalPoints != null ||
+    stats.winRate != null ||
+    stats.tier != null;
+
+  const pointsFmt = formatRankingPoints(stats.totalPoints);
+  const progress = nextTierProgress(stats.totalPoints);
 
   return (
     <PlayerPageCard
@@ -39,25 +45,64 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
           </p>
           <p className="mt-1 text-2xl font-bold text-foreground">{stats.tier}</p>
           <p className="mt-1 text-xs text-cp-muted">
-            Pemula · Menengah · Pro · Gold — based on ranking points from match results
+            Progression path: {TIER_PATH.join(" → ")}
           </p>
+          {progress && progress.nextLabel ? (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 text-[11px] text-cp-muted">
+                <span>
+                  Next: <span className="font-medium text-foreground">{progress.nextLabel}</span>
+                </span>
+                <span className="tabular-nums" title={pointsFmt.title}>
+                  {progress.current.toLocaleString("en-US")} / {progress.target.toLocaleString("en-US")}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-cp-elevated">
+                <div
+                  className="h-full rounded-full bg-cp-primary transition-[width]"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+            </div>
+          ) : progress && !progress.nextLabel ? (
+            <p className="mt-2 text-xs text-cp-muted">Highest tier reached</p>
+          ) : null}
         </div>
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {METRICS.map((metric) => (
-          <div
-            key={metric.key}
-            className="rounded-xl border border-cp-border bg-cp-elevated/50 px-4 py-3.5 dark:bg-cp-elevated/30"
+        <div className="rounded-xl border border-cp-border bg-cp-elevated/50 px-4 py-3.5 dark:bg-cp-elevated/30">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:text-xs">
+            Current rank
+          </p>
+          <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+            {formatStat(stats.worldRank, "#")}
+          </p>
+        </div>
+        <div className="rounded-xl border border-cp-border bg-cp-elevated/50 px-4 py-3.5 dark:bg-cp-elevated/30">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:text-xs">
+            Ranking score
+          </p>
+          <p
+            className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl"
+            title={pointsFmt.title}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:text-xs">
-              {metric.label}
-            </p>
-            <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
-              {formatStat(stats[metric.key], metric.format)}
-            </p>
-          </div>
-        ))}
+            {pointsFmt.display}
+          </p>
+          {pointsFmt.abbreviated ? (
+            <p className="mt-0.5 text-[10px] text-cp-muted">{pointsFmt.title} pts</p>
+          ) : (
+            <p className="mt-0.5 text-[10px] text-cp-muted">Career points from results</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-cp-border bg-cp-elevated/50 px-4 py-3.5 dark:bg-cp-elevated/30">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:text-xs">
+            Win rate
+          </p>
+          <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+            {formatStat(stats.winRate, "%")}
+          </p>
+        </div>
       </div>
 
       {!hasAnyStat ? (

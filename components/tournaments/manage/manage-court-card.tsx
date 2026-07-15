@@ -112,11 +112,29 @@ export const ManageCourtCard = memo(function ManageCourtCard({
   const [localScoreA, setLocalScoreA] = useState(match?.scoreA ?? 0);
   const [localScoreB, setLocalScoreB] = useState(match?.scoreB ?? 0);
   const scoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dirtyRef = useRef(false);
+  const localScoreRef = useRef({ a: match?.scoreA ?? 0, b: match?.scoreB ?? 0 });
 
   useEffect(() => {
-    setLocalScoreA(match?.scoreA ?? 0);
-    setLocalScoreB(match?.scoreB ?? 0);
-  }, [match?.id, match?.scoreA, match?.scoreB]);
+    if (!match) {
+      dirtyRef.current = false;
+      setLocalScoreA(0);
+      setLocalScoreB(0);
+      localScoreRef.current = { a: 0, b: 0 };
+      return;
+    }
+    const serverA = match.scoreA ?? 0;
+    const serverB = match.scoreB ?? 0;
+    if (dirtyRef.current) {
+      if (localScoreRef.current.a === serverA && localScoreRef.current.b === serverB) {
+        dirtyRef.current = false;
+      }
+      return;
+    }
+    setLocalScoreA(serverA);
+    setLocalScoreB(serverB);
+    localScoreRef.current = { a: serverA, b: serverB };
+  }, [match, match?.id, match?.scoreA, match?.scoreB]);
 
   useEffect(
     () => () => {
@@ -142,11 +160,13 @@ export const ManageCourtCard = memo(function ManageCourtCard({
       action?: "increment" | "decrement" | "set",
       side?: "a" | "b",
     ) => {
+      dirtyRef.current = true;
+      localScoreRef.current = { a: nextA, b: nextB };
       setLocalScoreA(nextA);
       setLocalScoreB(nextB);
       if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
       scoreSyncRef.current = setTimeout(() => {
-        onScoreChange({ scoreA: nextA, scoreB: nextB, action, side });
+        onScoreChange({ scoreA: nextA, scoreB: nextB, action: "set", side });
       }, 120);
     },
     [onScoreChange],
@@ -247,8 +267,14 @@ export const ManageCourtCard = memo(function ManageCourtCard({
             scoreB={localScoreB}
             maxScore={pointsPerMatch}
             disabled={!canScore}
-            onScoreAChange={(v) => pushScore(v, localScoreB, "set")}
-            onScoreBChange={(v) => pushScore(localScoreA, v, "set")}
+            onScoreAChange={(v) => {
+              const b = localScoreRef.current.b;
+              pushScore(v, b, "set", "a");
+            }}
+            onScoreBChange={(v) => {
+              const a = localScoreRef.current.a;
+              pushScore(a, v, "set", "b");
+            }}
           />
           <div className="mt-auto flex flex-col gap-2 border-t border-cp-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-center text-xs tabular-nums text-cp-muted sm:text-left">

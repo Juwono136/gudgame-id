@@ -27,8 +27,8 @@ const OFFICIAL_PLAYER_STAT_LEGEND = [
   { abbr: "WR", description: "Win rate (%)" },
   { abbr: "Diff", description: "Point difference (scored minus conceded)" },
   { abbr: "P", description: "Ranking points (3 per win, 1 per tie)" },
-  { abbr: "Pts+", description: "Total points scored in matches" },
-  { abbr: "Log", description: "Scoring actions logged during live scoring" },
+  { abbr: "Pts+", description: "Points scored for your side in completed matches" },
+  { abbr: "Log", description: "Live scoring taps logged (falls back to Pts+ when unused)" },
   { abbr: "G", description: "Games played" },
 ] as const;
 
@@ -50,35 +50,23 @@ export function FunMatchStatsLegend({
         ? AMERICANO_STAT_LEGEND
         : FUN_STAT_LEGEND;
 
-  if (compact) {
-    return (
-      <p className={cn("text-[10px] leading-relaxed text-cp-muted sm:text-[11px]", className)}>
-        {items.map((item, i) => (
-          <span key={item.abbr}>
-            {i > 0 ? " · " : null}
-            <span className="font-semibold text-foreground/80">{item.abbr}</span>
-            {" = "}
-            {item.description}
-          </span>
-        ))}
-      </p>
-    );
-  }
-
   return (
-    <dl
+    <ul
       className={cn(
-        "grid gap-x-4 gap-y-1.5 text-[10px] text-cp-muted sm:grid-cols-2 sm:text-[11px]",
+        "space-y-0.5 text-cp-muted",
+        compact ? "text-[10px] leading-snug sm:text-[11px]" : "text-[10px] sm:text-[11px]",
         className,
       )}
+      aria-label="Standings column legend"
     >
       {items.map((item) => (
-        <div key={item.abbr} className="flex gap-2">
-          <dt className="shrink-0 font-semibold tabular-nums text-foreground/80">{item.abbr}</dt>
-          <dd>{item.description}</dd>
-        </div>
+        <li key={item.abbr}>
+          <span className="font-semibold tabular-nums text-foreground/85">{item.abbr}</span>
+          {" = "}
+          {item.description}
+        </li>
       ))}
-    </dl>
+    </ul>
   );
 }
 
@@ -97,7 +85,7 @@ export const OFFICIAL_PLAYER_STAT_COLUMN_TITLES = {
   wr: FUN_MATCH_STAT_COLUMN_TITLES.wr,
   diff: FUN_MATCH_STAT_COLUMN_TITLES.diff,
   p: FUN_MATCH_STAT_COLUMN_TITLES.p,
-  ptsPlus: "Total points scored in matches",
-  log: "Scoring actions logged during live scoring",
+  ptsPlus: "Points scored for your side in completed matches",
+  log: "Live scoring taps logged (falls back to Pts+ when unused)",
   g: FUN_MATCH_STAT_COLUMN_TITLES.g,
 } as const;

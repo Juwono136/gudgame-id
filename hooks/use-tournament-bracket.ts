@@ -101,7 +101,19 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
           };
         },
       );
-      invalidateTournamentQueries(qc, sportSlug, slug);
+      qc.setQueryData(
+        ["tournaments", "manage-scoring", sportSlug, slug],
+        (prev: import("@/hooks/use-tournament-manage-scoring").ManageScoringPayload | undefined) => {
+          if (!prev) return prev;
+          const patch = (m: BracketMatchView) => (m.id === match.id ? match : m);
+          return {
+            ...prev,
+            bracketMatches: prev.bracketMatches.map(patch),
+            activeBracketMatches: prev.activeBracketMatches.map(patch),
+          };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
     },
     onError: (e: Error) => toast.error(e.message),
   });

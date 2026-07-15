@@ -52,7 +52,7 @@ export function OfficialManagePointLogPanel({
       rows.push({
         id: m.id,
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
-        sublabel: `Bracket · R${m.roundNumber} · M${m.matchNumber}`,
+        sublabel: `Bracket — Round ${m.roundNumber}, Match ${m.matchNumber}`,
         events,
         context: buildMatchContext(m),
       });
@@ -86,7 +86,13 @@ export function OfficialManagePointLogPanel({
       </h3>
       <p className="mt-1 text-sm text-cp-muted">
         Timestamped scoring record for every official match
-        {categoryLabel ? ` · ${categoryLabel} category` : ""}.
+        {categoryLabel ? (
+          <>
+            {" "}
+            <span className="text-foreground/80">({categoryLabel})</span>
+          </>
+        ) : null}
+        .
       </p>
 
       {loggedMatches.length === 0 ? (
@@ -109,8 +115,9 @@ export function OfficialManagePointLogPanel({
                   )}
                 >
                   <span className="font-medium text-foreground">{m.label}</span>
-                  <span className="mt-0.5 block text-xs text-cp-muted">
-                    {m.sublabel} · {m.events.length} events
+                  <span className="mt-0.5 block text-xs text-cp-muted">{m.sublabel}</span>
+                  <span className="mt-0.5 block text-[11px] tabular-nums text-cp-muted">
+                    {m.events.length} scoring events
                   </span>
                 </button>
               </li>

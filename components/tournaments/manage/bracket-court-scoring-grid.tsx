@@ -625,7 +625,9 @@ export function BracketCourtScoringGrid({
   const [localScores, setLocalScores] = useState<Record<string, { a: number; b: number }>>({});
   const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
   const [courtNameDraft, setCourtNameDraft] = useState("");
-  const scoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Per-match debounce timers — a shared timeout was canceling other courts' pending syncs. */
+  const scoreSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const dirtyMatchIdsRef = useRef(new Set<string>());
 
   const activeMatches = useMemo(
     () => matches.filter((m) => m.status === "in_progress"),
@@ -693,9 +695,28 @@ export function BracketCourtScoringGrid({
     [localScores],
   );
 
+  useEffect(() => {
+    // Drop optimistic local scores once the server catches up for that match.
+    setLocalScores((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const match of matches) {
+        const local = next[match.id];
+        if (!local) continue;
+        if (local.a === (match.scoreA ?? 0) && local.b === (match.scoreB ?? 0)) {
+          delete next[match.id];
+          dirtyMatchIdsRef.current.delete(match.id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [matches]);
+
   useEffect(
     () => () => {
-      if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
+      for (const timer of scoreSyncTimersRef.current.values()) clearTimeout(timer);
+      scoreSyncTimersRef.current.clear();
     },
     [],
   );
@@ -712,19 +733,24 @@ export function BracketCourtScoringGrid({
         scorerUserId?: string;
       },
     ) => {
+      dirtyMatchIdsRef.current.add(match.id);
       setLocalScores((prev) => ({ ...prev, [match.id]: { a, b } }));
-      if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
-      scoreSyncRef.current = setTimeout(() => {
+      const existing = scoreSyncTimersRef.current.get(match.id);
+      if (existing) clearTimeout(existing);
+      // Always persist absolute client scores so multi-tap + multi-court debounces stay consistent.
+      const timer = setTimeout(() => {
+        scoreSyncTimersRef.current.delete(match.id);
         liveScore.mutate({
           matchId: match.id,
           scoreA: a,
           scoreB: b,
-          action: meta?.action,
+          action: "set",
           side: meta?.side,
           scorerName: meta?.scorerName,
           scorerUserId: meta?.scorerUserId,
         });
       }, 120);
+      scoreSyncTimersRef.current.set(match.id, timer);
     },
     [liveScore],
   );
@@ -742,14 +768,15 @@ export function BracketCourtScoringGrid({
         confirmLabel: "Finalize",
       });
       if (!ok) return;
-      if (scoreSyncRef.current) {
-        clearTimeout(scoreSyncRef.current);
-        scoreSyncRef.current = null;
+      if (scoreSyncTimersRef.current.has(match.id)) {
+        clearTimeout(scoreSyncTimersRef.current.get(match.id)!);
+        scoreSyncTimersRef.current.delete(match.id);
       }
       finalizeScore.mutate(
         { matchId: match.id, scoreA: a, scoreB: b },
         {
           onSuccess: () => {
+            dirtyMatchIdsRef.current.delete(match.id);
             setLocalScores((prev) => {
               const next = { ...prev };
               delete next[match.id];
@@ -884,8 +911,12 @@ export function BracketCourtScoringGrid({
             scores={scores}
             onPersistScore={(a, b, meta) => liveMatch && persistScore(liveMatch, a, b, meta)}
             onFinalize={() => liveMatch && void handleFinalize(liveMatch)}
-            scoreSyncing={liveScore.isPending}
-            finalizePending={finalizeScore.isPending}
+            scoreSyncing={
+              liveScore.isPending && liveScore.variables?.matchId === liveMatch?.id
+            }
+            finalizePending={
+              finalizeScore.isPending && finalizeScore.variables?.matchId === liveMatch?.id
+            }
             editingName={editingCourtId === court.id}
             nameDraft={courtNameDraft}
             onEditName={() => {

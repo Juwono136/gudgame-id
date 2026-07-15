@@ -124,7 +124,7 @@ export function DoubleStageManagePanel({
     return (
       <div className="space-y-5">
         <Card className="border-cp-primary/30 bg-cp-primary/5">
-          <CardContent className="flex flex-col items-center gap-3 py-8 text-center sm:flex-row sm:text-left">
+          <CardContent className="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
             <Trophy className="h-8 w-8 shrink-0 text-cp-primary" />
             <div className="flex-1">
               <p className="font-semibold text-foreground">Group stage complete</p>

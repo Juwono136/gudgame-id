@@ -1,16 +1,21 @@
 "use client";
 
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
+import { formatRankingPoints } from "@/lib/player/format-ranking-points";
 
 type PlayerStatsReadonlyProps = {
   profile: PlayerWikiProfileView | null;
 };
 
-function formatStat(value: number | null, kind: "rank" | "points" | "percent"): string {
-  if (value == null) return "—";
-  if (kind === "rank") return `#${value.toLocaleString()}`;
-  if (kind === "percent") return `${value}%`;
-  return value.toLocaleString();
+function formatStat(
+  value: number | null,
+  kind: "rank" | "points" | "percent",
+): { display: string; title?: string } {
+  if (value == null) return { display: "—" };
+  if (kind === "rank") return { display: `#${value.toLocaleString("en-US")}` };
+  if (kind === "percent") return { display: `${value}%` };
+  const fmt = formatRankingPoints(value);
+  return { display: fmt.display, title: fmt.title };
 }
 
 export function PlayerStatsReadonly({ profile }: PlayerStatsReadonlyProps) {
@@ -27,15 +32,15 @@ export function PlayerStatsReadonly({ profile }: PlayerStatsReadonlyProps) {
   const stats = profile.careerStats;
   const metrics = [
     stats.worldRank != null
-      ? { label: "World rank", value: formatStat(stats.worldRank, "rank") }
+      ? { label: "World rank", ...formatStat(stats.worldRank, "rank") }
       : null,
     stats.totalPoints != null
-      ? { label: "Total points", value: formatStat(stats.totalPoints, "points") }
+      ? { label: "Ranking score", ...formatStat(stats.totalPoints, "points") }
       : null,
     stats.winRate != null
-      ? { label: "Win rate", value: formatStat(stats.winRate, "percent") }
+      ? { label: "Win rate", ...formatStat(stats.winRate, "percent") }
       : null,
-  ].filter(Boolean) as { label: string; value: string }[];
+  ].filter(Boolean) as { label: string; display: string; title?: string }[];
 
   if (metrics.length === 0 && !stats.tier) {
     return (
@@ -69,16 +74,19 @@ export function PlayerStatsReadonly({ profile }: PlayerStatsReadonlyProps) {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
                 {metric.label}
               </p>
-              <p className="mt-1.5 text-2xl font-bold tabular-nums text-foreground">
-                {metric.value}
+              <p
+                className="mt-1.5 text-xl font-bold tabular-nums text-foreground"
+                title={metric.title}
+              >
+                {metric.display}
               </p>
             </div>
           ))}
         </div>
       ) : null}
 
-      <p className="text-xs text-cp-text-dim">
-        Stats are sourced from tournament match results. Tier and points update automatically.
+      <p className="text-xs text-cp-muted">
+        These figures update automatically from tournament results and cannot be edited here.
       </p>
     </div>
   );

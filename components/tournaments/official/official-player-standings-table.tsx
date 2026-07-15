@@ -97,10 +97,10 @@ export function OfficialPlayerStandingsTable({
                   {row.points}
                 </td>
                 <td className="hidden px-2 py-2.5 text-center tabular-nums text-foreground sm:table-cell">
-                  {row.pointsScored}
+                  {row.pointsScored.toLocaleString("en-US")}
                 </td>
                 <td className="hidden px-2 py-2.5 text-center tabular-nums text-cp-muted md:table-cell">
-                  {row.scoringActions}
+                  {row.scoringActions.toLocaleString("en-US")}
                 </td>
                 <td className="hidden px-2 py-2.5 text-center tabular-nums text-cp-muted lg:table-cell">
                   {row.games}
