@@ -52,6 +52,7 @@ type FunMatchLiveHubProps = {
   readOnly?: boolean;
   pointsPerMatch: number;
   scoringRules?: import("@/lib/tournaments/scoring/engine").ScoringRules;
+  gameRules?: import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
   isCourtStarting?: (courtId: string) => boolean;
   startingAll?: boolean;
   maxRounds?: number | null;
@@ -93,6 +94,7 @@ export function FunMatchLiveHub({
   readOnly = true,
   pointsPerMatch,
   scoringRules,
+  gameRules = null,
   isCourtStarting,
   startingAll,
   maxRounds,
@@ -136,6 +138,7 @@ export function FunMatchLiveHub({
         readOnly={readOnly}
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
+        gameRules={gameRules}
         isCourtStarting={isCourtStarting}
         startingAll={startingAll}
         maxRounds={maxRounds}

@@ -5,6 +5,7 @@ import {
   FUN_MATCH_MAX_SCORE_EVENTS,
   parseMatchScoreEvents,
 } from "@/lib/tournaments/scoring/match-score-events";
+import { parseMatchGameState, type MatchGameState } from "@/lib/tournaments/scoring/game-mode";
 
 /** @deprecated Use MatchScoreEvent */
 export type ReclubScoreEvent = MatchScoreEvent;
@@ -20,6 +21,8 @@ export type ReclubMatchMetadata = {
   bracketMatchNumber?: number;
   roundLabel?: string;
   source?: string;
+  /** Intra-game rally state when match uses race-to-N games mode. */
+  gameState?: MatchGameState;
 };
 
 function parseAmericanoPairingSide(raw: unknown): [string, string] | null {
@@ -67,6 +70,7 @@ export function parseReclubMatchMetadata(raw: unknown): ReclubMatchMetadata {
       typeof obj.bracketMatchNumber === "number" ? obj.bracketMatchNumber : undefined,
     roundLabel: typeof obj.roundLabel === "string" ? obj.roundLabel : undefined,
     source: typeof obj.source === "string" ? obj.source : undefined,
+    gameState: parseMatchGameState(obj.gameState) ?? undefined,
   };
 }
 

@@ -8,13 +8,17 @@ type DoubleStageStandingsTableProps = {
   group: GroupOverview;
   showQualification?: boolean;
   compact?: boolean;
+  /**
+   * When match score is race-to-N games, show aggregate games won–lost
+   * (e.g. 12–6) instead of a raw +/- point difference.
+   */
+  scoreDisplay?: "diff" | "games";
 };
 
-const STANDINGS_LEGEND = [
+const STANDINGS_LEGEND_BASE = [
   { key: "M", label: "Matches played" },
   { key: "W", label: "Wins" },
   { key: "L", label: "Losses" },
-  { key: "+/-", label: "Score difference" },
   { key: "PTS", label: "Standings points" },
 ] as const;
 
@@ -22,7 +26,17 @@ export function DoubleStageStandingsTable({
   group,
   showQualification = false,
   compact = false,
+  scoreDisplay = "diff",
 }: DoubleStageStandingsTableProps) {
+  const showGames = scoreDisplay === "games";
+  const legend = [
+    ...STANDINGS_LEGEND_BASE.slice(0, 3),
+    showGames
+      ? { key: "Game", label: "Games won – games lost" }
+      : { key: "+/-", label: "Score difference" },
+    STANDINGS_LEGEND_BASE[3],
+  ];
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-lg border border-cp-border">
@@ -45,9 +59,9 @@ export function DoubleStageStandingsTable({
               </th>
               <th
                 className="hidden px-2 py-2 text-right md:table-cell sm:px-3"
-                title="Score difference"
+                title={showGames ? "Games won – games lost" : "Score difference"}
               >
-                +/-
+                {showGames ? "Game" : "+/-"}
               </th>
               <th className="px-2 py-2 text-right sm:px-3" title="Standings points">
                 PTS
@@ -90,7 +104,9 @@ export function DoubleStageStandingsTable({
                 <td className="hidden px-2 py-2 text-right sm:table-cell sm:px-3">{row.played}</td>
                 <td className="px-2 py-2 text-right sm:px-3">{row.wins}</td>
                 <td className="px-2 py-2 text-right sm:px-3">{row.losses}</td>
-                <td className="hidden px-2 py-2 text-right md:table-cell sm:px-3">{row.scoreDiff}</td>
+                <td className="hidden px-2 py-2 text-right tabular-nums md:table-cell sm:px-3">
+                  {showGames ? `${row.scoreFor}–${row.scoreAgainst}` : row.scoreDiff}
+                </td>
                 <td className="px-2 py-2 text-right font-semibold sm:px-3">{row.points}</td>
               </tr>
             ))}
@@ -104,7 +120,7 @@ export function DoubleStageStandingsTable({
         )}
         aria-label="Standings column legend"
       >
-        {STANDINGS_LEGEND.map((item) => (
+        {legend.map((item) => (
           <li key={item.key}>
             <span className="font-semibold tabular-nums text-foreground">{item.key}</span>
             {" = "}

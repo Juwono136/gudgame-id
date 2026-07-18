@@ -38,6 +38,8 @@ import {
   getScoringTypeLabel,
   getTournamentCourtCount,
   getTournamentDeuceConfig,
+  getTournamentGameRules,
+  getTournamentMatchScoreMode,
   getTournamentMatchScoringHint,
   getTournamentPointsPerMatch,
   getTournamentScoringType,
@@ -85,6 +87,7 @@ import { computeParallelCapacity } from "@/lib/tournaments/courts/parallel-capac
 import { cn } from "@/lib/utils";
 import { parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import type { ScoringRules } from "@/lib/tournaments/scoring/engine";
+import { isRaceToGamesMatchComplete } from "@/lib/tournaments/scoring/game-mode";
 
 type FunMatchScoringWorkspaceProps = {
   tournament: TournamentDetail;
@@ -149,6 +152,14 @@ export function FunMatchScoringWorkspace({
     [pointsPerMatch, scoringType, tournament],
   );
 
+  const gameRules = useMemo(
+    () =>
+      getTournamentMatchScoreMode(tournament) === "games"
+        ? getTournamentGameRules(tournament)
+        : null,
+    [tournament],
+  );
+
   const [teamAByCourt, setTeamAByCourt] = useState<Record<string, string>>({});
   const [teamBByCourt, setTeamBByCourt] = useState<Record<string, string>>({});
   const [bracketPickByCourt, setBracketPickByCourt] = useState<Record<string, string>>({});
@@ -181,6 +192,10 @@ export function FunMatchScoringWorkspace({
             scoreA: m.scoreA,
             scoreB: m.scoreB,
             status: m.status,
+            scheduledAt: m.scheduledAt,
+            startedAt: m.startedAt,
+            completedAt: m.completedAt,
+            gameState: m.gameState,
           }),
           courtId: m.courtId ?? null,
         })),
@@ -316,6 +331,10 @@ export function FunMatchScoringWorkspace({
             scoreA: bm.scoreA,
             scoreB: bm.scoreB,
             status: bm.status,
+            scheduledAt: bm.scheduledAt,
+            startedAt: bm.startedAt,
+            completedAt: bm.completedAt,
+            gameState: bm.gameState,
           }),
           courtId: bm.courtId,
         });
@@ -880,6 +899,14 @@ export function FunMatchScoringWorkspace({
         return;
       }
 
+      if (gameRules) {
+        const race = isRaceToGamesMatchComplete(scoreA, scoreB, gameRules);
+        if (!race.complete) {
+          toast.error(`Match incomplete — first to ${gameRules.raceToGames} games wins`);
+          return;
+        }
+      }
+
       const ok = await confirm({
         title: "Finalize match?",
         description: `Save ${match.teamAName} ${scoreA}–${scoreB} ${match.teamBName} to history.`,
@@ -912,7 +939,15 @@ export function FunMatchScoringWorkspace({
       }
       void refetch();
     },
-    [allowGroupDraw, completeRound, confirm, finalizeBracketScore, finalizeGroupScore, refetch],
+    [
+      allowGroupDraw,
+      completeRound,
+      confirm,
+      finalizeBracketScore,
+      finalizeGroupScore,
+      gameRules,
+      refetch,
+    ],
   );
 
   const handleEditCourtName = useCallback((courtId: string, currentName: string) => {
@@ -1075,6 +1110,7 @@ export function FunMatchScoringWorkspace({
         readOnly={!canScore}
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
+        gameRules={gameRules}
         isCourtStarting={isCourtStarting}
         startingAll={startingAllCourts}
         maxRounds={maxRounds}

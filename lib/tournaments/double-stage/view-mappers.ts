@@ -76,6 +76,7 @@ export function groupMatchToReclubView(
     sourceKind: "group_stage",
     playType: "group_stage",
     roundLabel: groupName ?? "Group stage",
+    gameState: match.gameState ?? null,
   };
 }
 

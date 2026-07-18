@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Minus, Pencil, Play, Plus, Radio } from "lucide-react";
 import { DeuceScoreBadge } from "@/components/tournaments/fun-match/deuce-score-badge";
+import {
+  GameRaceScoreBadge,
+  GameRaceScoreboard,
+} from "@/components/tournaments/game-race-scoreboard";
 import { Button } from "@/components/ui/button";
+import { emptyMatchGameState } from "@/lib/tournaments/scoring/game-mode";
 import {
   Select,
   SelectContent,
@@ -65,6 +70,8 @@ type FunMatchRoundMatchCardProps = {
   canManage?: boolean;
   pointsPerMatch?: number;
   scoringRules?: ScoringRules;
+  /** When set, live scoring uses race-to-N games UI instead of flat points. */
+  gameRules?: import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
   onScoreChange?: (input: {
     scoreA: number;
     scoreB: number;
@@ -213,6 +220,7 @@ export function FunMatchRoundMatchCard({
   canManage,
   pointsPerMatch = 16,
   scoringRules,
+  gameRules = null,
   onScoreChange,
   onComplete,
   onEditCourtName,
@@ -276,6 +284,20 @@ export function FunMatchRoundMatchCard({
   const adjustScore = useCallback(
     (side: "a" | "b", delta: 1 | -1, scorerName?: string) => {
       if (!onScoreChange || readOnly || !isLive) return;
+      // Games mode: server owns game-point progression — send side delta, not absolute set.
+      if (gameRules) {
+        if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
+        scoreSyncRef.current = setTimeout(() => {
+          onScoreChange({
+            scoreA: serverScoreA,
+            scoreB: serverScoreB,
+            action: delta > 0 ? "increment" : "decrement",
+            side,
+            scorerName: delta > 0 ? scorerName : undefined,
+          });
+        }, 80);
+        return;
+      }
       setLocalScores((prev) => {
         const baseA = prev?.a ?? serverScoreA;
         const baseB = prev?.b ?? serverScoreB;
@@ -283,8 +305,6 @@ export function FunMatchRoundMatchCard({
         const nextB = side === "b" ? Math.max(0, baseB + delta) : baseB;
         dirtyRef.current = true;
         if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
-        // Persist absolute scores (`set`) so debounced multi-taps don't collapse into a
-        // single server-side increment on a stale base (which also races other courts).
         scoreSyncRef.current = setTimeout(() => {
           onScoreChange({
             scoreA: nextA,
@@ -297,7 +317,7 @@ export function FunMatchRoundMatchCard({
         return { a: nextA, b: nextB };
       });
     },
-    [isLive, onScoreChange, readOnly, serverScoreA, serverScoreB],
+    [gameRules, isLive, onScoreChange, readOnly, serverScoreA, serverScoreB],
   );
 
   const teamA = teams.find((t) => t.id === teamAId);
@@ -381,7 +401,32 @@ export function FunMatchRoundMatchCard({
     Boolean(teamAId && teamBId && teamAId !== teamBId);
 
   const scoreReadOnly = readOnly || !isLive;
-  const scoreBoxes = (
+  const activeGameState = match?.gameState ?? emptyMatchGameState();
+
+  const scoreBoxes = gameRules ? (
+    isLive && !readOnly ? (
+      <GameRaceScoreboard
+        teamAName={leftTeamName ?? "Team A"}
+        teamBName={rightTeamName ?? "Team B"}
+        gamesA={serverScoreA}
+        gamesB={serverScoreB}
+        gameState={activeGameState}
+        rules={gameRules}
+        disabled={!canManage}
+        onPointA={(delta) => adjustScore("a", delta, leftSingleScorer)}
+        onPointB={(delta) => adjustScore("b", delta, rightSingleScorer)}
+      />
+    ) : (
+      <GameRaceScoreBadge
+        gamesA={scoreA}
+        gamesB={scoreB}
+        currentPointsA={isLive ? activeGameState.currentPointsA : undefined}
+        currentPointsB={isLive ? activeGameState.currentPointsB : undefined}
+        pointStyle={gameRules.pointStyle}
+        showRally={isLive}
+      />
+    )
+  ) : (
     <div className="flex flex-col items-center gap-2">
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <ScoreBox

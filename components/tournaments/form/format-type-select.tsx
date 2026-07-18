@@ -2,6 +2,7 @@
 
 import { Check, GitBranch, LayoutGrid, Shuffle } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import {
   FORMAT_OPTIONS,
   getAllowedFormatsForSport,
@@ -16,12 +17,14 @@ const FORMAT_ICONS = {
 } as const;
 
 type FormatTypeSelectProps = {
-  value: TournamentFormat;
+  value: TournamentFormat | "";
   onChange: (value: TournamentFormat) => void;
   sportSlug?: string;
   disabled?: boolean;
   className?: string;
   officialOnly?: boolean;
+  required?: boolean;
+  error?: string | null;
 };
 
 export function FormatTypeSelect({
@@ -31,6 +34,8 @@ export function FormatTypeSelect({
   disabled,
   className,
   officialOnly,
+  required = false,
+  error,
 }: FormatTypeSelectProps) {
   const allowed = getAllowedFormatsForSport(sportSlug, { officialOnly });
 
@@ -43,12 +48,21 @@ export function FormatTypeSelect({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <Label>Match format</Label>
+      <Label>
+        Match format
+        {required ? <RequiredMark /> : null}
+      </Label>
       <p className="text-xs leading-relaxed text-cp-muted">
         Choose how players compete. Options depend on the sport — some sports favor rotation
         formats, others use knockout brackets.
       </p>
-      <div className={gridClass}>
+      <div
+        className={cn(gridClass, error && "rounded-2xl p-1 ring-1 ring-red-500/50")}
+        role="group"
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? "format-select-error" : undefined}
+      >
         {allowed.map((formatKey) => {
           const option = FORMAT_OPTIONS[formatKey];
           if (!option) return null;
@@ -104,6 +118,7 @@ export function FormatTypeSelect({
           );
         })}
       </div>
+      <FieldError id="format-select-error" message={error} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { getTournamentMatchScoreMode } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 
 type DoubleStageManagePanelProps = {
@@ -84,6 +85,8 @@ export function DoubleStageManagePanel({
   );
   const overview = data?.doubleStage;
   const [advancing, setAdvancing] = useState(false);
+  const scoreDisplay =
+    getTournamentMatchScoreMode(tournament) === "games" ? "games" : "diff";
 
   const advanceToKnockout = useCallback(async () => {
     setAdvancing(true);
@@ -150,7 +153,11 @@ export function DoubleStageManagePanel({
                 <CardTitle className="text-base">{group.name} — final standings</CardTitle>
               </CardHeader>
               <CardContent>
-                <DoubleStageStandingsTable group={group} showQualification />
+                <DoubleStageStandingsTable
+                  group={group}
+                  showQualification
+                  scoreDisplay={scoreDisplay}
+                />
               </CardContent>
             </Card>
           ))}
@@ -219,7 +226,11 @@ export function DoubleStageManagePanel({
               <CardTitle className="text-base sm:text-lg">{group.name}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <DoubleStageStandingsTable group={group} showQualification />
+              <DoubleStageStandingsTable
+                group={group}
+                showQualification
+                scoreDisplay={scoreDisplay}
+              />
               <FixtureList groupName={group.name} matches={group.matches} />
             </CardContent>
           </Card>

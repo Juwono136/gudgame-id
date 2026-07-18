@@ -55,6 +55,7 @@ import type { TournamentRuleSections } from "@/lib/tournaments/settings";
 import {
   getTournamentCourtCount,
   getTournamentFormatLabel,
+  getTournamentMatchScoreMode,
   getTournamentScoringDetailLabel,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
@@ -841,6 +842,7 @@ export function OfficialTournamentPage({
                   <TournamentRoundHistorySection
                     variant="official"
                     items={liveScoreHistoryItems}
+                    gamesScoreMode={getTournamentMatchScoreMode(tournament) === "games"}
                   />
                 ) : liveScoreMode === "group_stage" ? (
                   <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
@@ -912,6 +914,7 @@ export function OfficialTournamentPage({
                 <TournamentRoundHistorySection
                   variant="official"
                   items={liveScoreHistoryItems}
+                  gamesScoreMode={getTournamentMatchScoreMode(tournament) === "games"}
                 />
               ) : null}
             </div>

@@ -16,9 +16,7 @@ export function DoubleStageConfigBanner({ tournament, className }: DoubleStageCo
     `Up to ${cfg.maxTeamsPerGroup} teams / group`,
     `Top ${cfg.teamsAdvancePerGroup} advance`,
     `Standings: ${cfg.winPoints}W${cfg.allowDraw ? ` · ${cfg.drawPoints}D` : ""} · ${cfg.lossPoints}L`,
-    cfg.scoringTypeLabel === "Points"
-      ? `Match score: first to ${cfg.pointsPerMatch}`
-      : cfg.scoringTypeLabel,
+    `Match score: ${cfg.matchScoringHint}`,
     `${cfg.courtCount} ${cfg.courtCount === 1 ? "court" : "courts"}`,
     cfg.maxTeams != null ? `Max ${cfg.maxTeams} teams` : null,
     `${cfg.playersPerTeam} players / team`,

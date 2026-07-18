@@ -65,6 +65,9 @@ export const tournamentUpsertSchema = z
         "Point per match must be one of the supported options.",
       )
       .default(21),
+    matchScoreMode: z.enum(["points", "games"]).optional(),
+    raceToGames: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(6)]).optional(),
+    gameDecider: z.enum(["golden_point", "advantage"]).optional(),
     courtCount: z.coerce.number().int().min(1).max(12).default(1),
     roundDurationMinutes: z.coerce.number().int().min(1).max(120).optional(),
     maxTeamsPerGroup: z.coerce.number().int().min(2).max(8).optional(),
@@ -114,6 +117,20 @@ export const tournamentUpsertSchema = z
     }
 
     if (data.tournamentType === "official") {
+      if (!data.categoryLabel) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Category is required for official tournaments (Male, Female, or Mix).",
+          path: ["categoryLabel"],
+        });
+      }
+      if (!data.format) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Match format is required for official tournaments.",
+          path: ["format"],
+        });
+      }
       if (!data.officialBilling) {
         ctx.addIssue({
           code: "custom",

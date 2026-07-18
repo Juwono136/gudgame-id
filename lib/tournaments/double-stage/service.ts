@@ -50,7 +50,15 @@ import {
 import { buildMatchScoreEvent } from "@/lib/tournaments/scoring/build-score-event";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
 import {
+  applyGamePointDelta,
+  emptyMatchGameState,
+  isRaceToGamesMatchComplete,
+  type MatchGameState,
+} from "@/lib/tournaments/scoring/game-mode";
+import {
   getTournamentDeuceConfig,
+  getTournamentGameRules,
+  getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
@@ -80,6 +88,7 @@ export type GroupMatchView = {
   teamBName: string | null;
   teamAPlayers: GroupMatchPlayerView[];
   teamBPlayers: GroupMatchPlayerView[];
+  /** Games won (race-to-N mode) or flat points (points mode). */
   scoreA: number | null;
   scoreB: number | null;
   winnerTeamId: string | null;
@@ -89,6 +98,8 @@ export type GroupMatchView = {
   completedAt: string | null;
   courtId: string | null;
   scoreEvents: MatchScoreEvent[];
+  /** Present when tournament uses matchScoreMode = "games". */
+  gameState?: MatchGameState | null;
 };
 
 export type GroupStandingView = {
@@ -487,8 +498,33 @@ export async function updateGroupStageLiveScore(
 
   let scoreA = Math.max(0, match.scoreA ?? 0);
   let scoreB = Math.max(0, match.scoreB ?? 0);
+  const prevMeta = parseReclubMatchMetadata(match.metadata);
+  let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
+  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
 
-  if (input.scoreAction === "increment" && input.side) {
+  if (useGamesMode && input.scoreAction && input.side) {
+    const gameRules = getTournamentGameRules(tournament);
+    const delta = input.scoreAction === "decrement" ? (-1 as const) : (1 as const);
+    const applied = applyGamePointDelta(
+      scoreA,
+      scoreB,
+      nextGameState,
+      input.side,
+      delta,
+      gameRules,
+    );
+    if (!applied) {
+      throw new AppError(
+        delta > 0
+          ? "Cannot award point — game or match may already be complete"
+          : "Cannot undo — no points in the current game",
+        { code: "VALIDATION_ERROR", statusCode: 422 },
+      );
+    }
+    scoreA = applied.gamesA;
+    scoreB = applied.gamesB;
+    nextGameState = applied.gameState;
+  } else if (input.scoreAction === "increment" && input.side) {
     const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
     if (!next) {
       throw new AppError("Cannot increase score — match may be complete or at cap", {
@@ -509,18 +545,24 @@ export async function updateGroupStageLiveScore(
     scoreA = next.scoreA;
     scoreB = next.scoreB;
   } else {
+    // Absolute set: for games mode, treat as games won (reset rally).
     scoreA = Math.max(0, input.scoreA);
     scoreB = Math.max(0, input.scoreB);
+    if (useGamesMode) {
+      nextGameState = emptyMatchGameState();
+    }
   }
 
-  const prevMeta = parseReclubMatchMetadata(match.metadata);
   const event = buildMatchScoreEvent(userId, userName, scoreA, scoreB, {
     action: input.scoreAction ?? "set",
     side: input.side,
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });
-  const metadata = appendScoreEvent(prevMeta, event);
+  const metadata = {
+    ...appendScoreEvent(prevMeta, event),
+    ...(useGamesMode ? { gameState: nextGameState } : {}),
+  };
 
   const [updated] = await db
     .update(tournamentGroupMatches)
@@ -579,6 +621,17 @@ export async function recordGroupStageScore(
       code: "VALIDATION_ERROR",
       statusCode: 422,
     });
+  }
+
+  if (getTournamentMatchScoreMode(tournament) === "games") {
+    const gameRules = getTournamentGameRules(tournament);
+    const race = isRaceToGamesMatchComplete(scores.scoreA, scores.scoreB, gameRules);
+    if (!race.complete) {
+      throw new AppError(
+        `Match is not complete — first team to ${gameRules.raceToGames} games wins.`,
+        { code: "VALIDATION_ERROR", statusCode: 422 },
+      );
+    }
   }
 
   let winnerTeamId: string | null = null;
@@ -672,6 +725,7 @@ function mapGroupMatchView(
     completedAt: m.completedAt?.toISOString() ?? null,
     courtId: m.courtId,
     scoreEvents: meta.scoreEvents ?? [],
+    gameState: meta.gameState ?? null,
   };
 }
 

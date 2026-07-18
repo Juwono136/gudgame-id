@@ -537,6 +537,7 @@ export function ReclubTournamentWizard({
                     value={matchType as "americano" | "single_elimination"}
                     onChange={setMatchType}
                     sportSlug={sportSlug}
+                    required
                   />
                 </div>
                 <div>

@@ -58,6 +58,7 @@ type FunMatchRoundsPanelProps = {
   readOnly?: boolean;
   pointsPerMatch: number;
   scoringRules?: ScoringRules;
+  gameRules?: import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
   isCourtStarting?: (courtId: string) => boolean;
   startingAll?: boolean;
   maxRounds?: number | null;
@@ -117,6 +118,7 @@ export function FunMatchRoundsPanel({
   readOnly,
   pointsPerMatch,
   scoringRules,
+  gameRules = null,
   isCourtStarting,
   startingAll,
   maxRounds,
@@ -241,6 +243,7 @@ export function FunMatchRoundsPanel({
                     readOnly={readOnly}
                     pointsPerMatch={pointsPerMatch}
                     scoringRules={scoringRules}
+                    gameRules={gameRules}
                     onScoreChange={(input) =>
                       onScoreChange(match.id, {
                         ...input,
@@ -294,6 +297,7 @@ export function FunMatchRoundsPanel({
                     canManage
                     pointsPerMatch={pointsPerMatch}
                     scoringRules={scoringRules}
+                    gameRules={gameRules}
                     onEditCourtName={() => onEditCourtName(court.id, court.name)}
                     accentVariant={accentVariant}
                     isAmericanoMode={isAmericanoMode}

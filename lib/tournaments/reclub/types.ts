@@ -30,6 +30,8 @@ export type ReclubMatchView = {
   playNumber?: number | null;
   /** Individual player IDs for each side when format is Americano (2v2). */
   americanoPairing?: AmericanoMatchPairing | null;
+  /** Intra-game rally state for race-to-N games matches. */
+  gameState?: import("@/lib/tournaments/scoring/game-mode").MatchGameState | null;
 };
 
 export type ReclubMatchesListQuery = {
@@ -103,6 +105,7 @@ export type BracketMatchStatsSource = {
   completedAt?: string | null;
   startedAt?: string | null;
   scoreEvents?: MatchScoreEvent[];
+  gameState?: import("@/lib/tournaments/scoring/game-mode").MatchGameState | null;
 };
 
 export function bracketMatchToReclubView(m: BracketMatchStatsSource): ReclubMatchView {
@@ -131,5 +134,6 @@ export function bracketMatchToReclubView(m: BracketMatchStatsSource): ReclubMatc
       m.matchNumber != null
         ? `Round ${m.roundNumber} · Match ${m.matchNumber}`
         : `Round ${m.roundNumber}`,
+    gameState: m.gameState ?? null,
   };
 }

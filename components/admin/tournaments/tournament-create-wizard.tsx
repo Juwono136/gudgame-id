@@ -18,6 +18,7 @@ import {
   type TournamentCategoryOption,
 } from "@/components/tournaments/form/category-select";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
+import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { CurrencyInput } from "@/components/tournaments/form/currency-input";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { TOURNAMENT_FIELD_LIMITS } from "@/lib/tournaments/form/field-limits";
@@ -57,13 +58,20 @@ import {
   getTournamentRuleSections,
   getTournamentCourtCount,
   getTournamentFormatLabel,
+  getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
+  getTournamentRaceToGames,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   getScoringTypeLabel,
   getVenueMapsUrl,
   type TournamentScoringType,
 } from "@/lib/tournaments/settings";
+import {
+  RACE_TO_GAMES_COMMON_OPTIONS,
+  type RaceToGames,
+} from "@/lib/tournaments/scoring/game-mode";
+import { getDefaultStandingsScoringForSport } from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
 import {
@@ -192,10 +200,10 @@ export function TournamentCreateWizard({
   );
   const [startsAt, setStartsAt] = useState(toLocalDatetime(initial?.startsAt));
   const [endsAt, setEndsAt] = useState(toLocalDatetime(initial?.endsAt));
-  const [officialBilling, setOfficialBilling] = useState<"paid" | "free">(
+  const [officialBilling, setOfficialBilling] = useState<"paid" | "free" | "">(
     (initial?.officialBilling as "paid" | "free" | null) ??
       initialOfficialBilling ??
-      (initial?.registrationFeeIdr && initial.registrationFeeIdr > 0 ? "paid" : "paid"),
+      (initial?.registrationFeeIdr && initial.registrationFeeIdr > 0 ? "paid" : ""),
   );
   const [registrationFeeIdr, setRegistrationFeeIdr] = useState(
     initial?.registrationFeeIdr ? String(initial.registrationFeeIdr) : "",
@@ -216,13 +224,30 @@ export function TournamentCreateWizard({
   const [registrationClosesAt, setRegistrationClosesAt] = useState(
     toLocalDatetime(initial?.registrationClosesAt),
   );
-  const [matchType, setMatchType] = useState<TournamentUpsertInput["format"]>(
-    initial?.format === "americano"
-      ? "americano"
-      : initial?.format === "double_stage"
-        ? "double_stage"
-        : "single_elimination",
-  );
+  const [matchType, setMatchType] = useState<TournamentUpsertInput["format"] | "">(() => {
+    if (initial?.format === "americano") return "americano";
+    if (initial?.format === "double_stage") return "double_stage";
+    if (initial?.format === "single_elimination") return "single_elimination";
+    // Create Official: require an explicit format choice (no silent default).
+    if (isOfficialType(initialTournamentType ?? "official")) return "";
+    return sportDefaults.defaultFormat === "americano" ? "americano" : "single_elimination";
+  });
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    category?: string;
+    format?: string;
+    billing?: string;
+    fee?: string;
+    venue?: string;
+  }>({});
+  const clearFieldError = (key: keyof typeof fieldErrors) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
   const initialDs = initial
     ? parseDoubleStageSettings((initial.settings as Record<string, unknown>)?.doubleStage)
     : null;
@@ -248,12 +273,35 @@ export function TournamentCreateWizard({
   const [pointsPerMatch, setPointsPerMatch] = useState(
     String(initial ? getTournamentPointsPerMatch(initial) : 21),
   );
+  const sportScoreUnit = getDefaultStandingsScoringForSport(resolvedSportSlug).scoreUnit;
+  const sportPrefersGames = sportScoreUnit === "games" || sportScoreUnit === "sets";
+  const [matchScoreMode, setMatchScoreMode] = useState<"points" | "games">(
+    initial
+      ? getTournamentMatchScoreMode(initial)
+      : sportPrefersGames
+        ? "games"
+        : "points",
+  );
+  const [raceToGames, setRaceToGames] = useState(
+    String(initial ? getTournamentRaceToGames(initial) : sportPrefersGames ? 4 : 4),
+  );
   const [courtCount, setCourtCount] = useState(
     String(initial ? getTournamentCourtCount(initial) : 1),
   );
   const [roundDurationMinutes, setRoundDurationMinutes] = useState(
     String(initial ? getTournamentRoundDurationMinutes(initial) : 15),
   );
+
+  useEffect(() => {
+    if (isEdit) return;
+    const prefers =
+      getDefaultStandingsScoringForSport(resolvedSportSlug).scoreUnit === "games" ||
+      getDefaultStandingsScoringForSport(resolvedSportSlug).scoreUnit === "sets";
+    if (matchType === "double_stage" && prefers) {
+      setMatchScoreMode("games");
+      setRaceToGames("4");
+    }
+  }, [resolvedSportSlug, isEdit, matchType]);
 
   useEffect(() => {
     if (isEdit) return;
@@ -305,6 +353,8 @@ export function TournamentCreateWizard({
     );
     setScoringType(getTournamentScoringType(initial));
     setPointsPerMatch(String(getTournamentPointsPerMatch(initial)));
+    setMatchScoreMode(getTournamentMatchScoreMode(initial));
+    setRaceToGames(String(getTournamentRaceToGames(initial)));
     setCourtCount(String(getTournamentCourtCount(initial)));
     setRoundDurationMinutes(String(getTournamentRoundDurationMinutes(initial)));
   }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
@@ -317,6 +367,16 @@ export function TournamentCreateWizard({
       const d = new Date(local);
       return Number.isNaN(d.getTime()) ? "" : d.toISOString();
     };
+    if (
+      matchType !== "americano" &&
+      matchType !== "single_elimination" &&
+      matchType !== "double_stage"
+    ) {
+      throw new Error("Match format is required");
+    }
+    if (isOfficialType(tournamentType) && (officialBilling !== "paid" && officialBilling !== "free")) {
+      throw new Error("Registration billing is required");
+    }
     return {
       name: name.trim(),
       slug: resolvedSlug,
@@ -324,7 +384,9 @@ export function TournamentCreateWizard({
       description,
       status,
       tournamentType,
-      officialBilling: isOfficialType(tournamentType) ? officialBilling : null,
+      officialBilling: isOfficialType(tournamentType)
+        ? (officialBilling as "paid" | "free")
+        : null,
       format: matchType,
       rules: isFunMatchType(tournamentType) ? rules : undefined,
       eligibilityRules: isOfficialType(tournamentType) ? "" : undefined,
@@ -361,6 +423,12 @@ export function TournamentCreateWizard({
             drawPoints: Number(drawPoints) || 1,
             lossPoints: Number(lossPoints) || 0,
             thirdPlaceEnabled,
+            matchScoreMode,
+            raceToGames:
+              matchScoreMode === "games"
+                ? (Number(raceToGames) as RaceToGames)
+                : undefined,
+            gameDecider: matchScoreMode === "games" ? "golden_point" : undefined,
           }
         : {}),
     };
@@ -372,30 +440,48 @@ export function TournamentCreateWizard({
     };
 
     if (stepId === "basics") {
+      const nextErrors: typeof fieldErrors = {};
+
       if (!name.trim()) {
-        toast.error("Tournament name is required");
-        return false;
-      }
-      if (name.length > TOURNAMENT_FIELD_LIMITS.name) {
+        nextErrors.name = "Tournament name is required";
+      } else if (name.length > TOURNAMENT_FIELD_LIMITS.name) {
         limitError("Name", TOURNAMENT_FIELD_LIMITS.name);
         return false;
       }
-      if (categoryLabel.length > TOURNAMENT_FIELD_LIMITS.categoryLabel) {
-        limitError("Category label", TOURNAMENT_FIELD_LIMITS.categoryLabel);
-        return false;
-      }
-      if (!CATEGORY_OPTIONS.includes(categoryLabel as TournamentCategoryOption)) {
-        toast.error("Choose a category: Male, Female, or Mix");
-        return false;
-      }
-      if (
+
+      if (tournamentType === "official") {
+        if (officialBilling !== "paid" && officialBilling !== "free") {
+          nextErrors.billing = "Select paid or free registration billing";
+        }
+        if (
+          officialBilling === "paid" &&
+          (!registrationFeeIdr || Number(registrationFeeIdr) <= 0)
+        ) {
+          nextErrors.fee = "Paid tournaments require a registration fee (IDR)";
+        }
+        if (!CATEGORY_OPTIONS.includes(categoryLabel as TournamentCategoryOption)) {
+          nextErrors.category = "Choose a category: Male, Female, or Mix";
+        }
+        if (
+          matchType !== "americano" &&
+          matchType !== "single_elimination" &&
+          matchType !== "double_stage"
+        ) {
+          nextErrors.format = "Choose a match format";
+        }
+      } else if (
         matchType !== "americano" &&
         matchType !== "single_elimination" &&
         matchType !== "double_stage"
       ) {
-        toast.error("Choose a match type");
+        nextErrors.format = "Choose a match type";
+      }
+
+      if (categoryLabel.length > TOURNAMENT_FIELD_LIMITS.categoryLabel) {
+        limitError("Category label", TOURNAMENT_FIELD_LIMITS.categoryLabel);
         return false;
       }
+
       if (!TOURNAMENT_POINTS_PER_MATCH_OPTIONS.includes(Number(pointsPerMatch) as (typeof TOURNAMENT_POINTS_PER_MATCH_OPTIONS)[number])) {
         toast.error("Choose a supported point per match value");
         return false;
@@ -417,24 +503,26 @@ export function TournamentCreateWizard({
         toast.error("Invalid URL slug");
         return false;
       }
-      if (tournamentType === "official" && !officialBilling) {
-        toast.error("Choose whether this official tournament is paid or free");
-        return false;
-      }
-      if (
-        tournamentType === "official" &&
-        officialBilling === "paid" &&
-        (!registrationFeeIdr || Number(registrationFeeIdr) <= 0)
-      ) {
-        toast.error("Paid official tournaments require a registration fee (IDR)");
-        return false;
-      }
       if (!venue.trim()) {
-        toast.error("Venue is required");
+        nextErrors.venue = "Venue is required";
+      } else if (venue.length > TOURNAMENT_FIELD_LIMITS.venue) {
+        limitError("Venue", TOURNAMENT_FIELD_LIMITS.venue);
         return false;
       }
-      if (venue.length > TOURNAMENT_FIELD_LIMITS.venue) {
-        limitError("Venue", TOURNAMENT_FIELD_LIMITS.venue);
+
+      if (matchType === "double_stage") {
+        const maxPer = Number(maxTeamsPerGroup) || 0;
+        const advance = Number(teamsAdvancePerGroup) || 0;
+        if (advance > maxPer) {
+          toast.error("Teams advancing per group cannot exceed max teams per group");
+          return false;
+        }
+      }
+
+      setFieldErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) {
+        const first = Object.values(nextErrors)[0];
+        if (first) toast.error(first);
         return false;
       }
     }
@@ -620,17 +708,29 @@ export function TournamentCreateWizard({
                     <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
                   <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="t-name">Name</Label>
+                    <Label htmlFor="t-name">
+                      Name
+                      <RequiredMark />
+                    </Label>
                     <FieldCharCounter current={name.length} max={TOURNAMENT_FIELD_LIMITS.name} />
                   </div>
                   <Input
                     id="t-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.name))}
+                    onChange={(e) => {
+                      clearFieldError("name");
+                      setName(e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.name));
+                    }}
                     placeholder="Premier Padel Open 2026"
                     maxLength={TOURNAMENT_FIELD_LIMITS.name}
-                    className="border-cp-border bg-cp-elevated"
+                    aria-invalid={fieldErrors.name ? true : undefined}
+                    aria-describedby={fieldErrors.name ? "t-name-error" : undefined}
+                    className={cn(
+                      "border-cp-border bg-cp-elevated",
+                      fieldErrors.name && "border-red-500/70 focus-visible:ring-red-500/40",
+                    )}
                   />
+                  <FieldError id="t-name-error" message={fieldErrors.name} />
                 </div>
                 <div className="space-y-2">
                   <Label>Visibility</Label>
@@ -657,16 +757,29 @@ export function TournamentCreateWizard({
                     <div className="sm:col-span-2">
                       <BillingTypeSelect
                         value={officialBilling}
-                        onChange={setOfficialBilling}
+                        onChange={(v) => {
+                          clearFieldError("billing");
+                          clearFieldError("fee");
+                          setOfficialBilling(v);
+                        }}
+                        required
+                        error={fieldErrors.billing}
                       />
                     </div>
                     {officialBilling === "paid" ? (
                     <div className="space-y-2">
-                      <Label>Registration fee (IDR) *</Label>
+                      <Label>
+                        Registration fee (IDR)
+                        <RequiredMark />
+                      </Label>
                       <CurrencyInput
                         value={registrationFeeIdr}
-                        onChange={setRegistrationFeeIdr}
+                        onChange={(v) => {
+                          clearFieldError("fee");
+                          setRegistrationFeeIdr(v);
+                        }}
                       />
+                      <FieldError message={fieldErrors.fee} />
                     </div>
                     ) : null}
                     <div className="space-y-2">
@@ -680,17 +793,27 @@ export function TournamentCreateWizard({
                     </div>
                     <CategorySelect
                       value={categoryLabel}
-                      onChange={setCategoryLabel}
+                      onChange={(v) => {
+                        clearFieldError("category");
+                        setCategoryLabel(v);
+                      }}
                       className="sm:col-span-2"
+                      required
+                      error={fieldErrors.category}
                     />
                   </>
                 ) : null}
                 <div className="sm:col-span-2">
                   <FormatTypeSelect
                     value={matchType}
-                    onChange={setMatchType}
+                    onChange={(v) => {
+                      clearFieldError("format");
+                      setMatchType(v);
+                    }}
                     sportSlug={resolvedSportSlug}
                     officialOnly={isOfficialType(tournamentType)}
+                    required={isOfficialType(tournamentType)}
+                    error={fieldErrors.format}
                   />
                 </div>
                 {matchType === "double_stage" ? (
@@ -767,6 +890,45 @@ export function TournamentCreateWizard({
                       />
                       <Label htmlFor="third-place">Include 3rd place match</Label>
                     </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Match score format</Label>
+                      <p className="text-xs text-cp-muted">
+                        For racket sports like padel, use Race to N games (games score like 4–1).
+                        Point scoring keeps a flat race-to-points total.
+                      </p>
+                      <Select
+                        value={matchScoreMode}
+                        onValueChange={(v) => setMatchScoreMode(v as "points" | "games")}
+                      >
+                        <SelectTrigger className="border-cp-border bg-cp-elevated">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="games">Race to games (e.g. padel 4 / 6)</SelectItem>
+                          <SelectItem value="points">Flat points (Americano-style)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {matchScoreMode === "games" ? (
+                      <div className="space-y-2">
+                        <Label>Race to</Label>
+                        <Select value={raceToGames} onValueChange={setRaceToGames}>
+                          <SelectTrigger className="border-cp-border bg-cp-elevated">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {RACE_TO_GAMES_COMMON_OPTIONS.map((n) => (
+                              <SelectItem key={n} value={String(n)}>
+                                Race to {n} games
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-cp-muted">
+                          Within each game: 0 → 15 → 30 → 40. Reaching race target wins the match.
+                        </p>
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
                 <div className="space-y-2">
@@ -891,9 +1053,13 @@ export function TournamentCreateWizard({
               <VenueAutocompleteField
                 venue={venue}
                 mapsUrl={venueMapsUrl}
-                onVenueChange={(v) => setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue))}
+                onVenueChange={(v) => {
+                  clearFieldError("venue");
+                  setVenue(v.slice(0, TOURNAMENT_FIELD_LIMITS.venue));
+                }}
                 onMapsUrlChange={(v) => setVenueMapsUrl(v.slice(0, 2000))}
                 required
+                fieldError={fieldErrors.venue}
               />
                   </div>
                 </>
@@ -1001,12 +1167,16 @@ export function TournamentCreateWizard({
               matchFormatRules={matchFormatRules}
               equipmentStandardsRules={equipmentStandardsRules}
               rules={rules}
-              matchTypeLabel={getTournamentFormatLabel(matchType)}
+              matchTypeLabel={
+                matchType ? getTournamentFormatLabel(matchType) : "—"
+              }
               scoringTypeLabel={getScoringTypeLabel(scoringType)}
               pointsPerMatch={
                 scoringType === "timed"
                   ? `${roundDurationMinutes} min rounds`
-                  : `${pointsPerMatch} points`
+                  : matchType === "double_stage" && matchScoreMode === "games"
+                    ? `Race to ${raceToGames} games`
+                    : `${pointsPerMatch} points`
               }
               courtCount={courtCount}
               onEditStep={goToStep}

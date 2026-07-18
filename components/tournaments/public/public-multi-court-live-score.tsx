@@ -17,6 +17,8 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   getMaxRounds,
   getTournamentDeuceConfig,
+  getTournamentGameRules,
+  getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
   getTournamentScoringType,
 } from "@/lib/tournaments/settings";
@@ -116,6 +118,14 @@ export function PublicMultiCourtLiveScore({
     [pointsPerMatch, tournament],
   );
 
+  const gameRules = useMemo(
+    () =>
+      getTournamentMatchScoreMode(tournament) === "games"
+        ? getTournamentGameRules(tournament)
+        : null,
+    [tournament],
+  );
+
   const allMatches = useMemo(
     () => getFunMatchSessionViews(scopedLiveData),
     [scopedLiveData],
@@ -179,6 +189,7 @@ export function PublicMultiCourtLiveScore({
       readOnly
       pointsPerMatch={pointsPerMatch}
       scoringRules={scoringRules}
+      gameRules={gameRules}
       maxRounds={maxRounds}
       accentVariant={variant === "official" ? "official" : "fun"}
       isGroupStageMode={false}

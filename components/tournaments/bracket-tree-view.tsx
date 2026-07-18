@@ -12,15 +12,16 @@ import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import { cn } from "@/lib/utils";
 
-const MATCH_ROW_GAP_BASE = 20;
-const CONNECTOR_GUTTER = 40;
+const MATCH_ROW_GAP_BASE = 40;
 
 function getBracketGridLayout(firstRoundCount: number) {
   const gridSlots = Math.max(firstRoundCount, 1);
+  // Larger brackets need more vertical breathing room between first-round cards.
   const rowGap =
-    gridSlots >= 16 ? 32 : gridSlots >= 8 ? 28 : gridSlots >= 4 ? 24 : MATCH_ROW_GAP_BASE;
+    gridSlots >= 16 ? 56 : gridSlots >= 8 ? 52 : gridSlots >= 4 ? 48 : MATCH_ROW_GAP_BASE;
+  // Tall enough for two-line team slots + status header without adjacent cards colliding.
   const rowHeight =
-    gridSlots >= 16 ? 108 : gridSlots >= 8 ? 112 : gridSlots >= 4 ? 116 : 120;
+    gridSlots >= 16 ? 148 : gridSlots >= 8 ? 152 : gridSlots >= 4 ? 156 : 160;
   const columnHeight = gridSlots * rowHeight + Math.max(gridSlots - 1, 0) * rowGap;
   return { gridSlots, rowHeight, rowGap, columnHeight };
 }
@@ -258,15 +259,15 @@ export function BracketTreeView({
 
   return (
     <div className="space-y-2">
-      <p className="text-center text-[10px] text-cp-muted sm:text-[11px]">
+      <p className="px-1 text-center text-[10px] leading-relaxed text-cp-muted sm:text-[11px]">
         {seedingMode
-          ? "Click a round-one slot to place a team. Drag horizontally to explore the tree."
-          : "Drag horizontally to explore the tree. Scores update as matches finish."}
+          ? "Click a round-one slot to place a team. Swipe or drag sideways to explore rounds."
+          : "Swipe or drag sideways to explore rounds. Scores update as matches finish."}
       </p>
       <div
         ref={scrollRef}
         className={cn(
-          "overflow-x-auto overflow-y-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/20 to-cp-elevated/5 pb-3 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]",
+          "max-h-[min(70vh,40rem)] overflow-x-auto overflow-y-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/20 to-cp-elevated/5 pb-4 pt-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] sm:max-h-[min(75vh,48rem)]",
           isPanning ? "cursor-grabbing select-none" : "cursor-grab",
         )}
         onPointerDown={(e) => {
@@ -282,7 +283,7 @@ export function BracketTreeView({
       >
         <div
           ref={treeRef}
-          className="relative min-w-max px-2 py-3 sm:px-4"
+          className="relative min-w-max px-3 py-4 sm:px-6 sm:py-5"
         >
           <BracketConnectorOverlay
             paths={connectorPaths}
@@ -290,7 +291,7 @@ export function BracketTreeView({
             height={overlaySize.height}
           />
 
-          <div className="relative z-10 flex items-stretch">
+          <div className="relative z-10 flex items-stretch gap-0">
             {roundNumbers.map((round, roundIndex) => {
               const roundMatches = rounds.get(round) ?? [];
               const label = getBracketRoundLabel(round, totalRounds);
@@ -300,14 +301,13 @@ export function BracketTreeView({
                 <Fragment key={round}>
                   {roundIndex > 0 ? (
                     <div
-                      className="shrink-0"
-                      style={{ width: CONNECTOR_GUTTER }}
+                      className="w-16 shrink-0 sm:w-24 md:w-28 lg:w-32"
                       aria-hidden
                     />
                   ) : null}
                   <div className="flex shrink-0 items-stretch">
-                  <div className="flex w-[15.5rem] shrink-0 flex-col sm:w-[17rem] md:w-60 lg:w-64">
-                    <p className="mb-2 shrink-0 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-muted sm:mb-3 sm:text-[11px]">
+                  <div className="flex w-[15.5rem] shrink-0 flex-col sm:w-[18rem] md:w-[19.5rem] lg:w-80">
+                    <p className="mb-3 shrink-0 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-muted sm:mb-4 sm:text-[11px]">
                       {label}
                     </p>
                     <div
@@ -334,7 +334,7 @@ export function BracketTreeView({
                             }
                             onAnimationComplete={seedingMode ? undefined : measureConnectors}
                             className={cn(
-                              "relative overflow-hidden rounded-xl border bg-cp-card shadow-sm",
+                              "relative my-1.5 mx-1 max-h-full overflow-hidden rounded-xl border bg-cp-card shadow-sm",
                               m.status === "completed"
                                 ? "border-cp-primary/35"
                                 : m.status === "in_progress"
@@ -418,7 +418,7 @@ export function BracketTreeView({
                   </div>
 
                   {isFinalRound ? (
-                    <div className="ml-1 flex shrink-0 items-center self-center sm:ml-2">
+                    <div className="ml-2 flex shrink-0 items-center self-center sm:ml-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cp-primary/30 bg-cp-primary/10 shadow-[0_0_20px_rgba(0,191,139,0.12)] sm:h-12 sm:w-12 lg:h-14 lg:w-14">
                         <Trophy className="h-5 w-5 text-cp-primary/80 sm:h-6 sm:w-6 lg:h-7 lg:w-7" />
                       </div>

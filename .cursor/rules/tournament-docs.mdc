@@ -1,0 +1,14 @@
+---
+description: Keep docs/tournament-guide.md in sync when tournament features change
+globs: lib/tournaments/**/*,components/tournaments/**/*,components/admin/tournaments/**/*,lib/validations/tournaments.ts,docs/tournament-guide.md
+alwaysApply: false
+---
+
+# Tournament documentation sync
+
+Whenever you add, change, or remove tournament behavior (match formats, Official vs Fun Match rules, create/edit form fields, scoring modes, validation, lifecycle), update [`docs/tournament-guide.md`](docs/tournament-guide.md) in the same change set.
+
+- Keep Indonesian operational explanations aligned with English UI field names.
+- Update the "Terakhir diselaraskan" date at the top of the guide.
+- Cover required fields (`*`), format rules (Double Stage / Elimination / Americano), and scoring (points vs race-to-games).
+- Do not leave the guide stale relative to `tournamentUpsertSchema` or the Official / Fun Match wizards.

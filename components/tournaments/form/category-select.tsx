@@ -2,6 +2,7 @@
 
 import { Users, UserRound, UserRoundCheck } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { cn } from "@/lib/utils";
 
 export const TOURNAMENT_CATEGORY_OPTIONS = ["Male", "Female", "Mix"] as const;
@@ -30,6 +31,8 @@ type CategorySelectProps = {
   onChange: (value: TournamentCategoryOption) => void;
   disabled?: boolean;
   className?: string;
+  required?: boolean;
+  error?: string | null;
 };
 
 export function CategorySelect({
@@ -37,11 +40,28 @@ export function CategorySelect({
   onChange,
   disabled,
   className,
+  required = false,
+  error,
 }: CategorySelectProps) {
   return (
     <div className={cn("space-y-2", className)}>
-      <Label>Category</Label>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <Label>
+        Category
+        {required ? <RequiredMark /> : null}
+      </Label>
+      <p className="text-xs text-cp-muted">
+        Required for official tournaments (paid and free). Choose who may enter.
+      </p>
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-2 sm:grid-cols-3",
+          error && "rounded-xl ring-1 ring-red-500/50",
+        )}
+        role="group"
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? "category-select-error" : undefined}
+      >
         {TOURNAMENT_CATEGORY_OPTIONS.map((category) => {
           const meta = CATEGORY_META[category];
           const Icon = meta.icon;
@@ -84,6 +104,7 @@ export function CategorySelect({
           );
         })}
       </div>
+      <FieldError id="category-select-error" message={error} />
     </div>
   );
 }

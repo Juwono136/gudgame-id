@@ -7,6 +7,7 @@ import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { getTournamentMatchScoreMode } from "@/lib/tournaments/settings";
 
 type DoubleStageGroupsTabProps = {
   tournament: TournamentDetail;
@@ -17,6 +18,8 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
   const doubleStage = live?.doubleStage;
   const groups = (doubleStage?.groups ?? []) as GroupOverview[];
   const cfg = getDoubleStageConfigSummary(tournament);
+  const scoreDisplay =
+    getTournamentMatchScoreMode(tournament) === "games" ? "games" : "diff";
 
   if (!groups.length) {
     return (
@@ -57,7 +60,12 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
               <CardTitle className="text-base sm:text-lg">{group.name}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <DoubleStageStandingsTable group={group} showQualification compact />
+              <DoubleStageStandingsTable
+                group={group}
+                showQualification
+                compact
+                scoreDisplay={scoreDisplay}
+              />
 
               {group.matches.some((m) => m.status === "completed") ? (
                 <div className="space-y-2">
@@ -77,8 +85,15 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
                             {m.teamAName}{" "}
                             <span className="font-normal text-cp-muted">vs</span> {m.teamBName}
                           </span>
-                          <span className="shrink-0 font-mono tabular-nums text-foreground">
-                            {m.scoreA}–{m.scoreB}
+                          <span className="inline-flex shrink-0 flex-col items-end gap-0.5">
+                            <span className="font-mono tabular-nums text-foreground">
+                              {m.scoreA}–{m.scoreB}
+                            </span>
+                            {scoreDisplay === "games" ? (
+                              <span className="text-[10px] uppercase tracking-wide text-cp-muted">
+                                Games
+                              </span>
+                            ) : null}
                           </span>
                         </li>
                       ))}

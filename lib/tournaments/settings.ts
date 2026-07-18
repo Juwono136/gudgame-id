@@ -1,3 +1,11 @@
+import {
+  RACE_TO_GAMES_OPTIONS,
+  MATCH_SCORE_MODES,
+  DEFAULT_GAME_RULES_BY_UNIT,
+  type MatchScoreMode,
+  type RaceToGames,
+  type MatchGameRules,
+} from "@/lib/tournaments/scoring/game-mode";
 import { isUuid } from "@/lib/domain/uuid";
 import {
   getDefaultStandingsScoringForSport,
@@ -51,6 +59,19 @@ export type TournamentSettings = TournamentRuleSections & {
   maxRounds?: number;
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
+  /**
+   * How each match is scored:
+   * - points: flat race-to-N points (default)
+   * - games: race-to-N games with intra-game rally points (padel / tennis style)
+   */
+  matchScoreMode?: MatchScoreMode;
+  /** Target games to win a match when matchScoreMode = "games" (typically 4 or 6). */
+  raceToGames?: RaceToGames;
+  /**
+   * Intra-game decider when both sides reach game point.
+   * golden_point = next point wins (common in padel); advantage = win by 2.
+   */
+  gameDecider?: "golden_point" | "advantage";
   courtCount?: number;
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
@@ -148,25 +169,39 @@ export function getScoringTypeLabel(scoringType: string | null | undefined): str
   return scoringType === "timed" ? "Timed rounds" : "Points";
 }
 
-/** Primary scoring label for cards and summaries (e.g. "21 points" or "15 min rounds"). */
+/** Primary scoring label for cards and summaries (e.g. "21 points" or "Race to 4"). */
 export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): string {
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min rounds`;
   }
+  if (getTournamentMatchScoreMode(tournament) === "games") {
+    return formatRaceToLabel(getTournamentRaceToGames(tournament));
+  }
   return `${getTournamentPointsPerMatch(tournament)} points`;
+}
+
+function formatRaceToLabel(n: number): string {
+  return `Race to ${n}`;
 }
 
 /** Secondary scoring line with type and court count. */
 export function getTournamentScoringDetailLabel(tournament: TournamentDetail): string {
   const courtCount = getTournamentCourtCount(tournament);
   const courts = `${courtCount} ${courtCount === 1 ? "court" : "courts"}`;
-  return `${getScoringTypeLabel(getTournamentScoringType(tournament))} · ${courts}`;
+  const mode =
+    getTournamentMatchScoreMode(tournament) === "games"
+      ? formatRaceToLabel(getTournamentRaceToGames(tournament))
+      : getScoringTypeLabel(getTournamentScoringType(tournament));
+  return `${mode} · ${courts}`;
 }
 
 /** Short hint for match scoring (bracket readiness, live toolbar). */
 export function getTournamentMatchScoringHint(tournament: TournamentDetail): string {
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min per round`;
+  }
+  if (getTournamentMatchScoreMode(tournament) === "games") {
+    return `First to ${getTournamentRaceToGames(tournament)} games`;
   }
   return `First to ${getTournamentPointsPerMatch(tournament)} pts`;
 }
@@ -204,10 +239,19 @@ export function parseTournamentSettings(
   const bracketSeedingFinalized = raw.bracketSeedingFinalized;
   const doubleStage = raw.doubleStage;
   const standingsScoring = raw.standingsScoring;
+  const matchScoreMode = raw.matchScoreMode;
+  const raceToGames = raw.raceToGames;
+  const gameDecider = raw.gameDecider;
 
   const parsedPoints =
     typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
       ? Math.floor(pointsPerMatch)
+      : undefined;
+
+  const parsedRaceTo =
+    typeof raceToGames === "number" &&
+    RACE_TO_GAMES_OPTIONS.includes(raceToGames as RaceToGames)
+      ? (raceToGames as RaceToGames)
       : undefined;
 
   const parsedGearIds = Array.isArray(gearEntityIds)
@@ -236,6 +280,16 @@ export function parseTournamentSettings(
     scoringType:
       scoringType === "points" || scoringType === "timed" ? scoringType : undefined,
     pointsPerMatch: parsedPoints,
+    matchScoreMode:
+      typeof matchScoreMode === "string" &&
+      MATCH_SCORE_MODES.includes(matchScoreMode as MatchScoreMode)
+        ? (matchScoreMode as MatchScoreMode)
+        : undefined,
+    raceToGames: parsedRaceTo,
+    gameDecider:
+      gameDecider === "golden_point" || gameDecider === "advantage"
+        ? gameDecider
+        : undefined,
     courtCount:
       typeof courtCount === "number" && Number.isFinite(courtCount) && courtCount > 0
         ? Math.floor(courtCount)
@@ -323,6 +377,43 @@ export function getTournamentPointsPerMatch(tournament: TournamentDetail): numbe
   return parseTournamentSettings(tournament.settings).pointsPerMatch ?? 21;
 }
 
+/**
+ * Match scoring shape.
+ * Prefer explicit settings (matchScoreMode / raceToGames) so legacy flat-point
+ * padel tournaments are not forced into games mode mid-event.
+ * New double-stage creates set matchScoreMode via buildFormatSpecificSettingsFromUpsert.
+ */
+export function getTournamentMatchScoreMode(
+  tournament: TournamentDetail,
+): MatchScoreMode {
+  const settings = parseTournamentSettings(tournament.settings);
+  if (settings.matchScoreMode) return settings.matchScoreMode;
+  if (settings.raceToGames) return "games";
+  return "points";
+}
+
+export function getTournamentRaceToGames(tournament: TournamentDetail): RaceToGames {
+  const settings = parseTournamentSettings(tournament.settings);
+  if (settings.raceToGames) return settings.raceToGames;
+  const unit = settings.standingsScoring?.scoreUnit
+    ?? getDefaultStandingsScoringForSport(tournament.sportSlug).scoreUnit;
+  if (unit === "sets") return 2 as RaceToGames; // best of 3 ≈ race to 2 (stored; UI still offers 4/6 for games)
+  return DEFAULT_GAME_RULES_BY_UNIT.games.raceToGames;
+}
+
+export function getTournamentGameRules(tournament: TournamentDetail): MatchGameRules {
+  const settings = parseTournamentSettings(tournament.settings);
+  const unit = settings.standingsScoring?.scoreUnit
+    ?? getDefaultStandingsScoringForSport(tournament.sportSlug).scoreUnit;
+  const base =
+    unit === "sets" ? DEFAULT_GAME_RULES_BY_UNIT.sets : DEFAULT_GAME_RULES_BY_UNIT.games;
+  return {
+    ...base,
+    raceToGames: getTournamentRaceToGames(tournament),
+    gameDecider: settings.gameDecider ?? base.gameDecider,
+  };
+}
+
 export function getTournamentCourtCount(tournament: TournamentDetail): number {
   return parseTournamentSettings(tournament.settings).courtCount ?? 1;
 }
@@ -382,6 +473,9 @@ export type TournamentSettingsInput = {
   maxRounds?: number;
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
+  matchScoreMode?: MatchScoreMode;
+  raceToGames?: RaceToGames;
+  gameDecider?: "golden_point" | "advantage";
   courtCount?: number;
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
@@ -400,6 +494,9 @@ export type TournamentSettingsUpsertFields = {
   maxRounds?: number;
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
+  matchScoreMode?: MatchScoreMode;
+  raceToGames?: RaceToGames;
+  gameDecider?: "golden_point" | "advantage";
   courtCount?: number;
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
@@ -419,10 +516,20 @@ export type TournamentSettingsUpsertFields = {
 export function buildFormatSpecificSettingsFromUpsert(
   input: TournamentSettingsUpsertFields,
   sportSlug: string,
-): Pick<TournamentSettingsInput, "doubleStage" | "standingsScoring"> {
+): Pick<
+  TournamentSettingsInput,
+  "doubleStage" | "standingsScoring" | "matchScoreMode" | "raceToGames" | "gameDecider"
+> {
   if (input.format !== "double_stage") return {};
 
   const sportDefaults = getDefaultStandingsScoringForSport(sportSlug);
+  const usesGames = sportDefaults.scoreUnit === "games" || sportDefaults.scoreUnit === "sets";
+  const defaultRace =
+    input.raceToGames ??
+    (sportDefaults.scoreUnit === "sets"
+      ? DEFAULT_GAME_RULES_BY_UNIT.sets.raceToGames
+      : DEFAULT_GAME_RULES_BY_UNIT.games.raceToGames);
+
   return {
     doubleStage: {
       ...DEFAULT_DOUBLE_STAGE_SETTINGS,
@@ -438,6 +545,13 @@ export function buildFormatSpecificSettingsFromUpsert(
       drawPoints: input.drawPoints ?? sportDefaults.drawPoints,
       lossPoints: input.lossPoints ?? sportDefaults.lossPoints,
     },
+    matchScoreMode: input.matchScoreMode ?? (usesGames ? "games" : "points"),
+    raceToGames: usesGames || input.matchScoreMode === "games" ? defaultRace : undefined,
+    gameDecider:
+      input.gameDecider ??
+      (sportDefaults.scoreUnit === "sets"
+        ? DEFAULT_GAME_RULES_BY_UNIT.sets.gameDecider
+        : DEFAULT_GAME_RULES_BY_UNIT.games.gameDecider),
   };
 }
 
@@ -456,6 +570,9 @@ export function settingsInputFromUpsert(
     maxRounds: input.maxRounds,
     scoringType: input.scoringType,
     pointsPerMatch: input.pointsPerMatch,
+    matchScoreMode: input.matchScoreMode ?? formatSpecific.matchScoreMode,
+    raceToGames: input.raceToGames ?? formatSpecific.raceToGames,
+    gameDecider: input.gameDecider ?? formatSpecific.gameDecider,
     courtCount: input.courtCount,
     deuceConfig: input.deuceConfig,
     roundDurationMinutes: input.roundDurationMinutes,
@@ -514,6 +631,27 @@ export function buildTournamentSettings(
     next.pointsPerMatch = Math.floor(input.pointsPerMatch);
   } else if ("pointsPerMatch" in input) {
     delete next.pointsPerMatch;
+  }
+
+  if (input.matchScoreMode === "points" || input.matchScoreMode === "games") {
+    next.matchScoreMode = input.matchScoreMode;
+  } else if ("matchScoreMode" in input) {
+    delete next.matchScoreMode;
+  }
+
+  if (
+    input.raceToGames != null &&
+    RACE_TO_GAMES_OPTIONS.includes(input.raceToGames as RaceToGames)
+  ) {
+    next.raceToGames = input.raceToGames;
+  } else if ("raceToGames" in input) {
+    delete next.raceToGames;
+  }
+
+  if (input.gameDecider === "golden_point" || input.gameDecider === "advantage") {
+    next.gameDecider = input.gameDecider;
+  } else if ("gameDecider" in input) {
+    delete next.gameDecider;
   }
 
   if (input.courtCount != null && input.courtCount > 0) {

@@ -23,6 +23,8 @@ type TournamentRoundHistorySectionProps = {
   variant?: "official" | "reclub";
   title?: string;
   emptyMessage?: string;
+  /** When true, scores are game wins (race-to-N), not flat points. */
+  gamesScoreMode?: boolean;
 };
 
 function winnerSide(item: RoundHistoryItem): "a" | "b" | "tie" | null {
@@ -69,6 +71,7 @@ export function TournamentRoundHistorySection({
   variant = "official",
   title = "Round history",
   emptyMessage = "Completed matches will appear here with scores and round labels.",
+  gamesScoreMode = false,
 }: TournamentRoundHistorySectionProps) {
   const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
   const borderAccent =
@@ -140,9 +143,14 @@ export function TournamentRoundHistorySection({
                 <div className="rounded-lg border border-cp-border/80 bg-cp-elevated/60 px-2.5 py-1.5 text-center sm:px-3">
                   <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
                     {item.scoreA ?? 0}
-                    <span className="mx-1 text-cp-muted">:</span>
+                    <span className="mx-1 text-cp-muted">–</span>
                     {item.scoreB ?? 0}
                   </p>
+                  {gamesScoreMode ? (
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-cp-muted">
+                      Games
+                    </p>
+                  ) : null}
                 </div>
                 <TeamBlock
                   name={item.teamBName}

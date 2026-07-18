@@ -1,5 +1,7 @@
 import {
   getTournamentCourtCount,
+  getTournamentMatchScoreMode,
+  getTournamentMatchScoringHint,
   getTournamentPointsPerMatch,
   getTournamentScoringType,
   getScoringTypeLabel,
@@ -20,6 +22,8 @@ export type DoubleStageConfigSummary = {
   allowDraw: boolean;
   pointsPerMatch: number;
   scoringTypeLabel: string;
+  matchScoringHint: string;
+  matchScoreMode: "points" | "games";
   courtCount: number;
   maxTeams: number | null;
   playersPerTeam: number;
@@ -43,6 +47,8 @@ export function getDoubleStageConfigSummary(
     allowDraw: standings.allowDraw,
     pointsPerMatch: getTournamentPointsPerMatch(tournament),
     scoringTypeLabel: getScoringTypeLabel(getTournamentScoringType(tournament)),
+    matchScoringHint: getTournamentMatchScoringHint(tournament),
+    matchScoreMode: getTournamentMatchScoreMode(tournament),
     courtCount: getTournamentCourtCount(tournament),
     maxTeams: tournament.maxTeams ?? null,
     playersPerTeam: tournament.playersPerTeam ?? 2,

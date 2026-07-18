@@ -11,6 +11,7 @@ import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { buildVenueOpenUrl, resolveVenueOpenUrl } from "@/lib/maps/venue-maps-url";
 import { buildGoogleMapsEmbedUrl } from "@/lib/maps/google-maps-url";
+import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { cn } from "@/lib/utils";
 
 type PlacePrediction = {
@@ -30,6 +31,7 @@ type VenueAutocompleteFieldProps = {
   onVenueChange: (value: string) => void;
   onMapsUrlChange: (value: string) => void;
   required?: boolean;
+  fieldError?: string | null;
 };
 
 function isGooglePlaceId(placeId: string): boolean {
@@ -42,6 +44,7 @@ export function VenueAutocompleteField({
   onVenueChange,
   onMapsUrlChange,
   required = false,
+  fieldError,
 }: VenueAutocompleteFieldProps) {
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -176,7 +179,7 @@ export function VenueAutocompleteField({
       <div ref={containerRef} className="relative">
         <Label htmlFor="venue-search">
           Venue
-          {required ? <span className="text-red-400"> *</span> : null}
+          {required ? <RequiredMark /> : null}
         </Label>
         <p className="mt-1 text-xs text-cp-muted">
           Search with Google Maps when available — automatically falls back to OpenStreetMap if
@@ -197,9 +200,14 @@ export function VenueAutocompleteField({
             }}
             onFocus={() => setOpen(true)}
             placeholder="Search venue or address…"
-            className="border-cp-border bg-cp-bg-input pl-9"
+            className={cn(
+              "border-cp-border bg-cp-bg-input pl-9",
+              fieldError && "border-red-500/70 focus-visible:ring-red-500/40",
+            )}
             required={required}
             aria-required={required}
+            aria-invalid={fieldError ? true : undefined}
+            aria-describedby={fieldError ? "venue-search-error" : undefined}
             role="combobox"
             aria-expanded={open}
             aria-controls={listId}
@@ -210,6 +218,7 @@ export function VenueAutocompleteField({
             <Loader2 className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin text-cp-muted" />
           ) : null}
         </div>
+        <FieldError id="venue-search-error" message={fieldError} />
 
         {!searchConfigured ? (
           <p className="mt-2 text-xs text-amber-400/90">

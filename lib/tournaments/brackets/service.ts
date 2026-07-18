@@ -19,7 +19,14 @@ import {
   type ScoringRules,
 } from "@/lib/tournaments/scoring/engine";
 import {
+  applyGamePointDelta,
+  emptyMatchGameState,
+  type MatchGameState,
+} from "@/lib/tournaments/scoring/game-mode";
+import {
   getTournamentDeuceConfig,
+  getTournamentGameRules,
+  getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
   getTournamentScoringType,
 } from "@/lib/tournaments/settings";
@@ -46,6 +53,7 @@ export type BracketMatchView = {
   scheduledAt: string | null;
   completedAt: string | null;
   scoreEvents: MatchScoreEvent[];
+  gameState?: MatchGameState | null;
 };
 
 function buildScoringRules(tournament: TournamentDetail): ScoringRules {
@@ -83,6 +91,7 @@ async function mapBracketRowToView(
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
     scoreEvents: meta.scoreEvents ?? [],
+    gameState: meta.gameState ?? null,
   };
 }
 
@@ -364,8 +373,33 @@ export async function updateBracketLiveScore(
   const rules = buildScoringRules(tournament);
   let scoreA = Math.max(0, match.scoreA ?? 0);
   let scoreB = Math.max(0, match.scoreB ?? 0);
+  const prevMeta = parseBracketMatchMetadata(match.metadata);
+  let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
+  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
 
-  if (input.action === "increment" && input.side) {
+  if (useGamesMode && input.action && input.side) {
+    const gameRules = getTournamentGameRules(tournament);
+    const delta = input.action === "decrement" ? (-1 as const) : (1 as const);
+    const applied = applyGamePointDelta(
+      scoreA,
+      scoreB,
+      nextGameState,
+      input.side,
+      delta,
+      gameRules,
+    );
+    if (!applied) {
+      throw new AppError(
+        delta > 0
+          ? "Cannot award point — game or match may already be complete"
+          : "Cannot undo — no points in the current game",
+        { code: "VALIDATION_ERROR", statusCode: 422 },
+      );
+    }
+    scoreA = applied.gamesA;
+    scoreB = applied.gamesB;
+    nextGameState = applied.gameState;
+  } else if (input.action === "increment" && input.side) {
     const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
     if (!next) {
       throw new AppError("Cannot increase score — match may be complete or at cap", {
@@ -388,16 +422,22 @@ export async function updateBracketLiveScore(
   } else {
     scoreA = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreA));
     scoreB = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreB));
+    if (useGamesMode) {
+      nextGameState = emptyMatchGameState();
+    }
   }
 
-  const prevMeta = parseBracketMatchMetadata(match.metadata);
   const event = buildMatchScoreEvent(userId, userName, scoreA, scoreB, {
     action: input.action ?? "set",
     side: input.side,
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });
-  const metadata = appendBracketScoreEvent(prevMeta, event);
+  const metadata = appendBracketScoreEvent(
+    prevMeta,
+    event,
+    useGamesMode ? nextGameState : undefined,
+  );
 
   const [updated] = await db
     .update(tournamentBracketMatches)
