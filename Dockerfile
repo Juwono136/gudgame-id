@@ -22,8 +22,8 @@ ARG REDIS_URL=redis://127.0.0.1:6379
 ENV REDIS_URL=${REDIS_URL}
 
 # Bake public URLs + Firebase client config into the bundle.
-ARG NEXT_PUBLIC_APP_URL=https://tandingbase.portproject.my.id
-ARG NEXT_PUBLIC_SITE_URL=https://tandingbase.portproject.my.id
+ARG NEXT_PUBLIC_APP_URL=https://gudgame.id
+ARG NEXT_PUBLIC_SITE_URL=https://gudgame.id
 ARG NEXT_PUBLIC_STORAGE_URL=
 ARG NEXT_PUBLIC_FIREBASE_API_KEY=
 ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=

@@ -1,13 +1,13 @@
 # Isolated Compose project — do not run `docker compose down --remove-orphans` globally on the VPS.
-name: tandingbase-app
+name: gudgame-app
 
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${DOCKER_USERNAME}/tandingbase:latest
-    container_name: tandingbase-app
+    image: ${DOCKER_USERNAME}/gudgame:latest
+    container_name: gudgame-app
     pull_policy: always
     restart: unless-stopped
     environment:
@@ -51,7 +51,7 @@ services:
       STORAGE_AUTH_MODE: ${STORAGE_AUTH_MODE:-nginx-basic}
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://host.docker.internal:8333}
       NEXT_PUBLIC_STORAGE_URL: ${NEXT_PUBLIC_STORAGE_URL:-}
-      STORAGE_BUCKET: ${STORAGE_BUCKET:-tandingbase}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-gudgame}
       STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
       USERNAME_STORAGE: ${USERNAME_STORAGE:-}
       PASSWORD_STORAGE: ${PASSWORD_STORAGE:-}
@@ -136,7 +136,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       # Seed (first deploy only)
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
-      STORAGE_BUCKET: ${STORAGE_BUCKET:-tandingbase}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-gudgame}
       STORAGE_AUTH_MODE: ${STORAGE_AUTH_MODE:-nginx-basic}
       USERNAME_STORAGE: ${USERNAME_STORAGE:-}
       PASSWORD_STORAGE: ${PASSWORD_STORAGE:-}

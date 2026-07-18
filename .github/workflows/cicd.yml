@@ -46,9 +46,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/tandingbase:latest
-          cache-from: type=gha,scope=tandingbase-deps
-          cache-to: type=gha,mode=max,scope=tandingbase-deps
+          tags: ${{ secrets.DOCKER_USERNAME }}/gudgame:latest
+          cache-from: type=gha,scope=gudgame-deps
+          cache-to: type=gha,mode=max,scope=gudgame-deps
           build-args: |
             NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
             NEXT_PUBLIC_SITE_URL=${{ secrets.NEXT_PUBLIC_SITE_URL }}
@@ -70,7 +70,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Pull latest image
-        run: docker pull ${{ secrets.DOCKER_USERNAME }}/tandingbase:latest
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/gudgame:latest
 
       - name: Ensure Docker network exists
         env:
@@ -191,18 +191,18 @@ jobs:
         run: |
           sleep 12
           set +e
-          HTTP_CODE="$(curl -sS -o /tmp/tandingbase-health.json -w '%{http_code}' \
+          HTTP_CODE="$(curl -sS -o /tmp/gudgame-health.json -w '%{http_code}' \
             -H "X-Health-Token: ${HEALTH_CHECK_TOKEN}" \
             "http://127.0.0.1:3000/api/health")"
           echo "Health HTTP status: ${HTTP_CODE}"
-          cat /tmp/tandingbase-health.json | jq . 2>/dev/null || cat /tmp/tandingbase-health.json
+          cat /tmp/gudgame-health.json | jq . 2>/dev/null || cat /tmp/gudgame-health.json
           if [ "${HTTP_CODE}" = "500" ] || [ "${HTTP_CODE}" = "000" ]; then
-            echo "--- tandingbase-app logs (last 80 lines) ---"
-            docker logs tandingbase-app --tail 80 2>&1 || true
+            echo "--- gudgame-app logs (last 80 lines) ---"
+            docker logs gudgame-app --tail 80 2>&1 || true
           fi
           set -e
           test "${HTTP_CODE}" = "200" -o "${HTTP_CODE}" = "207" -o "${HTTP_CODE}" = "503"
-          jq -e '.status == "healthy" or .status == "degraded"' /tmp/tandingbase-health.json
+          jq -e '.status == "healthy" or .status == "degraded"' /tmp/gudgame-health.json
 
       - name: Verify payout cron sidecar
         run: |
