@@ -17,14 +17,14 @@ const STEPS = [
     manageDetail:
       "See group tables, match schedule, and who qualifies. No scoring here — use Live scoring.",
     publicTitle: "Groups — standings",
-    publicDetail: "Live group tables and results. Updates automatically as matches are scored.",
+    publicDetail: "Live group tables and results. Open Matches for the FIFA-style fixture list.",
   },
   {
     id: "scoring",
     icon: Radio,
     manageTitle: "Live scoring — run group matches",
     manageDetail:
-      "Start each group match and enter final scores. Standings update instantly on the Groups tab.",
+      "Start each group match and enter final scores (Race to N games when enabled). Standings update instantly on the Groups tab.",
     publicTitle: "Live score — active matches",
     publicDetail: "Follow in-progress group and knockout matches in real time.",
   },
@@ -33,7 +33,7 @@ const STEPS = [
     icon: Trophy,
     manageTitle: "Knockout — bracket & elimination",
     manageDetail:
-      "When all group matches finish, generate the bracket. Score elimination rounds in Live scoring.",
+      "When all group matches finish, the knockout bracket is created automatically from qualified teams. Score elimination in Live scoring.",
     publicTitle: "Bracket — knockout stage",
     publicDetail: "Single elimination from qualified teams after the group stage.",
   },

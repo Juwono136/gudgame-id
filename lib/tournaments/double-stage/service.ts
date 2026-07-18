@@ -53,6 +53,8 @@ import {
   applyGamePointDelta,
   emptyMatchGameState,
   isRaceToGamesMatchComplete,
+  reconcileMatchGamesScores,
+  startNextGameAfterWin,
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
 import {
@@ -140,14 +142,24 @@ async function patchDoubleStageSettings(
   tournament: TournamentDetail,
   patch: Partial<DoubleStageSettings>,
 ): Promise<void> {
-  const current = parseDoubleStageSettings(
-    (tournament.settings as Record<string, unknown>)?.doubleStage,
-  );
+  const db = getDb();
+  const [row] = await db
+    .select({ settings: tournaments.settings })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournament.id))
+    .limit(1);
+
+  const base = {
+    ...((row?.settings as Record<string, unknown> | null) ??
+      (tournament.settings as Record<string, unknown>) ??
+      {}),
+  };
+  const current = parseDoubleStageSettings(base.doubleStage);
   const next = { ...current, ...patch };
-  const settings = { ...tournament.settings, doubleStage: next };
-  await getDb()
+  const settings = { ...base, doubleStage: next };
+  await db
     .update(tournaments)
-    .set({ settings })
+    .set({ settings, updatedAt: new Date() })
     .where(eq(tournaments.id, tournament.id));
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 }
@@ -312,6 +324,7 @@ export async function buildDoubleStageOverview(
 
   const teamNameMap = new Map(lobbyTeams.map((t) => [t.id, t.name]));
 
+  const allDone = allGroupMatchesCompleted(matches);
   const groupOverviews: GroupOverview[] = groups.map((g) => {
     const gTeamIds = groupTeams.filter((gt) => gt.groupId === g.id).map((gt) => gt.teamId);
     const gTeams = gTeamIds.map((id) => ({
@@ -328,11 +341,13 @@ export async function buildDoubleStageOverview(
         scoreB: m.scoreB ?? 0,
         status: m.status,
       }));
+    // Lock Qualified/Eliminated only when EVERY group has finished — not per-group early.
     const standings = computeGroupStandings(
       gTeams,
       completedMatches,
       scoringConfig,
       dsSettings.teamsAdvancePerGroup,
+      { lockQualification: allDone },
     );
 
     return {
@@ -347,7 +362,6 @@ export async function buildDoubleStageOverview(
     };
   });
 
-  const allDone = allGroupMatchesCompleted(matches);
   const qualifiedCount = groupOverviews.reduce(
     (sum, g) => sum + g.standings.filter((s) => s.qualificationStatus === "qualified").length,
     0,
@@ -391,7 +405,11 @@ export async function startGroupStageMatch(
     .limit(1);
 
   if (!match) {
-    throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
+    throw new AppError("Group match not found for this tournament", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+      context: { matchId, tournamentId: tournament.id },
+    });
   }
   if (match.status === "completed") {
     throw new AppError("Match already completed", { code: "VALIDATION_ERROR", statusCode: 422 });
@@ -465,7 +483,7 @@ export async function updateGroupStageLiveScore(
   input: {
     scoreA: number;
     scoreB: number;
-    scoreAction?: "increment" | "decrement" | "set";
+    scoreAction?: "increment" | "decrement" | "set" | "next_game";
     side?: "a" | "b";
     scorerName?: string;
     scorerUserId?: string;
@@ -473,112 +491,166 @@ export async function updateGroupStageLiveScore(
 ): Promise<GroupMatchView> {
   assertDoubleStageGroupScoringAllowed(tournament);
   const rules = buildScoringRules(tournament);
+  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
   const db = getDb();
 
-  const [match] = await db
-    .select()
-    .from(tournamentGroupMatches)
-    .where(
-      and(
-        eq(tournamentGroupMatches.id, matchId),
-        eq(tournamentGroupMatches.tournamentId, tournament.id),
-      ),
-    )
-    .limit(1);
+  const updated = await db.transaction(async (tx) => {
+    const [match] = await tx
+      .select()
+      .from(tournamentGroupMatches)
+      .where(
+        and(
+          eq(tournamentGroupMatches.id, matchId),
+          eq(tournamentGroupMatches.tournamentId, tournament.id),
+        ),
+      )
+      .limit(1)
+      .for("update");
 
-  if (!match) {
-    throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
-  }
-  if (match.status !== "in_progress") {
-    throw new AppError("Start the match before updating scores.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
+    if (!match) {
+      throw new AppError("Group match not found for this tournament", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+        context: { matchId, tournamentId: tournament.id },
+      });
+    }
+    if (match.status !== "in_progress") {
+      throw new AppError("Start the match before updating scores.", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    const prevMeta = parseReclubMatchMetadata(match.metadata);
+    let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
+    const reconciled = reconcileMatchGamesScores(match.scoreA, match.scoreB, nextGameState);
+    let scoreA = reconciled.scoreA;
+    let scoreB = reconciled.scoreB;
+
+    const scoreAction = input.scoreAction;
+    const side = input.side;
+    /** Point log should show intra-game points in games mode, not games won. */
+    let eventScoreA = scoreA;
+    let eventScoreB = scoreB;
+
+    if (scoreAction === "next_game") {
+      if (!useGamesMode) {
+        throw new AppError("next_game is only valid for race-to-N games scoring", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      const started = startNextGameAfterWin(nextGameState);
+      if (!started) {
+        throw new AppError("No completed game is waiting to advance", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      nextGameState = started;
+      eventScoreA = 0;
+      eventScoreB = 0;
+    } else if (scoreAction === "increment" || scoreAction === "decrement") {
+      if (!side) {
+        throw new AppError("Missing scoring side for live point update", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      const delta = scoreAction === "decrement" ? (-1 as const) : (1 as const);
+
+      if (useGamesMode) {
+        const gameRules = getTournamentGameRules(tournament);
+        const applied = applyGamePointDelta(
+          scoreA,
+          scoreB,
+          nextGameState,
+          side,
+          delta,
+          gameRules,
+        );
+        if (!applied) {
+          throw new AppError(
+            delta > 0
+              ? nextGameState.pendingGameWinner
+                ? "Game finished — tap “Next game” to continue, or undo the last point"
+                : "Cannot award point — game or match may already be complete"
+              : "Cannot undo — no points in the current game",
+            { code: "VALIDATION_ERROR", statusCode: 422 },
+          );
+        }
+        scoreA = applied.gamesA;
+        scoreB = applied.gamesB;
+        nextGameState = applied.gameState;
+        const synced = reconcileMatchGamesScores(scoreA, scoreB, nextGameState);
+        scoreA = synced.scoreA;
+        scoreB = synced.scoreB;
+        eventScoreA = nextGameState.currentPointsA;
+        eventScoreB = nextGameState.currentPointsB;
+      } else {
+        const next = engineApplyDelta(scoreA, scoreB, side, delta, rules);
+        if (!next) {
+          throw new AppError(
+            delta > 0
+              ? "Cannot increase score — match may be complete or at cap"
+              : "Score cannot go below zero",
+            { code: "VALIDATION_ERROR", statusCode: 422 },
+          );
+        }
+        scoreA = next.scoreA;
+        scoreB = next.scoreB;
+        eventScoreA = scoreA;
+        eventScoreB = scoreB;
+      }
+    } else if (scoreAction === "set") {
+      scoreA = Math.max(0, input.scoreA);
+      scoreB = Math.max(0, input.scoreB);
+      if (useGamesMode) {
+        nextGameState = {
+          currentPointsA: 0,
+          currentPointsB: 0,
+          completedGames: nextGameState.completedGames,
+          pendingGameWinner: null,
+        };
+      }
+      eventScoreA = useGamesMode ? 0 : scoreA;
+      eventScoreB = useGamesMode ? 0 : scoreB;
+    } else {
+      throw new AppError("scoreAction is required (increment, decrement, set, or next_game)", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    const event = buildMatchScoreEvent(userId, userName, eventScoreA, eventScoreB, {
+      action: scoreAction,
+      side: scoreAction === "next_game" ? undefined : side,
+      scorerName: input.scorerName,
+      scorerUserId: input.scorerUserId,
     });
-  }
+    const metadata = {
+      ...appendScoreEvent(prevMeta, event),
+      ...(useGamesMode ? { gameState: nextGameState } : {}),
+    };
 
-  let scoreA = Math.max(0, match.scoreA ?? 0);
-  let scoreB = Math.max(0, match.scoreB ?? 0);
-  const prevMeta = parseReclubMatchMetadata(match.metadata);
-  let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
-  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
+    const [row] = await tx
+      .update(tournamentGroupMatches)
+      .set({
+        scoreA,
+        scoreB,
+        metadata,
+        recordedByUserId: userId,
+      })
+      .where(eq(tournamentGroupMatches.id, matchId))
+      .returning();
 
-  if (useGamesMode && input.scoreAction && input.side) {
-    const gameRules = getTournamentGameRules(tournament);
-    const delta = input.scoreAction === "decrement" ? (-1 as const) : (1 as const);
-    const applied = applyGamePointDelta(
-      scoreA,
-      scoreB,
-      nextGameState,
-      input.side,
-      delta,
-      gameRules,
-    );
-    if (!applied) {
-      throw new AppError(
-        delta > 0
-          ? "Cannot award point — game or match may already be complete"
-          : "Cannot undo — no points in the current game",
-        { code: "VALIDATION_ERROR", statusCode: 422 },
-      );
-    }
-    scoreA = applied.gamesA;
-    scoreB = applied.gamesB;
-    nextGameState = applied.gameState;
-  } else if (input.scoreAction === "increment" && input.side) {
-    const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
-    if (!next) {
-      throw new AppError("Cannot increase score — match may be complete or at cap", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
-    }
-    scoreA = next.scoreA;
-    scoreB = next.scoreB;
-  } else if (input.scoreAction === "decrement" && input.side) {
-    const next = engineApplyDelta(scoreA, scoreB, input.side, -1, rules);
-    if (!next) {
-      throw new AppError("Score cannot go below zero", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
-    }
-    scoreA = next.scoreA;
-    scoreB = next.scoreB;
-  } else {
-    // Absolute set: for games mode, treat as games won (reset rally).
-    scoreA = Math.max(0, input.scoreA);
-    scoreB = Math.max(0, input.scoreB);
-    if (useGamesMode) {
-      nextGameState = emptyMatchGameState();
-    }
-  }
-
-  const event = buildMatchScoreEvent(userId, userName, scoreA, scoreB, {
-    action: input.scoreAction ?? "set",
-    side: input.side,
-    scorerName: input.scorerName,
-    scorerUserId: input.scorerUserId,
+    return row!;
   });
-  const metadata = {
-    ...appendScoreEvent(prevMeta, event),
-    ...(useGamesMode ? { gameState: nextGameState } : {}),
-  };
-
-  const [updated] = await db
-    .update(tournamentGroupMatches)
-    .set({
-      scoreA,
-      scoreB,
-      metadata,
-      recordedByUserId: userId,
-    })
-    .where(eq(tournamentGroupMatches.id, matchId))
-    .returning();
 
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   const teamPlayerMap = await loadGroupTeamPlayerMap(tournament.id);
-  return mapGroupMatchView(updated!, teamPlayerMap);
+  return mapGroupMatchView(updated, teamPlayerMap);
 }
 
 export async function recordGroupStageScore(
@@ -604,7 +676,11 @@ export async function recordGroupStageScore(
     .limit(1);
 
   if (!match) {
-    throw new AppError("Match not found", { code: "NOT_FOUND", statusCode: 404 });
+    throw new AppError("Group match not found for this tournament", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+      context: { matchId, tournamentId: tournament.id },
+    });
   }
   if (!match.teamAId || !match.teamBId) {
     throw new AppError("Invalid match teams", { code: "VALIDATION_ERROR", statusCode: 422 });
@@ -668,6 +744,21 @@ export async function recordGroupStageScore(
     .returning();
 
   await syncGroupQualificationStatus(tournament);
+
+  // Auto-generate knockout when the last group fixture is finalized.
+  try {
+    const overview = await buildDoubleStageOverview(tournament);
+    if (
+      overview.allGroupMatchesCompleted &&
+      overview.phase === "group" &&
+      overview.qualifiedCount >= 2
+    ) {
+      await advanceDoubleStageToElimination(tournament);
+    }
+  } catch {
+    // Host can still generate manually if auto-advance fails.
+  }
+
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   const teamPlayerMap = await loadGroupTeamPlayerMap(tournament.id);
@@ -706,6 +797,8 @@ function mapGroupMatchView(
   teamPlayerMap?: Map<string, GroupMatchPlayerView[]>,
 ): GroupMatchView {
   const meta = parseReclubMatchMetadata(m.metadata);
+  const gameState = meta.gameState ?? null;
+  const reconciled = reconcileMatchGamesScores(m.scoreA, m.scoreB, gameState);
   return {
     id: m.id,
     groupId: m.groupId,
@@ -716,8 +809,8 @@ function mapGroupMatchView(
     teamBName: m.teamBName,
     teamAPlayers: m.teamAId && teamPlayerMap ? (teamPlayerMap.get(m.teamAId) ?? []) : [],
     teamBPlayers: m.teamBId && teamPlayerMap ? (teamPlayerMap.get(m.teamBId) ?? []) : [],
-    scoreA: m.scoreA,
-    scoreB: m.scoreB,
+    scoreA: reconciled.scoreA,
+    scoreB: reconciled.scoreB,
     winnerTeamId: m.winnerTeamId,
     status: m.status,
     scheduledAt: m.scheduledAt?.toISOString() ?? null,
@@ -725,7 +818,7 @@ function mapGroupMatchView(
     completedAt: m.completedAt?.toISOString() ?? null,
     courtId: m.courtId,
     scoreEvents: meta.scoreEvents ?? [],
-    gameState: meta.gameState ?? null,
+    gameState,
   };
 }
 

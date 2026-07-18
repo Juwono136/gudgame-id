@@ -210,7 +210,7 @@ export function useUpdateReclubLiveScore(sportSlug: string, slug: string) {
       matchId: string;
       scoreA: number;
       scoreB: number;
-      action?: "set" | "increment" | "decrement";
+      action?: "set" | "increment" | "decrement" | "next_game";
       side?: "a" | "b";
       scorerName?: string;
       scorerUserId?: string;

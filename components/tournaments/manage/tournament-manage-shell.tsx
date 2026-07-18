@@ -180,7 +180,7 @@ export function TournamentManageShell({
       return {
         title: base.title,
         description:
-          "Standings and fixtures for each group. Score matches in Live scoring — this tab updates automatically.",
+          "Standings, fixtures, and match schedule. Score in Live scoring — Qualified / Eliminated badges appear only when every group fixture is finished.",
       };
     }
     if (section === "scoring" && caps.hasGroupStage) {
@@ -200,7 +200,7 @@ export function TournamentManageShell({
       return {
         title: "Bracket",
         description:
-          "Knockout bracket setup unlocks after the group stage. Track progress here, then generate the draw from Groups.",
+          "Knockout unlocks after the group stage finishes — the draw is created automatically from qualified teams only.",
       };
     }
     return base;
@@ -361,8 +361,8 @@ export function TournamentManageShell({
                       match scores
                     </li>
                     <li>
-                      3. When all group matches finish →{" "}
-                      <span className="text-foreground">Generate knockout bracket</span> on Groups
+                      3. When all group matches finish → knockout bracket generates automatically
+                      (retry from Groups if needed). Set kickoff times on the Groups schedule board.
                     </li>
                     <li>
                       4. Score elimination in Live scoring — open Display for venue screens
@@ -436,6 +436,7 @@ export function TournamentManageShell({
                   tournament={tournament}
                   participant={participant}
                   onOpenLiveScoring={() => navigateSection("scoring")}
+                  onOpenGroups={() => navigateSection("groups")}
                 />
               )
             ) : null}

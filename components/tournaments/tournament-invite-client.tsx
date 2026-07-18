@@ -45,7 +45,7 @@ function InviteConfirmCard({
     <div className="space-y-4 rounded-xl border border-cp-primary/25 bg-cp-primary/5 p-4">
       <div className="flex items-start gap-3">
         {preview.kind === "player" ? (
-          <Users className="mt-0.5 h-5 w-5 text-emerald-400" />
+          <Users className="mt-0.5 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
         ) : (
           <ShieldCheck className="mt-0.5 h-5 w-5 text-cp-primary" />
         )}
@@ -278,7 +278,7 @@ export function TournamentInviteClient({
                 <p className="text-sm text-cp-muted">Checking invitation…</p>
               </div>
             ) : linkPreviewError ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-4 text-sm text-red-200">
+              <div className="rounded-xl border border-red-500/40 bg-red-50 px-4 py-4 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-200">
                 {linkPreviewError}
               </div>
             ) : linkPreview ? (
@@ -339,7 +339,7 @@ export function TournamentInviteClient({
             </div>
 
             {codePreviewError ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-200">
+              <div className="rounded-xl border border-red-500/40 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-200">
                 {codePreviewError}
               </div>
             ) : null}

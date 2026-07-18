@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { GAME_RALLY_MILESTONES } from "@/lib/tournaments/scoring/game-mode";
 import { cn } from "@/lib/utils";
 
 type MultiCourtDisplayCardProps = {
@@ -9,9 +10,17 @@ type MultiCourtDisplayCardProps = {
   teamBName: string;
   teamAPlayers?: string[];
   teamBPlayers?: string[];
+  /** Games won (race-to-N) or flat match points. */
   scoreA: number;
   scoreB: number;
   subtitle?: string;
+  /** When set, primary numbers are points this game; scoreA/B = games won. */
+  gamesMode?: {
+    pointsA: number;
+    pointsB: number;
+    raceToGames: number;
+    pointsToWinGame?: number;
+  };
 };
 
 export function MultiCourtDisplayCard({
@@ -23,7 +32,16 @@ export function MultiCourtDisplayCard({
   scoreA,
   scoreB,
   subtitle,
+  gamesMode,
 }: MultiCourtDisplayCardProps) {
+  const milestones =
+    gamesMode && (gamesMode.pointsToWinGame ?? 40) === 40
+      ? GAME_RALLY_MILESTONES
+      : gamesMode
+        ? ([gamesMode.pointsToWinGame ?? 40] as readonly number[])
+        : [];
+  const lead = gamesMode ? Math.max(gamesMode.pointsA, gamesMode.pointsB) : 0;
+
   return (
     <article className="flex min-h-[180px] min-w-0 flex-col rounded-2xl border border-white/15 bg-white/[0.06] p-4 shadow-lg backdrop-blur-md sm:min-h-[200px] sm:p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -36,14 +54,58 @@ export function MultiCourtDisplayCard({
       </div>
 
       {subtitle ? (
-        <p className="mb-4 line-clamp-2 text-[11px] uppercase tracking-wide text-white/45">{subtitle}</p>
+        <p className="mb-3 line-clamp-2 text-[11px] uppercase tracking-wide text-white/45">{subtitle}</p>
+      ) : null}
+
+      {gamesMode ? (
+        <div className="mb-3 space-y-2">
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+              Race to {gamesMode.raceToGames} · Games
+            </span>
+            <span className="text-lg font-bold tabular-nums text-white">
+              {scoreA}
+              <span className="mx-1 font-light text-white/40">–</span>
+              {scoreB}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-1">
+            {milestones.map((m, i) => (
+              <span
+                key={m}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                  lead >= m
+                    ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
+                    : "border-white/10 text-white/40",
+                )}
+              >
+                R{i + 1}·{m}
+              </span>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       <div className="grid flex-1 gap-3">
-        <ScoreRow name={teamAName} players={teamAPlayers} score={scoreA} />
+        <ScoreRow
+          name={teamAName}
+          players={teamAPlayers}
+          score={gamesMode ? gamesMode.pointsA : scoreA}
+        />
         <div className="h-px bg-white/10" />
-        <ScoreRow name={teamBName} players={teamBPlayers} score={scoreB} />
+        <ScoreRow
+          name={teamBName}
+          players={teamBPlayers}
+          score={gamesMode ? gamesMode.pointsB : scoreB}
+        />
       </div>
+
+      {gamesMode ? (
+        <p className="mt-3 text-center text-[10px] uppercase tracking-wider text-white/40">
+          Points this game (+1 each)
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -64,7 +126,9 @@ function ScoreRow({
           {name}
         </p>
         {players?.length ? (
-          <p className="mt-0.5 text-[11px] leading-snug text-white/50">{players.join(" · ")}</p>
+          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/50">
+            {players.join(" · ")}
+          </p>
         ) : null}
       </div>
       <p className="shrink-0 text-4xl font-bold tabular-nums text-white sm:text-5xl">{score}</p>

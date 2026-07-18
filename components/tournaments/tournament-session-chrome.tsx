@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, Maximize2, Pencil, Plus, Settings } from "lucide-react";
+import { ArrowLeft, Maximize2, Pencil, Settings, Trophy, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
@@ -140,17 +140,30 @@ export function TournamentSessionChrome({
           {showCreateActions ? (
             <>
               {canCreateOfficial ? (
-                <Button asChild variant="outline" size="sm" className="h-8 shrink-0 px-2.5">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1 px-2 sm:px-3"
+                  title="Create official tournament"
+                >
                   <Link href={`${dashboardRoutes.hostTournamentsNew}?sport=${sportSlug}`}>
-                    <Plus className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">Official</span>
+                    <Trophy className="h-3.5 w-3.5 text-cp-primary" />
+                    <span className="text-xs font-semibold">Official</span>
                   </Link>
                 </Button>
               ) : null}
-              <Button asChild variant="outline" size="sm" className="h-8 shrink-0 px-2.5">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1 px-2 sm:px-3"
+                title="Create Fun Match"
+              >
                 <Link href={`${dashboardRoutes.tournamentsNew}?sport=${sportSlug}`}>
-                  <Plus className="h-3.5 w-3.5 sm:mr-1" />
-                  <span className="hidden sm:inline">Fun Match</span>
+                  <Users className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs font-semibold">Fun</span>
+                  <span className="hidden text-xs font-semibold min-[420px]:inline">Match</span>
                 </Link>
               </Button>
             </>

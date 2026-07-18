@@ -43,13 +43,15 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
 
       {doubleStage?.knockoutReady && doubleStage.phase === "group" ? (
         <div className="rounded-xl border border-emerald-600/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
-          All group matches finished — knockout bracket will be published shortly.
+          Group stage complete — knockout bracket is generating automatically. Open the Bracket or
+          Matches tab once it appears.
         </div>
       ) : null}
 
       {doubleStage?.phase === "knockout" ? (
         <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-4 py-3 text-sm text-foreground">
-          Knockout stage is underway. Final group standings are shown below.
+          Knockout stage is underway. Final group standings are shown below — see Matches for the
+          full schedule.
         </div>
       ) : null}
 
@@ -62,7 +64,7 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
             <CardContent className="space-y-4 pt-4">
               <DoubleStageStandingsTable
                 group={group}
-                showQualification
+                showQualification={Boolean(doubleStage?.allGroupMatchesCompleted)}
                 compact
                 scoreDisplay={scoreDisplay}
               />

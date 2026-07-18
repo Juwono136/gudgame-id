@@ -10,10 +10,11 @@ import {
   startGroupStageMatch,
   updateGroupStageLiveScore,
 } from "@/lib/tournaments/double-stage/service";
-import { getTournamentBySlug } from "@/lib/tournaments/service";
+import { getTournamentBySlug, type TournamentDetail } from "@/lib/tournaments/service";
 import { z } from "zod";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const bodySchema = z.discriminatedUnion("action", [
   z.object({
@@ -24,9 +25,11 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("update"),
     matchId: z.string().uuid(),
-    scoreA: z.coerce.number().int().min(0),
-    scoreB: z.coerce.number().int().min(0),
-    scoreAction: z.enum(["increment", "decrement", "set"]).optional(),
+    scoreA: z.coerce.number().int().min(0).default(0),
+    scoreB: z.coerce.number().int().min(0).default(0),
+    scoreAction: z
+      .enum(["increment", "decrement", "set", "next_game"])
+      .default("increment"),
     side: z.enum(["a", "b"]).optional(),
     scorerName: z.string().trim().min(1).max(120).optional(),
     scorerUserId: z.string().uuid().optional(),
@@ -39,6 +42,15 @@ const bodySchema = z.discriminatedUnion("action", [
     durationSeconds: z.coerce.number().int().min(0).optional(),
   }),
 ]);
+
+async function optionalOverview(tournament: TournamentDetail) {
+  try {
+    return await buildDoubleStageOverview(tournament);
+  } catch {
+    // Live scoring must not fail after a successful write because overview rebuild failed.
+    return undefined;
+  }
+}
 
 export async function POST(
   request: Request,
@@ -76,7 +88,7 @@ export async function POST(
         userId,
         parsed.data.courtId,
       );
-      const overview = await buildDoubleStageOverview(tournament);
+      const overview = await optionalOverview(tournament);
       return jsonSuccess({ match, overview });
     }
 
@@ -96,8 +108,8 @@ export async function POST(
           scorerUserId: parsed.data.scorerUserId,
         },
       );
-      const overview = await buildDoubleStageOverview(tournament);
-      return jsonSuccess({ match, overview });
+      // Live +/- only needs the updated match — skip overview rebuild for speed/reliability.
+      return jsonSuccess({ match });
     }
 
     const session = await getServerSession();
@@ -112,9 +124,8 @@ export async function POST(
         durationSeconds: parsed.data.durationSeconds,
       },
     );
-    const overview = await buildDoubleStageOverview(
-      (await getTournamentBySlug(sportSlug, slug))!,
-    );
+    const refreshed = (await getTournamentBySlug(sportSlug, slug)) ?? tournament;
+    const overview = await optionalOverview(refreshed);
     return jsonSuccess({ match, overview });
   } catch (error) {
     return jsonError(error);

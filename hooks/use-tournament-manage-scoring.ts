@@ -9,6 +9,7 @@ import type { TournamentRegistrationSummary } from "@/lib/tournaments/registrati
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { TournamentCourtView } from "@/hooks/use-tournament-courts";
+import { isManageScoringWriteInFlight } from "@/hooks/use-double-stage-group-score";
 import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 import type { DoubleStageOverview } from "@/lib/tournaments/double-stage/service";
@@ -65,6 +66,8 @@ export function useTournamentManageScoring(
       return json.data;
     },
     refetchInterval: (query) => {
+      // Pause polling while a +/- write is in flight so stale GETs cannot clobber scores.
+      if (isManageScoringWriteInFlight(sportSlug, slug)) return false;
       const data = query.state.data;
       if (!data) return false;
       const hasLive =

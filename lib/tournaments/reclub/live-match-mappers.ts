@@ -32,5 +32,6 @@ export function liveMatchesToReclubViews(liveData: TournamentLivePayload): Reclu
     teamAId: m.teamAId ?? null,
     teamBId: m.teamBId ?? null,
     bracketMatchId: m.bracketMatchId ?? null,
+    gameState: m.gameState ?? null,
   }));
 }

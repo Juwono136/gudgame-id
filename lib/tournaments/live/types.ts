@@ -1,5 +1,11 @@
 import type { TournamentLivePhase } from "@/lib/tournaments/core/types";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
+import type {
+  IntraGamePointStyle,
+  MatchGameState,
+  MatchScoreMode,
+  RaceToGames,
+} from "@/lib/tournaments/scoring/game-mode";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 
 export type TournamentLivePayload = {
@@ -60,7 +66,16 @@ export type TournamentLivePayload = {
     playNumber?: number | null;
     durationSeconds?: number | null;
     scoreEvents?: MatchScoreEvent[];
+    /** Intra-game rally points when matchScoreMode = "games". */
+    gameState?: MatchGameState | null;
   }>;
+  /** Scoring shape for venue display / public live boards. */
+  scoring?: {
+    matchScoreMode: MatchScoreMode;
+    raceToGames?: RaceToGames;
+    pointsToWinGame?: number;
+    pointStyle?: IntraGamePointStyle;
+  };
   courts?: Array<{
     id: string;
     courtNumber: number;

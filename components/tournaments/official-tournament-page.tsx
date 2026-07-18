@@ -7,6 +7,7 @@ import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, User
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
+import { DoubleStageMatchesTab } from "@/components/tournaments/official/double-stage-matches-tab";
 import { OfficialPublicBracketTab } from "@/components/tournaments/official/official-public-bracket-tab";
 import { OfficialPublicHistoryStatsTab } from "@/components/tournaments/official/official-public-history-stats-tab";
 import { OfficialPublicPlayersTab } from "@/components/tournaments/official/official-public-players-tab";
@@ -125,7 +126,15 @@ type OfficialTournamentPageProps = {
   gearItems?: TournamentGearRuleItem[];
 };
 
-const TABS = ["Overview", "Live Score", "Groups", "Players", "Bracket", "History & stats"] as const;
+const TABS = [
+  "Overview",
+  "Live Score",
+  "Matches",
+  "Groups",
+  "Players",
+  "Bracket",
+  "History & stats",
+] as const;
 type OfficialTab = (typeof TABS)[number];
 
 export function OfficialTournamentPage({
@@ -214,6 +223,7 @@ export function OfficialTournamentPage({
   const visibleTabs = useMemo((): OfficialTab[] => {
     return TABS.filter((item) => {
       if (item === "Groups" && !caps.showGroupsTab) return false;
+      if (item === "Matches" && !caps.isDoubleStage) return false;
       if (item === "Bracket") {
         if (!caps.showBracketTab) return false;
         if (caps.isDoubleStage && !isDoubleStageKnockout && !bracketHasTree) return false;
@@ -935,6 +945,8 @@ export function OfficialTournamentPage({
           ) : null}
 
           {tab === "Groups" ? <DoubleStageGroupsTab tournament={tournament} /> : null}
+
+          {tab === "Matches" ? <DoubleStageMatchesTab tournament={tournament} /> : null}
 
           {tab === "Bracket" ? (
             <OfficialPublicBracketTab

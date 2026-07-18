@@ -878,7 +878,12 @@ export function TournamentCreateWizard({
                         onChange={(e) => setAllowDraw(e.target.checked)}
                         className="h-4 w-4 rounded border-cp-border"
                       />
-                      <Label htmlFor="allow-draw">Allow draw results in group stage</Label>
+                      <Label htmlFor="allow-draw">
+                        Allow draw results in group stage
+                        <span className="mt-0.5 block text-[11px] font-normal text-cp-muted">
+                          When off, tied games cannot be finalized (must have a winner).
+                        </span>
+                      </Label>
                     </div>
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <input
@@ -888,7 +893,12 @@ export function TournamentCreateWizard({
                         onChange={(e) => setThirdPlaceEnabled(e.target.checked)}
                         className="h-4 w-4 rounded border-cp-border"
                       />
-                      <Label htmlFor="third-place">Include 3rd place match</Label>
+                      <Label htmlFor="third-place">
+                        Include 3rd place match
+                        <span className="mt-0.5 block text-[11px] font-normal text-cp-muted">
+                          Adds a bronze match in the knockout bracket when enabled.
+                        </span>
+                      </Label>
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label>Match score format</Label>
@@ -925,7 +935,8 @@ export function TournamentCreateWizard({
                           </SelectContent>
                         </Select>
                         <p className="text-[11px] text-cp-muted">
-                          Within each game: 0 → 15 → 30 → 40. Reaching race target wins the match.
+                          Points rise +1 through 15 → 30 → 40. First to 40 wins the game (score
+                          stays until Next game); first to {raceToGames} games wins the match.
                         </p>
                       </div>
                     ) : null}

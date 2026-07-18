@@ -1,11 +1,10 @@
 /**
- * Race-to-N games match scoring (padel/tennis-style and adaptable to other sports).
+ * Race-to-N games match scoring.
  *
- * Public scoreA/scoreB = games won in the match.
- * Intra-game rally points live in MatchGameState (metadata).
- *
- * Point display for racket sports: 0 → 0, 1 → 15, 2 → 30, 3 → 40.
- * A game is won by reaching pointsToWinGame with lead (or golden point at deuce).
+ * Public scoreA/scoreB = games won in the match (first to raceToGames).
+ * Intra-game points live in MatchGameState and always increment by 1:
+ *   0 → 1 → 2 → … → 15 (rally 1) → … → 30 (rally 2) → … → 40 (rally 3 / game won).
+ * Reaching pointsToWinGame (default 40) awards 1 game toward Race to N.
  */
 
 export const RACE_TO_GAMES_OPTIONS = [2, 3, 4, 6] as const;
@@ -17,12 +16,18 @@ export const RACE_TO_GAMES_COMMON_OPTIONS = [4, 6] as const;
 export const MATCH_SCORE_MODES = ["points", "games"] as const;
 export type MatchScoreMode = (typeof MATCH_SCORE_MODES)[number];
 
-/** How points within a game are displayed / counted. */
+/**
+ * How points within a game are displayed.
+ * Prefer "simple" (0,1,2,…40) — tennis labels confuse operators.
+ */
 export type IntraGamePointStyle = "tennis" | "simple";
+
+/** Rally checkpoints within a game (first to 40). */
+export const GAME_RALLY_MILESTONES = [15, 30, 40] as const;
 
 export type MatchGameRules = {
   raceToGames: RaceToGames;
-  /** Points needed to win a game (tennis-style default: 4 → Love/15/30/40/game). */
+  /** Points needed to win a game (default 40: through rallies at 15 / 30 / 40). */
   pointsToWinGame: number;
   /** At deuce (both at pointsToWinGame-1): golden_point = next point wins; advantage = win by 2. */
   gameDecider: "golden_point" | "advantage";
@@ -38,6 +43,11 @@ export type MatchGameState = {
   currentPointsA: number;
   currentPointsB: number;
   completedGames: CompletedGameScore[];
+  /**
+   * When set, the current game is already won (points held at the winning total,
+   * e.g. 40) until the operator confirms the next game / reset.
+   */
+  pendingGameWinner?: "a" | "b" | null;
 };
 
 export const DEFAULT_GAME_RULES_BY_UNIT: Record<
@@ -46,15 +56,16 @@ export const DEFAULT_GAME_RULES_BY_UNIT: Record<
 > = {
   games: {
     raceToGames: 4,
-    pointsToWinGame: 4,
+    pointsToWinGame: 40,
+    // First-to-N: at 39–39 the next +1 wins. No tennis-style deuce UI needed.
     gameDecider: "golden_point",
-    pointStyle: "tennis",
+    pointStyle: "simple",
   },
   sets: {
     raceToGames: 2,
-    pointsToWinGame: 6,
-    gameDecider: "advantage",
-    pointStyle: "tennis",
+    pointsToWinGame: 40,
+    gameDecider: "golden_point",
+    pointStyle: "simple",
   },
 };
 
@@ -63,6 +74,7 @@ export function emptyMatchGameState(): MatchGameState {
     currentPointsA: 0,
     currentPointsB: 0,
     completedGames: [],
+    pendingGameWinner: null,
   };
 }
 
@@ -91,27 +103,29 @@ export function parseMatchGameState(raw: unknown): MatchGameState | null {
           pointsB: Math.floor(g.pointsB),
         }))
     : [];
-  return { currentPointsA, currentPointsB, completedGames };
+  const pendingRaw = v.pendingGameWinner;
+  const pendingGameWinner =
+    pendingRaw === "a" || pendingRaw === "b" ? pendingRaw : null;
+  return { currentPointsA, currentPointsB, completedGames, pendingGameWinner };
 }
 
-/** Tennis-style rally labels for racket sports. */
+/** Display label for a point total (simple = raw count; tennis kept for legacy data only). */
 export function formatIntraGamePoint(
   points: number,
-  style: IntraGamePointStyle = "tennis",
+  style: IntraGamePointStyle = "simple",
 ): string {
   if (style === "simple") return String(Math.max(0, points));
   if (points <= 0) return "0";
   if (points === 1) return "15";
   if (points === 2) return "30";
   if (points === 3) return "40";
-  // Advantage / extra points beyond 40
   return "Ad";
 }
 
 export function formatIntraGameScoreLine(
   pointsA: number,
   pointsB: number,
-  style: IntraGamePointStyle = "tennis",
+  style: IntraGamePointStyle = "simple",
 ): string {
   if (style === "tennis" && pointsA >= 3 && pointsB >= 3) {
     if (pointsA === pointsB) return "40 – 40";
@@ -119,6 +133,30 @@ export function formatIntraGameScoreLine(
     return "40 – Ad";
   }
   return `${formatIntraGamePoint(pointsA, style)} – ${formatIntraGamePoint(pointsB, style)}`;
+}
+
+/** How many rally milestones (15 / 30 / 40) this side has already cleared. */
+export function countCompletedRallies(
+  points: number,
+  milestones: readonly number[] = GAME_RALLY_MILESTONES,
+): number {
+  let n = 0;
+  for (const m of milestones) {
+    if (points >= m) n += 1;
+    else break;
+  }
+  return n;
+}
+
+/** Next rally target (15, 30, or 40). Null when game target already reached. */
+export function nextRallyTarget(
+  points: number,
+  milestones: readonly number[] = GAME_RALLY_MILESTONES,
+): number | null {
+  for (const m of milestones) {
+    if (points < m) return m;
+  }
+  return null;
 }
 
 export type GameCompletion = {
@@ -177,8 +215,9 @@ export type GameScoreApplyResult = {
 };
 
 /**
- * Apply +1 / -1 to the current game's rally points.
- * When a game completes on increment, gamesA/gamesB increase and rally resets.
+ * Apply +1 / -1 to the current game's points (always ±1).
+ * When a game completes, games won increase but points are held (e.g. at 40)
+ * until {@link startNextGameAfterWin} resets them.
  */
 export function applyGamePointDelta(
   gamesA: number,
@@ -189,12 +228,50 @@ export function applyGamePointDelta(
   rules: MatchGameRules,
 ): GameScoreApplyResult | null {
   const matchDone = isRaceToGamesMatchComplete(gamesA, gamesB, rules);
-  if (matchDone.complete && delta > 0) return null;
+  const pending = gameState.pendingGameWinner ?? null;
+
+  // While a finished game is held on screen, only undo is allowed (not more +).
+  if (pending && delta > 0) return null;
+  if (matchDone.complete && delta > 0 && !pending) return null;
 
   let pointsA = gameState.currentPointsA;
   let pointsB = gameState.currentPointsB;
+  let nextGamesA = gamesA;
+  let nextGamesB = gamesB;
+  let completedGames = gameState.completedGames;
 
   if (delta < 0) {
+    if (pending) {
+      // Undo the held game win: remove last completed game + revert games won.
+      if (side !== pending) return null;
+      const last = completedGames[completedGames.length - 1];
+      if (!last) return null;
+      if (side === "a") {
+        if (pointsA <= 0) return null;
+        pointsA -= 1;
+        nextGamesA = Math.max(0, gamesA - 1);
+      } else {
+        if (pointsB <= 0) return null;
+        pointsB -= 1;
+        nextGamesB = Math.max(0, gamesB - 1);
+      }
+      completedGames = completedGames.slice(0, -1);
+      const afterUndo = isRaceToGamesMatchComplete(nextGamesA, nextGamesB, rules);
+      return {
+        gamesA: nextGamesA,
+        gamesB: nextGamesB,
+        gameState: {
+          currentPointsA: pointsA,
+          currentPointsB: pointsB,
+          completedGames,
+          pendingGameWinner: null,
+        },
+        gameJustWon: null,
+        matchComplete: afterUndo.complete,
+        matchWinner: afterUndo.winner,
+      };
+    }
+
     if (side === "a") {
       if (pointsA <= 0) return null;
       pointsA -= 1;
@@ -209,6 +286,7 @@ export function applyGamePointDelta(
         ...gameState,
         currentPointsA: pointsA,
         currentPointsB: pointsB,
+        pendingGameWinner: null,
       },
       gameJustWon: null,
       matchComplete: matchDone.complete,
@@ -228,6 +306,7 @@ export function applyGamePointDelta(
         ...gameState,
         currentPointsA: pointsA,
         currentPointsB: pointsB,
+        pendingGameWinner: null,
       },
       gameJustWon: null,
       matchComplete: false,
@@ -235,24 +314,39 @@ export function applyGamePointDelta(
     };
   }
 
-  const nextGamesA = gamesA + (gameDone.winner === "a" ? 1 : 0);
-  const nextGamesB = gamesB + (gameDone.winner === "b" ? 1 : 0);
+  nextGamesA = gamesA + (gameDone.winner === "a" ? 1 : 0);
+  nextGamesB = gamesB + (gameDone.winner === "b" ? 1 : 0);
   const nextMatch = isRaceToGamesMatchComplete(nextGamesA, nextGamesB, rules);
 
   return {
     gamesA: nextGamesA,
     gamesB: nextGamesB,
     gameState: {
-      currentPointsA: 0,
-      currentPointsB: 0,
-      completedGames: [
-        ...gameState.completedGames,
-        { pointsA, pointsB },
-      ],
+      // Hold winning totals on screen until operator starts the next game.
+      currentPointsA: pointsA,
+      currentPointsB: pointsB,
+      completedGames: [...completedGames, { pointsA, pointsB }],
+      pendingGameWinner: gameDone.winner,
     },
     gameJustWon: gameDone.winner,
     matchComplete: nextMatch.complete,
     matchWinner: nextMatch.winner,
+  };
+}
+
+/**
+ * After a game win is held at the finishing score (e.g. 40–x), reset points to 0–0
+ * for the next game. No-op if nothing is pending.
+ */
+export function startNextGameAfterWin(
+  gameState: MatchGameState,
+): MatchGameState | null {
+  if (!gameState.pendingGameWinner) return null;
+  return {
+    currentPointsA: 0,
+    currentPointsB: 0,
+    completedGames: gameState.completedGames,
+    pendingGameWinner: null,
   };
 }
 
@@ -262,4 +356,39 @@ export function formatRaceToGamesLabel(raceTo: number): string {
 
 export function formatMatchGamesScore(gamesA: number, gamesB: number): string {
   return `${gamesA}–${gamesB}`;
+}
+
+/** Count games won from completed rally records (source of truth when columns drift). */
+export function gamesWonFromCompleted(
+  completedGames: CompletedGameScore[],
+): { gamesA: number; gamesB: number } {
+  let gamesA = 0;
+  let gamesB = 0;
+  for (const g of completedGames) {
+    if (g.pointsA === g.pointsB) continue;
+    if (g.pointsA > g.pointsB) gamesA += 1;
+    else gamesB += 1;
+  }
+  return { gamesA, gamesB };
+}
+
+/**
+ * Prefer completedGames tally when present so UI never shows Games=0 after a won game
+ * while rally state already reset to 0–0.
+ */
+export function reconcileMatchGamesScores(
+  scoreA: number | null | undefined,
+  scoreB: number | null | undefined,
+  gameState: MatchGameState | null | undefined,
+): { scoreA: number; scoreB: number } {
+  const fallbackA = Math.max(0, scoreA ?? 0);
+  const fallbackB = Math.max(0, scoreB ?? 0);
+  if (!gameState?.completedGames.length) {
+    return { scoreA: fallbackA, scoreB: fallbackB };
+  }
+  const fromGames = gamesWonFromCompleted(gameState.completedGames);
+  return {
+    scoreA: Math.max(fallbackA, fromGames.gamesA),
+    scoreB: Math.max(fallbackB, fromGames.gamesB),
+  };
 }

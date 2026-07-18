@@ -55,14 +55,22 @@ export async function patchTournamentDisplayConfig(
     showHighlights: true,
   };
 
+  const db = getDb();
+  const [row] = await db
+    .select({ settings: tournaments.settings })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournament.id))
+    .limit(1);
+
   const existingSettings =
-    tournament.settings && typeof tournament.settings === "object"
+    (row?.settings as Record<string, unknown> | null) ??
+    (tournament.settings && typeof tournament.settings === "object"
       ? (tournament.settings as Record<string, unknown>)
-      : {};
+      : {});
 
   const nextSettings = buildTournamentSettings(existingSettings, { displayConfig });
 
-  await getDb()
+  await db
     .update(tournaments)
     .set({ settings: nextSettings, updatedAt: new Date() })
     .where(eq(tournaments.id, tournament.id));

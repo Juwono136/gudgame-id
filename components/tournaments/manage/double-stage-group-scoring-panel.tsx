@@ -8,8 +8,15 @@ import { DoubleStageFlowGuide } from "@/components/tournaments/double-stage/doub
 import { DoubleStageGroupMatchCard } from "@/components/tournaments/manage/double-stage-group-match-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
+import { enqueueGroupScoreUpdate } from "@/hooks/use-double-stage-group-score";
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
+import {
+  getTournamentGameRules,
+  getTournamentMatchScoreMode,
+} from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +32,8 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
   const overview = data?.doubleStage;
   const cfg = getDoubleStageConfigSummary(tournament);
   const maxScore = cfg.pointsPerMatch;
+  const gamesMode = getTournamentMatchScoreMode(tournament) === "games";
+  const gameRules = gamesMode ? getTournamentGameRules(tournament) : null;
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [busyMatchId, setBusyMatchId] = useState<string | null>(null);
@@ -46,29 +55,57 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
   );
 
   const postScore = useCallback(
-    async (matchId: string, action: "start" | "record", scores?: { scoreA: number; scoreB: number }) => {
-      setBusyMatchId(matchId);
+    async (
+      matchId: string,
+      action: "start" | "record" | "update",
+      scores?: {
+        scoreA: number;
+        scoreB: number;
+        scoreAction?: "increment" | "decrement" | "set" | "next_game";
+        side?: "a" | "b";
+      },
+    ) => {
+      const showBusy = action !== "update";
+      if (showBusy) setBusyMatchId(matchId);
       try {
         const body =
           action === "start"
             ? { action: "start", matchId }
-            : { action: "record", matchId, scoreA: scores!.scoreA, scoreB: scores!.scoreB };
-        const res = await fetch(
-          `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/manage/double-stage/score`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error?.message ?? "Failed to update match");
+            : action === "update"
+              ? {
+                  action: "update",
+                  matchId,
+                  scoreA: scores!.scoreA,
+                  scoreB: scores!.scoreB,
+                  scoreAction: scores!.scoreAction,
+                  side: scores!.side,
+                }
+              : { action: "record", matchId, scoreA: scores!.scoreA, scoreB: scores!.scoreB };
+        await enqueueGroupScoreUpdate(matchId, async () => {
+          const response = await fetch(
+            `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/manage/double-stage/score`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+          );
+          const json = await parseJsonResponse<{
+            success?: boolean;
+            error?: unknown;
+          }>(response);
+          if (!response.ok) {
+            throw new Error(extractApiErrorMessage(json, "Failed to update match"));
+          }
+          return json;
+        });
         await refetch();
-        toast.success(action === "start" ? "Match started" : "Score saved");
+        if (action === "start") toast.success("Match started");
+        else if (action === "record") toast.success("Score saved");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to update match");
       } finally {
-        setBusyMatchId(null);
+        if (showBusy) setBusyMatchId(null);
       }
     },
     [refetch, tournament.slug, tournament.sportSlug],
@@ -168,7 +205,9 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
                 match={match}
                 maxScore={maxScore}
                 busy={busyMatchId === match.id}
+                gameRules={gameRules}
                 onStart={() => postScore(match.id, "start")}
+                onLivePoint={(input) => postScore(match.id, "update", input)}
                 onFinalize={(scores) => postScore(match.id, "record", scores)}
               />
             ))}

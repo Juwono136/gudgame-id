@@ -3,8 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowRight,
   CheckCircle2,
   GitBranch,
+  LayoutGrid,
   Loader2,
   Shuffle,
   Swords,
@@ -66,15 +68,19 @@ type BracketManagePanelProps = {
   tournament: TournamentDetail;
   participant: TournamentParticipantContext;
   onOpenLiveScoring?: () => void;
+  /** Double-stage: navigate to Groups to regenerate knockout after reset. */
+  onOpenGroups?: () => void;
 };
 
 export function BracketManagePanel({
   tournament,
   participant,
   onOpenLiveScoring,
+  onOpenGroups,
 }: BracketManagePanelProps) {
   const { confirm } = useConfirmDialog();
   const isOfficial = isOfficialType(tournament.tournamentType);
+  const isDoubleStage = tournament.format === "double_stage";
   const courtCount = getTournamentCourtCount(tournament);
   const { data, isLoading, refetch } = useTournamentBracket(tournament.sportSlug, tournament.slug);
   const { data: workspace } = useTournamentManageScoring(tournament.sportSlug, tournament.slug);
@@ -122,14 +128,19 @@ export function BracketManagePanel({
   const placedTeamCount = placedTeamIds.size;
   const matchScoringHint = getTournamentMatchScoringHint(tournament);
 
-  const seedingLocked = isBracketSeedingLocked(matches, tournament.status);
+  const seedingLocked =
+    isDoubleStage || isBracketSeedingLocked(matches, tournament.status);
   const seedingUi = useMemo(
     () => getBracketSeedingUiState(matches, tournament.status),
     [matches, tournament.status],
   );
   const resetLocked = !canResetBracketTree(matches, tournament.status);
   const canRandomReseed =
-    generated && !seedingLocked && seedableTeams.length >= 2 && tournament.format !== "americano";
+    generated &&
+    !seedingLocked &&
+    !isDoubleStage &&
+    seedableTeams.length >= 2 &&
+    tournament.format !== "americano";
   const liveScoringHref = `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=scoring`;
 
   const teamsForPicker = useMemo(() => {
@@ -220,7 +231,9 @@ export function BracketManagePanel({
   const handleReset = async () => {
     const ok = await confirm({
       title: "Reset bracket?",
-      description: "This removes the current bracket tree so you can generate and seed again.",
+      description: isDoubleStage
+        ? "This removes the knockout tree and returns the tournament to the group stage so you can regenerate from qualified teams (Groups → Generate knockout)."
+        : "This removes the current bracket tree so you can generate and seed again.",
       confirmLabel: "Reset bracket",
       variant: "destructive",
     });
@@ -228,6 +241,23 @@ export function BracketManagePanel({
     await runBracketMutation(async () => {
       await resetBracket.mutateAsync();
       await refetch();
+      if (isDoubleStage) onOpenGroups?.();
+    });
+  };
+
+  const handleRecoverDoubleStage = async () => {
+    const ok = await confirm({
+      title: "Restore group stage for knockout?",
+      description:
+        "The knockout tree is missing. This clears the stuck knockout phase so you can regenerate from Groups using only qualified teams.",
+      confirmLabel: "Restore & go to Groups",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    await runBracketMutation(async () => {
+      await resetBracket.mutateAsync();
+      await refetch();
+      onOpenGroups?.();
     });
   };
 
@@ -283,36 +313,66 @@ export function BracketManagePanel({
         </div>
 
         {!generated ? (
-          <>
-            {tournament.status === "live" ? (
-              <p className={cn("mt-4 px-3 py-2 text-sm", cpAlertInfoSurfaceClass)}>
-                Tournament is live — open the bracket tree and place teams before scoring matches.
+          isDoubleStage ? (
+            <div className="mt-5 space-y-4">
+              <p className={cn("px-3 py-2 text-sm", cpAlertInfoSurfaceClass)}>
+                Double-stage knockout is built from qualified group teams only — not with Random
+                seed. If the tree disappeared after a reset, restore the group phase and regenerate
+                from Groups.
               </p>
-            ) : null}
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                disabled={generate.isPending || seedableTeams.length < 2}
-                onClick={() => void handleGenerate("random")}
-              >
-                {generate.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Shuffle className="mr-2 h-4 w-4" />
-                )}
-                Random seed
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={generate.isPending}
-                onClick={() => void handleGenerate("manual")}
-              >
-                <Users className="mr-2 h-4 w-4" />
-                Open bracket
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={resetBracket.isPending}
+                  onClick={() => void handleRecoverDoubleStage()}
+                >
+                  {resetBracket.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <LayoutGrid className="mr-2 h-4 w-4" />
+                  )}
+                  Restore & go to Groups
+                </Button>
+                {onOpenGroups ? (
+                  <Button type="button" variant="secondary" onClick={onOpenGroups}>
+                    Open Groups
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </>
+          ) : (
+            <>
+              {tournament.status === "live" ? (
+                <p className={cn("mt-4 px-3 py-2 text-sm", cpAlertInfoSurfaceClass)}>
+                  Tournament is live — open the bracket tree and place teams before scoring matches.
+                </p>
+              ) : null}
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={generate.isPending || seedableTeams.length < 2}
+                  onClick={() => void handleGenerate("random")}
+                >
+                  {generate.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Shuffle className="mr-2 h-4 w-4" />
+                  )}
+                  Random seed
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={generate.isPending}
+                  onClick={() => void handleGenerate("manual")}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Open bracket
+                </Button>
+              </div>
+            </>
+          )
         ) : (
           <>
             <BracketSeedingStatusBanner

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
 import { DoubleStageFlowGuide } from "@/components/tournaments/double-stage/double-stage-flow-guide";
 import { DoubleStageStandingsTable } from "@/components/tournaments/double-stage/double-stage-standings-table";
+import { DoubleStageScheduleManage } from "@/components/tournaments/manage/double-stage-schedule-manage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,10 +23,9 @@ type DoubleStageManagePanelProps = {
 };
 
 function FixtureList({
-  groupName,
   matches,
+  gamesScoreMode,
 }: {
-  groupName: string;
   matches: {
     id: string;
     teamAName: string | null;
@@ -34,6 +34,7 @@ function FixtureList({
     scoreB: number | null;
     status: string;
   }[];
+  gamesScoreMode: boolean;
 }) {
   if (!matches.length) return null;
 
@@ -51,8 +52,15 @@ function FixtureList({
             </span>
             <div className="flex shrink-0 items-center gap-2">
               {match.status === "completed" ? (
-                <span className="font-mono text-sm tabular-nums text-foreground">
-                  {match.scoreA}–{match.scoreB}
+                <span className="inline-flex flex-col items-end">
+                  <span className="font-mono text-sm tabular-nums text-foreground">
+                    {match.scoreA}–{match.scoreB}
+                  </span>
+                  {gamesScoreMode ? (
+                    <span className="text-[9px] font-semibold uppercase tracking-wide text-cp-muted">
+                      Games
+                    </span>
+                  ) : null}
                 </span>
               ) : null}
               <Badge
@@ -84,9 +92,11 @@ export function DoubleStageManagePanel({
     tournament.slug,
   );
   const overview = data?.doubleStage;
+  const bracketMatches = data?.bracketMatches ?? [];
   const [advancing, setAdvancing] = useState(false);
-  const scoreDisplay =
-    getTournamentMatchScoreMode(tournament) === "games" ? "games" : "diff";
+  const gamesScoreMode = getTournamentMatchScoreMode(tournament) === "games";
+  const scoreDisplay = gamesScoreMode ? "games" : "diff";
+  const showQualification = Boolean(overview?.allGroupMatchesCompleted);
 
   const advanceToKnockout = useCallback(async () => {
     setAdvancing(true);
@@ -132,8 +142,8 @@ export function DoubleStageManagePanel({
             <div className="flex-1">
               <p className="font-semibold text-foreground">Group stage complete</p>
               <p className="mt-1 text-sm text-cp-muted">
-                Knockout bracket is active. View final group tables below or open the Bracket tab to
-                manage elimination matches.
+                Knockout bracket is active. View final group tables below, set match times, or open
+                the Bracket tab.
               </p>
             </div>
             <Button asChild variant="outline" className="shrink-0">
@@ -155,13 +165,27 @@ export function DoubleStageManagePanel({
               <CardContent>
                 <DoubleStageStandingsTable
                   group={group}
-                  showQualification
+                  showQualification={showQualification}
                   scoreDisplay={scoreDisplay}
                 />
               </CardContent>
             </Card>
           ))}
         </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Match schedule</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DoubleStageScheduleManage
+              tournament={tournament}
+              groups={overview.groups}
+              bracketMatches={bracketMatches}
+              onUpdated={() => void refetch()}
+            />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -179,8 +203,9 @@ export function DoubleStageManagePanel({
         <div>
           <p className="text-sm font-semibold text-foreground">Groups — overview only</p>
           <p className="mt-1 text-xs leading-relaxed text-cp-muted sm:text-sm">
-            Track standings and fixtures here. To start matches and enter scores, use{" "}
-            <span className="font-medium text-foreground">Live scoring</span>.
+            Track standings and fixtures here. Score matches in{" "}
+            <span className="font-medium text-foreground">Live scoring</span>. When every group
+            fixture is done, the knockout bracket is generated automatically.
           </p>
         </div>
         {onOpenLiveScoring ? (
@@ -198,10 +223,11 @@ export function DoubleStageManagePanel({
             <div>
               <p className="font-semibold text-foreground">All group matches completed</p>
               <p className="text-sm text-cp-muted">
-                {overview.qualifiedCount} teams qualified · ready for knockout bracket
+                {overview.qualifiedCount} teams qualified · knockout generates automatically after
+                the last result. Use the button if you need to retry.
               </p>
             </div>
-            <Button onClick={advanceToKnockout} disabled={advancing} className="shrink-0">
+            <Button onClick={() => void advanceToKnockout()} disabled={advancing} className="shrink-0">
               {advancing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -215,7 +241,8 @@ export function DoubleStageManagePanel({
         </Card>
       ) : openMatches > 0 ? (
         <p className="text-xs text-cp-muted sm:text-sm">
-          {openMatches} group match{openMatches === 1 ? "" : "es"} still to play.
+          {openMatches} group match{openMatches === 1 ? "" : "es"} still to play. Qualified /
+          Eliminated badges appear only after every group fixture is finished.
         </p>
       ) : null}
 
@@ -228,14 +255,28 @@ export function DoubleStageManagePanel({
             <CardContent className="space-y-4">
               <DoubleStageStandingsTable
                 group={group}
-                showQualification
+                showQualification={showQualification}
                 scoreDisplay={scoreDisplay}
               />
-              <FixtureList groupName={group.name} matches={group.matches} />
+              <FixtureList matches={group.matches} gamesScoreMode={gamesScoreMode} />
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Match schedule</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DoubleStageScheduleManage
+            tournament={tournament}
+            groups={overview.groups}
+            bracketMatches={bracketMatches}
+            onUpdated={() => void refetch()}
+          />
+        </CardContent>
+      </Card>
 
       <DoubleStageFlowGuide phase="group" variant="manage" />
     </div>

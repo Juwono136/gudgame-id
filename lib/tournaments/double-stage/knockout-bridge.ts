@@ -15,6 +15,7 @@ import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/setti
 import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { eq } from "drizzle-orm";
+import { AppError } from "@/lib/errors";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export async function provisionKnockoutBracket(
@@ -30,7 +31,10 @@ export async function provisionKnockoutBracket(
     .limit(1);
 
   if (existing.length > 0) {
-    throw new Error("Bracket already exists for this tournament");
+    throw new AppError("Knockout bracket already exists for this tournament. Reset it first if you need to regenerate.", {
+      code: "CONFLICT",
+      statusCode: 409,
+    });
   }
 
   const plan = planPlayInAndByes(seeded);

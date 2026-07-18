@@ -2,7 +2,7 @@
  * Sport-agnostic point-by-point scoring log for official (and shared) tournaments.
  */
 
-export type MatchScoreAction = "set" | "increment" | "decrement";
+export type MatchScoreAction = "set" | "increment" | "decrement" | "next_game";
 
 export type MatchScoreEvent = {
   at: string;

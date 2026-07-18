@@ -1,18 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Play } from "lucide-react";
+import { GameRaceScoreboard } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import {
+  emptyMatchGameState,
+  isRaceToGamesMatchComplete,
+  type MatchGameRules,
+} from "@/lib/tournaments/scoring/game-mode";
 import { cn } from "@/lib/utils";
 
 type DoubleStageGroupMatchCardProps = {
   match: GroupMatchView;
   maxScore: number;
   busy: boolean;
+  /** When set, use race-to-N games scoreboard + live point deltas. */
+  gameRules?: MatchGameRules | null;
   onStart: () => void;
+  onLivePoint?: (input: {
+    scoreA: number;
+    scoreB: number;
+    scoreAction: "increment" | "decrement" | "next_game";
+    side?: "a" | "b";
+  }) => void | Promise<unknown>;
   onFinalize: (scores: { scoreA: number; scoreB: number }) => void;
 };
 
@@ -20,26 +34,83 @@ export function DoubleStageGroupMatchCard({
   match,
   maxScore,
   busy,
+  gameRules = null,
   onStart,
+  onLivePoint,
   onFinalize,
 }: DoubleStageGroupMatchCardProps) {
   const isPending = match.status === "pending";
   const isLive = match.status === "in_progress";
   const isDone = match.status === "completed";
   const canScore = isLive && !busy;
+  const gamesMode = Boolean(gameRules);
 
-  const [localScoreA, setLocalScoreA] = useState(match.scoreA ?? 0);
-  const [localScoreB, setLocalScoreB] = useState(match.scoreB ?? 0);
+  const serverScoreA = match.scoreA ?? 0;
+  const serverScoreB = match.scoreB ?? 0;
+  const [localScoreA, setLocalScoreA] = useState(serverScoreA);
+  const [localScoreB, setLocalScoreB] = useState(serverScoreB);
+  const [syncing, setSyncing] = useState(false);
+  const gamesWriteChainRef = useRef(Promise.resolve());
+  const gamesWriteDepthRef = useRef(0);
 
   useEffect(() => {
-    setLocalScoreA(match.scoreA ?? 0);
-    setLocalScoreB(match.scoreB ?? 0);
-  }, [match.id, match.scoreA, match.scoreB, match.status]);
+    setLocalScoreA(serverScoreA);
+    setLocalScoreB(serverScoreB);
+  }, [match.id, serverScoreA, serverScoreB, match.status]);
 
   const teamAPlayers = match.teamAPlayers.map((p) => p.displayName).filter(Boolean);
   const teamBPlayers = match.teamBPlayers.map((p) => p.displayName).filter(Boolean);
-
   const statusLabel = match.status.replace("_", " ");
+  const gameState = match.gameState ?? emptyMatchGameState();
+
+  const canFinalize = (() => {
+    if (!isLive || busy) return false;
+    if (!gameRules) return true;
+    return isRaceToGamesMatchComplete(serverScoreA, serverScoreB, gameRules).complete;
+  })();
+
+  const queueLivePoint = (side: "a" | "b", delta: 1 | -1) => {
+    if (!onLivePoint || !canScore) return;
+    const run = async () => {
+      gamesWriteDepthRef.current += 1;
+      setSyncing(true);
+      try {
+        await onLivePoint({
+          scoreA: 0,
+          scoreB: 0,
+          scoreAction: delta > 0 ? "increment" : "decrement",
+          side,
+        });
+      } catch {
+        // Parent toasts errors.
+      } finally {
+        gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+        if (gamesWriteDepthRef.current === 0) setSyncing(false);
+      }
+    };
+    gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+  };
+
+  const queueNextGame = () => {
+    if (!onLivePoint || !canScore) return;
+    const run = async () => {
+      gamesWriteDepthRef.current += 1;
+      setSyncing(true);
+      try {
+        await onLivePoint({
+          scoreA: 0,
+          scoreB: 0,
+          scoreAction: "next_game",
+        });
+      } catch {
+        // Parent toasts errors.
+      } finally {
+        gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+        if (gamesWriteDepthRef.current === 0) setSyncing(false);
+      }
+    };
+    gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+  };
 
   return (
     <article
@@ -76,20 +147,39 @@ export function DoubleStageGroupMatchCard({
         </Badge>
       </div>
 
-      <LiveScoreboard
-        variant="compact"
-        teamAName={match.teamAName ?? "Team A"}
-        teamBName={match.teamBName ?? "Team B"}
-        teamAPlayers={teamAPlayers.length ? teamAPlayers : undefined}
-        teamBPlayers={teamBPlayers.length ? teamBPlayers : undefined}
-        scoreA={isDone ? (match.scoreA ?? 0) : localScoreA}
-        scoreB={isDone ? (match.scoreB ?? 0) : localScoreB}
-        maxScore={maxScore}
-        disabled={!canScore}
-        onScoreAChange={setLocalScoreA}
-        onScoreBChange={setLocalScoreB}
-        className={cn(isPending && "opacity-60")}
-      />
+      {gamesMode && gameRules ? (
+        <GameRaceScoreboard
+          teamAName={match.teamAName ?? "Team A"}
+          teamBName={match.teamBName ?? "Team B"}
+          teamAPlayers={teamAPlayers}
+          teamBPlayers={teamBPlayers}
+          gamesA={serverScoreA}
+          gamesB={serverScoreB}
+          gameState={gameState}
+          rules={gameRules}
+          disabled={!canScore || !onLivePoint}
+          syncing={syncing}
+          onPointA={(delta) => queueLivePoint("a", delta)}
+          onPointB={(delta) => queueLivePoint("b", delta)}
+          onNextGame={queueNextGame}
+          className={cn(isPending && "opacity-60")}
+        />
+      ) : (
+        <LiveScoreboard
+          variant="compact"
+          teamAName={match.teamAName ?? "Team A"}
+          teamBName={match.teamBName ?? "Team B"}
+          teamAPlayers={teamAPlayers.length ? teamAPlayers : undefined}
+          teamBPlayers={teamBPlayers.length ? teamBPlayers : undefined}
+          scoreA={isDone ? serverScoreA : localScoreA}
+          scoreB={isDone ? serverScoreB : localScoreB}
+          maxScore={maxScore}
+          disabled={!canScore}
+          onScoreAChange={setLocalScoreA}
+          onScoreBChange={setLocalScoreB}
+          className={cn(isPending && "opacity-60")}
+        />
+      )}
 
       {isPending ? (
         <div className="mt-4 flex flex-col gap-2 border-t border-cp-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -118,8 +208,13 @@ export function DoubleStageGroupMatchCard({
             type="button"
             variant="secondary"
             className="w-full sm:w-auto"
-            disabled={busy}
-            onClick={() => onFinalize({ scoreA: localScoreA, scoreB: localScoreB })}
+            disabled={!canFinalize || syncing}
+            onClick={() =>
+              onFinalize({
+                scoreA: gamesMode ? serverScoreA : localScoreA,
+                scoreB: gamesMode ? serverScoreB : localScoreB,
+              })
+            }
           >
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Finalize score
@@ -129,7 +224,7 @@ export function DoubleStageGroupMatchCard({
 
       {isDone ? (
         <p className="mt-3 text-center text-xs text-cp-muted sm:text-left">
-          Final score recorded.
+          Final {gamesMode ? "game " : ""}score recorded.
         </p>
       ) : null}
     </article>

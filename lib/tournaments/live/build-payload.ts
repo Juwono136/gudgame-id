@@ -30,7 +30,11 @@ import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
-import { getTournamentDisplayConfig } from "@/lib/tournaments/settings";
+import {
+  getTournamentDisplayConfig,
+  getTournamentGameRules,
+  getTournamentMatchScoreMode,
+} from "@/lib/tournaments/settings";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
 import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
 import { computeTournamentSessionStats } from "@/lib/tournaments/stats/compute";
@@ -58,6 +62,7 @@ function mapGroupToLiveMatch(m: GroupMatchView) {
     teamAPlayers: (m.teamAPlayers ?? []).map((p) => p.displayName).filter(Boolean),
     teamBPlayers: (m.teamBPlayers ?? []).map((p) => p.displayName).filter(Boolean),
     scoreEvents: m.scoreEvents ?? [],
+    gameState: m.gameState ?? null,
   };
 }
 
@@ -84,6 +89,7 @@ function mapReclubToLiveMatch(m: ReclubMatchView) {
     playNumber: m.playNumber ?? null,
     durationSeconds: m.durationSeconds,
     bracketMatchId: m.bracketMatchId ?? null,
+    gameState: m.gameState ?? null,
   };
 }
 
@@ -124,6 +130,7 @@ function mapBracketToLiveMatch(m: BracketMatchView) {
     endedAt: null,
     bracketMatchId: m.id,
     scoreEvents: m.scoreEvents ?? [],
+    gameState: m.gameState ?? null,
   };
 }
 
@@ -397,6 +404,19 @@ export async function buildTournamentLivePayload(
       generated: bracketMatches.length > 0,
     },
     matches: matchesPayload,
+    scoring: (() => {
+      const matchScoreMode = getTournamentMatchScoreMode(tournament);
+      if (matchScoreMode !== "games") {
+        return { matchScoreMode };
+      }
+      const rules = getTournamentGameRules(tournament);
+      return {
+        matchScoreMode,
+        raceToGames: rules.raceToGames,
+        pointsToWinGame: rules.pointsToWinGame,
+        pointStyle: rules.pointStyle,
+      };
+    })(),
     matchHistory:
       includeGroupStage && !includeLobbyRounds
         ? [...groupHistory, ...bracketHistory].sort((a, b) => {

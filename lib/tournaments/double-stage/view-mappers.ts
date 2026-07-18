@@ -1,6 +1,7 @@
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
+import { reconcileMatchGamesScores } from "@/lib/tournaments/scoring/game-mode";
 
 export type StartableGroupFixture = GroupMatchView & {
   groupName: string;
@@ -52,6 +53,11 @@ export function groupMatchToReclubView(
   match: GroupMatchView,
   groupName?: string,
 ): ReclubMatchView {
+  const reconciled = reconcileMatchGamesScores(
+    match.scoreA,
+    match.scoreB,
+    match.gameState,
+  );
   return {
     id: match.id,
     roundNumber: 1,
@@ -59,8 +65,8 @@ export function groupMatchToReclubView(
     teamBId: match.teamBId,
     teamAName: match.teamAName,
     teamBName: match.teamBName,
-    scoreA: match.scoreA ?? 0,
-    scoreB: match.scoreB ?? 0,
+    scoreA: reconciled.scoreA,
+    scoreB: reconciled.scoreB,
     durationSeconds: null,
     summary: groupName
       ? `${groupName} · ${match.teamAName} vs ${match.teamBName}`

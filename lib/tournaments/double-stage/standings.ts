@@ -197,6 +197,13 @@ export function computeGroupStandings(
   matches: CompletedGroupMatch[],
   config: StandingsScoringConfig,
   teamsAdvance: number,
+  options?: {
+    /**
+     * When false, keep all rows pending even if this group's fixtures are done
+     * (e.g. other groups still playing — tournament-wide gate).
+     */
+    lockQualification?: boolean;
+  },
 ): TeamStandingRow[] {
   const map = new Map<string, Omit<TeamStandingRow, "rank" | "qualificationStatus">>();
   for (const t of teams) {
@@ -206,12 +213,15 @@ export function computeGroupStandings(
     applyMatchResult(map, m, config);
   }
   const ranked = sortStandings([...map.values()], matches, config);
-  // Only lock Qualified/Eliminated once every fixture in the group is completed.
-  // Ranking before that is provisional — badges stay pending.
-  const stageComplete = allGroupMatchesCompleted(matches);
+  const groupFixturesDone = allGroupMatchesCompleted(matches);
+  const anyMatchPlayed = ranked.some((r) => r.played > 0);
+  // Never show Qualified/Eliminated before real play, or before fixtures finish.
+  const lockQualification =
+    (options?.lockQualification ?? true) && groupFixturesDone && anyMatchPlayed;
+
   return ranked.map((row) => ({
     ...row,
-    qualificationStatus: !stageComplete
+    qualificationStatus: !lockQualification
       ? ("pending" as const)
       : row.rank <= teamsAdvance
         ? ("qualified" as const)

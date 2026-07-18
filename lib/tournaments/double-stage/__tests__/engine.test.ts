@@ -97,6 +97,21 @@ describe("computeGroupStandings", () => {
     const standings = computeGroupStandings(teams, matches, DEFAULT_STANDINGS_SCORING, 2);
     expect(standings.every((s) => s.qualificationStatus === "pending")).toBe(true);
   });
+
+  it("keeps qualification pending when tournament-wide lockQualification is false", () => {
+    const matches = [
+      { teamAId: "a", teamBId: "b", scoreA: 2, scoreB: 0, status: "completed" },
+      { teamAId: "a", teamBId: "c", scoreA: 2, scoreB: 1, status: "completed" },
+      { teamAId: "a", teamBId: "d", scoreA: 2, scoreB: 0, status: "completed" },
+      { teamAId: "b", teamBId: "c", scoreA: 2, scoreB: 0, status: "completed" },
+      { teamAId: "b", teamBId: "d", scoreA: 2, scoreB: 1, status: "completed" },
+      { teamAId: "c", teamBId: "d", scoreA: 2, scoreB: 0, status: "completed" },
+    ];
+    const standings = computeGroupStandings(teams, matches, DEFAULT_STANDINGS_SCORING, 2, {
+      lockQualification: false,
+    });
+    expect(standings.every((s) => s.qualificationStatus === "pending")).toBe(true);
+  });
 });
 
 describe("seeding and play-in", () => {

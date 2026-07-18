@@ -26,6 +26,13 @@ export async function assignTeamToBracketSlot(
     });
   }
 
+  if (tournament.format === "double_stage") {
+    throw new AppError(
+      "Knockout seeding for double-stage is fixed from group results. Reset the bracket to return to the group stage.",
+      { code: "FORBIDDEN", statusCode: 403 },
+    );
+  }
+
   if (isFunMatchType(tournament.tournamentType)) {
     assertReclubSessionPlayable(tournament);
   }

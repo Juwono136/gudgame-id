@@ -8,7 +8,10 @@ import {
   GameRaceScoreboard,
 } from "@/components/tournaments/game-race-scoreboard";
 import { Button } from "@/components/ui/button";
-import { emptyMatchGameState } from "@/lib/tournaments/scoring/game-mode";
+import {
+  emptyMatchGameState,
+  type MatchGameRules,
+} from "@/lib/tournaments/scoring/game-mode";
 import {
   Select,
   SelectContent,
@@ -71,15 +74,15 @@ type FunMatchRoundMatchCardProps = {
   pointsPerMatch?: number;
   scoringRules?: ScoringRules;
   /** When set, live scoring uses race-to-N games UI instead of flat points. */
-  gameRules?: import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
+  gameRules?: MatchGameRules | null;
   onScoreChange?: (input: {
     scoreA: number;
     scoreB: number;
-    action?: "increment" | "decrement" | "set";
+    action?: "increment" | "decrement" | "set" | "next_game";
     side?: "a" | "b";
     scorerName?: string;
     scorerUserId?: string;
-  }) => void;
+  }) => void | Promise<unknown>;
   onComplete?: () => void;
   onEditCourtName?: () => void;
   readOnly?: boolean;
@@ -246,20 +249,26 @@ export function FunMatchRoundMatchCard({
 
   const serverScoreA = match?.scoreA ?? 0;
   const serverScoreB = match?.scoreB ?? 0;
+  const serverGameState = match?.gameState ?? emptyMatchGameState();
   const [localScores, setLocalScores] = useState<{ a: number; b: number } | null>(null);
+  const [gamesWritePending, setGamesWritePending] = useState(false);
   const scoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef(false);
   const localScoresRef = useRef(localScores);
   localScoresRef.current = localScores;
+  /** Serializes games-mode +/- so each click waits for the previous server write. */
+  const gamesWriteChainRef = useRef(Promise.resolve());
+  const gamesWriteDepthRef = useRef(0);
 
   useEffect(() => {
     // Reset when switching matches or leaving live state.
     if (!isLive) {
       dirtyRef.current = false;
       setLocalScores(null);
+      setGamesWritePending(false);
+      gamesWriteDepthRef.current = 0;
       return;
     }
-    // Never clobber in-flight local edits with a stale server snapshot from another court.
     if (dirtyRef.current) {
       const pending = localScoresRef.current;
       if (pending != null && pending.a === serverScoreA && pending.b === serverScoreB) {
@@ -280,24 +289,41 @@ export function FunMatchRoundMatchCard({
 
   const scoreA = localScores?.a ?? serverScoreA;
   const scoreB = localScores?.b ?? serverScoreB;
+  // Games mode: always trust server/cache — never a divergent optimistic layer.
+  const displayGamesA = serverScoreA;
+  const displayGamesB = serverScoreB;
+  const activeGameState = serverGameState;
 
   const adjustScore = useCallback(
     (side: "a" | "b", delta: 1 | -1, scorerName?: string) => {
       if (!onScoreChange || readOnly || !isLive) return;
-      // Games mode: server owns game-point progression — send side delta, not absolute set.
+
+      // Games mode: queue server deltas strictly in order (no optimistic desync).
       if (gameRules) {
-        if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
-        scoreSyncRef.current = setTimeout(() => {
-          onScoreChange({
-            scoreA: serverScoreA,
-            scoreB: serverScoreB,
-            action: delta > 0 ? "increment" : "decrement",
-            side,
-            scorerName: delta > 0 ? scorerName : undefined,
-          });
-        }, 80);
+        const run = async () => {
+          gamesWriteDepthRef.current += 1;
+          setGamesWritePending(true);
+          try {
+            await onScoreChange({
+              // Absolute scores are ignored for increment/decrement on the server;
+              // side + action drive applyGamePointDelta against the latest DB row.
+              scoreA: 0,
+              scoreB: 0,
+              action: delta > 0 ? "increment" : "decrement",
+              side,
+              scorerName: delta > 0 ? scorerName : undefined,
+            });
+          } catch {
+            // Mutation hook already toasts; keep the queue moving.
+          } finally {
+            gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+            if (gamesWriteDepthRef.current === 0) setGamesWritePending(false);
+          }
+        };
+        gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
         return;
       }
+
       setLocalScores((prev) => {
         const baseA = prev?.a ?? serverScoreA;
         const baseB = prev?.b ?? serverScoreB;
@@ -306,7 +332,7 @@ export function FunMatchRoundMatchCard({
         dirtyRef.current = true;
         if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
         scoreSyncRef.current = setTimeout(() => {
-          onScoreChange({
+          void onScoreChange({
             scoreA: nextA,
             scoreB: nextB,
             action: "set",
@@ -319,6 +345,27 @@ export function FunMatchRoundMatchCard({
     },
     [gameRules, isLive, onScoreChange, readOnly, serverScoreA, serverScoreB],
   );
+
+  const startNextGame = useCallback(() => {
+    if (!onScoreChange || readOnly || !isLive || !gameRules) return;
+    const run = async () => {
+      gamesWriteDepthRef.current += 1;
+      setGamesWritePending(true);
+      try {
+        await onScoreChange({
+          scoreA: 0,
+          scoreB: 0,
+          action: "next_game",
+        });
+      } catch {
+        // Mutation hook already toasts.
+      } finally {
+        gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+        if (gamesWriteDepthRef.current === 0) setGamesWritePending(false);
+      }
+    };
+    gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+  }, [gameRules, isLive, onScoreChange, readOnly]);
 
   const teamA = teams.find((t) => t.id === teamAId);
   const teamB = teams.find((t) => t.id === teamBId);
@@ -401,20 +448,24 @@ export function FunMatchRoundMatchCard({
     Boolean(teamAId && teamBId && teamAId !== teamBId);
 
   const scoreReadOnly = readOnly || !isLive;
-  const activeGameState = match?.gameState ?? emptyMatchGameState();
+  const gamesLiveBoard = Boolean(gameRules && isLive && !readOnly);
 
   const scoreBoxes = gameRules ? (
-    isLive && !readOnly ? (
+    gamesLiveBoard ? (
       <GameRaceScoreboard
         teamAName={leftTeamName ?? "Team A"}
         teamBName={rightTeamName ?? "Team B"}
-        gamesA={serverScoreA}
-        gamesB={serverScoreB}
+        teamAPlayers={leftPlayerNames}
+        teamBPlayers={rightPlayerNames}
+        gamesA={displayGamesA}
+        gamesB={displayGamesB}
         gameState={activeGameState}
         rules={gameRules}
         disabled={!canManage}
+        syncing={gamesWritePending}
         onPointA={(delta) => adjustScore("a", delta, leftSingleScorer)}
         onPointB={(delta) => adjustScore("b", delta, rightSingleScorer)}
+        onNextGame={startNextGame}
       />
     ) : (
       <GameRaceScoreBadge
@@ -422,7 +473,6 @@ export function FunMatchRoundMatchCard({
         gamesB={scoreB}
         currentPointsA={isLive ? activeGameState.currentPointsA : undefined}
         currentPointsB={isLive ? activeGameState.currentPointsB : undefined}
-        pointStyle={gameRules.pointStyle}
         showRally={isLive}
       />
     )
@@ -493,7 +543,7 @@ export function FunMatchRoundMatchCard({
   return (
     <article
       className={cn(
-        "rounded-xl border bg-cp-elevated/20 p-3 transition-colors sm:p-4",
+        "min-w-0 overflow-hidden rounded-xl border bg-cp-elevated/20 p-3 transition-colors sm:p-4",
         isLive
           ? "border-amber-500/40 ring-1 ring-amber-500/20"
           : isDone
@@ -501,23 +551,50 @@ export function FunMatchRoundMatchCard({
             : "border-cp-border",
       )}
     >
-      {/* Mobile: teams on top, scores below — avoids overlap on narrow screens */}
-      <div className="space-y-3 sm:hidden">
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-          <TeamColumn teamName={leftTeamName} players={leftPlayers} align="left" accentVariant={accentVariant} />
-          <TeamColumn teamName={rightTeamName} players={rightPlayers} align="right" accentVariant={accentVariant} />
-        </div>
-        <div className="flex justify-center border-t border-cp-border/40 pt-3">
-          {scoreBoxes}
-        </div>
-      </div>
+      {gamesLiveBoard ? (
+        /* Games mode: full-width board owns team + player labels (avoids clipped side columns). */
+        <div className="min-w-0">{scoreBoxes}</div>
+      ) : (
+        <>
+          {/* Mobile: teams on top, scores below */}
+          <div className="space-y-3 sm:hidden">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <TeamColumn
+                teamName={leftTeamName}
+                players={leftPlayerNames}
+                align="left"
+                accentVariant={accentVariant}
+              />
+              <TeamColumn
+                teamName={rightTeamName}
+                players={rightPlayerNames}
+                align="right"
+                accentVariant={accentVariant}
+              />
+            </div>
+            <div className="flex justify-center border-t border-cp-border/40 pt-3">
+              {scoreBoxes}
+            </div>
+          </div>
 
-      {/* Tablet/desktop: classic three-column layout */}
-      <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 sm:grid sm:gap-4">
-        <TeamColumn teamName={leftTeamName} players={leftPlayers} align="left" accentVariant={accentVariant} />
-        {scoreBoxes}
-        <TeamColumn teamName={rightTeamName} players={rightPlayers} align="right" accentVariant={accentVariant} />
-      </div>
+          {/* Tablet/desktop: classic three-column layout */}
+          <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 sm:grid sm:gap-4">
+            <TeamColumn
+              teamName={leftTeamName}
+              players={leftPlayerNames}
+              align="left"
+              accentVariant={accentVariant}
+            />
+            {scoreBoxes}
+            <TeamColumn
+              teamName={rightTeamName}
+              players={rightPlayerNames}
+              align="right"
+              accentVariant={accentVariant}
+            />
+          </div>
+        </>
+      )}
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-cp-border/60 pt-2.5">
         <div className="flex items-center gap-1.5 text-xs text-cp-muted">
@@ -536,7 +613,7 @@ export function FunMatchRoundMatchCard({
 
         <div className="flex flex-wrap items-center gap-2">
           {isLive ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
               <Radio className="h-3 w-3" />
               Live
             </span>

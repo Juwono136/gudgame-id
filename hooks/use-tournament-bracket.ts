@@ -12,6 +12,22 @@ import type {
 } from "@/lib/tournaments/settings";
 import { tournamentQueryKeys, invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 
+/** Serialize live bracket score updates per match (multi-court safe). */
+const bracketScoreQueues = new Map<string, Promise<unknown>>();
+
+function enqueueBracketScoreUpdate<T>(matchId: string, task: () => Promise<T>): Promise<T> {
+  const prev = bracketScoreQueues.get(matchId) ?? Promise.resolve();
+  const next = prev.then(task, task);
+  bracketScoreQueues.set(
+    matchId,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
+}
+
 type UseTournamentBracketOptions = {
   enabled?: boolean;
 };
@@ -62,34 +78,35 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
       matchId: string;
       scoreA: number;
       scoreB: number;
-      action?: "set" | "increment" | "decrement";
+      action?: "set" | "increment" | "decrement" | "next_game";
       side?: "a" | "b";
       scorerName?: string;
       scorerUserId?: string;
-    }) => {
-      const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/live`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId: input.matchId,
-          scoreA: input.scoreA,
-          scoreB: input.scoreB,
-          action: input.action,
-          side: input.side,
-          scorerName: input.scorerName,
-          scorerUserId: input.scorerUserId,
-        }),
-      });
-      const json = await parseJsonResponse<{
-        success: boolean;
-        data: { match: BracketMatchView };
-        error?: unknown;
-      }>(res);
-      if (!res.ok) {
-        throw new Error(extractApiErrorMessage(json, "Could not update live score"));
-      }
-      return json.data.match;
-    },
+    }) =>
+      enqueueBracketScoreUpdate(input.matchId, async () => {
+        const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/live`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchId: input.matchId,
+            scoreA: input.scoreA,
+            scoreB: input.scoreB,
+            action: input.action,
+            side: input.side,
+            scorerName: input.scorerName,
+            scorerUserId: input.scorerUserId,
+          }),
+        });
+        const json = await parseJsonResponse<{
+          success: boolean;
+          data: { match: BracketMatchView };
+          error?: unknown;
+        }>(res);
+        if (!res.ok) {
+          throw new Error(extractApiErrorMessage(json, "Could not update live score"));
+        }
+        return json.data.match;
+      }),
     onSuccess: (match) => {
       qc.setQueryData(
         tournamentQueryKeys.bracket(sportSlug, slug),
@@ -115,7 +132,12 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
       );
       void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      void qc.invalidateQueries({
+        queryKey: ["tournaments", "manage-scoring", sportSlug, slug],
+      });
+    },
   });
 }
 
@@ -263,7 +285,7 @@ export function useResetBracket(sportSlug: string, slug: string) {
     },
     onSuccess: () => {
       invalidateTournamentQueries(qc, sportSlug, slug);
-      toast.success("Bracket reset — you can generate again");
+      toast.success("Bracket reset");
     },
     onError: (e: Error) => toast.error(e.message),
   });

@@ -38,14 +38,14 @@ type FunMatchLiveHubProps = {
     input: {
       scoreA: number;
       scoreB: number;
-      action?: "increment" | "decrement" | "set";
+      action?: "increment" | "decrement" | "set" | "next_game";
       side?: "a" | "b";
       scorerName?: string;
       scorerUserId?: string;
       isBracket?: boolean;
       isGroup?: boolean;
     },
-  ) => void;
+  ) => void | Promise<unknown>;
   onCompleteMatch?: (match: ReclubMatchView) => void;
   onEditCourtName?: (courtId: string, currentName: string) => void;
   canManage?: boolean;

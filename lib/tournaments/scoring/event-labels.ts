@@ -40,6 +40,9 @@ export function describeScoreEvent(
   event: MatchScoreEvent,
   context?: PointLogMatchContext,
 ): string {
+  if (event.action === "next_game") {
+    return `Next game · points reset → ${event.scoreA}:${event.scoreB}`;
+  }
   if (event.action === "increment" && event.side) {
     return `+1 · ${resolveScoreEventScorerLabel(event, context)} → ${event.scoreA}:${event.scoreB}`;
   }

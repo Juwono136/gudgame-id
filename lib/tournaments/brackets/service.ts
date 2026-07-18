@@ -21,6 +21,8 @@ import {
 import {
   applyGamePointDelta,
   emptyMatchGameState,
+  reconcileMatchGamesScores,
+  startNextGameAfterWin,
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
 import {
@@ -71,6 +73,8 @@ async function mapBracketRowToView(
   playersByTeam: Map<string, string[]>,
 ): Promise<BracketMatchView> {
   const meta = parseBracketMatchMetadata(row.metadata);
+  const gameState = meta.gameState ?? null;
+  const reconciled = reconcileMatchGamesScores(row.scoreA, row.scoreB, gameState);
   return {
     id: row.id,
     roundNumber: row.roundNumber,
@@ -81,8 +85,8 @@ async function mapBracketRowToView(
     teamBName: row.teamBName,
     teamAPlayers: row.teamAId ? (playersByTeam.get(row.teamAId) ?? []) : [],
     teamBPlayers: row.teamBId ? (playersByTeam.get(row.teamBId) ?? []) : [],
-    scoreA: row.scoreA,
-    scoreB: row.scoreB,
+    scoreA: reconciled.scoreA,
+    scoreB: reconciled.scoreB,
     winnerTeamId: row.winnerTeamId,
     status: row.status,
     nextMatchId: row.nextMatchId,
@@ -91,7 +95,7 @@ async function mapBracketRowToView(
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
     scoreEvents: meta.scoreEvents ?? [],
-    gameState: meta.gameState ?? null,
+    gameState,
   };
 }
 
@@ -371,65 +375,106 @@ export async function updateBracketLiveScore(
   }
 
   const rules = buildScoringRules(tournament);
-  let scoreA = Math.max(0, match.scoreA ?? 0);
-  let scoreB = Math.max(0, match.scoreB ?? 0);
+  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
   const prevMeta = parseBracketMatchMetadata(match.metadata);
   let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
-  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
+  const reconciled = reconcileMatchGamesScores(match.scoreA, match.scoreB, nextGameState);
+  let scoreA = reconciled.scoreA;
+  let scoreB = reconciled.scoreB;
+  let eventScoreA = scoreA;
+  let eventScoreB = scoreB;
 
-  if (useGamesMode && input.action && input.side) {
-    const gameRules = getTournamentGameRules(tournament);
+  if (input.action === "next_game") {
+    if (!useGamesMode) {
+      throw new AppError("next_game is only valid for race-to-N games scoring", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    const started = startNextGameAfterWin(nextGameState);
+    if (!started) {
+      throw new AppError("No completed game is waiting to advance", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    nextGameState = started;
+    eventScoreA = 0;
+    eventScoreB = 0;
+  } else if (input.action === "increment" || input.action === "decrement") {
+    if (!input.side) {
+      throw new AppError("Missing scoring side for live point update", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
     const delta = input.action === "decrement" ? (-1 as const) : (1 as const);
-    const applied = applyGamePointDelta(
-      scoreA,
-      scoreB,
-      nextGameState,
-      input.side,
-      delta,
-      gameRules,
-    );
-    if (!applied) {
-      throw new AppError(
-        delta > 0
-          ? "Cannot award point — game or match may already be complete"
-          : "Cannot undo — no points in the current game",
-        { code: "VALIDATION_ERROR", statusCode: 422 },
+    if (useGamesMode) {
+      const gameRules = getTournamentGameRules(tournament);
+      const applied = applyGamePointDelta(
+        scoreA,
+        scoreB,
+        nextGameState,
+        input.side,
+        delta,
+        gameRules,
       );
+      if (!applied) {
+        throw new AppError(
+          delta > 0
+            ? nextGameState.pendingGameWinner
+              ? "Game finished — tap “Next game” to continue, or undo the last point"
+              : "Cannot award point — game or match may already be complete"
+            : "Cannot undo — no points in the current game",
+          { code: "VALIDATION_ERROR", statusCode: 422 },
+        );
+      }
+      scoreA = applied.gamesA;
+      scoreB = applied.gamesB;
+      nextGameState = applied.gameState;
+      const synced = reconcileMatchGamesScores(scoreA, scoreB, nextGameState);
+      scoreA = synced.scoreA;
+      scoreB = synced.scoreB;
+      eventScoreA = nextGameState.currentPointsA;
+      eventScoreB = nextGameState.currentPointsB;
+    } else {
+      const next = engineApplyDelta(scoreA, scoreB, input.side, delta, rules);
+      if (!next) {
+        throw new AppError(
+          delta > 0
+            ? "Cannot increase score — match may be complete or at cap"
+            : "Score cannot go below zero",
+          { code: "VALIDATION_ERROR", statusCode: 422 },
+        );
+      }
+      scoreA = next.scoreA;
+      scoreB = next.scoreB;
+      eventScoreA = scoreA;
+      eventScoreB = scoreB;
     }
-    scoreA = applied.gamesA;
-    scoreB = applied.gamesB;
-    nextGameState = applied.gameState;
-  } else if (input.action === "increment" && input.side) {
-    const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
-    if (!next) {
-      throw new AppError("Cannot increase score — match may be complete or at cap", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
-    }
-    scoreA = next.scoreA;
-    scoreB = next.scoreB;
-  } else if (input.action === "decrement" && input.side) {
-    const next = engineApplyDelta(scoreA, scoreB, input.side, -1, rules);
-    if (!next) {
-      throw new AppError("Score cannot go below zero", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
-    }
-    scoreA = next.scoreA;
-    scoreB = next.scoreB;
-  } else {
+  } else if (input.action === "set") {
     scoreA = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreA));
     scoreB = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreB));
     if (useGamesMode) {
-      nextGameState = emptyMatchGameState();
+      nextGameState = {
+        currentPointsA: 0,
+        currentPointsB: 0,
+        completedGames: nextGameState.completedGames,
+        pendingGameWinner: null,
+      };
     }
+    eventScoreA = useGamesMode ? 0 : scoreA;
+    eventScoreB = useGamesMode ? 0 : scoreB;
+  } else {
+    throw new AppError("action is required (increment, decrement, set, or next_game)", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
   }
 
-  const event = buildMatchScoreEvent(userId, userName, scoreA, scoreB, {
-    action: input.action ?? "set",
-    side: input.side,
+  const event = buildMatchScoreEvent(userId, userName, eventScoreA, eventScoreB, {
+    action: input.action,
+    side: input.action === "next_game" ? undefined : input.side,
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });

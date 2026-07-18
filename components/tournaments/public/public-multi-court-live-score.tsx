@@ -55,9 +55,11 @@ function filterLivePayloadByMode(
 function PublicGroupStageLiveCourts({
   activeMatches,
   courts,
+  gameRules,
 }: {
   activeMatches: ReclubMatchView[];
   courts: NonNullable<TournamentLivePayload["courts"]>;
+  gameRules: ReturnType<typeof getTournamentGameRules> | null;
 }) {
   return (
     <section className="rounded-2xl border border-cp-primary/25 bg-cp-card p-4 sm:p-6">
@@ -66,29 +68,57 @@ function PublicGroupStageLiveCourts({
         {activeMatches.length} court{activeMatches.length === 1 ? "" : "s"} live
       </p>
       <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-        {activeMatches.map((match) => (
-          <li
-            key={match.id}
-            className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-4"
-          >
-            <p className="text-xs text-cp-muted">
-              {resolveCourtLabel(match.courtId, courts)}
-            </p>
-            <p className="mt-1 font-semibold text-foreground">
-              {match.teamAName ?? "TBD"} vs {match.teamBName ?? "TBD"}
-            </p>
-            {match.teamAPlayers?.length || match.teamBPlayers?.length ? (
-              <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
-                {[formatPlayerNameList(match.teamAPlayers), formatPlayerNameList(match.teamBPlayers)]
-                  .filter(Boolean)
-                  .join(" vs ")}
+        {activeMatches.map((match) => {
+          const pointsA = match.gameState?.currentPointsA ?? 0;
+          const pointsB = match.gameState?.currentPointsB ?? 0;
+          return (
+            <li
+              key={match.id}
+              className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-4"
+            >
+              <p className="text-xs text-cp-muted">
+                {resolveCourtLabel(match.courtId, courts)}
               </p>
-            ) : null}
-            <p className="mt-3 text-center text-3xl font-bold tabular-nums text-foreground">
-              {match.scoreA ?? 0} : {match.scoreB ?? 0}
-            </p>
-          </li>
-        ))}
+              <p className="mt-1 font-semibold text-foreground">
+                {match.teamAName ?? "TBD"} vs {match.teamBName ?? "TBD"}
+              </p>
+              {match.teamAPlayers?.length || match.teamBPlayers?.length ? (
+                <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
+                  {[formatPlayerNameList(match.teamAPlayers), formatPlayerNameList(match.teamBPlayers)]
+                    .filter(Boolean)
+                    .join(" vs ")}
+                </p>
+              ) : null}
+              {gameRules ? (
+                <div className="mt-3 space-y-2 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                    Games · Race to {gameRules.raceToGames}
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-foreground">
+                    {match.scoreA ?? 0}
+                    <span className="mx-1.5 font-normal text-cp-muted">–</span>
+                    {match.scoreB ?? 0}
+                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-primary">
+                    Points this game
+                  </p>
+                  <p className="text-3xl font-bold tabular-nums text-foreground">
+                    {pointsA}
+                    <span className="mx-2 font-light text-cp-muted">:</span>
+                    {pointsB}
+                  </p>
+                  <p className="text-[11px] text-cp-muted">
+                    First to {gameRules.pointsToWinGame} · +1 per point
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-center text-3xl font-bold tabular-nums text-foreground">
+                  {match.scoreA ?? 0} : {match.scoreB ?? 0}
+                </p>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -158,7 +188,11 @@ export function PublicMultiCourtLiveScore({
       return null;
     }
     return (
-      <PublicGroupStageLiveCourts activeMatches={activeMatches} courts={courts} />
+      <PublicGroupStageLiveCourts
+        activeMatches={activeMatches}
+        courts={courts}
+        gameRules={gameRules}
+      />
     );
   }
 

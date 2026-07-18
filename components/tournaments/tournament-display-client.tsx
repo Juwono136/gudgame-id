@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Maximize2, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
+import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboardDisplay } from "@/components/tournaments/live-scoreboard";
 import {
   MultiCourtDisplayCard,
@@ -17,7 +18,9 @@ import { publicSportRoutes } from "@/lib/constants/routes";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
 import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
+import type { MatchGameState } from "@/lib/tournaments/scoring/game-mode";
 import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
+import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 
 type TournamentDisplayClientProps = {
   sportSlug: string;
@@ -38,7 +41,30 @@ type LiveMatchView = {
   scoreB?: number | null;
   status?: string;
   courtId?: string | null;
+  gameState?: MatchGameState | null;
 };
+
+function resolveGamesDisplayMode(
+  scoring: TournamentLivePayload["scoring"] | undefined,
+  match: LiveMatchView | null | undefined,
+):
+  | {
+      pointsA: number;
+      pointsB: number;
+      raceToGames: number;
+      pointsToWinGame: number;
+    }
+  | undefined {
+  if (!scoring || scoring.matchScoreMode !== "games" || !scoring.raceToGames) {
+    return undefined;
+  }
+  return {
+    pointsA: match?.gameState?.currentPointsA ?? 0,
+    pointsB: match?.gameState?.currentPointsB ?? 0,
+    raceToGames: scoring.raceToGames,
+    pointsToWinGame: scoring.pointsToWinGame ?? 40,
+  };
+}
 
 const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
   "multi_court",
@@ -317,6 +343,7 @@ export function TournamentDisplayClient({
                 {courtList.map((court) => {
                   const m = matchByCourtId.get(court.id);
                   if (m?.teamAName && m.teamBName) {
+                    const gamesMode = resolveGamesDisplayMode(data.scoring, m);
                     return (
                       <MultiCourtDisplayCard
                         key={court.id}
@@ -327,6 +354,7 @@ export function TournamentDisplayClient({
                         teamBPlayers={m.teamBPlayers}
                         scoreA={m.scoreA ?? 0}
                         scoreB={m.scoreB ?? 0}
+                        gamesMode={gamesMode}
                         subtitle={buildSubtitle(data.tournament.name, m, isOfficial, court.name)}
                       />
                     );
@@ -356,6 +384,7 @@ export function TournamentDisplayClient({
                     (m.type === "bracket"
                       ? `Bracket · R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` M${m.matchNumber}` : ""}`
                       : "Court");
+                  const gamesMode = resolveGamesDisplayMode(data.scoring, m);
                   return (
                     <MultiCourtDisplayCard
                       key={m.id}
@@ -366,6 +395,7 @@ export function TournamentDisplayClient({
                       teamBPlayers={m.teamBPlayers}
                       scoreA={m.scoreA ?? 0}
                       scoreB={m.scoreB ?? 0}
+                      gamesMode={gamesMode}
                       subtitle={buildSubtitle(data.tournament.name, m, isOfficial, courtLabel)}
                     />
                   );
@@ -541,14 +571,35 @@ export function TournamentDisplayClient({
             Court {featuredIndex % activeMatches.length + 1} of {activeMatches.length}
           </p>
         ) : null}
-        <LiveScoreboardDisplay
-          teamAName={featuredMatch.teamAName}
-          teamBName={featuredMatch.teamBName}
-          scoreA={featuredMatch.scoreA ?? 0}
-          scoreB={featuredMatch.scoreB ?? 0}
-          subtitle={subtitle}
-          className="bg-transparent"
-        />
+        {(() => {
+          const gamesMode = resolveGamesDisplayMode(data.scoring, featuredMatch);
+          if (gamesMode) {
+            return (
+              <LiveGameRaceDisplay
+                teamAName={featuredMatch.teamAName}
+                teamBName={featuredMatch.teamBName}
+                gamesA={featuredMatch.scoreA ?? 0}
+                gamesB={featuredMatch.scoreB ?? 0}
+                pointsA={gamesMode.pointsA}
+                pointsB={gamesMode.pointsB}
+                raceToGames={gamesMode.raceToGames}
+                pointsToWinGame={gamesMode.pointsToWinGame}
+                subtitle={subtitle}
+                className="bg-transparent"
+              />
+            );
+          }
+          return (
+            <LiveScoreboardDisplay
+              teamAName={featuredMatch.teamAName}
+              teamBName={featuredMatch.teamBName}
+              scoreA={featuredMatch.scoreA ?? 0}
+              scoreB={featuredMatch.scoreB ?? 0}
+              subtitle={subtitle}
+              className="bg-transparent"
+            />
+          );
+        })()}
         {displayControls}
       </div>
     </DisplayVenueShell>

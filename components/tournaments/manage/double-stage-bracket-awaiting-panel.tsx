@@ -80,10 +80,10 @@ export function DoubleStageBracketAwaitingPanel({
             <div className="rounded-xl border border-emerald-600/25 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-900 dark:text-emerald-100">
               <p className="font-medium">All group matches are complete.</p>
               <p className="mt-1 text-emerald-800/90 dark:text-emerald-100/90">
-                Open the Groups tab and click{" "}
-                <span className="font-semibold">Generate knockout bracket</span> to build the
-                elimination draw. After that, return here to review seeding and score knockout
-                rounds.
+                The knockout bracket generates automatically from qualified teams only. If it has not
+                appeared yet, open Groups and use{" "}
+                <span className="font-semibold">Generate knockout bracket</span> as a retry. After
+                that, return here to review the draw and score elimination rounds.
               </p>
               <Button type="button" className="mt-4" onClick={onOpenGroups}>
                 <LayoutGrid className="mr-2 h-4 w-4" />
@@ -96,8 +96,8 @@ export function DoubleStageBracketAwaitingPanel({
               <p className="font-medium text-foreground">Bracket not available yet</p>
               <p className="mt-1">
                 Finish scoring all group fixtures in{" "}
-                <span className="font-medium text-foreground">Live scoring</span>. The bracket tab
-                will unlock setup once you generate the knockout draw from Groups.
+                <span className="font-medium text-foreground">Live scoring</span>. The knockout draw
+                is created automatically when the group stage ends — only qualified teams enter.
               </p>
               {isFetching ? (
                 <p className="mt-3 inline-flex items-center gap-2 text-xs">

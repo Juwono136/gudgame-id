@@ -841,16 +841,22 @@ export function FunMatchScoringWorkspace({
       input: {
         scoreA: number;
         scoreB: number;
-        action?: "increment" | "decrement" | "set";
+        action?: "increment" | "decrement" | "set" | "next_game";
         side?: "a" | "b";
         scorerName?: string;
         scorerUserId?: string;
         isBracket?: boolean;
         isGroup?: boolean;
       },
-    ) => {
-      if (input.isGroup) {
-        updateGroupScore.mutate({
+    ): Promise<unknown> => {
+      const useGroup =
+        input.isGroup === true || (isGroupStageMode && input.isBracket !== true);
+      const useBracket =
+        !useGroup &&
+        (input.isBracket === true || (isBracketMode && input.isGroup !== true));
+
+      if (useGroup) {
+        return updateGroupScore.mutateAsync({
           matchId,
           scoreA: input.scoreA,
           scoreB: input.scoreB,
@@ -859,10 +865,9 @@ export function FunMatchScoringWorkspace({
           scorerName: input.scorerName,
           scorerUserId: input.scorerUserId,
         });
-        return;
       }
-      if (input.isBracket) {
-        updateBracketScore.mutate({
+      if (useBracket) {
+        return updateBracketScore.mutateAsync({
           matchId,
           scoreA: input.scoreA,
           scoreB: input.scoreB,
@@ -871,9 +876,8 @@ export function FunMatchScoringWorkspace({
           scorerName: input.scorerName,
           scorerUserId: input.scorerUserId,
         });
-        return;
       }
-      updateScore.mutate({
+      return updateScore.mutateAsync({
         matchId,
         scoreA: input.scoreA,
         scoreB: input.scoreB,
@@ -883,7 +887,7 @@ export function FunMatchScoringWorkspace({
         scorerUserId: input.scorerUserId,
       });
     },
-    [updateBracketScore, updateGroupScore, updateScore],
+    [isBracketMode, isGroupStageMode, updateBracketScore, updateGroupScore, updateScore],
   );
 
   const handleComplete = useCallback(

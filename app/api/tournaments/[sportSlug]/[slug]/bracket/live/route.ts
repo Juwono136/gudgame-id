@@ -19,7 +19,7 @@ const bodySchema = z.object({
   matchId: z.string().uuid(),
   scoreA: z.coerce.number().int().min(0).max(99),
   scoreB: z.coerce.number().int().min(0).max(99),
-  action: z.enum(["set", "increment", "decrement"]).optional(),
+  action: z.enum(["set", "increment", "decrement", "next_game"]).optional(),
   side: z.enum(["a", "b"]).optional(),
   scorerName: z.string().trim().min(1).max(120).optional(),
   scorerUserId: z.string().uuid().optional(),

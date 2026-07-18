@@ -104,14 +104,17 @@ Ketersediaan format bergantung pada jenis turnamen dan (sebagian) sport defaults
 - Fixture round-robin digenerate saat turnamen live + tim cukup.
 - Skor live di court; finalize menulis hasil ke history & standings.
 - Draw hanya jika `allowDraw` aktif; jika tidak, skor imbang ditolak saat finalize.
-- Qualifikasi (Qualified / Eliminated) baru bermakna setelah semua fixture grup selesai.
-- Setelah semua match group selesai → host dapat **advance** ke knockout (bracket di-seed dari standings).
+- Qualifikasi (Qualified / Eliminated) baru bermakna setelah **semua** fixture grup di seluruh turnamen selesai (bukan per-grup di tengah jalan), dan hanya jika sudah ada hasil yang benar-benar dimainkan. Badge tidak muncul sebelum turnamen / group stage dimulai.
+- Setelah semua match group selesai → knockout bracket **di-generate otomatis** dari tim yang lolos saja (tombol Generate di Groups tetap ada sebagai retry). Generic “generate bracket” untuk semua tim **dilarang** pada format double stage.
+- **Match schedule**: host mengatur kickoff (`scheduledAt`) di manage → Groups (FIFA-style schedule board). Jadwal yang sama tampil di halaman publik tab **Matches**.
+- Reset bracket knockout: menghapus pohon bracket, mengembalikan `phase` ke `group`, membersihkan seed knockout — **tidak** membuka lagi semua tim ke elimination; regenerate harus lewat advance/auto dari qualified teams.
 
 **Aturan knockout (setelah advance)**
 
+- Hanya tim **qualified** yang masuk bracket (bukan seluruh field).
 - Pemenang maju; yang kalah tersisih (kecuali bracket 3rd place jika diaktifkan).
 - Live scoring di court / manage scoring mode bracket.
-- Mode skor mengikuti settings turnamen yang sama (points atau race-to-games).
+- Mode skor mengikuti settings turnamen yang sama (points atau race-to-games); skor games sinkron di manage, public Matches, Groups, Live Score, dan History.
 
 ### 2.2 Elimination (`single_elimination`)
 
@@ -276,10 +279,13 @@ Tie-breaker (default): points → wins → scoreDiff → scoreFor → head-to-he
 1. Create (isi Category \*, Format Double Stage \*, billing, venue, dsb.).
 2. Publish / set jadwal; buka registrasi.
 3. Konfirmasi tim; saat **Live**, generate groups + fixtures.
-4. **Live scoring** group di court (multi-court).
-5. Setelah semua group selesai → **Advance to knockout**.
-6. Seed & mainkan bracket; finalize juara.
-7. History, standings, stats pemain tersinkron sesuai aturan sync aplikasi.
+4. (Opsional) Atur **match schedule** / kickoff di manage → Groups; tampil di publik tab Matches.
+5. **Live scoring** group di court (multi-court) — mode Race to N jika diaktifkan.
+6. Setelah semua group selesai → knockout **otomatis** dari tim qualified (retry Generate di Groups jika perlu).
+7. Seed & mainkan bracket; finalize juara.
+8. History, standings, stats pemain tersinkron sesuai aturan sync aplikasi.
+
+**Reset knockout:** hanya sebelum match bracket di-score. Setelah reset, phase kembali ke group; regenerate lagi hanya dari standings (bukan semua tim).
 
 ### 6.2 Official — Elimination
 
@@ -335,7 +341,7 @@ Saat mengubah fitur turnamen, update bagian terkait di file ini:
 | Format baru / rename | §2, §6, tabel ketersediaan |
 | Field form create/edit | §3 atau §4 + §7 |
 | Scoring (race-to, deuce, timed) | §5 |
-| Aturan group / bracket / americano | §2 + §6 |
+| Aturan group / bracket / americano / schedule | §2 + §6 |
 | Validasi Zod / field wajib | §3.4 + §7 |
 | Official vs Fun Match policy | §1 |
 
@@ -348,6 +354,8 @@ Saat mengubah fitur turnamen, update bagian terkait di file ini:
 - Wizard Official: `components/admin/tournaments/tournament-create-wizard.tsx`
 - Wizard Fun Match: `components/tournaments/reclub/reclub-tournament-wizard.tsx`
 - Double Stage service: `lib/tournaments/double-stage/`
+- Match schedule: `lib/tournaments/double-stage/schedule.ts`, `components/tournaments/double-stage/match-schedule-board.tsx`
+- Bracket reset (double stage): `lib/tournaments/brackets/reset.ts`
 
 ---
 

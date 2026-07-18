@@ -410,6 +410,9 @@ export function getTournamentGameRules(tournament: TournamentDetail): MatchGameR
   return {
     ...base,
     raceToGames: getTournamentRaceToGames(tournament),
+    // Sequential 0→40 (+1 per point). Never use tennis 15/30/40 jumps for operators.
+    pointsToWinGame: base.pointsToWinGame,
+    pointStyle: "simple",
     gameDecider: settings.gameDecider ?? base.gameDecider,
   };
 }
