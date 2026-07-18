@@ -46,3 +46,14 @@ export function getProfileHandle(user: {
 
   return { handle: "player", isNickname: false };
 }
+
+/** Up to two initials for avatar fallbacks (e.g. "JA"). */
+export function getUserInitials(name: string | null | undefined): string {
+  const trimmed = name?.trim();
+  if (!trimmed) return "?";
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+  }
+  return trimmed.slice(0, 2).toUpperCase();
+}

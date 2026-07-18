@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { UserCircle } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
 import { Button } from "@/components/ui/button";
+import { getUserInitials } from "@/lib/auth/user-display";
 import type { AppRole } from "@/lib/roles/constants";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ export function DashboardWelcomeCard({
   className,
 }: DashboardWelcomeCardProps) {
   const avatarSrc = resolveUserImageUrl(imageUrl);
+  const initials = getUserInitials(displayName);
 
   return (
     <div
@@ -38,15 +39,14 @@ export function DashboardWelcomeCard({
       )}
     >
       <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16">
+        <Avatar className="h-12 w-12 shrink-0 rounded-xl border border-cp-border sm:h-16 sm:w-16 after:rounded-xl">
           {avatarSrc ? (
-            <Image src={avatarSrc} alt="" fill className="object-cover" unoptimized />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-cp-primary">
-              <UserCircle className="h-7 w-7 sm:h-8 sm:w-8" />
-            </div>
-          )}
-        </div>
+            <AvatarImage src={avatarSrc} alt="" className="rounded-xl" />
+          ) : null}
+          <AvatarFallback className="rounded-xl bg-cp-primary/20 text-sm font-semibold text-cp-primary sm:text-base">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-cp-muted sm:text-base">Welcome back,</p>
           <p className="break-words text-base font-semibold leading-snug text-foreground sm:text-lg md:text-xl">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -13,8 +12,10 @@ import {
   Compass,
 } from "lucide-react";
 import { FadeInView } from "@/components/motion/fade-in";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuthUser, getAuthDisplayFirstName } from "@/hooks/use-auth-user";
+import { getUserInitials } from "@/lib/auth/user-display";
 import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ export default function CTACommunity() {
   const showAuthenticated = hydrated && isAuthenticated && !isAuthLoading;
   const displayName = getAuthDisplayFirstName(user);
   const avatarSrc = resolveUserImageUrl(user?.image);
+  const initials = getUserInitials(user?.name || displayName);
 
   if (showAuthenticated) {
     const hasHostRole = sessionCtx?.roles.includes("host");
@@ -86,15 +88,18 @@ export default function CTACommunity() {
 
             <div className="relative flex flex-col gap-6 p-5 sm:p-8 lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:p-10">
               <div className="flex min-w-0 items-start gap-4 sm:items-center">
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16">
+                <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-cp-border sm:h-16 sm:w-16 after:rounded-2xl">
                   {avatarSrc ? (
-                    <Image src={avatarSrc} alt="" fill className="object-cover" unoptimized />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-cp-primary/10 text-lg font-bold text-cp-primary">
-                      {displayName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
+                    <AvatarImage
+                      src={avatarSrc}
+                      alt=""
+                      className="rounded-2xl"
+                    />
+                  ) : null}
+                  <AvatarFallback className="rounded-2xl bg-cp-primary/20 text-lg font-bold text-cp-primary">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cp-muted">
                     Welcome back

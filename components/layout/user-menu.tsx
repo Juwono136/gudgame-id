@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { getProfileHandle } from "@/lib/auth/user-display";
+import { getProfileHandle, getUserInitials } from "@/lib/auth/user-display";
 import type { AppRole } from "@/lib/roles/constants";
 import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
 import { useLogoutWithConfirm } from "@/hooks/use-logout-with-confirm";
@@ -31,18 +31,6 @@ type UserMenuProps = {
   className?: string;
   onNavigate?: () => void;
 };
-
-
-function getInitials(name: string | null | undefined): string {
-  return (
-    name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "TB"
-  );
-}
 
 function UserProfileCard({
   handle,
@@ -63,7 +51,7 @@ function UserProfileCard({
   roles: AppRole[];
   className?: string;
 }) {
-  const initials = getInitials(imageAlt);
+  const initials = getUserInitials(imageAlt);
 
   return (
     <div
@@ -138,7 +126,7 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
     );
   }
 
-  const initials = getInitials(user.name);
+  const initials = getUserInitials(user.name);
   const profile = getProfileHandle(user);
   const avatarSrc = resolveUserImageUrl(user.image);
   const settingsActive = isSettingsActive(pathname);
