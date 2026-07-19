@@ -4,6 +4,7 @@ import {
   formatRankingPoints,
   nextTierProgress,
 } from "@/lib/player/format-ranking-points";
+import { PLAYER_TIER_PATH } from "@/lib/player/tier";
 import type { PlayerCareerStats } from "@/lib/wiki/player-career-stats";
 
 type PlayerCareerStatsProps = {
@@ -16,8 +17,6 @@ function formatStat(value: number | null, suffix = ""): string {
   if (suffix === "#") return `#${value.toLocaleString("en-US")}`;
   return value.toLocaleString("en-US");
 }
-
-const TIER_PATH = ["Pemula", "Menengah", "Pro", "Gold"] as const;
 
 export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
   const hasAnyStat =
@@ -45,7 +44,7 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
           </p>
           <p className="mt-1 text-2xl font-bold text-foreground">{stats.tier}</p>
           <p className="mt-1 text-xs text-cp-muted">
-            Progression path: {TIER_PATH.join(" → ")}
+            Progression path: {PLAYER_TIER_PATH.join(" → ")}
           </p>
           {progress && progress.nextLabel ? (
             <div className="mt-3 space-y-1.5">
@@ -54,7 +53,8 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
                   Next: <span className="font-medium text-foreground">{progress.nextLabel}</span>
                 </span>
                 <span className="tabular-nums" title={pointsFmt.title}>
-                  {progress.current.toLocaleString("en-US")} / {progress.target.toLocaleString("en-US")}
+                  {progress.current.toLocaleString("en-US")} /{" "}
+                  {progress.target.toLocaleString("en-US")}
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-cp-elevated">

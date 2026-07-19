@@ -39,7 +39,7 @@ function TierBadge({ tier, tierLevel }: { tier: string | null; tierLevel: string
         TIER_STYLES[key] ?? TIER_STYLES.pemula,
       )}
     >
-      {tier ?? "Pemula"}
+      {tier ?? "Beginner"}
     </span>
   );
 }

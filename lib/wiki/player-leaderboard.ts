@@ -128,7 +128,7 @@ export function mapLeaderboardEntryToListItem(entry: ActivePlayerLeaderboardEntr
     entry.career.tierLevel ??
     normalizePlayerTier(readPlayerField(entry.attributes, "tier")) ??
     "pemula";
-  const tier = entry.career.tier ?? formatPlayerTierLabel(tierLevel) ?? "Pemula";
+  const tier = entry.career.tier ?? formatPlayerTierLabel(tierLevel) ?? "Beginner";
 
   return {
     rank: entry.rank,

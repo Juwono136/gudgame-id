@@ -8,13 +8,13 @@ import { DashboardQuickLinks } from "@/components/dashboard/dashboard-quick-link
 import { DashboardWelcomeCard } from "@/components/dashboard/dashboard-welcome-card";
 import { SportInterestsDisplay } from "@/components/shared/sport-interests-display";
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
+import { ExpandableBiography } from "@/components/wiki/player/expandable-biography";
 import { PlayerCareerStatsSection } from "@/components/wiki/player/player-career-stats";
 import {
   PlayerRecentMatchesSection,
   PlayerTournamentHistorySection,
 } from "@/components/wiki/player/player-matches-section";
 import { PlayerSidebar } from "@/components/wiki/player/player-sidebar";
-import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { PlayerDashboardView } from "@/lib/account/player-dashboard/get-dashboard";
@@ -133,7 +133,7 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
 
             {playerProfile.biography ? (
               <PlayerPageCard title="Biography">
-                <RichHtmlContent html={playerProfile.biography} variant="article" />
+                <ExpandableBiography html={playerProfile.biography} />
                 <div className="mt-4 border-t border-cp-border pt-4">
                   <Button asChild variant="outline" size="sm" className="border-cp-border">
                     <Link href={`${dashboardRoutes.settings}#player-profile`}>
@@ -182,11 +182,17 @@ export function PlayerDashboard({ data }: PlayerDashboardProps) {
             <PlayerRecentMatchesSection
               matches={recentMatches}
               viewAllHref={`${dashboardRoutes.tournaments}?scope=history`}
+              sportSlug={playerProfile.sportSlug}
+              playerSlug={playerProfile.slug}
+              playerName={heroName}
             />
             <PlayerTournamentHistorySection
               tournaments={recentTournaments}
               viewAllHref={dashboardRoutes.tournaments}
               createReclubHref={dashboardRoutes.tournamentsNew}
+              sportSlug={playerProfile.sportSlug}
+              playerSlug={playerProfile.slug}
+              playerName={heroName}
             />
           </div>
 

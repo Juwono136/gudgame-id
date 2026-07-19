@@ -11,6 +11,7 @@ import {
 } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { buildPaginatedResult } from "@/lib/account/player-competition/paginate";
+import { tournamentResultPriority } from "@/lib/account/player-competition/format-outcome";
 
 /** Matches fun_match rows and legacy recreational before migration backfill. */
 function funMatchTypeCondition() {
@@ -146,7 +147,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       year,
       tournamentName: row.tournamentName,
       category: row.categoryLabel ?? "Official",
-      placement: isOrganizer ? "Organizer" : reg?.status === "confirmed" ? "Registered" : "Pending",
+      placement: isOrganizer ? "Hosted" : reg?.status === "confirmed" ? "Registered" : "Pending",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
@@ -272,7 +273,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       year,
       tournamentName: row.tournamentName,
       category: "Reclub",
-      placement: isOrganizer ? "Organizer" : "Participant",
+      placement: isOrganizer ? "Hosted" : "Competed",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
@@ -299,7 +300,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       year,
       tournamentName: row.tournamentName,
       category: "Reclub",
-      placement: row.placement ?? (isOrganizer ? "Organizer" : "Participant"),
+      placement: row.placement ?? (isOrganizer ? "Hosted" : "Competed"),
       playedAt:
         row.playedAt?.toISOString() ??
         row.startsAt?.toISOString() ??
@@ -339,8 +340,8 @@ function sortRows(
         return a.tournamentName.localeCompare(b.tournamentName) * dir;
       case "placement": {
         const rank = (p: string) => {
-          if (p === "Champion" || p === "Organizer") return 0;
-          if (p === "Participant") return 50;
+          if (p === "Champion" || p === "Hosted" || p === "Organizer") return 0;
+          if (p === "Competed" || p === "Participant") return 50;
           return 25;
         };
         return (rank(a.placement) - rank(b.placement)) * dir;
@@ -384,7 +385,7 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
       year,
       tournamentName: row.tournamentName,
       category: isOfficial ? (row.categoryLabel ?? "Official") : "Reclub",
-      placement: "Organizer",
+      placement: "Hosted",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
@@ -507,21 +508,40 @@ export async function listPlayerTournaments(
     const created = await listCreatedTournamentsByUser(userId);
     const joined = await listJoinedTournamentsByUser(userId);
     const byTournamentId = new Map<string, UnifiedTournamentRow>();
-    for (const row of [...created, ...joined]) {
-      if (row.tournamentId != null) {
-        byTournamentId.set(row.tournamentId, row);
+    const orphanRows: UnifiedTournamentRow[] = [];
+
+    const upsert = (row: UnifiedTournamentRow) => {
+      if (row.tournamentId == null) {
+        orphanRows.push(row);
+        return;
       }
+      const existing = byTournamentId.get(row.tournamentId);
+      if (!existing) {
+        byTournamentId.set(row.tournamentId, row);
+        return;
+      }
+      const preferNew =
+        tournamentResultPriority(row.placement) >= tournamentResultPriority(existing.placement);
+      byTournamentId.set(row.tournamentId, {
+        ...existing,
+        ...(preferNew ? row : {}),
+        placement: preferNew ? row.placement : existing.placement,
+        status: row.status ?? existing.status,
+      });
+    };
+
+    for (const row of [...created, ...joined]) {
+      upsert(row);
     }
-    merged = [...byTournamentId.values()];
 
     const officialMapped = officialRows.map((row) =>
       mapOfficialRow(row, row.tournamentId ? tournamentMeta.get(row.tournamentId) : undefined),
     );
     for (const result of officialMapped) {
-      if (result.tournamentId && !merged.some((r) => r.tournamentId === result.tournamentId)) {
-        merged.push(result);
-      }
+      upsert(result);
     }
+
+    merged = [...byTournamentId.values(), ...orphanRows];
   }
 
   if (search?.trim()) {

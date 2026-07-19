@@ -2,6 +2,8 @@
  * Compact, professional formatting for ranking / career point totals.
  * Prefers readable magnitudes (1.2K / 1.25M) with full locale value available via title.
  */
+import { PLAYER_TIER_LABELS } from "@/lib/player/tier";
+
 export function formatRankingPoints(value: number | null | undefined): {
   display: string;
   title: string;
@@ -41,9 +43,9 @@ export function nextTierProgress(points: number | null | undefined): {
 } | null {
   if (points == null || Number.isNaN(points)) return null;
   const thresholds = [
-    { label: "Menengah", at: 1000 },
-    { label: "Pro", at: 5000 },
-    { label: "Gold", at: 10000 },
+    { label: PLAYER_TIER_LABELS.menengah, at: 1000 },
+    { label: PLAYER_TIER_LABELS.pro, at: 5000 },
+    { label: PLAYER_TIER_LABELS.gold, at: 10000 },
   ] as const;
   for (let i = 0; i < thresholds.length; i++) {
     const next = thresholds[i]!;

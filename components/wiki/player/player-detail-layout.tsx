@@ -5,7 +5,7 @@ import type { PlayerMatchListItem, PlayerTournamentListItem } from "@/lib/accoun
 import type { PlayerSocialLink } from "@/lib/wiki/player-profile-fields";
 import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
 import { WikiPageShell } from "@/components/wiki/wiki-page-shell";
-import { RichHtmlContent } from "@/components/wiki/rich-html-content";
+import { ExpandableBiography } from "@/components/wiki/player/expandable-biography";
 import { PlayerHero } from "@/components/wiki/player/player-hero";
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
 import { PlayerCareerStatsSection } from "@/components/wiki/player/player-career-stats";
@@ -132,12 +132,22 @@ export function PlayerDetailLayout({
 
           {displayBiography ? (
             <PlayerPageCard title="Biography">
-              <RichHtmlContent html={displayBiography} variant="article" />
+              <ExpandableBiography html={displayBiography} />
             </PlayerPageCard>
           ) : null}
 
-          <PlayerRecentMatchesSection matches={recentMatches} />
-          <PlayerTournamentHistorySection tournaments={recentTournaments} />
+          <PlayerRecentMatchesSection
+            matches={recentMatches}
+            sportSlug={entity.sportSlug}
+            playerSlug={entity.slug}
+            playerName={entity.displayName}
+          />
+          <PlayerTournamentHistorySection
+            tournaments={recentTournaments}
+            sportSlug={entity.sportSlug}
+            playerSlug={entity.slug}
+            playerName={entity.displayName}
+          />
         </div>
 
         <div className="order-1 lg:sticky lg:top-6 lg:order-2 lg:self-start">

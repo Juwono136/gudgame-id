@@ -34,6 +34,7 @@ import type { PlayerTournamentsListQuery } from "@/lib/validations/player-compet
 import type { PlayerTournamentListItem } from "@/lib/account/player-competition/types";
 import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
 import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
+import { formatPlayerTournamentResult } from "@/lib/account/player-competition/format-outcome";
 import { cn } from "@/lib/utils";
 import { WorkspaceScopeTabs } from "@/components/dashboard/workspace-scope-tabs";
 
@@ -48,6 +49,9 @@ function placementTone(placement: string) {
   }
   if (lower.includes("finalist") || lower.includes("runner")) {
     return "text-amber-400";
+  }
+  if (lower.includes("host")) {
+    return "text-sky-400";
   }
   return "text-foreground";
 }
@@ -216,10 +220,15 @@ function TournamentListRow({
           </div>
           <div className="col-span-2">
             <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              Role / placement
+              Result
             </dt>
-            <dd className={cn("mt-0.5 text-sm font-semibold", placementTone(row.placement))}>
-              {row.placement}
+            <dd
+              className={cn(
+                "mt-0.5 text-sm font-semibold",
+                placementTone(formatPlayerTournamentResult(row)),
+              )}
+            >
+              {formatPlayerTournamentResult(row)}
             </dd>
           </div>
         </dl>
@@ -242,8 +251,13 @@ function TournamentListRow({
         </div>
         <div className="flex justify-start">{typeBadge}</div>
         <p className="min-w-0 truncate text-sm text-cp-muted">{row.category ?? "—"}</p>
-        <p className={cn("text-right text-sm font-semibold", placementTone(row.placement))}>
-          {row.placement}
+        <p
+          className={cn(
+            "text-right text-sm font-semibold",
+            placementTone(formatPlayerTournamentResult(row)),
+          )}
+        >
+          {formatPlayerTournamentResult(row)}
         </p>
         <div className="flex justify-end gap-0.5">
           {registrationActions}
@@ -501,7 +515,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
                 <span>Tournament</span>
                 <span>Type</span>
                 <span>Category</span>
-                <span className="text-right">Role / placement</span>
+                <span className="text-right">Result</span>
                 <span className="text-right">Actions</span>
               </div>
 

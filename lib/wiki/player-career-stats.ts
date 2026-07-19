@@ -13,7 +13,7 @@ export type PlayerCareerStats = {
   worldRank: number | null;
   totalPoints: number | null;
   winRate: number | null;
-  /** Display label: Pemula, Menengah, Pro, Gold */
+  /** Display label: Beginner, Intermediate, Pro, Gold */
   tier: string | null;
   tierLevel: string | null;
   yearsActive: string | null;

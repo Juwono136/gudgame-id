@@ -4,11 +4,16 @@ export const PLAYER_TIER_LEVELS = ["pemula", "menengah", "pro", "gold"] as const
 export type PlayerTierLevel = (typeof PLAYER_TIER_LEVELS)[number];
 
 export const PLAYER_TIER_LABELS: Record<PlayerTierLevel, string> = {
-  pemula: "Pemula",
-  menengah: "Menengah",
+  pemula: "Beginner",
+  menengah: "Intermediate",
   pro: "Pro",
   gold: "Gold",
 };
+
+/** Ordered progression path for profile UX (English labels). */
+export const PLAYER_TIER_PATH = PLAYER_TIER_LEVELS.map(
+  (level) => PLAYER_TIER_LABELS[level],
+) as readonly [string, string, string, string];
 
 const TIER_ALIASES: Record<string, PlayerTierLevel> = {
   pemula: "pemula",

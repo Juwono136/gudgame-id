@@ -184,7 +184,7 @@ export async function syncReclubParticipation(input: {
     ? new Date(tournament.startsAt).getFullYear()
     : new Date().getFullYear();
 
-  const placement = role === "organizer" ? "Organizer" : "Participant";
+  const placement = role === "organizer" ? "Hosted" : "Competed";
 
   await db.insert(playerTournamentResults).values({
     userId,
