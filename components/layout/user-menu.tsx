@@ -60,7 +60,7 @@ function UserProfileCard({
         className,
       )}
     >
-      <Avatar className="h-11 w-11 shrink-0 border border-cp-border">
+      <Avatar key={image ?? "fallback"} className="h-11 w-11 shrink-0 border border-cp-border">
         {image ? <AvatarImage src={image} alt={imageAlt} /> : null}
         <AvatarFallback className="bg-cp-primary/20 text-sm font-semibold text-cp-primary">
           {initials}
@@ -142,7 +142,7 @@ export function UserMenu({ className, onNavigate }: UserMenuProps) {
         )}
         aria-label={`Account menu — ${profile.handle}`}
       >
-        <Avatar className="h-9 w-9">
+        <Avatar key={avatarSrc ?? "fallback"} className="h-9 w-9">
           {avatarSrc ? <AvatarImage src={avatarSrc} alt={user.name} /> : null}
           <AvatarFallback className="bg-cp-primary/20 text-xs font-semibold text-cp-primary">
             {initials}

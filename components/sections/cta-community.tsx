@@ -88,7 +88,10 @@ export default function CTACommunity() {
 
             <div className="relative flex flex-col gap-6 p-5 sm:p-8 lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:p-10">
               <div className="flex min-w-0 items-start gap-4 sm:items-center">
-                <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-cp-border sm:h-16 sm:w-16 after:rounded-2xl">
+                <Avatar
+                  key={avatarSrc ?? "fallback"}
+                  className="h-14 w-14 shrink-0 rounded-2xl border border-cp-border sm:h-16 sm:w-16 after:rounded-2xl"
+                >
                   {avatarSrc ? (
                     <AvatarImage
                       src={avatarSrc}

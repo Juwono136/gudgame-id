@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { extractApiErrorMessage } from "@/lib/api/extract-error-message";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import type { AccountSettingsView } from "@/lib/account/settings/get-settings";
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
+import { syncAuthSessionAfterChange } from "@/lib/session/invalidate-session-context";
 
 type ApiSuccess<T> = { success: true; data: T };
 
@@ -22,6 +24,7 @@ export function useAccountSettings() {
 
 export function useUpdateStaffProfile() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   return useMutation({
     mutationFn: async (formData: FormData) => {
       const res = await fetch("/api/account/settings/profile", {
@@ -43,9 +46,10 @@ export function useUpdateStaffProfile() {
       }
       return json.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await syncAuthSessionAfterChange(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["account", "settings"] });
-      void queryClient.invalidateQueries({ queryKey: ["session", "context"] });
+      router.refresh();
     },
   });
 }

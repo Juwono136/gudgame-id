@@ -39,7 +39,10 @@ export function DashboardWelcomeCard({
       )}
     >
       <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
-        <Avatar className="h-12 w-12 shrink-0 rounded-xl border border-cp-border sm:h-16 sm:w-16 after:rounded-xl">
+        <Avatar
+          key={avatarSrc ?? "fallback"}
+          className="h-12 w-12 shrink-0 rounded-xl border border-cp-border sm:h-16 sm:w-16 after:rounded-xl"
+        >
           {avatarSrc ? (
             <AvatarImage src={avatarSrc} alt="" className="rounded-xl" />
           ) : null}

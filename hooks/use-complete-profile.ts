@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { siteRoutes } from "@/lib/constants/routes";
-import { invalidateSessionContext } from "@/lib/session/invalidate-session-context";
+import { syncAuthSessionAfterChange } from "@/lib/session/invalidate-session-context";
 
 export function useCompleteProfileMutation() {
   const router = useRouter();
@@ -31,8 +31,8 @@ export function useCompleteProfileMutation() {
       }
       return payload;
     },
-    onSuccess: (payload) => {
-      invalidateSessionContext(queryClient);
+    onSuccess: async (payload) => {
+      await syncAuthSessionAfterChange(queryClient);
       toast.success("Profile updated", {
         description: payload.message ?? "Your account details are now complete.",
       });

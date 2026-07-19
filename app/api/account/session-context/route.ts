@@ -79,6 +79,7 @@ export async function GET() {
     const [dbUser] = await getDb()
       .select({
         id: user.id,
+        name: user.name,
         fullNameKtp: user.fullNameKtp,
         phone: user.phone,
         phoneCountryCode: user.phoneCountryCode,
@@ -102,7 +103,7 @@ export async function GET() {
       authenticated: true,
       user: {
         id: session.user.id,
-        name: session.user.name,
+        name: dbUser?.name?.trim() || session.user.name,
         email: session.user.email,
         image: dbUser?.image ?? session.user.image ?? null,
         nickname: dbUser?.nickname ?? null,

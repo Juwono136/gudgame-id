@@ -9,43 +9,31 @@ import {
 
 export type AuthUser = SessionContextUser;
 
-function mapSessionUser(
-  user: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-    nickname?: string | null;
-    role?: string | null;
-  },
-  fallbackNickname?: string | null,
-): AuthUser {
-  return {
-    id: user.id,
-    name: user.name ?? "",
-    email: user.email ?? "",
-    image: user.image ?? null,
-    nickname: user.nickname ?? fallbackNickname ?? null,
-    role: user.role ?? null,
-  };
-}
-
 /**
  * Unified auth user from Better Auth session + session-context API.
- * Handles stale useSession() cache after Firebase Google login.
+ * Prefer session-context for profile fields (image/name/nickname) so Settings
+ * updates show immediately without a full page reload.
  */
 export function useAuthUser() {
   const { data: session, isPending: sessionPending } = useSession();
   const { data: sessionCtx, isPending: ctxPending } = useSessionContext();
 
   const user = useMemo((): AuthUser | null => {
-    if (session?.user?.id) {
-      return mapSessionUser(
-        session.user as AuthUser,
-        sessionCtx?.user?.nickname,
-      );
+    const ba = session?.user;
+    const ctx = sessionCtx?.user;
+
+    if (ba?.id) {
+      return {
+        id: ba.id,
+        email: ba.email ?? ctx?.email ?? "",
+        name: ctx?.name?.trim() || ba.name || "",
+        image: ctx ? (ctx.image ?? null) : (ba.image ?? null),
+        nickname: ctx?.nickname ?? (ba as AuthUser).nickname ?? null,
+        role: ctx?.role ?? (ba as AuthUser).role ?? null,
+      };
     }
-    return sessionCtx?.user ?? null;
+
+    return ctx ?? null;
   }, [session?.user, sessionCtx?.user]);
 
   const isAuthenticated =

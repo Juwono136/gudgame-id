@@ -87,7 +87,7 @@ export async function getAdminSessionContext(): Promise<AdminSessionContext | nu
   if (!canAccessAdminConsole(roles)) return null;
 
   const [dbProfile] = await getDb()
-    .select({ nickname: user.nickname })
+    .select({ nickname: user.nickname, image: user.image, name: user.name })
     .from(user)
     .where(eq(user.id, session.user.id))
     .limit(1);
@@ -100,10 +100,10 @@ export async function getAdminSessionContext(): Promise<AdminSessionContext | nu
   const sport = await resolveSportContext();
   return {
     userId: session.user.id,
-    name: session.user.name,
+    name: dbProfile?.name?.trim() || session.user.name,
     email: session.user.email,
     nickname: dbProfile?.nickname?.trim() || null,
-    image: session.user.image ?? null,
+    image: dbProfile?.image ?? session.user.image ?? null,
     roles,
     activeRole,
     permissions: getPermissionsForRoles(roles),

@@ -85,7 +85,9 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
     try {
       const result = await mutation.mutateAsync(formData);
       toast.success(result.message);
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
       setPhoto(null);
+      setPhotoPreview(null);
     } catch (err) {
       const error = err as Error & { fieldErrors?: Record<string, string[]> };
       toast.error(error.message);

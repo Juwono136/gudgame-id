@@ -16,7 +16,7 @@ import { ProfileRoleBadges } from "@/components/layout/profile-role-badges";
 import { useLogoutMutation } from "@/hooks/use-auth-mutations";
 import { useSessionContext } from "@/hooks/use-session-context";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
-import { getProfileHandle } from "@/lib/auth/user-display";
+import { getProfileHandle, getUserInitials } from "@/lib/auth/user-display";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import {
   dashboardRoutes,
@@ -46,11 +46,14 @@ export function AdminProfileMenu({ context }: { context: AdminSessionContext }) 
   const { confirm } = useConfirmDialog();
   const { data: sessionCtx } = useSessionContext();
   const settingsActive = isSettingsActive(pathname);
-  const avatarSrc = resolveUserImageUrl(context.image);
+  const liveName = sessionCtx?.user?.name?.trim() || context.name;
+  const liveImage = sessionCtx?.user ? sessionCtx.user.image : context.image;
+  const avatarSrc = resolveUserImageUrl(liveImage);
   const profile = getProfileHandle({
-    nickname: context.nickname,
+    nickname: sessionCtx?.user?.nickname ?? context.nickname,
     email: context.email,
   });
+  const initials = getUserInitials(liveName);
 
   const roles =
     sessionCtx?.authenticated && sessionCtx.roles.length > 0
@@ -81,10 +84,10 @@ export function AdminProfileMenu({ context }: { context: AdminSessionContext }) 
         )}
         aria-label="Account menu"
       >
-        <Avatar className="h-9 w-9 border border-cp-border">
-          {avatarSrc ? <AvatarImage src={avatarSrc} alt={context.name} /> : null}
+        <Avatar key={avatarSrc ?? "fallback"} className="h-9 w-9 border border-cp-border">
+          {avatarSrc ? <AvatarImage src={avatarSrc} alt={liveName} /> : null}
           <AvatarFallback className="bg-cp-primary/20 text-xs font-semibold text-cp-primary">
-            {context.name.slice(0, 2).toUpperCase()}
+            {initials}
           </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -94,7 +97,7 @@ export function AdminProfileMenu({ context }: { context: AdminSessionContext }) 
         sideOffset={8}
       >
         <div className="mb-2 rounded-xl border border-cp-border bg-cp-elevated/50 px-3 py-3">
-          <p className="truncate text-sm font-semibold">{context.name}</p>
+          <p className="truncate text-sm font-semibold">{liveName}</p>
           <p className="truncate text-xs text-cp-muted">
             {profile.isNickname ? `@${profile.handle}` : context.email}
           </p>
