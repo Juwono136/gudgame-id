@@ -7,17 +7,17 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-cp-border bg-cp-elevated text-cp-logo-accent dark:text-cp-logo-accent",
+          "border-cp-border bg-cp-elevated text-foreground dark:text-cp-logo-accent",
         player: cn(
           "border-slate-600/20 bg-slate-500/10 text-slate-700",
           "dark:border-cp-border dark:bg-cp-elevated/80 dark:text-cp-muted",
         ),
         host: cn(
-          "border-cp-primary/25 bg-cp-primary/10 text-cp-primary",
+          "border-emerald-700/30 bg-emerald-600/12 text-emerald-900",
           "dark:border-cp-primary/30 dark:bg-cp-primary/15 dark:text-cp-logo-accent",
         ),
         accent: cn(
-          "border-cp-primary/25 bg-cp-primary/10 text-cp-primary",
+          "border-emerald-700/30 bg-emerald-600/12 text-emerald-900",
           "dark:border-cp-primary/30 dark:bg-cp-primary/15 dark:text-cp-logo-accent",
         ),
         super_admin: cn(

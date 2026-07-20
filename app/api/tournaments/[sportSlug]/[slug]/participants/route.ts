@@ -4,6 +4,7 @@ import { queryTournamentParticipants } from "@/lib/tournaments/participants/quer
 import { ensurePlayerWikiProfilesForTournament } from "@/lib/account/player-profile/ensure-tournament-sport";
 import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
+import { sanitizeSearchTerm } from "@/lib/search/sanitize-search-term";
 
 export const runtime = "nodejs";
 
@@ -20,10 +21,14 @@ export async function GET(
     }
 
     const url = new URL(request.url);
-    const page = Math.max(Number(url.searchParams.get("page") ?? "1"), 1);
-    const pageSize = Math.min(Math.max(Number(url.searchParams.get("pageSize") ?? "20"), 1), 50);
+    const page = Math.max(Number(url.searchParams.get("page") ?? "1") || 1, 1);
+    const pageSize = Math.min(
+      Math.max(Number(url.searchParams.get("pageSize") ?? "20") || 20, 1),
+      50,
+    );
+    const search = sanitizeSearchTerm(url.searchParams.get("search"));
 
-    const result = await queryTournamentParticipants({
+    const queryInput = {
       tournamentId: tournament.id,
       sportId: tournament.sportId,
       sportSlug: tournament.sportSlug,
@@ -31,20 +36,15 @@ export async function GET(
       officialBilling: tournament.officialBilling,
       page,
       pageSize,
-    });
+      search,
+    } as const;
+
+    const result = await queryTournamentParticipants(queryInput);
 
     const userIds = result.items.map((row) => row.userId).filter(Boolean);
     if (userIds.length) {
       await ensurePlayerWikiProfilesForTournament(tournament.sportId, userIds);
-      const refreshed = await queryTournamentParticipants({
-        tournamentId: tournament.id,
-        sportId: tournament.sportId,
-        sportSlug: tournament.sportSlug,
-        tournamentType: normalizeTournamentType(tournament.tournamentType),
-        officialBilling: tournament.officialBilling,
-        page,
-        pageSize,
-      });
+      const refreshed = await queryTournamentParticipants(queryInput);
       return jsonSuccess(refreshed);
     }
 

@@ -4,11 +4,11 @@ import type { WikiDirectoryListItem } from "@/lib/wiki/directory-types";
 /** Theme-aware status / state pill classes (light + dark). */
 export const statusBadgeClass = {
   success: cn(
-    "border-emerald-600/25 bg-emerald-500/12 text-emerald-800",
+    "border-emerald-700/30 bg-emerald-500/12 text-emerald-900",
     "dark:border-emerald-500/35 dark:bg-emerald-500/15 dark:text-emerald-200",
   ),
   info: cn(
-    "border-cp-primary/25 bg-cp-primary/10 text-cp-primary",
+    "border-emerald-700/30 bg-emerald-600/12 text-emerald-900",
     "dark:border-cp-primary/40 dark:bg-cp-primary/20 dark:text-cp-logo-accent",
   ),
   warning: cn(
@@ -25,7 +25,7 @@ export const statusBadgeClass = {
     "dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-200",
   ),
   accent: cn(
-    "border-cp-primary/25 bg-cp-primary/10 text-cp-primary",
+    "border-emerald-700/30 bg-emerald-600/15 text-emerald-900",
     "dark:border-cp-primary/40 dark:bg-cp-primary/20 dark:text-cp-logo-accent",
   ),
   sky: cn(
@@ -33,11 +33,11 @@ export const statusBadgeClass = {
     "dark:border-sky-500/35 dark:bg-sky-500/15 dark:text-sky-200",
   ),
   slate: cn(
-    "border-slate-600/25 bg-slate-500/12 text-slate-700",
+    "border-slate-600/30 bg-slate-200/90 text-slate-800",
     "dark:border-slate-500/30 dark:bg-slate-500/15 dark:text-slate-300",
   ),
   reclub: cn(
-    "border-emerald-600/25 bg-emerald-500/12 text-emerald-800",
+    "border-emerald-700/30 bg-emerald-600/15 text-emerald-900",
     "dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
   ),
 } as const;

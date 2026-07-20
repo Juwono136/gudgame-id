@@ -639,6 +639,7 @@ export function OfficialTournamentPage({
           sportSlug={tournament.sportSlug}
           sportName={tournament.sportName}
           tournamentName={tournament.name}
+          tone="hero"
           className="mb-3"
         />
 
@@ -648,8 +649,8 @@ export function OfficialTournamentPage({
               {tournament.categoryLabel ? (
                 <Badge
                   className={cn(
-                    tournamentHeroStyles.statusBadge,
                     statusBadgeClass.accent,
+                    tournamentHeroStyles.statusBadge,
                   )}
                 >
                   {tournament.categoryLabel}
@@ -657,16 +658,16 @@ export function OfficialTournamentPage({
               ) : null}
               <Badge
                 className={cn(
-                  tournamentHeroStyles.statusBadge,
                   getTournamentStatusBadgeClass(displayStatus),
+                  tournamentHeroStyles.statusBadge,
                 )}
               >
                 {displayStatus}
               </Badge>
               <Badge
                 className={cn(
-                  tournamentHeroStyles.statusBadge,
                   getTournamentTypeBadgeClass("official"),
+                  tournamentHeroStyles.statusBadge,
                 )}
               >
                 {getOfficialBillingLabel(tournament.officialBilling)}
@@ -688,12 +689,12 @@ export function OfficialTournamentPage({
             ) : null}
             <div className={tournamentHeroStyles.metaRow}>
               <span className={tournamentHeroStyles.metaItem}>
-                <Calendar className="h-4 w-4 shrink-0 text-cp-primary" />
+                <Calendar className={tournamentHeroStyles.metaIcon} />
                 {formatDateRange(tournament.startsAt, tournament.endsAt)}
               </span>
               {tournament.venue ? (
                 <span className={tournamentHeroStyles.metaItem}>
-                  <MapPin className="h-4 w-4 shrink-0 text-cp-primary" />
+                  <MapPin className={tournamentHeroStyles.metaIcon} />
                   <span className="break-words">{tournament.venue}</span>
                 </span>
               ) : null}

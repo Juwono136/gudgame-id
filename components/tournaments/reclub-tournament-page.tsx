@@ -503,6 +503,7 @@ export function ReclubTournamentPage({
           sportSlug={tournament.sportSlug}
           sportName={tournament.sportName}
           tournamentName={tournament.name}
+          tone="hero"
           className="mb-3"
         />
 
@@ -510,8 +511,8 @@ export function ReclubTournamentPage({
           <div className="flex flex-wrap gap-2">
             <Badge
               className={cn(
-                tournamentHeroStyles.statusBadge,
                 getTournamentTypeBadgeClass("fun_match"),
+                tournamentHeroStyles.statusBadge,
               )}
             >
               <Gamepad2 className="mr-1 h-3 w-3" />
@@ -519,8 +520,8 @@ export function ReclubTournamentPage({
             </Badge>
             <Badge
               className={cn(
-                tournamentHeroStyles.statusBadge,
                 getTournamentStatusBadgeClass(tournament.status),
+                tournamentHeroStyles.statusBadge,
               )}
             >
               {getPhaseLabel(livePhase)}
@@ -552,13 +553,13 @@ export function ReclubTournamentPage({
           <div className={tournamentHeroStyles.metaRow}>
             {tournament.venue ? (
               <span className={tournamentHeroStyles.metaItem}>
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300 sm:mt-0" />
+                <MapPin className={cn(tournamentHeroStyles.metaIcon, "mt-0.5 sm:mt-0")} />
                 {mapsUrl ? (
                   <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-w-0 items-center gap-1 break-words text-foreground hover:text-emerald-200"
+                    className="inline-flex min-w-0 items-center gap-1 break-words text-foreground hover:text-emerald-800 dark:hover:text-emerald-200"
                   >
                     {tournament.venue}
                     <ExternalLink className="h-3.5 w-3.5 shrink-0" />
@@ -570,7 +571,7 @@ export function ReclubTournamentPage({
             ) : null}
             {tournament.startsAt ? (
               <span className={tournamentHeroStyles.metaItem}>
-                <Calendar className="h-4 w-4 shrink-0 text-emerald-300" />
+                <Calendar className={tournamentHeroStyles.metaIcon} />
                 {formatTournamentScheduleRange(tournament.startsAt, tournament.endsAt)}
               </span>
             ) : null}

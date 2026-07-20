@@ -11,6 +11,8 @@ type TournamentBreadcrumbsProps = {
   tournamentName: string;
   extra?: Crumb[];
   className?: string;
+  /** Higher contrast for overlays on cover images */
+  tone?: "default" | "hero";
 };
 
 export function TournamentBreadcrumbs({
@@ -19,6 +21,7 @@ export function TournamentBreadcrumbs({
   tournamentName,
   extra = [],
   className,
+  tone = "default",
 }: TournamentBreadcrumbsProps) {
   const items: Crumb[] = [
     { label: sportName ?? sportSlug, href: publicSportRoutes.sportHub(sportSlug) },
@@ -27,22 +30,50 @@ export function TournamentBreadcrumbs({
     ...extra,
   ];
 
+  const isHero = tone === "hero";
+
   return (
     <nav
       aria-label="Breadcrumb"
-      className={cn("flex flex-wrap items-center gap-1 text-xs text-cp-muted", className)}
+      className={cn(
+        "flex flex-wrap items-center gap-1 text-xs",
+        isHero
+          ? "font-medium text-foreground/90 drop-shadow-sm"
+          : "text-cp-muted",
+        className,
+      )}
     >
       {items.map((item, i) => {
         const isLast = i === items.length - 1;
         return (
           <span key={`${item.label}-${i}`} className="inline-flex items-center gap-1">
-            {i > 0 ? <ChevronRight className="h-3 w-3 shrink-0 opacity-50" /> : null}
+            {i > 0 ? (
+              <ChevronRight
+                className={cn(
+                  "h-3 w-3 shrink-0",
+                  isHero ? "text-foreground/50" : "opacity-50",
+                )}
+              />
+            ) : null}
             {item.href && !isLast ? (
-              <Link href={item.href} className="hover:text-cp-primary hover:underline">
+              <Link
+                href={item.href}
+                className={cn(
+                  "hover:underline",
+                  isHero
+                    ? "text-foreground/85 hover:text-foreground"
+                    : "hover:text-cp-primary",
+                )}
+              >
                 {item.label}
               </Link>
             ) : (
-              <span className={isLast ? "font-medium text-foreground" : undefined}>
+              <span
+                className={cn(
+                  isLast && "font-semibold",
+                  isLast || isHero ? "text-foreground" : undefined,
+                )}
+              >
                 {item.label}
               </span>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -8,22 +8,29 @@ import {
   Loader2,
   Lock,
   RefreshCw,
+  Search,
   Trash2,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useRemoveTournamentTeam } from "@/hooks/use-tournament-manage-display";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
+import { MAX_SEARCH_TERM_LENGTH } from "@/lib/search/sanitize-search-term";
 import type { TournamentParticipantRow } from "@/lib/tournaments/participants/query";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const SEARCH_DEBOUNCE_MS = 400;
 
 type FunMatchTeamScore = {
   pointsFor: number;
@@ -211,20 +218,31 @@ export function TournamentParticipantsPanel({
   const { confirm } = useConfirmDialog();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [searchInput, setSearchInput] = useState("");
   const [removingTeamId, setRemovingTeamId] = useState<string | null>(null);
-  const { data, isLoading, isFetching, isError, error, refetch } = useTournamentParticipants(
-    sportSlug,
-    slug,
-    page,
-    pageSize,
-  );
+  const debouncedSearch = useDebounce(searchInput, SEARCH_DEBOUNCE_MS);
+  const activeSearch = debouncedSearch.trim();
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data, isLoading, isFetching, isError, error, refetch, isPlaceholderData } =
+    useTournamentParticipants(sportSlug, slug, page, pageSize, {
+      search: activeSearch,
+    });
   const removeTeam = useRemoveTournamentTeam(sportSlug, slug);
 
   const isOfficial = tournamentType === "official";
   const isFreeOfficial = officialBilling === "free";
-  const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
+  const accent =
+    variant === "official"
+      ? "text-emerald-800 dark:text-cp-primary"
+      : "text-emerald-700 dark:text-emerald-400";
   const teamAccent =
-    variant === "official" ? "text-amber-600 dark:text-amber-300/95" : "text-emerald-600 dark:text-emerald-300/95";
+    variant === "official"
+      ? "text-amber-700 dark:text-amber-300/95"
+      : "text-emerald-700 dark:text-emerald-300/95";
 
   const items = data?.items ?? [];
   const firstRowByTeamId = useMemo(() => {
@@ -236,6 +254,11 @@ export function TournamentParticipantsPanel({
     }
     return map;
   }, [data?.items]);
+
+  const clearSearch = () => {
+    setSearchInput("");
+    setPage(1);
+  };
 
   const handleRemoveTeam = async (row: TournamentParticipantRow) => {
     if (row.canHardRemove === false) {
@@ -263,7 +286,7 @@ export function TournamentParticipantsPanel({
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="flex justify-center py-16">
         <LoadingSpinner label="Loading players…" />
@@ -271,7 +294,7 @@ export function TournamentParticipantsPanel({
     );
   }
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-6 text-center dark:bg-red-950/20">
         <AlertCircle className="mx-auto h-8 w-8 text-red-500 dark:text-red-400" />
@@ -293,17 +316,22 @@ export function TournamentParticipantsPanel({
   }
 
   const total = data?.total ?? 0;
-  const uniqueTeams = new Set(items.map((row) => row.teamId)).size;
+  const teamCount = data?.teamCount ?? 0;
+  const hasActiveSearch = activeSearch.length > 0;
+  const showEmptyRoster = total === 0 && !hasActiveSearch;
+  const showNoMatches = total === 0 && hasActiveSearch;
+  const isSearchPending = searchInput.trim() !== activeSearch;
+  const showFetching = (isFetching || isPlaceholderData || isSearchPending) && !isLoading;
   const gridCols = canRemoveTeams
     ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_minmax(0,1fr)_auto]"
     : "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)]";
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <Users className={cn("h-5 w-5", accent)} />
+            <Users className={cn("h-5 w-5 shrink-0", accent)} />
             {isOfficial ? "Registered players" : "Session players"}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-cp-muted">
@@ -317,16 +345,74 @@ export function TournamentParticipantsPanel({
               : null}
           </p>
         </div>
-        {isFetching && !isLoading ? (
-          <span className="text-xs text-cp-muted">Refreshing…</span>
-        ) : null}
+
+        <div className="relative w-full shrink-0 lg:max-w-sm">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-emerald-800 dark:text-cp-muted"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value.slice(0, MAX_SEARCH_TERM_LENGTH))}
+            placeholder="Search player or team…"
+            maxLength={MAX_SEARCH_TERM_LENGTH}
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={isOfficial ? "Search registered players" : "Search session players"}
+            className={cn(
+              "border-cp-border bg-cp-bg-input pr-10 pl-10 text-foreground placeholder:text-cp-muted",
+              // Hide native clear so only our custom X shows.
+              "[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
+            )}
+          />
+          {searchInput ? (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="absolute top-1/2 right-2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-cp-muted transition-colors hover:bg-cp-elevated hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      {total > 0 ? (
+      {isError ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:bg-red-950/20">
+          <div className="flex min-w-0 items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">Could not refresh player list</p>
+              <p className="mt-0.5 text-xs text-cp-muted">
+                {error instanceof Error ? error.message : "Something went wrong"}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-cp-border"
+            onClick={() => void refetch()}
+          >
+            <RefreshCw className="mr-2 h-3.5 w-3.5" />
+            Try again
+          </Button>
+        </div>
+      ) : null}
+
+      {!showEmptyRoster ? (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
           {[
-            { label: "Players", value: String(total) },
-            { label: isOfficial ? "Teams" : "Squads", value: String(uniqueTeams) },
+            {
+              label: hasActiveSearch ? "Matches" : "Players",
+              value: String(total),
+            },
+            {
+              label: isOfficial ? "Teams" : "Squads",
+              value: String(teamCount),
+            },
             {
               label: "Page",
               value: `${page} / ${Math.max(1, data?.totalPages ?? 1)}`,
@@ -347,7 +433,14 @@ export function TournamentParticipantsPanel({
         </div>
       ) : null}
 
-      {total === 0 ? (
+      {showFetching ? (
+        <p className="flex items-center gap-2 text-xs text-cp-muted" aria-live="polite">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {hasActiveSearch || isSearchPending ? "Searching…" : "Refreshing…"}
+        </p>
+      ) : null}
+
+      {showEmptyRoster ? (
         <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-6 py-14 text-center">
           <UserRound className="mx-auto h-8 w-8 text-cp-muted/70" />
           <p className="mt-3 text-sm text-cp-muted">
@@ -358,8 +451,30 @@ export function TournamentParticipantsPanel({
               : "No players in the lobby yet. Join a squad to get started."}
           </p>
         </div>
+      ) : showNoMatches ? (
+        <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-6 py-14 text-center">
+          <Search className="mx-auto h-8 w-8 text-cp-muted/70" />
+          <p className="mt-3 text-sm font-medium text-foreground">No players match your search</p>
+          <p className="mt-1 text-xs text-cp-muted">
+            Try another name or team for &ldquo;{activeSearch}&rdquo;.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-4 border-cp-border"
+            onClick={clearSearch}
+          >
+            Clear search
+          </Button>
+        </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+        <div
+          className={cn(
+            "overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card transition-opacity",
+            showFetching && "opacity-80",
+          )}
+        >
           <div
             className={cn(
               "hidden border-b border-cp-border/80 bg-cp-elevated/40 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:gap-4 lg:px-5",

@@ -24,16 +24,16 @@ export function TournamentHeroBanner({
   const isReclub = variant === "reclub";
   const coverGradient = cn(
     isReclub
-      ? "from-cp-bg/90 via-cp-bg/55 to-cp-bg"
-      : "from-cp-bg/88 via-cp-bg/50 to-cp-bg",
+      ? "from-cp-bg/95 via-cp-bg/82 to-cp-bg"
+      : "from-cp-bg/95 via-cp-bg/78 to-cp-bg",
     isReclub
       ? "dark:from-cp-bg/70 dark:via-cp-bg/25 dark:to-cp-bg"
       : "dark:from-cp-bg/65 dark:via-cp-bg/20 dark:to-cp-bg",
   );
   const sideScrim = cn(
     isReclub
-      ? "from-slate-900/35 via-cp-bg/78 to-transparent"
-      : "from-slate-900/30 via-cp-bg/75 to-transparent",
+      ? "from-white/70 via-cp-bg/88 to-transparent"
+      : "from-white/65 via-cp-bg/85 to-transparent",
     isReclub
       ? "dark:from-cp-bg/70 dark:via-cp-bg/30 dark:to-transparent"
       : "dark:from-cp-bg/65 dark:via-cp-bg/25 dark:to-transparent",
@@ -56,7 +56,7 @@ export function TournamentHeroBanner({
               className="object-cover object-center"
               unoptimized
             />
-            <div className="absolute inset-0 bg-black/25 dark:bg-black/40" />
+            <div className="absolute inset-0 bg-white/55 dark:bg-black/40" />
             <div className={cn("absolute inset-0 bg-linear-to-b", coverGradient)} />
             <div className={cn("absolute inset-0 bg-linear-to-r", sideScrim)} />
           </>
@@ -75,16 +75,19 @@ export function TournamentHeroBanner({
 /** Shared high-contrast typography for tournament hero banners over cover images. */
 export const tournamentHeroStyles = {
   backLink:
-    "inline-flex items-center text-sm font-medium text-foreground/85 drop-shadow-sm transition-colors hover:text-foreground",
+    "inline-flex items-center text-sm font-medium text-foreground/90 drop-shadow-sm transition-colors hover:text-foreground",
   title:
     "mt-3 break-words text-2xl font-bold tracking-tight text-foreground drop-shadow-md sm:mt-4 sm:text-3xl md:text-4xl lg:text-5xl",
-  summaryWrap: "mt-3 max-w-2xl text-base sm:text-lg",
+  summaryWrap: "mt-3 max-w-2xl text-base text-foreground/90 sm:text-lg",
   metaRow:
-    "mt-4 flex flex-col gap-2.5 text-sm font-medium text-foreground/90 drop-shadow-sm sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-4",
+    "mt-4 flex flex-col gap-2.5 text-sm font-medium text-foreground drop-shadow-sm sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-4",
   metaItem: "inline-flex min-w-0 items-center gap-1.5",
+  metaIcon: "h-4 w-4 shrink-0 text-emerald-800 dark:text-cp-primary",
+  /** Solid chip — apply AFTER status color classes so opaque bg wins over translucent pills. */
   statusBadge: cn(
-    "border border-cp-border/80 bg-cp-bg/85 uppercase text-foreground shadow-sm backdrop-blur-md",
-    "dark:bg-cp-bg/55 dark:text-foreground/95",
+    "border font-semibold uppercase tracking-wider shadow-sm",
+    "border-slate-300/90 bg-white/95",
+    "dark:border-white/20 dark:bg-cp-bg/75 dark:backdrop-blur-md",
   ),
 } as const;
 
@@ -185,7 +188,10 @@ export function TournamentStatCard({
   variant = "reclub",
   tone = "default",
 }: TournamentStatCardProps) {
-  const iconColor = variant === "reclub" ? "text-emerald-400" : "text-cp-primary";
+  const iconColor =
+    variant === "reclub"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : "text-emerald-800 dark:text-cp-primary";
   const isHero = tone === "hero";
 
   return (
@@ -193,7 +199,7 @@ export function TournamentStatCard({
       className={cn(
         "min-w-0 rounded-xl border px-3 py-3 sm:px-4 sm:py-3.5",
         isHero
-          ? "border-cp-border/60 bg-cp-bg/80 backdrop-blur-sm dark:border-white/10 dark:bg-cp-bg/55"
+          ? "border-slate-300/80 bg-white/90 backdrop-blur-sm dark:border-white/10 dark:bg-cp-bg/55"
           : "border-cp-border/80 bg-cp-card/70",
       )}
     >

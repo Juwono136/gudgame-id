@@ -85,7 +85,7 @@ export function TournamentCountdown({
             className={cn(
               "flex min-w-[52px] flex-col items-center rounded-lg border px-2 py-2",
               isHero
-                ? "border-white/15 bg-cp-bg/55 backdrop-blur-sm"
+                ? "border-slate-300/80 bg-white/95 shadow-sm dark:border-white/15 dark:bg-cp-bg/55 dark:shadow-none dark:backdrop-blur-sm"
                 : "border-cp-border bg-cp-elevated/80",
             )}
             animate={mounted && u.label === "Sec" ? { scale: [1, 1.02, 1] } : undefined}

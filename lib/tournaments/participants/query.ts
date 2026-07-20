@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import {
@@ -21,6 +21,8 @@ import {
 } from "@/lib/pagination/constants";
 import { isFreeOfficialBilling } from "@/lib/tournaments/registration/official-roster";
 import { getLockedTeamIdsForRemoval } from "@/lib/tournaments/participants/removal-policy";
+import { buildParticipantSearchFilter } from "@/lib/tournaments/participants/search-filter";
+import { sanitizeSearchTerm } from "@/lib/search/sanitize-search-term";
 
 export type TournamentParticipantRow = {
   userId: string;
@@ -45,10 +47,14 @@ export type TournamentParticipantRow = {
 export type TournamentParticipantsResult = {
   items: TournamentParticipantRow[];
   total: number;
+  /** Distinct teams/squads matching the same filters (not page-local). */
+  teamCount: number;
   page: number;
   pageSize: number;
   totalPages: number;
   tournamentType: TournamentType;
+  /** Echo of the sanitized search applied (empty string when none). */
+  search: string;
 };
 
 const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`;
@@ -101,27 +107,62 @@ function publishedPlayerProfileJoin(sportId: string) {
   );
 }
 
-async function countReclubParticipants(tournamentId: string): Promise<number> {
+function reclubBaseWhere(tournamentId: string, searchFilter: SQL | undefined) {
+  return and(eq(tournamentTeams.tournamentId, tournamentId), searchFilter);
+}
+
+function officialBaseWhere(
+  tournamentId: string,
+  officialBilling: OfficialBillingType | string | null | undefined,
+  searchFilter: SQL | undefined,
+) {
+  const isFree = isFreeOfficialBilling(officialBilling);
+  return and(
+    eq(tournamentTeams.tournamentId, tournamentId),
+    isFree ? sql`true` : eq(tournamentPayments.status, "paid"),
+    searchFilter,
+  );
+}
+
+async function countReclubParticipants(
+  tournamentId: string,
+  searchFilter: SQL | undefined,
+): Promise<{ total: number; teamCount: number }> {
   const db = getDb();
+  const where = reclubBaseWhere(tournamentId, searchFilter);
+
   const [row] = await db
-    .select({ count: count() })
+    .select({
+      count: count(),
+      teamCount: sql<number>`count(distinct ${tournamentTeams.id})`,
+    })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .where(eq(tournamentTeams.tournamentId, tournamentId));
-  return Number(row?.count ?? 0);
+    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .where(where);
+
+  return {
+    total: Number(row?.count ?? 0),
+    teamCount: Number(row?.teamCount ?? 0),
+  };
 }
 
 async function countOfficialParticipants(
   tournamentId: string,
   officialBilling: OfficialBillingType | string | null | undefined,
-): Promise<number> {
+  searchFilter: SQL | undefined,
+): Promise<{ total: number; teamCount: number }> {
   const db = getDb();
-  const isFree = isFreeOfficialBilling(officialBilling);
+  const where = officialBaseWhere(tournamentId, officialBilling, searchFilter);
 
   const [row] = await db
-    .select({ count: count() })
+    .select({
+      count: count(),
+      teamCount: sql<number>`count(distinct ${tournamentTeams.id})`,
+    })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .innerJoin(
       tournamentRegistrations,
       and(
@@ -134,15 +175,12 @@ async function countOfficialParticipants(
       tournamentPayments,
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
     )
-    .where(
-      and(
-        eq(tournamentTeams.tournamentId, tournamentId),
-        isFree
-          ? sql`true`
-          : eq(tournamentPayments.status, "paid"),
-      ),
-    );
-  return Number(row?.count ?? 0);
+    .where(where);
+
+  return {
+    total: Number(row?.count ?? 0),
+    teamCount: Number(row?.teamCount ?? 0),
+  };
 }
 
 async function listReclubParticipants(
@@ -151,6 +189,7 @@ async function listReclubParticipants(
   sportSlug: string,
   limit: number,
   offset: number,
+  searchFilter: SQL | undefined,
 ): Promise<TournamentParticipantRow[]> {
   const db = getDb();
   const rows = await db
@@ -173,7 +212,7 @@ async function listReclubParticipants(
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .leftJoin(wikiEntities, publishedPlayerProfileJoin(sportId))
-    .where(eq(tournamentTeams.tournamentId, tournamentId))
+    .where(reclubBaseWhere(tournamentId, searchFilter))
     .orderBy(asc(tournamentTeams.name), asc(tournamentTeamMembers.slotIndex))
     .limit(limit)
     .offset(offset);
@@ -188,6 +227,7 @@ async function listOfficialParticipants(
   officialBilling: OfficialBillingType | string | null | undefined,
   limit: number,
   offset: number,
+  searchFilter: SQL | undefined,
 ): Promise<TournamentParticipantRow[]> {
   const db = getDb();
   const isFree = isFreeOfficialBilling(officialBilling);
@@ -226,14 +266,7 @@ async function listOfficialParticipants(
       tournamentPayments,
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
     )
-    .where(
-      and(
-        eq(tournamentTeams.tournamentId, tournamentId),
-        isFree
-          ? sql`true`
-          : eq(tournamentPayments.status, "paid"),
-      ),
-    )
+    .where(officialBaseWhere(tournamentId, officialBilling, searchFilter))
     .orderBy(asc(tournamentTeams.name), asc(tournamentTeamMembers.slotIndex))
     .limit(limit)
     .offset(offset);
@@ -249,16 +282,23 @@ export async function queryTournamentParticipants(input: {
   officialBilling?: OfficialBillingType | string | null;
   page?: number;
   pageSize?: number;
+  search?: string;
 }): Promise<TournamentParticipantsResult> {
   const page = Math.max(input.page ?? 1, 1);
   const pageSize = input.pageSize ?? DEFAULT_PAGE_SIZE;
   const { limit, offset } = clampPaginationParams(pageSize, toOffset(page, pageSize));
+  const search = sanitizeSearchTerm(input.search) ?? "";
+  const searchFilter = buildParticipantSearchFilter(search);
 
   const isFunMatch = input.tournamentType === "fun_match";
 
-  const total = isFunMatch
-      ? await countReclubParticipants(input.tournamentId)
-      : await countOfficialParticipants(input.tournamentId, input.officialBilling);
+  const { total, teamCount } = isFunMatch
+    ? await countReclubParticipants(input.tournamentId, searchFilter)
+    : await countOfficialParticipants(
+        input.tournamentId,
+        input.officialBilling,
+        searchFilter,
+      );
 
   const items =
     total === 0
@@ -270,6 +310,7 @@ export async function queryTournamentParticipants(input: {
             input.sportSlug,
             limit,
             offset,
+            searchFilter,
           )
         : await listOfficialParticipants(
             input.tournamentId,
@@ -278,6 +319,7 @@ export async function queryTournamentParticipants(input: {
             input.officialBilling,
             limit,
             offset,
+            searchFilter,
           );
 
   if (items.length > 0) {
@@ -293,9 +335,11 @@ export async function queryTournamentParticipants(input: {
   return {
     items,
     total,
+    teamCount,
     page,
     pageSize: limit,
     totalPages: toTotalPages(total, limit),
     tournamentType: input.tournamentType,
+    search,
   };
 }

@@ -15,7 +15,9 @@ export function TournamentOrganizer({ name, imageUrl, className }: TournamentOrg
   return (
     <div
       className={cn(
-        "inline-flex max-w-full items-center gap-2.5 rounded-full border border-cp-border bg-cp-card/80 px-3 py-1.5",
+        "inline-flex max-w-full items-center gap-2.5 rounded-full border px-3 py-1.5 shadow-sm",
+        "border-slate-300/80 bg-white/95",
+        "dark:border-cp-border dark:bg-cp-card/80",
         className,
       )}
     >
