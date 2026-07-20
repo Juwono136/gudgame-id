@@ -4,14 +4,27 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, MapPin, TrendingUp, User } from "lucide-react";
 import { publicSportRoutes } from "@/lib/constants/routes";
+import { normalizePlayerTier } from "@/lib/player/tier";
 import type { PublicPlayerListItem } from "@/lib/wiki/public-players";
 import { cn } from "@/lib/utils";
 
 const TIER_STYLES: Record<string, string> = {
-  pemula: "border-slate-500/30 bg-slate-500/10 text-slate-300",
-  menengah: "border-cp-primary/30 bg-cp-primary/10 text-cp-primary",
-  pro: "border-amber-500/35 bg-amber-500/10 text-amber-300",
-  gold: "border-yellow-500/35 bg-yellow-500/10 text-yellow-200",
+  pemula: cn(
+    "border-slate-400/50 bg-slate-100 text-slate-700",
+    "dark:border-slate-500/40 dark:bg-slate-500/15 dark:text-slate-200",
+  ),
+  menengah: cn(
+    "border-cp-primary/35 bg-cp-primary/10 text-cp-primary",
+    "dark:border-cp-primary/40 dark:bg-cp-primary/15 dark:text-emerald-200",
+  ),
+  pro: cn(
+    "border-amber-500/40 bg-amber-50 text-amber-800",
+    "dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200",
+  ),
+  gold: cn(
+    "border-yellow-500/45 bg-yellow-50 text-yellow-900",
+    "dark:border-yellow-500/40 dark:bg-yellow-500/15 dark:text-yellow-200",
+  ),
 };
 
 function formatPoints(points: number | null): string {
@@ -31,7 +44,7 @@ function formatLocation(player: PublicPlayerListItem): string {
 }
 
 function TierBadge({ tier, tierLevel }: { tier: string | null; tierLevel: string | null }) {
-  const key = tierLevel ?? "pemula";
+  const key = normalizePlayerTier(tierLevel ?? tier) ?? "pemula";
   return (
     <span
       className={cn(
@@ -42,6 +55,10 @@ function TierBadge({ tier, tierLevel }: { tier: string | null; tierLevel: string
       {tier ?? "Beginner"}
     </span>
   );
+}
+
+function playerSubtitle(player: PublicPlayerListItem): string | null {
+  return player.playingStyle?.trim() || player.nickname?.trim() || null;
 }
 
 function PlayerAvatar({ player }: { player: PublicPlayerListItem }) {
@@ -71,6 +88,7 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
         {items.map((player) => {
           const href = publicSportRoutes.player(sportSlug, player.slug);
           const location = formatLocation(player);
+          const subtitle = playerSubtitle(player);
 
           return (
             <Link
@@ -90,10 +108,8 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
                     </p>
                     <TierBadge tier={player.tier} tierLevel={player.tierLevel} />
                   </div>
-                  {player.nickname ? (
-                    <p className="truncate text-xs text-cp-muted">{player.nickname}</p>
-                  ) : player.playingStyle ? (
-                    <p className="truncate text-xs text-cp-muted">{player.playingStyle}</p>
+                  {subtitle ? (
+                    <p className="truncate text-xs text-cp-muted">{subtitle}</p>
                   ) : null}
                   {player.summary ? (
                     <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-cp-muted">
@@ -105,7 +121,6 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
                       <MapPin className="h-3 w-3 shrink-0" />
                       {location}
                     </span>
-                    {player.yearsActive ? <span>Active {player.yearsActive}</span> : null}
                   </div>
                 </div>
                 <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-cp-muted opacity-0 transition-opacity group-hover:opacity-100" />
@@ -158,6 +173,7 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
           <tbody className="divide-y divide-cp-border">
             {items.map((player) => {
               const href = publicSportRoutes.player(sportSlug, player.slug);
+              const subtitle = playerSubtitle(player);
               return (
                 <tr key={player.slug} className="transition-colors hover:bg-cp-elevated/25">
                   <td className="px-6 py-4">
@@ -172,11 +188,11 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
                         <span className="block font-semibold text-foreground group-hover:text-cp-primary">
                           {player.displayName}
                         </span>
-                        <span className="mt-0.5 block truncate text-xs text-cp-muted">
-                          {player.playingStyle ??
-                            player.nickname ??
-                            (player.yearsActive ? `Active ${player.yearsActive}` : "Player profile")}
-                        </span>
+                        {subtitle ? (
+                          <span className="mt-0.5 block truncate text-xs text-cp-muted">
+                            {subtitle}
+                          </span>
+                        ) : null}
                       </span>
                     </Link>
                   </td>

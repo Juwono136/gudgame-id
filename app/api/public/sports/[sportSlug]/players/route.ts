@@ -1,4 +1,5 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
+import { guardApiRequest } from "@/lib/api/guard-request";
 import { AppError } from "@/lib/errors";
 import { listPublishedPlayersPaginated, getSportBySlug } from "@/lib/wiki/public";
 import { publicPlayersListQuerySchema } from "@/lib/validations/public-wiki";
@@ -10,6 +11,8 @@ export async function GET(
   { params }: { params: Promise<{ sportSlug: string }> },
 ) {
   try {
+    await guardApiRequest(request, { tier: "general", skipOriginCheck: true });
+
     const { sportSlug } = await params;
     const sport = await getSportBySlug(sportSlug);
     if (!sport || sport.visibility !== "live") {

@@ -1,12 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
 /**
- * Forces a fresh client mount per route — fixes Framer Motion + bfcache
- * leaving sections invisible after browser Back.
+ * Route templates remount children in Next.js by design.
+ * Do not key the entire tree by pathname — that tears down React Query,
+ * effects, and client state on every navigation (feels like a full refresh).
+ *
+ * Framer Motion / bfcache issues should be fixed locally in motion sections.
  */
 export default function Template({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  return <div key={pathname}>{children}</div>;
+  return children;
 }

@@ -64,6 +64,17 @@ export function isAppError(error: unknown): error is AppError {
 export function toAppError(error: unknown, fallbackMessage = "Unexpected error"): AppError {
   if (isAppError(error)) return error;
   if (error instanceof z.ZodError) return zodErrorToAppError(error);
+
+  // Never leak driver/stack internals to clients in production.
+  if (process.env.NODE_ENV === "production") {
+    return new AppError(fallbackMessage, {
+      cause: error,
+      isOperational: false,
+      code: "INTERNAL_ERROR",
+      statusCode: 500,
+    });
+  }
+
   if (error instanceof Error) {
     return new AppError(error.message || fallbackMessage, {
       cause: error,

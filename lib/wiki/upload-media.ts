@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { getPublicObjectUrl, uploadObject } from "@/lib/storage/client";
+import { assertSafeImageBuffer } from "@/lib/security/image-magic";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ module: "wiki-media" });
@@ -35,20 +36,13 @@ export async function uploadWikiImage(
   entityType: string,
 ): Promise<{ ok: true; url: string; storageKey: string } | { ok: false; error: string }> {
   try {
-    const ext =
-      file.type === "image/png"
-        ? "png"
-        : file.type === "image/webp"
-          ? "webp"
-          : file.type === "image/gif"
-            ? "gif"
-            : "jpg";
-    const storageKey = `wiki/${sportSlug}/${entityType}/${randomUUID()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
+    const { mime, ext } = assertSafeImageBuffer(buffer, file.type);
+    const storageKey = `wiki/${sportSlug}/${entityType}/${randomUUID()}.${ext}`;
     await uploadObject({
       key: storageKey,
       body: buffer,
-      contentType: file.type,
+      contentType: mime,
     });
     return {
       ok: true,

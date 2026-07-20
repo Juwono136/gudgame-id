@@ -29,7 +29,7 @@ import { listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
-import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
+import { listTournamentCourts } from "@/lib/tournaments/courts/service";
 import {
   getTournamentDisplayConfig,
   getTournamentGameRules,
@@ -184,7 +184,7 @@ export async function buildTournamentLivePayload(
     includeBracket ? buildTournamentLeaderboard(tournament.id) : Promise.resolve([]),
     listLobbyTeamsDetailed(tournament.id),
     includeLobbyRounds ? listReclubMatches(tournament.id) : Promise.resolve([]),
-    provisionTournamentCourts(tournament),
+    listTournamentCourts(tournament.id),
     includeGroupStage ? listGroupMatches(tournament.id) : Promise.resolve([]),
     includeGroupStage ? buildDoubleStageOverview(tournament) : Promise.resolve(null),
   ]);

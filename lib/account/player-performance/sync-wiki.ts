@@ -72,6 +72,25 @@ export async function syncPlayerWikiPerformance(
     })
     .where(eq(wikiEntities.id, entity.id));
 
+  void (async () => {
+    try {
+      const { sports } = await import("@/db/schema/sports");
+      const [sport] = await db
+        .select({ slug: sports.slug })
+        .from(sports)
+        .where(eq(sports.id, sportId))
+        .limit(1);
+      if (sport?.slug) {
+        const { invalidatePlayerLeaderboardCache } = await import(
+          "@/lib/wiki/player-leaderboard"
+        );
+        await invalidatePlayerLeaderboardCache(sport.slug);
+      }
+    } catch {
+      /* cache best-effort */
+    }
+  })();
+
   await db
     .update(playerMatches)
     .set({ wikiEntityId: entity.id })

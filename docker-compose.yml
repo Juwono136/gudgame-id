@@ -20,6 +20,7 @@ services:
 
       # Database & cache (host services via host.docker.internal)
       DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-20}
       REDIS_URL: ${REDIS_URL:-}
 
       # Auth

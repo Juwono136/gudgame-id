@@ -57,6 +57,12 @@ function mapSportRow(row: Sport): SportDetail {
   };
 }
 
+
+async function invalidatePublicSportsCache(): Promise<void> {
+  const { invalidateCached } = await import("@/lib/cache/redis-cache");
+  await invalidateCached("public-list", "sports");
+}
+
 function sortColumn(sortBy: AdminSportsListQuery["sortBy"]) {
   switch (sortBy) {
     case "name":
@@ -70,29 +76,36 @@ function sortColumn(sortBy: AdminSportsListQuery["sortBy"]) {
 }
 
 export async function listPublicSports(): Promise<SportPublicCard[]> {
-  const rows = await getDb()
-    .select()
-    .from(sports)
-    .where(
-      and(
-        eq(sports.isActive, true),
-        inArray(sports.visibility, ["live", "coming_soon"]),
-      ),
-    )
-    .orderBy(asc(sports.displayOrder), asc(sports.name));
+  const { withCache } = await import("@/lib/cache/redis-cache");
+  return withCache(
+    "public-list",
+    async () => {
+      const rows = await getDb()
+        .select()
+        .from(sports)
+        .where(
+          and(
+            eq(sports.isActive, true),
+            inArray(sports.visibility, ["live", "coming_soon"]),
+          ),
+        )
+        .orderBy(asc(sports.displayOrder), asc(sports.name));
 
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    slug: row.slug,
-    tagline: row.tagline,
-    description: row.description,
-    heroImageUrl: row.heroImageUrl,
-    accentColor: row.accentColor,
-    visibility: row.visibility as SportVisibility,
-    modules: (row.modules as SportModules | null) ?? DEFAULT_SPORT_MODULES,
-    isLive: row.visibility === "live",
-  }));
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        tagline: row.tagline,
+        description: row.description,
+        heroImageUrl: row.heroImageUrl,
+        accentColor: row.accentColor,
+        visibility: row.visibility as SportVisibility,
+        modules: (row.modules as SportModules | null) ?? DEFAULT_SPORT_MODULES,
+        isLive: row.visibility === "live",
+      }));
+    },
+    { prefix: "sports", ttlSeconds: 60 },
+  );
 }
 
 export async function getSportDetailBySlug(slug: string): Promise<SportDetail | null> {
@@ -296,6 +309,7 @@ export async function createSport(
     throw new AppError("Failed to create sport", { code: "DATABASE_ERROR", statusCode: 500 });
   }
 
+  await invalidatePublicSportsCache();
   return mapSportRow(created);
 }
 
@@ -353,6 +367,7 @@ export async function updateSport(
     throw new AppError("Failed to update sport", { code: "DATABASE_ERROR", statusCode: 500 });
   }
 
+  await invalidatePublicSportsCache();
   return mapSportRow(updated);
 }
 
@@ -382,6 +397,7 @@ export async function reorderSports(orderedIds: string[]): Promise<void> {
         .where(eq(sports.id, orderedIds[i]!));
     }
   });
+  await invalidatePublicSportsCache();
 }
 
 export async function countSports(): Promise<number> {
@@ -457,4 +473,6 @@ export async function deleteSport(id: string): Promise<void> {
       }
     });
   }
+
+  await invalidatePublicSportsCache();
 }

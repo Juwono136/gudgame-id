@@ -426,27 +426,4 @@ export function useResetPasswordMutation() {
   });
 }
 
-export function useLogoutMutation() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async () => {
-      const result = await authClient.signOut();
-      if (result.error) {
-        throw new Error(result.error.message ?? "Sign out failed");
-      }
-    },
-    onSuccess: async () => {
-      await syncAuthSessionAfterChange(queryClient);
-      toast.success("Signed out", {
-        description: "See you on court soon.",
-      });
-      router.push(authRoutes.login);
-      router.refresh();
-    },
-    onError: (error: Error) => {
-      toast.error("Sign out failed", { description: error.message });
-    },
-  });
-}
+export { useLogoutMutation } from "@/hooks/use-logout-mutation";

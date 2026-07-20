@@ -12,6 +12,18 @@ const LOCKOUT_WINDOW_SECONDS = 15 * 60;
 const ATTEMPT_WINDOW_SECONDS = 15 * 60;
 
 function isLockoutEnabled(): boolean {
+  // Production defaults to ON; explicitly set AUTH_LOCKOUT_ENABLED=false to disable.
+  if (process.env.NODE_ENV === "production") {
+    if (process.env.AUTH_LOCKOUT_ENABLED === "false") return false;
+    try {
+      const env = getServerEnv();
+      if (env.AUTH_LOCKOUT_ENABLED === false) return false;
+    } catch {
+      /* env may be incomplete during early boot — keep lockout on */
+    }
+    return true;
+  }
+
   try {
     return getServerEnv().AUTH_LOCKOUT_ENABLED === true;
   } catch {

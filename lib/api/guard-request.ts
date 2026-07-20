@@ -43,6 +43,12 @@ export async function guardApiRequest(
     key: `api:${tier}:${ip}${suffix}`,
     limit: limits.limit,
     windowSeconds: limits.windowSeconds,
-    failClosedInProduction: tier === "auth" || tier === "register" || tier === "passwordReset",
+    failClosedInProduction:
+      tier === "auth" ||
+      tier === "register" ||
+      tier === "passwordReset" ||
+      tier === "general" ||
+      tier === "sensitive" ||
+      tier === "upload",
   });
 }

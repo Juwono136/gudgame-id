@@ -11,13 +11,14 @@ function resolveLiveRefetchInterval(data: TournamentLivePayload | undefined): nu
   const matches = data?.matches ?? [];
   const anyInProgress = matches.some((m) => m.status === "in_progress");
 
-  if (anyInProgress) return 2000;
-  if (data?.phase === "live" || tournamentStatus === "live") return 5000;
+  // Floor intervals protect Postgres under many concurrent spectators.
+  if (anyInProgress) return 4000;
+  if (data?.phase === "live" || tournamentStatus === "live") return 6000;
   if (data?.phase === "not_started" || tournamentStatus === "draft" || tournamentStatus === "open") {
-    return 8000;
+    return 10000;
   }
-  if (data?.phase === "completed" || tournamentStatus === "completed") return 15000;
-  return 5000;
+  if (data?.phase === "completed" || tournamentStatus === "completed") return 20000;
+  return 8000;
 }
 
 export function useTournamentLive(sportSlug: string, slug: string, enabled = true) {

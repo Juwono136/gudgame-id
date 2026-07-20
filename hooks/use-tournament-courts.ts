@@ -30,7 +30,7 @@ export function useTournamentCourts(sportSlug: string, slug: string, enabled = t
       }
       return json.data.courts;
     },
-    refetchInterval: 5000,
+    refetchInterval: 8000,
   });
 }
 

@@ -1,16 +1,10 @@
 import "server-only";
 import { randomUUID } from "crypto";
 import { logger } from "@/lib/logger";
+import { assertSafeImageBuffer } from "@/lib/security/image-magic";
 import { getPublicObjectUrl, uploadObject } from "@/lib/storage/client";
 
 const log = logger.child({ module: "storage-profile-photos" });
-
-const EXT_BY_MIME: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
 
 export type ProfilePhotoUploadResult = {
   /** Same-origin URL via /api/media (stored in DB, not binary) */
@@ -29,15 +23,15 @@ export async function uploadProfilePhotoToStorage(
   { ok: true; data: ProfilePhotoUploadResult } | { ok: false; error: string }
 > {
   try {
-    const ext = EXT_BY_MIME[file.type] ?? "jpg";
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { mime, ext } = assertSafeImageBuffer(buffer, file.type);
     const safeEmail = email.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 48);
     const storageKey = `profiles/${safeEmail}/${randomUUID()}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
 
     const { key, bucket } = await uploadObject({
       key: storageKey,
       body: buffer,
-      contentType: file.type,
+      contentType: mime,
     });
 
     const publicUrl = getPublicObjectUrl(key);

@@ -62,7 +62,8 @@ export function useSessionContext(enabled = true) {
       return json.data;
     },
     enabled,
-    staleTime: 10_000,
-    refetchOnWindowFocus: true,
+    // Roles/profile rarely change mid-session; explicit invalidation covers updates.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }

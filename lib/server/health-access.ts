@@ -19,8 +19,13 @@ export function isHealthCheckAuthorized(request: Request): boolean {
   const nodeEnv = process.env.NODE_ENV ?? "development";
   const token = process.env.HEALTH_CHECK_TOKEN?.trim();
 
-  if (nodeEnv !== "production" || !token) {
+  // Development: open for local ops. Production: require a configured token.
+  if (nodeEnv !== "production") {
     return true;
+  }
+
+  if (!token) {
+    return false;
   }
 
   const provided =

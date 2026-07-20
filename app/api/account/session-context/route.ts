@@ -14,6 +14,8 @@ import {
 } from "@/lib/roles/dashboard-links";
 import { getPermissionsForRoles } from "@/lib/roles/permissions";
 
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
     const session = await getServerSession();
@@ -74,30 +76,31 @@ export async function GET() {
       });
     }
 
-    const roles = await getUserRoleAssignments(session.user.id);
+    const [roles, dbUserRows, providers] = await Promise.all([
+      getUserRoleAssignments(session.user.id),
+      getDb()
+        .select({
+          id: user.id,
+          name: user.name,
+          fullNameKtp: user.fullNameKtp,
+          phone: user.phone,
+          phoneCountryCode: user.phoneCountryCode,
+          sportInterestSlugs: user.sportInterestSlugs,
+          gender: user.gender,
+          image: user.image,
+          imageStorageKey: user.imageStorageKey,
+          nickname: user.nickname,
+        })
+        .from(user)
+        .where(eq(user.id, session.user.id))
+        .limit(1),
+      getUserAuthProvidersByUserId(session.user.id),
+    ]);
 
-    const [dbUser] = await getDb()
-      .select({
-        id: user.id,
-        name: user.name,
-        fullNameKtp: user.fullNameKtp,
-        phone: user.phone,
-        phoneCountryCode: user.phoneCountryCode,
-        sportInterestSlugs: user.sportInterestSlugs,
-        gender: user.gender,
-        image: user.image,
-        imageStorageKey: user.imageStorageKey,
-        nickname: user.nickname,
-      })
-      .from(user)
-      .where(eq(user.id, session.user.id))
-      .limit(1);
-
+    const dbUser = dbUserRows[0];
     const profileStatus = dbUser
       ? getProfileCompletionStatus(dbUser)
       : { isComplete: true, missingFields: [], completionPercent: 100 };
-
-    const providers = await getUserAuthProvidersByUserId(session.user.id);
 
     return jsonSuccess({
       authenticated: true,

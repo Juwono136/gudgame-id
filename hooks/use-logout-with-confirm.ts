@@ -1,7 +1,7 @@
 "use client";
 
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
-import { useLogoutMutation } from "@/hooks/use-auth-mutations";
+import { useLogoutMutation } from "@/hooks/use-logout-mutation";
 import { siteConfig } from "@/lib/config/site";
 
 type UseLogoutWithConfirmOptions = {

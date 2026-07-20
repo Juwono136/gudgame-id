@@ -394,6 +394,10 @@ export async function updateAdminUser(
       const { revokeAllUserSessions } = await import("@/lib/auth/account-status");
       await revokeAllUserSessions(id);
     }
+    const { invalidateProxySessionCache } = await import(
+      "@/lib/session/proxy-session"
+    );
+    void invalidateProxySessionCache(id);
   }
 
   if (input.password) {
@@ -532,6 +536,11 @@ export async function updateAdminUserStaff(
     const { revokeAllUserSessions } = await import("@/lib/auth/account-status");
     await revokeAllUserSessions(id);
   }
+
+  const { invalidateProxySessionCache } = await import(
+    "@/lib/session/proxy-session"
+  );
+  void invalidateProxySessionCache(id);
 
   const updated = await getAdminUserById(id);
   if (!updated) {

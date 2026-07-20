@@ -16,7 +16,10 @@ export type AuthUser = SessionContextUser;
  */
 export function useAuthUser() {
   const { data: session, isPending: sessionPending } = useSession();
-  const { data: sessionCtx, isPending: ctxPending } = useSessionContext();
+  const hasAuthSession = Boolean(session?.user);
+  const { data: sessionCtx, isPending: ctxPending } = useSessionContext(
+    sessionPending || hasAuthSession,
+  );
 
   const user = useMemo((): AuthUser | null => {
     const ba = session?.user;

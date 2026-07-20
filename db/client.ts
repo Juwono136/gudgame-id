@@ -32,14 +32,24 @@ function resolveDatabaseUrl(): string {
 
 function createQueryClient(): Sql {
   const databaseUrl = resolveDatabaseUrl();
+  const poolMax = resolvePoolMax();
 
   return postgres(databaseUrl, {
-    max: process.env.NODE_ENV === "production" ? 10 : 5,
+    max: poolMax,
     idle_timeout: 20,
     connect_timeout: 10,
     prepare: false,
     onnotice: () => {},
   });
+}
+
+function resolvePoolMax(): number {
+  const raw = process.env.DATABASE_POOL_MAX?.trim();
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 100) return parsed;
+  }
+  return process.env.NODE_ENV === "production" ? 20 : 5;
 }
 
 export function getDb(): PostgresJsDatabase<typeof schema> {

@@ -1,12 +1,15 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
+import { guardApiRequest } from "@/lib/api/guard-request";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sports } from "@/db/schema/sports";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    await guardApiRequest(request, { tier: "general", skipOriginCheck: true });
+
     const rows = await getDb()
       .select({
         id: sports.id,

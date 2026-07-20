@@ -24,6 +24,9 @@ const bodySchema = z
 
 export async function POST(request: Request) {
   try {
+    const { guardApiRequest } = await import("@/lib/api/guard-request");
+    await guardApiRequest(request, { tier: "sensitive" });
+
     const session = await getServerSession();
     if (!session?.user) {
       throw new AppError("Unauthorized", { code: "UNAUTHORIZED", statusCode: 401 });
@@ -64,6 +67,11 @@ export async function POST(request: Request) {
       .update(user)
       .set({ mustChangePassword: false, updatedAt: new Date() })
       .where(eq(user.id, session.user.id));
+
+    const { invalidateProxySessionCache } = await import(
+      "@/lib/session/proxy-session"
+    );
+    void invalidateProxySessionCache(session.user.id);
 
     return jsonSuccess({ success: true });
   } catch (error) {

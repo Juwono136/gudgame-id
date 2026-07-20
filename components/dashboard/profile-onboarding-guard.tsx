@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useSessionContext } from "@/hooks/use-session-context";
 import { dashboardRoutes } from "@/lib/constants/routes";
 
 type ProfileOnboardingGuardProps = {
@@ -12,28 +13,14 @@ type ProfileOnboardingGuardProps = {
 export function ProfileOnboardingGuard({ children }: ProfileOnboardingGuardProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: sessionCtx } = useSessionContext();
 
   useEffect(() => {
     if (pathname?.startsWith(dashboardRoutes.completeProfile)) return;
-
-    let cancelled = false;
-
-    void fetch("/api/account/session-context", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((json: { data?: { authenticated?: boolean; profileComplete?: boolean } }) => {
-        if (cancelled) return;
-        if (json.data?.authenticated && json.data.profileComplete === false) {
-          router.replace(dashboardRoutes.completeProfile);
-        }
-      })
-      .catch(() => {
-        /* Non-blocking — page content still renders if context fetch fails */
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname, router]);
+    if (sessionCtx?.authenticated && sessionCtx.profileComplete === false) {
+      router.replace(dashboardRoutes.completeProfile);
+    }
+  }, [pathname, router, sessionCtx?.authenticated, sessionCtx?.profileComplete]);
 
   return <>{children}</>;
 }

@@ -63,10 +63,10 @@ export function useTournamentBracket(
     refetchInterval: (query) => {
       const data = query.state.data;
       const matches = data?.matches ?? [];
-      if (matches.some((m) => m.status === "in_progress")) return 3000;
-      if (data?.seedingFinalized === false) return 4000;
-      if (matches.some((m) => m.status === "pending" || m.status === "bye")) return 8000;
-      return 15000;
+      if (matches.some((m) => m.status === "in_progress")) return 5000;
+      if (data?.seedingFinalized === false) return 6000;
+      if (matches.some((m) => m.status === "pending" || m.status === "bye")) return 10000;
+      return 20000;
     },
   });
 }

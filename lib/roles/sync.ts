@@ -9,6 +9,7 @@ import {
   pickPrimaryRole,
   type AppRole,
 } from "@/lib/roles/constants";
+import { invalidateProxySessionCache } from "@/lib/session/proxy-session";
 
 export async function getUserRoleAssignments(userId: string): Promise<AppRole[]> {
   const db = getDb();
@@ -66,6 +67,8 @@ export async function setUserRoles(
     .update(user)
     .set({ role: primary, updatedAt: new Date() })
     .where(eq(user.id, userId));
+
+  void invalidateProxySessionCache(userId);
 
   return unique;
 }

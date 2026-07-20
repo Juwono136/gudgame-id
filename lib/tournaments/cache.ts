@@ -16,6 +16,13 @@ export function tournamentListCacheKey(
   return `list:${sportSlug}:${bucket}:${limit}`;
 }
 
+export function tournamentLiveCacheKey(sportSlug: string, slug: string): string {
+  return `live:${sportSlug}:${slug}`;
+}
+
+/** Short TTL — scoreboards poll often; invalidation keeps updates snappy. */
+export const TOURNAMENT_LIVE_CACHE_TTL_SECONDS = 2;
+
 export async function invalidateTournamentCaches(
   sportSlug: string,
   slug?: string,
@@ -27,6 +34,11 @@ export async function invalidateTournamentCaches(
     ),
   );
   if (slug) {
-    await invalidateCached(tournamentDetailCacheKey(sportSlug, slug), PREFIX);
+    await Promise.all([
+      invalidateCached(tournamentDetailCacheKey(sportSlug, slug), PREFIX),
+      invalidateCached(tournamentLiveCacheKey(sportSlug, slug), PREFIX),
+    ]);
   }
 }
+
+export { PREFIX as TOURNAMENT_CACHE_PREFIX };

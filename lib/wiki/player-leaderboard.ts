@@ -5,11 +5,16 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sports, user, wikiEntities } from "@/db/schema";
 import { computeOwnedPlayerCareerStats } from "@/lib/account/player-performance/compute-owned-career-stats";
+import { withCache, getCached, setCached, invalidateCached } from "@/lib/cache/redis-cache";
 import { formatPlayerTierLabel, normalizePlayerTier } from "@/lib/player/tier";
 import { archiveOrphanPublishedPlayerProfiles } from "@/lib/wiki/active-player-eligibility";
 import { parsePlayerEditableAttributes } from "@/lib/wiki/player-profile-fields";
 import type { PlayerCareerStats } from "@/lib/wiki/player-career-stats";
 import { resolveWikiImageUrl } from "@/lib/storage/resolve-wiki-image";
+
+const PLAYERS_CACHE_PREFIX = "players";
+const LEADERBOARD_TTL_SECONDS = 45;
+const ORPHAN_ARCHIVE_THROTTLE_SECONDS = 3600;
 
 export type ActivePlayerLeaderboardEntry = {
   slug: string;
@@ -42,10 +47,30 @@ function assignDenseRanks(
   });
 }
 
+/** At most once per hour — never blocks every public list GET. */
+async function maybeArchiveOrphansThrottled(): Promise<void> {
+  const throttleKey = "orphan-archive";
+  const recent = await getCached<{ hit: true }>(throttleKey, {
+    prefix: PLAYERS_CACHE_PREFIX,
+  });
+  if (recent?.hit) return;
+
+  await setCached(throttleKey, { hit: true }, {
+    prefix: PLAYERS_CACHE_PREFIX,
+    ttlSeconds: ORPHAN_ARCHIVE_THROTTLE_SECONDS,
+  });
+
+  try {
+    await archiveOrphanPublishedPlayerProfiles();
+  } catch {
+    /* non-fatal housekeeping */
+  }
+}
+
 async function buildActivePlayerLeaderboardUncached(
   sportSlug: string,
 ): Promise<ActivePlayerLeaderboardEntry[]> {
-  await archiveOrphanPublishedPlayerProfiles();
+  await maybeArchiveOrphansThrottled();
 
   const db = getDb();
   const rows = await db
@@ -111,8 +136,22 @@ async function buildActivePlayerLeaderboardUncached(
   return assignDenseRanks(withStats);
 }
 
-/** Cached per request — shared by player list and profile rank resolution. */
-export const getActivePlayerLeaderboard = cache(buildActivePlayerLeaderboardUncached);
+async function getActivePlayerLeaderboardCached(
+  sportSlug: string,
+): Promise<ActivePlayerLeaderboardEntry[]> {
+  return withCache(
+    `leaderboard:${sportSlug}`,
+    () => buildActivePlayerLeaderboardUncached(sportSlug),
+    { prefix: PLAYERS_CACHE_PREFIX, ttlSeconds: LEADERBOARD_TTL_SECONDS },
+  );
+}
+
+/** Request-scoped + Redis — shared by player list API and profile rank. */
+export const getActivePlayerLeaderboard = cache(getActivePlayerLeaderboardCached);
+
+export async function invalidatePlayerLeaderboardCache(sportSlug: string): Promise<void> {
+  await invalidateCached(`leaderboard:${sportSlug}`, PLAYERS_CACHE_PREFIX);
+}
 
 export async function getPlayerRankOnLeaderboard(
   sportSlug: string,

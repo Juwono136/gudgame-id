@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { DashboardMobileBottomNav } from "@/components/dashboard/dashboard-nav";
 import { setDashboardMobileNavActive } from "@/hooks/use-dashboard-mobile-nav-active";
 import { useSessionContext } from "@/hooks/use-session-context";
+import { useSession } from "@/lib/auth/client";
 import { dashboardMobileBottomNavPaddingClass } from "@/lib/constants/dashboard-layout";
 import { resolveDashboardMobileNavVariant } from "@/lib/dashboard/mobile-nav-variant";
 import { cn } from "@/lib/utils";
@@ -15,7 +16,10 @@ type DashboardLayoutClientProps = {
 
 export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) {
   const pathname = usePathname();
-  const { data: sessionCtx } = useSessionContext();
+  const { data: session, isPending: sessionPending } = useSession();
+  const hasAuthSession = Boolean(session?.user);
+  // Skip session-context for guests once Better Auth resolves — major public-page win.
+  const { data: sessionCtx } = useSessionContext(sessionPending || hasAuthSession);
 
   const roles = sessionCtx?.roles ?? [];
   const variant = resolveDashboardMobileNavVariant(pathname, roles);

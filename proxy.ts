@@ -12,12 +12,12 @@ import {
 import type { AppRole } from "@/lib/roles/constants";
 import {
   getAccessDeniedRedirect,
-  getPostLoginLandingUrl,
   isPathAllowedForRoles,
   isRoleProtectedPath,
   resolveSafeCallbackUrl,
 } from "@/lib/roles/route-access";
 import { applySecurityHeadersToNextResponse } from "@/lib/security/headers";
+import { maybeRateLimitApiProxy } from "@/lib/api/proxy-rate-limit";
 
 type SessionProxyContext = {
   roles: AppRole[];
@@ -25,11 +25,32 @@ type SessionProxyContext = {
   accountInactive: boolean;
 };
 
+/**
+ * Auth-sensitive paths that need DB-backed session flags/roles.
+ * Public wiki/marketing pages skip this — keeps HMR refresh and public TTFB fast.
+ */
+function needsProxySessionContext(pathname: string): boolean {
+  return (
+    isAuthPage(pathname) ||
+    isProtectedPage(pathname) ||
+    isRoleProtectedPath(pathname) ||
+    isChangePasswordRequiredPath(pathname)
+  );
+}
+
+function needsProxyRoles(pathname: string): boolean {
+  return isAuthPage(pathname) || isRoleProtectedPath(pathname);
+}
+
 async function fetchSessionContext(
   request: NextRequest,
+  needRoles: boolean,
 ): Promise<SessionProxyContext | null> {
   try {
-    const res = await fetch(new URL("/api/account/session-context", request.url), {
+    const url = new URL("/api/account/proxy-session", request.url);
+    if (needRoles) url.searchParams.set("roles", "1");
+
+    const res = await fetch(url, {
       headers: { cookie: request.headers.get("cookie") ?? "" },
       cache: "no-store",
     });
@@ -78,6 +99,8 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) {
+    const limited = await maybeRateLimitApiProxy(request);
+    if (limited) return limited;
     return applySecurityHeadersToNextResponse(NextResponse.next());
   }
 
@@ -95,8 +118,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthenticated) {
-    const sessionCtx = await fetchSessionContext(request);
+  if (isAuthenticated && needsProxySessionContext(pathname)) {
+    const sessionCtx = await fetchSessionContext(
+      request,
+      needsProxyRoles(pathname),
+    );
 
     if (sessionCtx?.accountInactive) {
       const loginUrl = new URL(authRoutes.login, request.url);
@@ -132,9 +158,7 @@ export async function proxy(request: NextRequest) {
         );
       }
       const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
-      const target = sessionCtx
-        ? resolveSafeCallbackUrl(callbackUrl, sessionCtx.roles)
-        : getPostLoginLandingUrl();
+      const target = resolveSafeCallbackUrl(callbackUrl, sessionCtx.roles);
       return NextResponse.redirect(new URL(target, request.url));
     }
   }
