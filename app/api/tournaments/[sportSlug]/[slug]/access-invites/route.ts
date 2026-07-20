@@ -70,7 +70,6 @@ export async function POST(
       tournament,
       invitedByUserId: userId,
       role: parsed.data.role,
-      email: parsed.data.email,
     });
 
     return jsonSuccess({ invite }, 201);

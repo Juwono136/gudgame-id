@@ -1,10 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
-import {
-  previewAccessInvite,
-  previewPlayerInvite,
-} from "@/lib/tournaments/invitations/preview";
+import { previewInvite } from "@/lib/tournaments/invitations/preview";
 import { inviteRedeemSchema } from "@/lib/validations/tournaments";
 
 export const runtime = "nodejs";
@@ -22,22 +19,16 @@ export async function POST(request: Request) {
       });
     }
 
-    const kind = typeof body === "object" && body && "kind" in body ? String(body.kind) : "access";
+    const kind =
+      typeof body === "object" && body && "kind" in body ? String(body.kind) : "access";
 
-    const preview =
-      kind === "player"
-        ? await previewPlayerInvite({
-            userId,
-            token: parsed.data.token,
-            code: parsed.data.code,
-            tournamentId: parsed.data.tournamentId,
-          })
-        : await previewAccessInvite({
-            userId,
-            token: parsed.data.token,
-            code: parsed.data.code,
-            tournamentId: parsed.data.tournamentId,
-          });
+    const preview = await previewInvite({
+      userId,
+      token: parsed.data.token,
+      code: parsed.data.code,
+      tournamentId: parsed.data.tournamentId,
+      preferredKind: kind === "player" ? "player" : "access",
+    });
 
     return jsonSuccess({ preview });
   } catch (error) {

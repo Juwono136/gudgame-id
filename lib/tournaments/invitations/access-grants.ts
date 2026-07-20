@@ -1,21 +1,20 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import {
   tournamentAccessGrants,
   type AccessGrantRole,
 } from "@/db/schema/tournament-invitations";
-import { tournaments } from "@/db/schema/tournaments";
 import { AppError } from "@/lib/errors";
+import { buildInviteUrl } from "@/lib/tournaments/invitations/crypto";
 import {
-  buildInviteUrl,
-  generateInviteCode,
-  generateInviteToken,
-  getDefaultInviteExpiry,
-  hashInviteSecret,
-} from "@/lib/tournaments/invitations/crypto";
+  insertWithUniqueInviteCredentials,
+  inviteExpiredErrorMessage,
+  isInvitePastExpiry,
+  assertShareableInviteUsable,
+} from "@/lib/tournaments/invitations/lifecycle";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type AccessInviteView = {
@@ -32,41 +31,55 @@ export type AccessInviteView = {
   inviteCode?: string;
 };
 
+const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`;
+
+async function expireAccessInviteIfNeeded(
+  id: string,
+  status: string,
+  expiresAt: Date,
+): Promise<boolean> {
+  if (status !== "pending" || !isInvitePastExpiry(expiresAt)) return false;
+  await getDb()
+    .update(tournamentAccessGrants)
+    .set({ status: "expired" })
+    .where(eq(tournamentAccessGrants.id, id));
+  return true;
+}
+
 export async function createAccessInvite(input: {
   tournament: TournamentDetail;
   invitedByUserId: string;
   role: AccessGrantRole;
-  email?: string | null;
 }): Promise<AccessInviteView> {
-  const token = generateInviteToken();
-  const code = generateInviteCode();
-  const expiresAt = getDefaultInviteExpiry();
+  const created = await insertWithUniqueInviteCredentials(async (credentials) => {
+    const [row] = await getDb()
+      .insert(tournamentAccessGrants)
+      .values({
+        tournamentId: input.tournament.id,
+        email: null,
+        role: input.role,
+        inviteCodeHash: credentials.codeHash,
+        inviteCode: credentials.code,
+        inviteToken: credentials.token,
+        status: "pending",
+        expiresAt: credentials.expiresAt,
+        invitedByUserId: input.invitedByUserId,
+      })
+      .returning();
 
-  const [created] = await getDb()
-    .insert(tournamentAccessGrants)
-    .values({
-      tournamentId: input.tournament.id,
-      email: input.email?.trim().toLowerCase() || null,
-      role: input.role,
-      inviteCodeHash: hashInviteSecret(code),
-      inviteToken: token,
-      status: "pending",
-      expiresAt,
-      invitedByUserId: input.invitedByUserId,
-    })
-    .returning();
-
-  if (!created) {
-    throw new AppError("Could not create access invite", {
-      code: "DATABASE_ERROR",
-      statusCode: 500,
-    });
-  }
+    if (!row) {
+      throw new AppError("Could not create access invite", {
+        code: "DATABASE_ERROR",
+        statusCode: 500,
+      });
+    }
+    return row;
+  });
 
   return {
     id: created.id,
     role: created.role as AccessGrantRole,
-    email: created.email,
+    email: null,
     status: created.status,
     userId: created.userId,
     redeemedUserName: null,
@@ -76,10 +89,10 @@ export async function createAccessInvite(input: {
     inviteUrl: buildInviteUrl({
       sportSlug: input.tournament.sportSlug,
       slug: input.tournament.slug,
-      token,
+      token: created.inviteToken,
       kind: "access",
     }),
-    inviteCode: code,
+    inviteCode: created.inviteCode ?? undefined,
   };
 }
 
@@ -96,19 +109,23 @@ export async function listAccessInvites(
       expiresAt: tournamentAccessGrants.expiresAt,
       acceptedAt: tournamentAccessGrants.acceptedAt,
       inviteToken: tournamentAccessGrants.inviteToken,
-      redeemedUserName: user.name,
+      inviteCode: tournamentAccessGrants.inviteCode,
+      redeemedUserName: displayNameSql,
       redeemedUserImage: user.image,
     })
     .from(tournamentAccessGrants)
     .leftJoin(user, eq(tournamentAccessGrants.userId, user.id))
     .where(eq(tournamentAccessGrants.tournamentId, tournament.id));
 
-  return rows
-    .filter((row) => row.status === "pending" || row.status === "accepted")
-    .map((row) => ({
+  const views: AccessInviteView[] = [];
+  for (const row of rows) {
+    if (await expireAccessInviteIfNeeded(row.id, row.status, row.expiresAt)) continue;
+    if (row.status !== "pending" && row.status !== "accepted") continue;
+
+    views.push({
       id: row.id,
       role: row.role as AccessGrantRole,
-      email: row.email,
+      email: null,
       status: row.status,
       userId: row.userId,
       redeemedUserName: row.redeemedUserName,
@@ -124,9 +141,15 @@ export async function listAccessInvites(
               kind: "access",
             })
           : "",
-    }));
+      inviteCode:
+        row.status === "pending" && row.inviteCode ? row.inviteCode : undefined,
+    });
+  }
+
+  return views;
 }
 
+/** View stored credentials without rotating — invites are immutable after create. */
 export async function revealAccessInviteCredentials(input: {
   tournamentId: string;
   inviteId: string;
@@ -148,35 +171,25 @@ export async function revealAccessInviteCredentials(input: {
   if (!grant) {
     throw new AppError("Invite not found", { code: "NOT_FOUND", statusCode: 404 });
   }
-  if (grant.status !== "pending") {
-    throw new AppError("Only pending invites can show link and code details.", {
-      code: "CONFLICT",
-      statusCode: 409,
-    });
-  }
-  if (grant.expiresAt.getTime() < Date.now()) {
-    throw new AppError("This invite has expired.", { code: "FORBIDDEN", statusCode: 403 });
+
+  if (await expireAccessInviteIfNeeded(grant.id, grant.status, grant.expiresAt)) {
+    throw new AppError(inviteExpiredErrorMessage(), { code: "FORBIDDEN", statusCode: 403 });
   }
 
-  const token = generateInviteToken();
-  const code = generateInviteCode();
+  assertShareableInviteUsable(grant);
 
-  await db
-    .update(tournamentAccessGrants)
-    .set({
-      inviteToken: token,
-      inviteCodeHash: hashInviteSecret(code),
-    })
-    .where(eq(tournamentAccessGrants.id, grant.id));
+  if (!grant.inviteToken) {
+    throw new AppError("Invite link is unavailable.", { code: "CONFLICT", statusCode: 409 });
+  }
 
   return {
     inviteUrl: buildInviteUrl({
       sportSlug: input.sportSlug,
       slug: input.slug,
-      token,
+      token: grant.inviteToken,
       kind: "access",
     }),
-    inviteCode: code,
+    inviteCode: grant.inviteCode ?? "",
   };
 }
 
@@ -200,88 +213,25 @@ export async function revokeAccessInvite(input: {
   }
 }
 
+/**
+ * Multi-use invite: the pending link/code stays active for up to 7 days and can be
+ * redeemed by any signed-in user. Each successful redeem creates a separate accepted row.
+ */
 export async function redeemAccessInvite(input: {
   userId: string;
   token?: string;
   code?: string;
   tournamentId?: string;
 }): Promise<{ tournamentId: string; role: AccessGrantRole }> {
-  const db = getDb();
-  let grant;
-
-  if (input.token?.trim()) {
-    [grant] = await db
-      .select()
-      .from(tournamentAccessGrants)
-      .where(eq(tournamentAccessGrants.inviteToken, input.token.trim()))
-      .limit(1);
-  } else if (input.code?.trim() && input.tournamentId) {
-    [grant] = await db
-      .select()
-      .from(tournamentAccessGrants)
-      .where(
-        and(
-          eq(tournamentAccessGrants.tournamentId, input.tournamentId),
-          eq(tournamentAccessGrants.inviteCodeHash, hashInviteSecret(input.code)),
-        ),
-      )
-      .limit(1);
-  } else {
-    throw new AppError("Provide an invite token or code with tournament ID.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
-  }
-
-  if (!grant) {
-    throw new AppError("Invalid or expired invite", { code: "NOT_FOUND", statusCode: 404 });
-  }
-  if (grant.status === "revoked") {
-    throw new AppError("This invite has been revoked.", { code: "FORBIDDEN", statusCode: 403 });
-  }
-  if (grant.status === "accepted" && grant.userId === input.userId) {
-    return {
-      tournamentId: grant.tournamentId,
-      role: grant.role as AccessGrantRole,
-    };
-  }
-  if (grant.status === "accepted" && grant.userId && grant.userId !== input.userId) {
-    throw new AppError("This invite has already been used.", { code: "CONFLICT", statusCode: 409 });
-  }
-  if (grant.expiresAt.getTime() < Date.now()) {
-    await db
-      .update(tournamentAccessGrants)
-      .set({ status: "expired" })
-      .where(eq(tournamentAccessGrants.id, grant.id));
-    throw new AppError("This invite has expired.", { code: "FORBIDDEN", statusCode: 403 });
-  }
-
-  const [tournamentRow] = await db
-    .select({ createdBy: tournaments.createdBy })
-    .from(tournaments)
-    .where(eq(tournaments.id, grant.tournamentId))
-    .limit(1);
-
-  if (tournamentRow?.createdBy === input.userId) {
+  const { redeemInvite } = await import("@/lib/tournaments/invitations/redeem");
+  const result = await redeemInvite({ ...input, preferredKind: "access" });
+  if (result.kind !== "access") {
     throw new AppError(
-      "You already manage this tournament as the host. Staff invites are for other accounts.",
-      { code: "CONFLICT", statusCode: 409 },
+      "This invite is a player invite. Open it again or choose Player when entering the code.",
+      { code: "VALIDATION_ERROR", statusCode: 422 },
     );
   }
-
-  await db
-    .update(tournamentAccessGrants)
-    .set({
-      status: "accepted",
-      userId: input.userId,
-      acceptedAt: new Date(),
-    })
-    .where(eq(tournamentAccessGrants.id, grant.id));
-
-  return {
-    tournamentId: grant.tournamentId,
-    role: grant.role as AccessGrantRole,
-  };
+  return { tournamentId: result.tournamentId, role: result.role };
 }
 
 export async function getActiveAccessGrantRole(
@@ -301,4 +251,24 @@ export async function getActiveAccessGrantRole(
     .limit(1);
 
   return (grant?.role as AccessGrantRole | undefined) ?? null;
+}
+
+/** True when this user previously had staff access that was revoked. */
+export async function hasRevokedAccessGrant(
+  tournamentId: string,
+  userId: string,
+): Promise<boolean> {
+  const [grant] = await getDb()
+    .select({ id: tournamentAccessGrants.id })
+    .from(tournamentAccessGrants)
+    .where(
+      and(
+        eq(tournamentAccessGrants.tournamentId, tournamentId),
+        eq(tournamentAccessGrants.userId, userId),
+        eq(tournamentAccessGrants.status, "revoked"),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(grant);
 }

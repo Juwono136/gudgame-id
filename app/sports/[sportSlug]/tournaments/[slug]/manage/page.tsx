@@ -1,17 +1,18 @@
 import { notFound, redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
+import { TournamentManageAccessDenied } from "@/components/tournaments/manage/tournament-manage-access-denied";
 import { TournamentManageShell } from "@/components/tournaments/manage/tournament-manage-shell";
 import { getServerSession } from "@/lib/auth/session";
 import { getSportBySlug } from "@/lib/wiki/public";
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
-import { assertTournamentManagePageAccess } from "@/lib/tournaments/manage-access";
+import { resolveTournamentManageAccess } from "@/lib/tournaments/manage-access";
+import { hasRevokedAccessGrant } from "@/lib/tournaments/invitations/access-grants";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
-import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 
 type PageProps = {
   params: Promise<{ sportSlug: string; slug: string }>;
@@ -41,7 +42,21 @@ export default async function TournamentManagePage({ params }: PageProps) {
 
   const userId = session.user.id;
   const roles = await getUserRoleAssignments(userId);
-  const access = await assertTournamentManagePageAccess(tournament, userId, roles);
+  const access = await resolveTournamentManageAccess(tournament, userId, roles);
+
+  if (!access.canAccessManagePage) {
+    const wasRevoked = await hasRevokedAccessGrant(tournament.id, userId);
+    return (
+      <PageShell>
+        <TournamentManageAccessDenied
+          sportSlug={sportSlug}
+          slug={slug}
+          tournamentName={tournament.name}
+          reason={wasRevoked ? "revoked" : "forbidden"}
+        />
+      </PageShell>
+    );
+  }
 
   const [summary, userTeamId] = await Promise.all([
     getRegistrationSummary(

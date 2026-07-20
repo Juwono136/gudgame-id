@@ -20,6 +20,7 @@ import {
   toTotalPages,
 } from "@/lib/pagination/constants";
 import { isFreeOfficialBilling } from "@/lib/tournaments/registration/official-roster";
+import { getLockedTeamIdsForRemoval } from "@/lib/tournaments/participants/removal-policy";
 
 export type TournamentParticipantRow = {
   userId: string;
@@ -37,6 +38,8 @@ export type TournamentParticipantRow = {
   amountIdr: number | null;
   gender: string | null;
   genderLabel: string | null;
+  /** Manage UI: false when team already competed (stats/history protected). */
+  canHardRemove?: boolean;
 };
 
 export type TournamentParticipantsResult = {
@@ -276,6 +279,16 @@ export async function queryTournamentParticipants(input: {
             limit,
             offset,
           );
+
+  if (items.length > 0) {
+    const locked = await getLockedTeamIdsForRemoval(
+      input.tournamentId,
+      items.map((row) => row.teamId),
+    );
+    for (const row of items) {
+      row.canHardRemove = !locked.has(row.teamId);
+    }
+  }
 
   return {
     items,

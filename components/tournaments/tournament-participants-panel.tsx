@@ -1,17 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, CreditCard, RefreshCw, UserRound, Users } from "lucide-react";
+import {
+  AlertCircle,
+  CreditCard,
+  Loader2,
+  Lock,
+  RefreshCw,
+  Trash2,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useRemoveTournamentTeam } from "@/hooks/use-tournament-manage-display";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
 import type { TournamentParticipantRow } from "@/lib/tournaments/participants/query";
+import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type FunMatchTeamScore = {
   pointsFor: number;
@@ -29,6 +41,8 @@ type TournamentParticipantsPanelProps = {
   /** Fun match: squad stats keyed by team id (preferred) or team name */
   teamScoreByName?: Record<string, FunMatchTeamScore>;
   teamScoreByTeamId?: Record<string, FunMatchTeamScore>;
+  /** Host manage: allow removing an entire confirmed team */
+  canRemoveTeams?: boolean;
 };
 
 function formatIdr(amount: number | null) {
@@ -90,13 +104,7 @@ function ParticipantPlayerCell({
   );
 
   const nameBlock = row.profileUrl ? (
-    <Link
-      href={row.profileUrl}
-      className={cn(
-        "group block min-w-0",
-        hoverAccent,
-      )}
-    >
+    <Link href={row.profileUrl} className={cn("group block min-w-0", hoverAccent)}>
       <p className="truncate font-semibold text-foreground transition-colors group-hover:text-cp-primary">
         {row.displayName}
       </p>
@@ -114,7 +122,10 @@ function ParticipantPlayerCell({
   );
 
   const avatarNode = row.profileUrl ? (
-    <Link href={row.profileUrl} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary">
+    <Link
+      href={row.profileUrl}
+      className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-primary"
+    >
       {avatar}
     </Link>
   ) : (
@@ -173,8 +184,7 @@ function FunMatchScore({
   }
 
   const rankingPts = stat.points ?? 0;
-  const label =
-    rankingPts > 0 ? `${rankingPts} pts` : `${stat.pointsFor} pts`;
+  const label = rankingPts > 0 ? `${rankingPts} pts` : `${stat.pointsFor} pts`;
 
   return (
     <span className="text-sm font-semibold tabular-nums text-foreground">
@@ -196,21 +206,62 @@ export function TournamentParticipantsPanel({
   officialBilling,
   teamScoreByName,
   teamScoreByTeamId,
+  canRemoveTeams = false,
 }: TournamentParticipantsPanelProps) {
+  const { confirm } = useConfirmDialog();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [removingTeamId, setRemovingTeamId] = useState<string | null>(null);
   const { data, isLoading, isFetching, isError, error, refetch } = useTournamentParticipants(
     sportSlug,
     slug,
     page,
     pageSize,
   );
+  const removeTeam = useRemoveTournamentTeam(sportSlug, slug);
 
   const isOfficial = tournamentType === "official";
   const isFreeOfficial = officialBilling === "free";
   const accent = variant === "official" ? "text-cp-primary" : "text-emerald-400";
   const teamAccent =
-    variant === "official" ? "text-amber-300/95" : "text-emerald-300/95";
+    variant === "official" ? "text-amber-600 dark:text-amber-300/95" : "text-emerald-600 dark:text-emerald-300/95";
+
+  const items = data?.items ?? [];
+  const firstRowByTeamId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of data?.items ?? []) {
+      if (!map.has(row.teamId)) {
+        map.set(row.teamId, `${row.teamId}-${row.userId}`);
+      }
+    }
+    return map;
+  }, [data?.items]);
+
+  const handleRemoveTeam = async (row: TournamentParticipantRow) => {
+    if (row.canHardRemove === false) {
+      toast.error(
+        "This team has already competed. Career statistics and match history are preserved, so the team cannot be removed.",
+      );
+      return;
+    }
+
+    const ok = await confirm({
+      title: `Remove ${row.teamName}?`,
+      description: isOfficial
+        ? "This permanently removes the team and its players from registration. Only teams that have not played any matches can be removed — this keeps player career stats consistent."
+        : "This permanently removes the squad and its players from the session. Only squads that have not played any matches can be removed — this keeps player career stats consistent.",
+      confirmLabel: "Remove team",
+      cancelLabel: "Keep team",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    setRemovingTeamId(row.teamId);
+    try {
+      await removeTeam.mutateAsync(row.teamId);
+    } finally {
+      setRemovingTeamId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -222,13 +273,18 @@ export function TournamentParticipantsPanel({
 
   if (isError) {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-950/20 p-6 text-center">
-        <AlertCircle className="mx-auto h-8 w-8 text-red-400" />
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-6 text-center dark:bg-red-950/20">
+        <AlertCircle className="mx-auto h-8 w-8 text-red-500 dark:text-red-400" />
         <p className="mt-3 text-sm text-foreground">Could not load player list</p>
         <p className="mt-1 text-xs text-cp-muted">
           {error instanceof Error ? error.message : "Something went wrong"}
         </p>
-        <Button variant="outline" size="sm" className="mt-4 border-cp-border" onClick={() => void refetch()}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4 border-cp-border"
+          onClick={() => void refetch()}
+        >
           <RefreshCw className="mr-2 h-3.5 w-3.5" />
           Try again
         </Button>
@@ -236,9 +292,11 @@ export function TournamentParticipantsPanel({
     );
   }
 
-  const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const uniqueTeams = new Set(items.map((row) => row.teamId)).size;
+  const gridCols = canRemoveTeams
+    ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_minmax(0,1fr)_auto]"
+    : "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)]";
 
   return (
     <section className="space-y-4">
@@ -254,6 +312,9 @@ export function TournamentParticipantsPanel({
                 ? "Confirmed teams with completed registration — updated as players finalize their spot."
                 : "Confirmed teams with completed payment — updated as registrations are finalized."
               : "Everyone currently in the lobby squads for this Fun Match."}
+            {canRemoveTeams
+              ? " You can remove a team only if it has not played any matches yet — this keeps player career statistics consistent."
+              : null}
           </p>
         </div>
         {isFetching && !isLoading ? (
@@ -299,51 +360,107 @@ export function TournamentParticipantsPanel({
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
-          <div className="hidden border-b border-cp-border/80 bg-cp-elevated/40 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)] lg:gap-4 lg:px-5">
+          <div
+            className={cn(
+              "hidden border-b border-cp-border/80 bg-cp-elevated/40 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:gap-4 lg:px-5",
+              gridCols,
+            )}
+          >
             <span>Player</span>
             <span>Team / squad</span>
             <span>Role</span>
             <span className="text-right">{isOfficial ? "Status" : "Score"}</span>
+            {canRemoveTeams ? <span className="text-right">Actions</span> : null}
           </div>
 
           <ul className="divide-y divide-cp-border/70">
-            {items.map((row) => (
-              <li
-                key={`${row.teamId}-${row.userId}`}
-                className="p-4 transition-colors hover:bg-cp-elevated/20 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)] lg:items-center lg:gap-4 lg:px-5 lg:py-3.5"
-              >
-                <ParticipantPlayerCell row={row} variant={variant} />
+            {items.map((row) => {
+              const rowKey = `${row.teamId}-${row.userId}`;
+              const showTeamAction =
+                canRemoveTeams && firstRowByTeamId.get(row.teamId) === rowKey;
+              const isRemoving = removingTeamId === row.teamId;
 
-                <div className="mt-3 min-w-0 lg:mt-0">
-                  <p className={cn("truncate text-sm font-medium", teamAccent)}>{row.teamName}</p>
-                  <p className="mt-0.5 text-xs text-cp-muted lg:hidden">
-                    {row.genderLabel ? `${row.genderLabel} · ` : ""}
-                    <span className="capitalize">{row.role}</span>
-                  </p>
-                </div>
-
-                <div className="mt-2 hidden lg:block">
-                  <Badge variant="muted" className="capitalize">
-                    {row.role}
-                  </Badge>
-                </div>
-
-                <div className="mt-3 lg:mt-0">
-                  {isOfficial ? (
-                    <OfficialStatusBadges row={row} />
-                  ) : (
-                    <div className="flex items-center justify-between gap-2 lg:justify-end">
-                      <span className="text-xs text-cp-muted lg:hidden">Score</span>
-                      <FunMatchScore
-                        row={row}
-                        teamScoreByName={teamScoreByName}
-                        teamScoreByTeamId={teamScoreByTeamId}
-                      />
-                    </div>
+              return (
+                <li
+                  key={rowKey}
+                  className={cn(
+                    "p-4 transition-colors hover:bg-cp-elevated/20 lg:grid lg:items-center lg:gap-4 lg:px-5 lg:py-3.5",
+                    gridCols,
                   )}
-                </div>
-              </li>
-            ))}
+                >
+                  <ParticipantPlayerCell row={row} variant={variant} />
+
+                  <div className="mt-3 min-w-0 lg:mt-0">
+                    <p className={cn("truncate text-sm font-medium", teamAccent)}>
+                      {row.teamName}
+                    </p>
+                    <p className="mt-0.5 text-xs text-cp-muted lg:hidden">
+                      {row.genderLabel ? `${row.genderLabel} · ` : ""}
+                      <span className="capitalize">{row.role}</span>
+                    </p>
+                  </div>
+
+                  <div className="mt-2 hidden lg:block">
+                    <Badge variant="muted" className="capitalize">
+                      {row.role}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-3 lg:mt-0">
+                    {isOfficial ? (
+                      <OfficialStatusBadges row={row} />
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 lg:justify-end">
+                        <span className="text-xs text-cp-muted lg:hidden">Score</span>
+                        <FunMatchScore
+                          row={row}
+                          teamScoreByName={teamScoreByName}
+                          teamScoreByTeamId={teamScoreByTeamId}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {canRemoveTeams ? (
+                    <div className="mt-3 flex justify-end lg:mt-0">
+                      {showTeamAction ? (
+                        row.canHardRemove === false ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-9 w-full cursor-not-allowed border-cp-border text-cp-muted sm:w-auto"
+                            disabled
+                            title="This team has already competed. Career stats are preserved."
+                          >
+                            <Lock className="mr-1.5 h-3.5 w-3.5" />
+                            Locked
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-9 w-full border-red-300/80 text-red-700 hover:bg-red-50 hover:text-red-800 sm:w-auto dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                            disabled={isRemoving || removeTeam.isPending}
+                            onClick={() => void handleRemoveTeam(row)}
+                          >
+                            {isRemoving ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Remove team
+                          </Button>
+                        )
+                      ) : (
+                        <span className="hidden text-xs text-cp-muted lg:inline">—</span>
+                      )}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
 
           <DataTablePagination

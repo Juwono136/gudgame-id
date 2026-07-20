@@ -254,7 +254,6 @@ export const inviteRedeemSchema = z
   });
 
 export const accessInviteCreateSchema = z.object({
-  email: z.string().trim().email().optional(),
   role: z.enum(["scorekeeper", "bracket_manager"]),
 });
 

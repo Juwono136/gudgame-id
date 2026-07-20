@@ -68,3 +68,42 @@ export function useRemoveTournamentParticipant(sportSlug: string, slug: string) 
     onError: (e: Error) => toast.error(e.message),
   });
 }
+
+export function useRemoveTournamentTeam(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (teamId: string) => {
+      const res = await fetch(
+        `/api/tournaments/${sportSlug}/${slug}/manage/participants/remove-team`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamId }),
+        },
+      );
+      const json = await parseJsonResponse<{
+        success: boolean;
+        data?: { teamName?: string; removedPlayers?: number };
+        error?: unknown;
+      }>(res);
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not remove team"));
+      }
+      return json.data;
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ["tournaments", "participants", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "player-invites", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-detail", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      const name = data?.teamName?.trim();
+      toast.success(
+        name
+          ? `Removed ${name}${data?.removedPlayers != null ? ` (${data.removedPlayers} players)` : ""}`
+          : "Team removed from tournament",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}

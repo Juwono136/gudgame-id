@@ -45,8 +45,8 @@ export function TournamentInviteCreatedDialog({
           <DialogDescription className="text-xs leading-relaxed sm:text-sm">
             {rotateNotice ??
               (audience === "staff"
-                ? "Share the link or code with your staff member. They sign in, redeem the invite, then can score or manage the bracket based on their role."
-                : "Share the link or code with players. After signing in they join through the lobby flow.")}
+                ? "Share the link or code (valid up to 7 days, reusable by anyone). After expiry it becomes invalid — generate a new one. Credentials cannot be changed after creation."
+                : "Share the link or code (valid up to 7 days, reusable by anyone). After expiry it becomes invalid — generate a new one. Credentials cannot be changed after creation.")}
           </DialogDescription>
         </DialogHeader>
 

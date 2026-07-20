@@ -29,9 +29,29 @@ export async function syncPlayerWikiPerformance(
   if (!entity) return;
 
   const stats = await computePlayerMatchStats(userId, sportId);
-  if (stats.totalMatches === 0) return;
-
   const existing = (entity.performance ?? {}) as Record<string, unknown>;
+
+  if (stats.totalMatches === 0) {
+    const performance = {
+      ...existing,
+      totalPoints: 0,
+      winRate: 0,
+      matchWins: 0,
+      matchLosses: 0,
+      matchCount: 0,
+      lastMatchAt: null,
+      syncedAt: new Date().toISOString(),
+    };
+    await db
+      .update(wikiEntities)
+      .set({
+        performance,
+        updatedAt: new Date(),
+      })
+      .where(eq(wikiEntities.id, entity.id));
+    return;
+  }
+
   const performance = {
     ...existing,
     totalPoints: stats.totalPoints,

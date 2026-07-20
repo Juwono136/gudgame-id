@@ -1,8 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
-import { redeemAccessInvite } from "@/lib/tournaments/invitations/access-grants";
-import { redeemPlayerInvite } from "@/lib/tournaments/invitations/player-invites";
+import { redeemInvite } from "@/lib/tournaments/invitations/redeem";
 import { inviteRedeemSchema } from "@/lib/validations/tournaments";
 
 export const runtime = "nodejs";
@@ -20,26 +19,18 @@ export async function POST(request: Request) {
       });
     }
 
-    const kind = typeof body === "object" && body && "kind" in body ? String(body.kind) : "access";
+    const kind =
+      typeof body === "object" && body && "kind" in body ? String(body.kind) : "access";
 
-    if (kind === "player") {
-      const result = await redeemPlayerInvite({
-        userId,
-        token: parsed.data.token,
-        code: parsed.data.code,
-        tournamentId: parsed.data.tournamentId,
-      });
-      return jsonSuccess({ kind: "player", ...result });
-    }
-
-    const result = await redeemAccessInvite({
+    const result = await redeemInvite({
       userId,
       token: parsed.data.token,
       code: parsed.data.code,
       tournamentId: parsed.data.tournamentId,
+      preferredKind: kind === "player" ? "player" : "access",
     });
 
-    return jsonSuccess({ kind: "access", ...result });
+    return jsonSuccess(result);
   } catch (error) {
     return jsonError(error);
   }

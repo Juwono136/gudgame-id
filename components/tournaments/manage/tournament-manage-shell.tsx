@@ -21,7 +21,6 @@ import { DoubleStageManagePanel } from "@/components/tournaments/manage/double-s
 import { BracketManagePanel } from "@/components/tournaments/manage/bracket-manage-panel";
 import { DisplayControlPanel } from "@/components/tournaments/manage/display-control-panel";
 import { ManageOfficialDashboardPanel } from "@/components/tournaments/manage/manage-official-dashboard-panel";
-import { ManagePlayerRosterPanel } from "@/components/tournaments/manage/manage-player-roster-panel";
 import { TournamentAccessInvitesPanel } from "@/components/tournaments/tournament-access-invites-panel";
 import { TournamentPlayerInvitesPanel } from "@/components/tournaments/tournament-player-invites-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
@@ -448,6 +447,7 @@ export function TournamentManageShell({
                   slug={tournament.slug}
                   tournamentType="fun_match"
                   variant="reclub"
+                  canRemoveTeams
                 />
               </div>
             ) : null}
@@ -480,6 +480,7 @@ export function TournamentManageShell({
                       tournamentType="official"
                       variant="official"
                       officialBilling={tournament.officialBilling}
+                      canRemoveTeams
                     />
                   </div>
                 </div>
@@ -491,8 +492,8 @@ export function TournamentManageShell({
                 <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                   <h2 className="text-base font-semibold text-foreground">Staff access</h2>
                   <p className="mt-1 text-sm text-cp-muted">
-                    Invite scorekeepers and bracket managers. Only you (the organizer) can create or
-                    revoke staff invites — platform admins cannot access this tournament unless invited.
+                    Invite scorekeepers and bracket managers with a reusable link or code (valid 7
+                    days). Only you can create or revoke staff access.
                   </p>
                   <div className="mt-4">
                     <TournamentAccessInvitesPanel
@@ -507,8 +508,8 @@ export function TournamentManageShell({
                     <h2 className="text-base font-semibold text-foreground">Player invites</h2>
                     <p className="mt-1 text-sm text-cp-muted">
                       {isFunMatch
-                        ? "Send join links so players can enter teams before the session starts."
-                        : "Share invite links so players can register for this free official event."}
+                        ? "Share a reusable link or code (valid 7 days) so players can enter teams."
+                        : "Share a reusable link or code (valid 7 days) so players can register for this free event."}
                     </p>
                     <div className="mt-4">
                       <TournamentPlayerInvitesPanel
@@ -516,12 +517,6 @@ export function TournamentManageShell({
                         slug={tournament.slug}
                         embedded
                         variant={isFunMatch ? "fun_match" : "official_free"}
-                      />
-                    </div>
-                    <div className="mt-6 border-t border-cp-border pt-6">
-                      <ManagePlayerRosterPanel
-                        sportSlug={tournament.sportSlug}
-                        slug={tournament.slug}
                       />
                     </div>
                   </div>

@@ -31,7 +31,7 @@ export function getInviteStatusLabel(status: string): string {
     case "pending":
       return "Active";
     case "accepted":
-      return "Used";
+      return "Joined";
     case "revoked":
       return "Removed";
     case "expired":
@@ -44,3 +44,12 @@ export function getInviteStatusLabel(status: string): string {
 export function isActiveInviteStatus(status: string): boolean {
   return status === "pending" || status === "accepted";
 }
+
+/** Client-safe copy for host invite management. */
+export const INVITE_HOST_COPY = {
+  validityDays: 7,
+  staffInfo:
+    "Generate reusable invite links or codes — anyone can accept while signed in for up to 7 days. After that the invite expires and you must generate a new one. You can create as many invites as you need.",
+  playerInfo:
+    "Invites are link or code only — valid up to 7 days and reusable by anyone until removed or expired. Generate as many as you need. After generate you can view or delete; credentials cannot be edited.",
+} as const;

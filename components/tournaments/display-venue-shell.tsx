@@ -10,16 +10,8 @@ type DisplayVenueShellProps = {
 /** Full-screen venue backdrop — works on projectors and mobile displays. */
 export function DisplayVenueShell({ children, className }: DisplayVenueShellProps) {
   return (
-    <div
-      className={cn(
-        "relative min-h-dvh overflow-hidden text-white",
-        className,
-      )}
-    >
-      <div
-        className="pointer-events-none absolute inset-0 bg-[#070b14]"
-        aria-hidden
-      />
+    <div className="relative min-h-dvh overflow-hidden text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[#070b14]" aria-hidden />
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(0,191,139,0.35),transparent_55%)]"
         aria-hidden
@@ -33,11 +25,11 @@ export function DisplayVenueShell({ children, className }: DisplayVenueShellProp
         style={{
           backgroundImage:
             "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
+          backgroundSize: "clamp(32px, 4vw, 56px) clamp(32px, 4vw, 56px)",
         }}
         aria-hidden
       />
-      <div className="relative z-[1]">{children}</div>
+      <div className={cn("relative z-[1] min-h-dvh w-full", className)}>{children}</div>
     </div>
   );
 }

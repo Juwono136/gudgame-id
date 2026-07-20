@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
+import { publicSportRoutes } from "@/lib/constants/routes";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -25,8 +26,6 @@ export function getDefaultInviteExpiry(days = 7): Date {
   expires.setDate(expires.getDate() + days);
   return expires;
 }
-
-import { publicSportRoutes } from "@/lib/constants/routes";
 
 export function buildInviteUrl(input: {
   sportSlug: string;

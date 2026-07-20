@@ -28,6 +28,7 @@ export type PlayerInviteView = {
   expiresAt?: string | null;
   redeemedByUserId?: string | null;
   redeemedByName?: string | null;
+  redeemedByImage?: string | null;
   redeemedAt?: string | null;
 };
 
@@ -71,7 +72,7 @@ export function useAccessInvites(sportSlug: string, slug: string, enabled = true
 export function useCreateAccessInvite(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { role: "scorekeeper" | "bracket_manager"; email?: string }) => {
+    mutationFn: async (input: { role: "scorekeeper" | "bracket_manager" }) => {
       const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/access-invites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

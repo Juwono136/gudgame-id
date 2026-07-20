@@ -29,6 +29,8 @@ export const tournamentAccessGrants = pgTable(
     email: varchar("email", { length: 255 }),
     role: varchar("role", { length: 32 }).notNull(),
     inviteCodeHash: varchar("invite_code_hash", { length: 128 }).notNull(),
+    /** Plaintext code for host view-details only; never rotated after create. */
+    inviteCode: varchar("invite_code", { length: 16 }),
     inviteToken: varchar("invite_token", { length: 64 }).notNull().unique(),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
@@ -60,6 +62,8 @@ export const tournamentPlayerInvites = pgTable(
       onDelete: "set null",
     }),
     inviteCodeHash: varchar("invite_code_hash", { length: 128 }).notNull(),
+    /** Plaintext code for host view-details only; never rotated after create. */
+    inviteCode: varchar("invite_code", { length: 16 }),
     inviteToken: varchar("invite_token", { length: 64 }).notNull().unique(),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
     expiresAt: timestamp("expires_at").notNull(),

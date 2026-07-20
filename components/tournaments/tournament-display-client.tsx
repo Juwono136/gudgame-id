@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Maximize2, Radio } from "lucide-react";
+import { ArrowLeft, Loader2, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DisplayIdleScoreboard } from "@/components/tournaments/display/display-idle-scoreboard";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
 import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboardDisplay } from "@/components/tournaments/live-scoreboard";
@@ -524,24 +525,19 @@ export function TournamentDisplayClient({
 
   if (!featuredMatch?.teamAName || !featuredMatch?.teamBName) {
     return (
-      <DisplayVenueShell className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center text-white">
-        <Radio className="h-10 w-10 text-white/40" />
-        <p className="text-lg font-medium">{data.tournament.name}</p>
-        <p className="max-w-md text-sm text-white/60">
-          {data.phase === "live"
-            ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
-            : (data.message ??
-              "No live match to display yet. Check back when the tournament is live.")}
-        </p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <DisplayVenueButton type="button" onClick={() => void refetch()}>
-            {isFetching ? "Refreshing…" : "Refresh"}
-          </DisplayVenueButton>
-          <DisplayVenueButton type="button" onClick={exitDisplay}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </DisplayVenueButton>
-        </div>
+      <DisplayVenueShell>
+        <DisplayIdleScoreboard
+          tournamentName={data.tournament.name}
+          message={
+            data.phase === "live"
+              ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
+              : (data.message ??
+                "No live match to display yet. Check back when the tournament is live.")
+          }
+          refreshing={isFetching}
+          onRefresh={() => void refetch()}
+          onBack={exitDisplay}
+        />
       </DisplayVenueShell>
     );
   }

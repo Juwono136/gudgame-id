@@ -24,6 +24,7 @@ export default async function TournamentInvitePage({ params }: PageProps) {
         tournamentId={tournament.id}
         tournamentName={tournament.name}
         tournamentType={tournament.tournamentType}
+        officialBilling={tournament.officialBilling}
       />
     </PageShell>
   );

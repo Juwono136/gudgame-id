@@ -1,18 +1,15 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { tournamentPlayerInvites } from "@/db/schema/tournament-invitations";
-import { tournaments } from "@/db/schema/tournaments";
 import { AppError } from "@/lib/errors";
+import { buildInviteUrl } from "@/lib/tournaments/invitations/crypto";
 import {
-  buildInviteUrl,
-  generateInviteCode,
-  generateInviteToken,
-  getDefaultInviteExpiry,
-  hashInviteSecret,
-} from "@/lib/tournaments/invitations/crypto";
+  insertWithUniqueInviteCredentials,
+  isInvitePastExpiry,
+} from "@/lib/tournaments/invitations/lifecycle";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type PlayerInviteView = {
@@ -24,37 +21,53 @@ export type PlayerInviteView = {
   inviteCode?: string;
   redeemedByUserId?: string | null;
   redeemedByName?: string | null;
+  redeemedByImage?: string | null;
   redeemedAt?: string | null;
 };
+
+const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`;
+
+async function expirePlayerInviteIfNeeded(
+  id: string,
+  status: string,
+  expiresAt: Date,
+): Promise<boolean> {
+  if (status !== "pending" || !isInvitePastExpiry(expiresAt)) return false;
+  await getDb()
+    .update(tournamentPlayerInvites)
+    .set({ status: "expired" })
+    .where(eq(tournamentPlayerInvites.id, id));
+  return true;
+}
 
 export async function createPlayerInvite(input: {
   tournament: TournamentDetail;
   invitedByUserId: string;
   teamId?: string | null;
 }): Promise<PlayerInviteView> {
-  const token = generateInviteToken();
-  const code = generateInviteCode();
-  const expiresAt = getDefaultInviteExpiry();
+  const created = await insertWithUniqueInviteCredentials(async (credentials) => {
+    const [row] = await getDb()
+      .insert(tournamentPlayerInvites)
+      .values({
+        tournamentId: input.tournament.id,
+        teamId: input.teamId ?? null,
+        inviteCodeHash: credentials.codeHash,
+        inviteCode: credentials.code,
+        inviteToken: credentials.token,
+        status: "pending",
+        expiresAt: credentials.expiresAt,
+        invitedByUserId: input.invitedByUserId,
+      })
+      .returning();
 
-  const [created] = await getDb()
-    .insert(tournamentPlayerInvites)
-    .values({
-      tournamentId: input.tournament.id,
-      teamId: input.teamId ?? null,
-      inviteCodeHash: hashInviteSecret(code),
-      inviteToken: token,
-      status: "pending",
-      expiresAt,
-      invitedByUserId: input.invitedByUserId,
-    })
-    .returning();
-
-  if (!created) {
-    throw new AppError("Could not create player invite", {
-      code: "DATABASE_ERROR",
-      statusCode: 500,
-    });
-  }
+    if (!row) {
+      throw new AppError("Could not create player invite", {
+        code: "DATABASE_ERROR",
+        statusCode: 500,
+      });
+    }
+    return row;
+  });
 
   return {
     id: created.id,
@@ -64,89 +77,32 @@ export async function createPlayerInvite(input: {
     inviteUrl: buildInviteUrl({
       sportSlug: input.tournament.sportSlug,
       slug: input.tournament.slug,
-      token,
+      token: created.inviteToken,
       kind: "player",
     }),
-    inviteCode: code,
+    inviteCode: created.inviteCode ?? undefined,
   };
 }
 
+/**
+ * Multi-use invite: the pending link/code stays active for up to 7 days and can be
+ * redeemed by any signed-in user. Each successful redeem creates a separate accepted row.
+ */
 export async function redeemPlayerInvite(input: {
   userId: string;
   token?: string;
   code?: string;
   tournamentId?: string;
 }): Promise<{ tournamentId: string; teamId: string | null }> {
-  const db = getDb();
-  let invite;
-
-  if (input.token?.trim()) {
-    [invite] = await db
-      .select()
-      .from(tournamentPlayerInvites)
-      .where(eq(tournamentPlayerInvites.inviteToken, input.token.trim()))
-      .limit(1);
-  } else if (input.code?.trim() && input.tournamentId) {
-    [invite] = await db
-      .select()
-      .from(tournamentPlayerInvites)
-      .where(
-        and(
-          eq(tournamentPlayerInvites.tournamentId, input.tournamentId),
-          eq(tournamentPlayerInvites.inviteCodeHash, hashInviteSecret(input.code)),
-        ),
-      )
-      .limit(1);
-  } else {
-    throw new AppError("Provide an invite token or code with tournament ID.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
-  }
-
-  if (!invite) {
-    throw new AppError("Invalid or expired invite", { code: "NOT_FOUND", statusCode: 404 });
-  }
-  if (invite.status === "revoked") {
-    throw new AppError("This invite has been revoked.", { code: "FORBIDDEN", statusCode: 403 });
-  }
-  if (invite.status === "accepted" && invite.redeemedByUserId !== input.userId) {
-    throw new AppError("This invite has already been used.", { code: "CONFLICT", statusCode: 409 });
-  }
-  if (invite.expiresAt.getTime() < Date.now()) {
-    await db
-      .update(tournamentPlayerInvites)
-      .set({ status: "expired" })
-      .where(eq(tournamentPlayerInvites.id, invite.id));
-    throw new AppError("This invite has expired.", { code: "FORBIDDEN", statusCode: 403 });
-  }
-
-  const [tournamentRow] = await db
-    .select({ createdBy: tournaments.createdBy })
-    .from(tournaments)
-    .where(eq(tournaments.id, invite.tournamentId))
-    .limit(1);
-
-  if (tournamentRow?.createdBy === input.userId) {
+  const { redeemInvite } = await import("@/lib/tournaments/invitations/redeem");
+  const result = await redeemInvite({ ...input, preferredKind: "player" });
+  if (result.kind !== "player") {
     throw new AppError(
-      "You already manage this tournament as the host. Player invites are for other accounts.",
-      { code: "CONFLICT", statusCode: 409 },
+      "This invite is a staff invite. Open it again or choose Staff when entering the code.",
+      { code: "VALIDATION_ERROR", statusCode: 422 },
     );
   }
-
-  await db
-    .update(tournamentPlayerInvites)
-    .set({
-      status: "accepted",
-      redeemedByUserId: input.userId,
-      redeemedAt: new Date(),
-    })
-    .where(eq(tournamentPlayerInvites.id, invite.id));
-
-  return {
-    tournamentId: invite.tournamentId,
-    teamId: invite.teamId,
-  };
+  return { tournamentId: result.tournamentId, teamId: result.teamId };
 }
 
 export async function listPlayerInvites(
@@ -159,18 +115,22 @@ export async function listPlayerInvites(
       status: tournamentPlayerInvites.status,
       expiresAt: tournamentPlayerInvites.expiresAt,
       inviteToken: tournamentPlayerInvites.inviteToken,
+      inviteCode: tournamentPlayerInvites.inviteCode,
       redeemedByUserId: tournamentPlayerInvites.redeemedByUserId,
       redeemedAt: tournamentPlayerInvites.redeemedAt,
-      redeemedByName: user.name,
-      redeemedByNickname: user.nickname,
+      redeemedByName: displayNameSql,
+      redeemedByImage: user.image,
     })
     .from(tournamentPlayerInvites)
     .leftJoin(user, eq(tournamentPlayerInvites.redeemedByUserId, user.id))
     .where(eq(tournamentPlayerInvites.tournamentId, tournament.id));
 
-  return rows
-    .filter((row) => row.status === "pending" || row.status === "accepted")
-    .map((row) => ({
+  const views: PlayerInviteView[] = [];
+  for (const row of rows) {
+    if (await expirePlayerInviteIfNeeded(row.id, row.status, row.expiresAt)) continue;
+    if (row.status !== "pending" && row.status !== "accepted") continue;
+
+    views.push({
       id: row.id,
       teamId: row.teamId,
       status: row.status,
@@ -184,11 +144,16 @@ export async function listPlayerInvites(
               kind: "player",
             })
           : "",
+      inviteCode:
+        row.status === "pending" && row.inviteCode ? row.inviteCode : undefined,
       redeemedByUserId: row.redeemedByUserId,
-      redeemedByName:
-        row.redeemedByNickname?.trim() || row.redeemedByName?.trim() || null,
+      redeemedByName: row.redeemedByName?.trim() || null,
+      redeemedByImage: row.redeemedByImage,
       redeemedAt: row.redeemedAt?.toISOString() ?? null,
-    }));
+    });
+  }
+
+  return views;
 }
 
 export async function revokePlayerInvite(input: {
