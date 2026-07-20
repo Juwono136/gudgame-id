@@ -32,7 +32,7 @@ function requireDatabaseUrl(): string {
   if (!url) {
     console.error(
       "[db-migrate] DATABASE_URL is not set. For Docker on VPS use host.docker.internal, e.g.\n" +
-        "  postgresql://user:pass@host.docker.internal:5432/tandingbase_db",
+        "  postgresql://user:pass@host.docker.internal:5432/gudgame_db",
     );
     process.exit(1);
   }

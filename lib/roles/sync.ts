@@ -9,7 +9,16 @@ import {
   pickPrimaryRole,
   type AppRole,
 } from "@/lib/roles/constants";
-import { invalidateProxySessionCache } from "@/lib/session/proxy-session";
+
+/** Skip Next `server-only` modules when running tsx seed/migrate scripts. */
+function scheduleProxySessionInvalidation(userId: string): void {
+  if (process.env.DB_SCRIPT_MODE === "true") return;
+  void import("@/lib/session/proxy-session")
+    .then((m) => m.invalidateProxySessionCache(userId))
+    .catch(() => {
+      /* best-effort cache drop */
+    });
+}
 
 export async function getUserRoleAssignments(userId: string): Promise<AppRole[]> {
   const db = getDb();
@@ -68,7 +77,7 @@ export async function setUserRoles(
     .set({ role: primary, updatedAt: new Date() })
     .where(eq(user.id, userId));
 
-  void invalidateProxySessionCache(userId);
+  scheduleProxySessionInvalidation(userId);
 
   return unique;
 }

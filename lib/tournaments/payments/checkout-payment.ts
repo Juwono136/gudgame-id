@@ -126,7 +126,7 @@ export async function initiateCheckoutPayment(
         bankTransfer: {
           accountNumber: existing.accountNumber,
           bankCode: existing.bankCode ?? bankCode,
-          accountName: existing.accountName ?? "TANDINGBASE",
+          accountName: existing.accountName ?? "GUD GAME",
         },
       };
     }
@@ -134,7 +134,7 @@ export async function initiateCheckoutPayment(
     const va = await createCallbackVirtualAccount({
       externalId: `${externalId}-va`,
       bankCode,
-      name: "TANDINGBASE",
+      name: "GUD GAME",
       expectedAmount: amount,
       metadata: {
         registrationId: String(registrationId),

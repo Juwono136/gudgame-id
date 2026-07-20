@@ -30,7 +30,7 @@ const serverSchema = z
       .optional()
       .transform((v) => v === "true"),
     STORAGE_ENDPOINT: z.string().url().optional(),
-    STORAGE_BUCKET: z.string().min(1).default("tandingbase"),
+    STORAGE_BUCKET: z.string().min(1).default("gudgame"),
     USERNAME_STORAGE: z.string().optional(),
     PASSWORD_STORAGE: z.string().optional(),
     STORAGE_REGION: z.string().default("us-east-1"),

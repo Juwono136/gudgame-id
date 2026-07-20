@@ -115,4 +115,4 @@ function createLogger(service?: string, bindings: LogContext = {}): Logger {
   };
 }
 
-export const logger = createLogger("tandingbase");
+export const logger = createLogger("gud-game");
