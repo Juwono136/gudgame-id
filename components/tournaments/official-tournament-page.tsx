@@ -48,6 +48,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
 import { useTournamentLobby } from "@/hooks/use-tournament-lobby";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
+import { formatTournamentScheduleRange } from "@/lib/tournaments/format-schedule";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import type { TournamentGearRuleItem } from "@/lib/tournaments/gear-for-rules";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
@@ -105,11 +106,7 @@ function formatIdr(amount: number | null | undefined) {
 }
 
 function formatDateRange(starts: string | null, ends: string | null) {
-  if (!starts) return "Date TBA";
-  const start = new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(starts));
-  if (!ends) return start;
-  const end = new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(ends));
-  return `${start} – ${end}`;
+  return formatTournamentScheduleRange(starts, ends);
 }
 
 type OfficialTournamentPageProps = {

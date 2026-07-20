@@ -34,7 +34,10 @@ import type { PlayerTournamentsListQuery } from "@/lib/validations/player-compet
 import type { PlayerTournamentListItem } from "@/lib/account/player-competition/types";
 import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
 import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
-import { formatPlayerTournamentResult } from "@/lib/account/player-competition/format-outcome";
+import {
+  formatPlayerTournamentResult,
+  formatTournamentStatusLabel,
+} from "@/lib/account/player-competition/format-outcome";
 import { cn } from "@/lib/utils";
 import { WorkspaceScopeTabs } from "@/components/dashboard/workspace-scope-tabs";
 
@@ -92,7 +95,7 @@ function TournamentListRow({
 
   const statusLabel = row.registrationStatus
     ? row.registrationStatus.replace(/_/g, " ")
-    : row.status;
+    : formatTournamentStatusLabel(row.status) ?? row.status;
 
   const registrationActions =
     scope === "joined" &&

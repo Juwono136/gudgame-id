@@ -72,7 +72,7 @@ export function WorkspaceRoleSwitcher({ roles, variant, className }: WorkspaceRo
         })}
         </div>
       </LayoutGroup>
-      <p className="mt-2 text-center text-[11px] text-cp-muted">
+      <p className="mt-1.5 text-center text-[11px] text-cp-muted">
         Tap to switch between player and host tools
       </p>
     </div>

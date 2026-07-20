@@ -27,6 +27,7 @@ import type { TournamentListItem } from "@/lib/tournaments/service";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { toast } from "sonner";
+import { formatTournamentListSchedule } from "@/lib/tournaments/format-schedule";
 import { cn } from "@/lib/utils";
 import { WorkspaceScopeTabs } from "@/components/dashboard/workspace-scope-tabs";
 
@@ -109,13 +110,10 @@ function HostTournamentCard({
             {tournament.sportName}
             {tournament.venue ? ` · ${tournament.venue}` : ""}
           </p>
-          {tournament.startsAt ? (
+          {formatTournamentListSchedule(tournament.startsAt, tournament.endsAt) ? (
             <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-cp-text-dim">
               <Calendar className="h-3.5 w-3.5 shrink-0" />
-              {new Intl.DateTimeFormat("en", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              }).format(new Date(tournament.startsAt))}
+              {formatTournamentListSchedule(tournament.startsAt, tournament.endsAt)}
             </p>
           ) : null}
         </Link>
@@ -160,6 +158,17 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
     const completed = items.filter((t) => t.status === "completed").length;
     return { total: items.length, live, upcoming, completed };
   }, [items]);
+
+  const activeEvents = useMemo(
+    () =>
+      items.filter(
+        (t) =>
+          t.status === "upcoming" ||
+          t.status === "live" ||
+          t.status === "draft",
+      ),
+    [items],
+  );
 
   const isEditableStatus = (status: string) =>
     status !== "completed" && status !== "cancelled";
@@ -240,12 +249,12 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
           <div className="rounded-2xl border border-red-500/30 bg-red-950/20 p-6 text-center text-sm text-red-300">
             {error instanceof Error ? error.message : "Failed to load"}
           </div>
-        ) : items.length === 0 ? (
+        ) : activeEvents.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-cp-border px-4 py-16 text-center sm:py-20">
             <Trophy className="mx-auto h-10 w-10 text-cp-muted" />
-            <p className="mt-4 font-medium text-foreground">No events yet</p>
+            <p className="mt-4 font-medium text-foreground">No active events</p>
             <p className="mt-1 text-sm text-cp-muted">
-              Create an official tournament or a free Fun Match to get started.
+              Upcoming and live tournaments appear here. Completed events are under History.
             </p>
             <Button asChild className="mt-6 h-10 bg-cp-primary">
               <Link href={dashboardRoutes.hostTournamentsNew}>
@@ -256,7 +265,7 @@ export function HostTournamentsHub({ roles }: HostTournamentsHubProps) {
           </div>
         ) : (
           <ul className="space-y-3 sm:space-y-4">
-            {items.map((t, i) => (
+            {activeEvents.map((t, i) => (
               <motion.li
                 key={t.id}
                 initial={{ opacity: 0, y: 8 }}

@@ -49,6 +49,7 @@ import {
   getTournamentTypeBadgeClass,
   statusBadgeClass,
 } from "@/lib/styles/status-badges";
+import { formatTournamentScheduleRange } from "@/lib/tournaments/format-schedule";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -570,9 +571,7 @@ export function ReclubTournamentPage({
             {tournament.startsAt ? (
               <span className={tournamentHeroStyles.metaItem}>
                 <Calendar className="h-4 w-4 shrink-0 text-emerald-300" />
-                {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
-                  new Date(tournament.startsAt),
-                )}
+                {formatTournamentScheduleRange(tournament.startsAt, tournament.endsAt)}
               </span>
             ) : null}
           </div>

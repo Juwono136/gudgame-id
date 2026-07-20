@@ -28,6 +28,9 @@ export function useHostTournamentsList() {
       }
       return json.data.items;
     },
+    // Keep schedule-derived statuses fresh without a full page reload.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 

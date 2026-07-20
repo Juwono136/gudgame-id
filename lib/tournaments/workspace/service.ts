@@ -20,6 +20,11 @@ import {
   type TournamentDetail,
   type TournamentListItem,
 } from "@/lib/tournaments/service";
+import {
+  computeTournamentStatus,
+  syncTournamentStatusFromSchedule,
+} from "@/lib/tournaments/status-sync";
+import type { TournamentStatus } from "@/db/schema/tournaments";
 import { listReclubMatches, type ReclubMatchView } from "@/lib/tournaments/reclub/matches";
 import { listLobbyTeamsDetailed, type LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
@@ -79,24 +84,45 @@ export async function listHostTournaments(
     .where(and(...conditions))
     .orderBy(desc(tournaments.updatedAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    sportId: r.sportId,
-    sportSlug: r.sportSlug,
-    sportName: r.sportName,
-    slug: r.slug,
-    name: r.name,
-    summary: r.summary,
-    status: r.status as TournamentListItem["status"],
-    tournamentType: normalizeTournamentType(r.tournamentType) as TournamentListItem["tournamentType"],
-    officialBilling: (r.officialBilling as TournamentListItem["officialBilling"]) ?? null,
-    venue: r.venue,
-    categoryLabel: r.categoryLabel,
-    registrationFeeIdr: r.registrationFeeIdr,
-    startsAt: r.startsAt?.toISOString() ?? null,
-    endsAt: r.endsAt?.toISOString() ?? null,
-    updatedAt: r.updatedAt.toISOString(),
-  }));
+  // Persist schedule-derived status so dashboard matches public detail pages.
+  await Promise.all(
+    rows.map((r) =>
+      syncTournamentStatusFromSchedule({
+        id: r.id,
+        sportSlug: r.sportSlug,
+        slug: r.slug,
+        status: r.status,
+        startsAt: r.startsAt,
+        endsAt: r.endsAt,
+      }),
+    ),
+  );
+
+  return rows.map((r) => {
+    const status = computeTournamentStatus(
+      r.status as TournamentStatus,
+      r.startsAt,
+      r.endsAt,
+    );
+    return {
+      id: r.id,
+      sportId: r.sportId,
+      sportSlug: r.sportSlug,
+      sportName: r.sportName,
+      slug: r.slug,
+      name: r.name,
+      summary: r.summary,
+      status,
+      tournamentType: normalizeTournamentType(r.tournamentType) as TournamentListItem["tournamentType"],
+      officialBilling: (r.officialBilling as TournamentListItem["officialBilling"]) ?? null,
+      venue: r.venue,
+      categoryLabel: r.categoryLabel,
+      registrationFeeIdr: r.registrationFeeIdr,
+      startsAt: r.startsAt?.toISOString() ?? null,
+      endsAt: r.endsAt?.toISOString() ?? null,
+      updatedAt: r.updatedAt.toISOString(),
+    };
+  });
 }
 
 export async function getTournamentById(id: string): Promise<TournamentDetail | null> {

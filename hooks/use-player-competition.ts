@@ -148,5 +148,7 @@ export function usePlayerTournamentsList(
       return json.data;
     },
     placeholderData: (prev) => prev,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }

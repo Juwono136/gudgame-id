@@ -12,6 +12,11 @@ import {
 import { tournaments } from "@/db/schema/tournaments";
 import { buildPaginatedResult } from "@/lib/account/player-competition/paginate";
 import { tournamentResultPriority } from "@/lib/account/player-competition/format-outcome";
+import {
+  computeTournamentStatus,
+  syncTournamentStatusFromSchedule,
+} from "@/lib/tournaments/status-sync";
+import type { TournamentStatus } from "@/db/schema/tournaments";
 
 /** Matches fun_match rows and legacy recreational before migration backfill. */
 function funMatchTypeCondition() {
@@ -29,7 +34,20 @@ import { canManageTournament } from "@/lib/tournaments/permissions";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerTournamentsListQuery } from "@/lib/validations/player-competition";
 
-type UnifiedTournamentRow = PlayerTournamentListItem & { createdBy?: string | null };
+type UnifiedTournamentRow = PlayerTournamentListItem & {
+  createdBy?: string | null;
+  startsAtDate?: Date | null;
+  endsAtDate?: Date | null;
+};
+
+function resolveRowStatus(
+  rawStatus: string | null | undefined,
+  startsAt: Date | null | undefined,
+  endsAt: Date | null | undefined,
+): string {
+  if (!rawStatus) return "upcoming";
+  return computeTournamentStatus(rawStatus as TournamentStatus, startsAt ?? null, endsAt ?? null);
+}
 
 function mapOfficialRow(
   row: typeof playerTournamentResults.$inferSelect,
@@ -38,6 +56,8 @@ function mapOfficialRow(
     slug: string | null;
     status: string | null;
     createdBy: string | null;
+    startsAt: Date | null;
+    endsAt: Date | null;
   },
 ): UnifiedTournamentRow {
   return {
@@ -51,7 +71,9 @@ function mapOfficialRow(
     playedAt: row.playedAt?.toISOString() ?? null,
     sportSlug: meta?.sportSlug ?? null,
     slug: meta?.slug ?? null,
-    status: meta?.status ?? null,
+    status: resolveRowStatus(meta?.status, meta?.startsAt, meta?.endsAt),
+    startsAtDate: meta?.startsAt ?? null,
+    endsAtDate: meta?.endsAt ?? null,
     createdBy: meta?.createdBy ?? null,
     canManage: false,
     canEdit: false,
@@ -99,6 +121,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       sportSlug: sports.slug,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
       categoryLabel: tournaments.categoryLabel,
@@ -122,6 +145,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       sportSlug: sports.slug,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
       categoryLabel: tournaments.categoryLabel,
@@ -151,7 +175,9 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
-      status: row.status,
+      status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      startsAtDate: row.startsAt,
+      endsAtDate: row.endsAt,
       createdBy: row.createdBy,
       canManage: false,
       canEdit: false,
@@ -179,6 +205,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       sportSlug: sports.slug,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
     })
@@ -201,6 +228,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       sportSlug: sports.slug,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
     })
@@ -223,6 +251,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       sportSlug: sports.slug,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
     })
@@ -246,6 +275,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       sportSlug: sports.slug,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
     })
@@ -277,7 +307,9 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
-      status: row.status,
+      status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      startsAtDate: row.startsAt,
+      endsAtDate: row.endsAt,
       createdBy: row.createdBy,
       canManage: false,
       canEdit: false,
@@ -308,7 +340,9 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
         null,
       sportSlug: row.sportSlug,
       slug: row.slug,
-      status: row.status,
+      status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      startsAtDate: row.startsAt,
+      endsAtDate: row.endsAt,
       createdBy: row.createdBy,
       canManage: false,
       canEdit: false,
@@ -365,6 +399,7 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
       startsAt: tournaments.startsAt,
+      endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
       categoryLabel: tournaments.categoryLabel,
@@ -389,7 +424,9 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
-      status: row.status,
+      status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      startsAtDate: row.startsAt,
+      endsAtDate: row.endsAt,
       createdBy: row.createdBy,
       canManage: false,
       canEdit: false,
@@ -422,7 +459,12 @@ function applyManageFlags(
       row.tournamentId != null &&
       canManageTournament(roles, row.createdBy ?? null, userId);
     const editable = manages && (row.status ? canEditTournament(row.status) : true);
-    const { createdBy: _c, ...rest } = row;
+    const {
+      createdBy: _c,
+      startsAtDate: _s,
+      endsAtDate: _e,
+      ...rest
+    } = row;
     return {
       ...rest,
       canManage: manages,
@@ -472,7 +514,14 @@ export async function listPlayerTournaments(
 
   const tournamentMeta = new Map<
     string,
-    { sportSlug: string; slug: string; status: string; createdBy: string | null }
+    {
+      sportSlug: string;
+      slug: string;
+      status: string;
+      createdBy: string | null;
+      startsAt: Date | null;
+      endsAt: Date | null;
+    }
   >();
 
   if (tournamentIds.length) {
@@ -483,6 +532,8 @@ export async function listPlayerTournaments(
         slug: tournaments.slug,
         status: tournaments.status,
         createdBy: tournaments.createdBy,
+        startsAt: tournaments.startsAt,
+        endsAt: tournaments.endsAt,
       })
       .from(tournaments)
       .innerJoin(sports, eq(tournaments.sportId, sports.id))
@@ -494,6 +545,8 @@ export async function listPlayerTournaments(
         slug: m.slug,
         status: m.status,
         createdBy: m.createdBy,
+        startsAt: m.startsAt,
+        endsAt: m.endsAt,
       });
     }
   }
@@ -567,6 +620,22 @@ export async function listPlayerTournaments(
   }
 
   merged = sortRows(merged, sortBy, sortDir);
+
+  // Persist schedule-derived statuses so player dashboard stays in sync with public pages.
+  await Promise.all(
+    merged.map(async (row) => {
+      if (!row.tournamentId || !row.sportSlug || !row.slug) return;
+      const synced = await syncTournamentStatusFromSchedule({
+        id: row.tournamentId,
+        sportSlug: row.sportSlug,
+        slug: row.slug,
+        status: row.status ?? "upcoming",
+        startsAt: row.startsAtDate ?? null,
+        endsAt: row.endsAtDate ?? null,
+      });
+      row.status = synced;
+    }),
+  );
 
   const total = merged.length;
   const offset = (page - 1) * pageSize;
