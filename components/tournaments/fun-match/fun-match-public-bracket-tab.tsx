@@ -176,6 +176,7 @@ export function FunMatchPublicBracketTab({
           </div>
           <BracketTreeView
             matches={matches}
+            showEmptySlots
             highlightTeamIds={userTeamId ? [userTeamId] : []}
             emptyMessage="Bracket is being prepared…"
           />

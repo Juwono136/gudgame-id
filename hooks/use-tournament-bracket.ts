@@ -132,6 +132,13 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
           };
         },
       );
+      // Completed matches advance winners into later rounds — refetch full tree.
+      if (match.status === "completed" || match.winnerTeamId) {
+        void qc.invalidateQueries({ queryKey: tournamentQueryKeys.bracket(sportSlug, slug) });
+        void qc.invalidateQueries({
+          queryKey: ["tournaments", "manage-scoring", sportSlug, slug],
+        });
+      }
       void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
     },
     onError: (e: Error) => {

@@ -193,43 +193,58 @@ export function ManageScoringHistoryPanel({
 
         {sessionStats?.teams.length ? (
           <div className="mt-4 overflow-hidden rounded-xl border border-cp-border">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-cp-border bg-cp-elevated/50 text-[10px] uppercase tracking-wider text-cp-muted">
-                  <th className="px-3 py-2 font-semibold">Team</th>
-                  <th className="px-3 py-2 text-center font-semibold">W</th>
-                  <th className="px-3 py-2 text-center font-semibold">L</th>
-                  {standingsMode === "americano" ? (
-                    <th className="px-3 py-2 text-center font-semibold">Pts</th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {sessionStats.teams.slice(0, 8).map((team) => {
-                  const roster = playersByTeam.get(team.name) ?? [];
-                  return (
-                  <tr key={team.name} className="border-b border-cp-border/60 last:border-0">
-                    <td className="px-3 py-2">
-                      <p className="font-medium text-foreground">{team.name}</p>
-                      {roster.length ? (
-                        <p className="mt-0.5 text-[11px] leading-snug text-cp-muted">
-                          {roster.join(", ")}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className={cn("px-3 py-2 text-center font-semibold", accent)}>{team.wins}</td>
-                    <td className={cn("px-3 py-2 text-center", cpLossTextClass)}>{team.losses}</td>
+            <div className="flex items-center justify-between gap-2 border-b border-cp-border bg-cp-elevated/50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                Team standings
+              </p>
+              <p className="text-[10px] tabular-nums text-cp-muted">
+                {sessionStats.teams.length} squad
+                {sessionStats.teams.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div className="max-h-[min(28rem,55vh)] overflow-y-auto overscroll-contain">
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 z-10 bg-cp-elevated/95 backdrop-blur-sm">
+                  <tr className="border-b border-cp-border text-[10px] uppercase tracking-wider text-cp-muted">
+                    <th className="px-3 py-2 font-semibold">Team</th>
+                    <th className="px-3 py-2 text-center font-semibold">W</th>
+                    <th className="px-3 py-2 text-center font-semibold">L</th>
                     {standingsMode === "americano" ? (
-                      <td className="px-3 py-2 text-center tabular-nums text-foreground">
-                        {team.pointsFor}
-                        <span className="text-cp-muted">–{team.pointsAgainst}</span>
-                      </td>
+                      <th className="px-3 py-2 text-center font-semibold">Pts</th>
                     ) : null}
                   </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sessionStats.teams.map((team) => {
+                    const roster = playersByTeam.get(team.name) ?? [];
+                    return (
+                      <tr key={team.name} className="border-b border-cp-border/60 last:border-0">
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-foreground">{team.name}</p>
+                          {roster.length ? (
+                            <p className="mt-0.5 text-[11px] leading-snug text-cp-muted">
+                              {roster.join(", ")}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className={cn("px-3 py-2 text-center font-semibold", accent)}>
+                          {team.wins}
+                        </td>
+                        <td className={cn("px-3 py-2 text-center", cpLossTextClass)}>
+                          {team.losses}
+                        </td>
+                        {standingsMode === "americano" ? (
+                          <td className="px-3 py-2 text-center tabular-nums text-foreground">
+                            {team.pointsFor}
+                            <span className="text-cp-muted">–{team.pointsAgainst}</span>
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : null}
       </div>

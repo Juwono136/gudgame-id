@@ -6,40 +6,41 @@
 
 /* Gud Game design tokens — shared brand */
 :root {
-  --cp-primary: #00bf8b;
+  /* Slightly deeper / less neon than #00bf8b for clearer light-mode contrast */
+  --cp-primary: #0a9e76;
   --cp-primary-dark: #032921;
   --cp-primary-mid: #042822;
-  --cp-primary-light: #00a67a;
-  --cp-primary-hover: #00a67a;
+  --cp-primary-light: #088f6a;
+  --cp-primary-hover: #088f6a;
   --cp-accent-red: #b82800;
   --cp-accent-red-dark: #3d0700;
   --cp-green-deep: #032921;
   --cp-green-mid: #042822;
   --cp-green-soft: #4a8f7a;
-  --cp-green-mint: #b7f1c9;
+  --cp-green-mint: #a8dcc4;
   --cp-gray: #757683;
-  --cp-hero-overlay: #e8faf3;
-  --cp-badge-green: #b7f1c9;
-  --cp-badge-border: rgba(183, 241, 201, 0.45);
-  --cp-primary-glow: rgba(0, 191, 139, 0.25);
-  --cp-logo-accent: #00bf8b;
-  --cp-logo-mint: #b7f1c9;
+  --cp-hero-overlay: #eef6f2;
+  --cp-badge-green: #0a9e76;
+  --cp-badge-border: rgba(10, 158, 118, 0.35);
+  --cp-primary-glow: rgba(10, 158, 118, 0.22);
+  --cp-logo-accent: #0a9e76;
+  --cp-logo-mint: #a8dcc4;
 
-  /* Light mode surfaces */
-  --cp-bg: #f5faf8;
+  /* Light mode surfaces — cooler / less mint wash */
+  --cp-bg: #f6f8f7;
   --cp-bg-card: #ffffff;
-  --cp-bg-input: #eef6f2;
+  --cp-bg-input: #eef3f1;
   --cp-surface: #ffffff;
-  --cp-surface-elevated: #eef6f2;
-  --cp-surface-muted: #dceee6;
+  --cp-surface-elevated: #eef3f1;
+  --cp-surface-muted: #dde8e3;
   --cp-sidebar: #ffffff;
-  --cp-border: #d4ebe3;
-  --cp-border-subtle: #e8f5ef;
-  --cp-text: #032921;
-  --cp-text-muted: #4a6b60;
-  --cp-text-dim: #6b8f82;
-  --cp-lavender: #e8faf3;
-  --cp-lavender-alt: #dff5eb;
+  --cp-border: #d5e2dc;
+  --cp-border-subtle: #e8f0ec;
+  --cp-text: #0b1f1a;
+  --cp-text-muted: #4a635a;
+  --cp-text-dim: #6b8278;
+  --cp-lavender: #eef6f2;
+  --cp-lavender-alt: #e4f0ea;
 
   color-scheme: light;
 
@@ -50,7 +51,7 @@
   --popover: var(--cp-bg-card);
   --popover-foreground: var(--cp-text);
   --primary: var(--cp-primary);
-  --primary-foreground: #000000;
+  --primary-foreground: #ffffff;
   --secondary: var(--cp-surface-elevated);
   --secondary-foreground: var(--cp-text);
   --muted: var(--cp-surface-elevated);
@@ -66,23 +67,29 @@
 }
 
 .dark {
-  --cp-primary-glow: rgba(0, 191, 139, 0.35);
-  --cp-logo-accent: #b7f1c9;
-  --cp-logo-mint: #b7f1c9;
-  --cp-hero-overlay: #032921;
+  /* Softer teal on black — clearer than neon mint */
+  --cp-primary: #3dba96;
+  --cp-primary-light: #34a985;
+  --cp-primary-hover: #34a985;
+  --cp-primary-glow: rgba(61, 186, 150, 0.28);
+  --cp-logo-accent: #8fd4bc;
+  --cp-logo-mint: #8fd4bc;
+  --cp-badge-green: #3dba96;
+  --cp-badge-border: rgba(61, 186, 150, 0.4);
+  --cp-hero-overlay: #0a1612;
 
   --cp-bg: #000000;
-  --cp-bg-card: #032921;
-  --cp-bg-input: #042822;
-  --cp-surface: #032921;
-  --cp-surface-elevated: #042822;
-  --cp-surface-muted: #0a3d32;
+  --cp-bg-card: #0a1612;
+  --cp-bg-input: #0f1f1a;
+  --cp-surface: #0a1612;
+  --cp-surface-elevated: #0f1f1a;
+  --cp-surface-muted: #152820;
   --cp-sidebar: #000000;
-  --cp-border: #0a3d32;
-  --cp-border-subtle: #042822;
+  --cp-border: #1a3228;
+  --cp-border-subtle: #0f1f1a;
   --cp-text: #ffffff;
-  --cp-text-muted: #b7f1c9;
-  --cp-text-dim: #6b8f82;
+  --cp-text-muted: #9bb5ab;
+  --cp-text-dim: #6b8278;
 
   color-scheme: dark;
 
@@ -92,6 +99,8 @@
   --card-foreground: var(--cp-text);
   --popover: var(--cp-bg-card);
   --popover-foreground: var(--cp-text);
+  --primary: var(--cp-primary);
+  --primary-foreground: #04140f;
   --secondary: var(--cp-surface-elevated);
   --secondary-foreground: var(--cp-text);
   --muted: var(--cp-surface-elevated);
@@ -174,7 +183,10 @@
 
 @layer utilities {
   .text-gradient-primary {
-    @apply bg-linear-to-r from-[#032921] via-[#00BF8B] to-[#B7F1C9] bg-clip-text text-transparent;
+    @apply bg-linear-to-r from-[#088f6a] via-[#0a9e76] to-[#1aad86] bg-clip-text text-transparent;
+  }
+  .dark .text-gradient-primary {
+    @apply from-[#3dba96] via-[#5ecfad] to-[#8fd4bc];
   }
   .glow-primary {
     box-shadow: 0 0 32px var(--cp-primary-glow);

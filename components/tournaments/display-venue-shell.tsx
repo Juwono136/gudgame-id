@@ -5,12 +5,19 @@ import { cn } from "@/lib/utils";
 type DisplayVenueShellProps = {
   children: React.ReactNode;
   className?: string;
+  /** Lock to one viewport height (no page scroll) — multi-court display grid. */
+  lockViewport?: boolean;
 };
 
 /** Full-screen venue backdrop — works on projectors and mobile displays. */
-export function DisplayVenueShell({ children, className }: DisplayVenueShellProps) {
+export function DisplayVenueShell({ children, className, lockViewport }: DisplayVenueShellProps) {
   return (
-    <div className="relative min-h-dvh overflow-hidden text-white">
+    <div
+      className={cn(
+        "relative overflow-hidden text-white",
+        lockViewport ? "h-dvh max-h-dvh" : "min-h-dvh",
+      )}
+    >
       <div className="pointer-events-none absolute inset-0 bg-[#070b14]" aria-hidden />
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(0,191,139,0.35),transparent_55%)]"
@@ -29,7 +36,15 @@ export function DisplayVenueShell({ children, className }: DisplayVenueShellProp
         }}
         aria-hidden
       />
-      <div className={cn("relative z-[1] min-h-dvh w-full", className)}>{children}</div>
+      <div
+        className={cn(
+          "relative z-[1] w-full",
+          lockViewport ? "h-full min-h-0" : "min-h-dvh",
+          className,
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }

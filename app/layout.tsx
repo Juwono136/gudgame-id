@@ -57,10 +57,10 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans">
         <NextTopLoader
-          color="#00BF8B"
+          color="#0a9e76"
           height={3}
           showSpinner={false}
-          shadow="0 0 12px rgba(0,191,139,0.45)"
+          shadow="0 0 12px rgba(10,158,118,0.4)"
         />
         <AppProviders>{children}</AppProviders>
       </body>

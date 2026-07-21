@@ -1,64 +1,55 @@
 "use client";
 
-import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { motion } from "framer-motion";
-import { Trophy } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Trophy, ZoomIn, ZoomOut } from "lucide-react";
 import {
   BracketConnectorOverlay,
-  buildMeasuredBracketPaths,
   shouldRenderBracketMatch,
 } from "@/components/tournaments/bracket-tree-connectors";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
+import {
+  buildBracketMatchAnchors,
+  buildLayoutBracketPaths,
+  getBracketGridMetrics,
+  getMainDrawGridSlots,
+  getMainDrawMatches,
+  getMainDrawRoundNumbers,
+  getMainDrawTotalRounds,
+  getPlayInMatches,
+} from "@/lib/tournaments/brackets/tree-layout";
 import { cn } from "@/lib/utils";
-
-const MATCH_ROW_GAP_BASE = 40;
-
-function getBracketGridLayout(firstRoundCount: number) {
-  const gridSlots = Math.max(firstRoundCount, 1);
-  // Larger brackets need more vertical breathing room between first-round cards.
-  const rowGap =
-    gridSlots >= 16 ? 56 : gridSlots >= 8 ? 52 : gridSlots >= 4 ? 48 : MATCH_ROW_GAP_BASE;
-  // Tall enough for two-line team slots + status header without adjacent cards colliding.
-  const rowHeight =
-    gridSlots >= 16 ? 148 : gridSlots >= 8 ? 152 : gridSlots >= 4 ? 156 : 160;
-  const columnHeight = gridSlots * rowHeight + Math.max(gridSlots - 1, 0) * rowGap;
-  return { gridSlots, rowHeight, rowGap, columnHeight };
-}
-
-function matchGridStyle(roundNumber: number, matchIndex: number): CSSProperties {
-  const span = 2 ** (roundNumber - 1);
-  const rowStart = matchIndex * span + 1;
-  return {
-    gridRow: `${rowStart} / span ${span}`,
-    alignSelf: "center",
-    width: "100%",
-  };
-}
 
 type BracketTreeViewProps = {
   matches: BracketMatchView[];
   emptyMessage?: string;
   highlightTeamIds?: string[];
   onSlotClick?: (matchId: string, slot: "a" | "b") => void;
-  /** Highlights the round-one slot currently selected for manual seeding. */
   activeSeedSlot?: { matchId: string; slot: "a" | "b" } | null;
   seedingMode?: boolean;
-  /** Public bracket: show empty pending slots as TBD instead of hiding them. */
   showEmptySlots?: boolean;
 };
 
 function matchStatusLabel(m: BracketMatchView): { label: string; className: string } {
-  if (m.status === "completed") {
-    return { label: "Finished", className: "text-cp-primary" };
-  }
-  if (m.status === "in_progress") {
-    return { label: "Live", className: "text-emerald-400" };
-  }
-  if (m.status === "bye") {
-    return { label: "Walkover", className: "text-cp-muted" };
-  }
+  if (m.status === "completed") return { label: "Finished", className: "text-cp-primary" };
+  if (m.status === "in_progress") return { label: "Live", className: "text-emerald-400" };
+  if (m.status === "bye") return { label: "Walkover", className: "text-cp-muted" };
   return { label: "Upcoming", className: "text-cp-muted" };
+}
+
+function shortRoundTag(label: string): string {
+  if (label === "Final") return "F";
+  if (label === "Semifinal") return "SF";
+  if (label === "Quarterfinal") return "QF";
+  const of = label.match(/Round of (\d+)/i);
+  if (of) return `R${of[1]}`;
+  return label.replace(/^Round\s+/i, "R");
+}
+
+function shouldShowScore(m: BracketMatchView, score: number | null): boolean {
+  if (score == null) return false;
+  if (m.status === "in_progress" || m.status === "completed") return true;
+  return score > 0;
 }
 
 export function BracketTreeView({
@@ -68,33 +59,52 @@ export function BracketTreeView({
   onSlotClick,
   activeSeedSlot = null,
   seedingMode = false,
-  showEmptySlots = false,
+  showEmptySlots = true,
 }: BracketTreeViewProps) {
-  const visibleMatches = useMemo(
+  const structuralMatches = useMemo(
     () =>
       seedingMode || showEmptySlots ? matches : matches.filter(shouldRenderBracketMatch),
     [matches, seedingMode, showEmptySlots],
   );
 
-  const { roundNumbers, totalRounds, gridSlots, rowHeight, rowGap, columnHeight } = useMemo(() => {
-    const nums = [...new Set(visibleMatches.map((m) => m.roundNumber))].sort((a, b) => a - b);
-    const max = nums.length ? Math.max(...nums) : 0;
-    const firstRound = nums[0];
-    const firstRoundCount =
-      firstRound == null
-        ? 1
-        : Math.max(matches.filter((m) => m.roundNumber === firstRound).length, 1);
-    const layout = getBracketGridLayout(firstRoundCount);
-    return {
-      roundNumbers: nums,
-      totalRounds: max,
-      ...layout,
-    };
-  }, [visibleMatches, matches]);
+  const playInMatches = useMemo(
+    () => getPlayInMatches(structuralMatches),
+    [structuralMatches],
+  );
+  const treeMatches = useMemo(
+    () => getMainDrawMatches(structuralMatches),
+    [structuralMatches],
+  );
 
-  const rounds = useMemo(() => {
+  const gridSlots = useMemo(() => getMainDrawGridSlots(structuralMatches), [structuralMatches]);
+  const metrics = useMemo(() => getBracketGridMetrics(gridSlots), [gridSlots]);
+  const roundNumbers = useMemo(() => getMainDrawRoundNumbers(treeMatches), [treeMatches]);
+  const totalRounds = useMemo(
+    () => getMainDrawTotalRounds(structuralMatches),
+    [structuralMatches],
+  );
+
+  const anchors = useMemo(
+    () => buildBracketMatchAnchors(treeMatches, roundNumbers, metrics, 0),
+    [treeMatches, roundNumbers, metrics],
+  );
+  const anchorsById = useMemo(() => new Map(anchors.map((a) => [a.id, a])), [anchors]);
+  const connectorPaths = useMemo(() => buildLayoutBracketPaths(anchors), [anchors]);
+
+  const treeWidth = useMemo(() => {
+    if (!roundNumbers.length) return metrics.columnWidth;
+    return (
+      roundNumbers.length * metrics.columnWidth +
+      Math.max(roundNumbers.length - 1, 0) * metrics.gutterWidth +
+      48
+    );
+  }, [roundNumbers.length, metrics.columnWidth, metrics.gutterWidth]);
+
+  const treeHeight = metrics.headerHeight + metrics.columnHeight + 8;
+
+  const matchesByRound = useMemo(() => {
     const map = new Map<number, BracketMatchView[]>();
-    for (const m of visibleMatches) {
+    for (const m of treeMatches) {
       const list = map.get(m.roundNumber) ?? [];
       list.push(m);
       map.set(m.roundNumber, list);
@@ -106,116 +116,31 @@ export function BracketTreeView({
       );
     }
     return map;
-  }, [visibleMatches]);
+  }, [treeMatches]);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const treeRef = useRef<HTMLDivElement>(null);
-  const matchElements = useRef(new Map<string, HTMLDivElement>());
-  const [connectorPaths, setConnectorPaths] = useState<string[]>([]);
-  const [overlaySize, setOverlaySize] = useState({ width: 0, height: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
-  const panStart = useRef({ x: 0, scrollLeft: 0 });
+  const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const draggedRef = useRef(false);
   const pointerOrigin = useRef({ x: 0, y: 0 });
 
-  const registerMatchRef = useCallback((matchId: string) => {
-    return (node: HTMLDivElement | null) => {
-      if (node) {
-        matchElements.current.set(matchId, node);
-      } else {
-        matchElements.current.delete(matchId);
-      }
-    };
-  }, []);
+  const effectiveZoom = Math.max(0.5, Math.min(zoom, 1.5));
+  const firstMainRound = roundNumbers[0] ?? 1;
 
-  const connectorPairs = useMemo(() => {
-    const pairs: Array<{ nextId: string; feederIds: string[] }> = [];
+  const isInteractivePanTarget = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(
+      target.closest(
+        "[data-bracket-slot], [data-bracket-chrome], button, a, input, select, textarea, label",
+      ),
+    );
+  };
 
-    for (let ri = 0; ri < roundNumbers.length - 1; ri++) {
-      const curRound = roundNumbers[ri]!;
-      const nextRound = roundNumbers[ri + 1]!;
-      const curMatches = rounds.get(curRound) ?? [];
-      const nextMatches = rounds.get(nextRound) ?? [];
-
-      for (const nextM of nextMatches) {
-        let feeders = curMatches.filter((m) => m.nextMatchId === nextM.id);
-        if (!feeders.length) {
-          const slot = nextM.matchNumber - 1;
-          feeders = curMatches.filter(
-            (m) => m.matchNumber === slot * 2 + 1 || m.matchNumber === slot * 2 + 2,
-          );
-        }
-        if (feeders.length) {
-          pairs.push({ nextId: nextM.id, feederIds: feeders.map((f) => f.id) });
-        }
-      }
-    }
-
-    return pairs;
-  }, [roundNumbers, rounds]);
-
-  const measureConnectors = useCallback(() => {
-    const tree = treeRef.current;
-    if (!tree) return;
-
-    const treeRect = tree.getBoundingClientRect();
-    setOverlaySize({ width: tree.offsetWidth, height: tree.offsetHeight });
-
-    const positions = new Map<string, DOMRect>();
-    for (const [id, el] of matchElements.current) {
-      if (!tree.contains(el)) continue;
-      positions.set(id, el.getBoundingClientRect());
-    }
-
-    const paths: string[] = [];
-    for (const { nextId, feederIds } of connectorPairs) {
-      const nextRect = positions.get(nextId);
-      if (!nextRect) continue;
-
-      const target = {
-        x: nextRect.left - treeRect.left,
-        y: nextRect.top - treeRect.top + nextRect.height / 2,
-      };
-
-      const feeders = feederIds
-        .map((id) => positions.get(id))
-        .filter((rect): rect is DOMRect => Boolean(rect))
-        .map((rect) => ({
-          x: rect.right - treeRect.left,
-          y: rect.top - treeRect.top + rect.height / 2,
-        }));
-
-      const pathSegments = buildMeasuredBracketPaths(feeders, target);
-      paths.push(...pathSegments);
-    }
-
-    setConnectorPaths(paths);
-  }, [connectorPairs]);
-
-  useLayoutEffect(() => {
-    measureConnectors();
-    const tree = treeRef.current;
-    const scroller = scrollRef.current;
-    if (!tree) return;
-
-    const observer = new ResizeObserver(() => {
-      measureConnectors();
-    });
-    observer.observe(tree);
-    for (const el of matchElements.current.values()) {
-      observer.observe(el);
-    }
-
-    const onResize = () => measureConnectors();
-    window.addEventListener("resize", onResize);
-    scroller?.addEventListener("scroll", onResize, { passive: true });
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", onResize);
-      scroller?.removeEventListener("scroll", onResize);
-    };
-  }, [measureConnectors, visibleMatches, roundNumbers, columnHeight, seedingMode]);
+  const handleSlotClick = (matchId: string, slot: "a" | "b") => {
+    if (draggedRef.current) return;
+    onSlotClick?.(matchId, slot);
+  };
 
   if (!matches.length) {
     return (
@@ -225,207 +150,303 @@ export function BracketTreeView({
     );
   }
 
-  const isInteractivePanTarget = (target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) return false;
-    return Boolean(target.closest("[data-bracket-slot], button, a, input, select, textarea, label"));
-  };
-
-  const onPanStart = (clientX: number, clientY: number) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    draggedRef.current = false;
-    pointerOrigin.current = { x: clientX, y: clientY };
-    setIsPanning(true);
-    panStart.current = { x: clientX, scrollLeft: el.scrollLeft };
-  };
-
-  const onPanMove = (clientX: number, clientY: number) => {
-    const el = scrollRef.current;
-    if (!el || !isPanning) return;
-    const dx = clientX - pointerOrigin.current.x;
-    const dy = clientY - pointerOrigin.current.y;
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
-      draggedRef.current = true;
-    }
-    el.scrollLeft = panStart.current.scrollLeft - (clientX - panStart.current.x);
-  };
-
-  const endPan = () => setIsPanning(false);
-
-  const handleSlotClick = (matchId: string, slot: "a" | "b") => {
-    if (draggedRef.current) return;
-    onSlotClick?.(matchId, slot);
-  };
-
   return (
-    <div className="space-y-2">
-      <p className="px-1 text-center text-[10px] leading-relaxed text-cp-muted sm:text-[11px]">
-        {seedingMode
-          ? "Click a round-one slot to place a team. Swipe or drag sideways to explore rounds."
-          : "Swipe or drag sideways to explore rounds. Scores update as matches finish."}
-      </p>
+    <div className="space-y-4">
+      {playInMatches.length > 0 ? (
+        <section className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 p-3 sm:p-4">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cp-primary">
+                Play-in
+              </p>
+              <p className="mt-0.5 text-xs text-cp-muted">
+                Winners advance into the main draw below.
+              </p>
+            </div>
+            <p className="text-[11px] text-cp-muted">{playInMatches.length} matches</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {playInMatches.map((m) => {
+              const status = matchStatusLabel(m);
+              return (
+                <article
+                  key={m.id}
+                  className={cn(
+                    "overflow-hidden rounded-lg border bg-cp-card shadow-sm",
+                    m.status === "in_progress"
+                      ? "border-emerald-500/45"
+                      : m.status === "completed"
+                        ? "border-cp-primary/30"
+                        : "border-cp-border/80",
+                  )}
+                >
+                  <div className="flex items-center justify-between border-b border-cp-border/50 px-2.5 py-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
+                      Play-in · M{m.matchNumber}
+                    </span>
+                    <span className={cn("text-[10px] font-bold uppercase", status.className)}>
+                      {status.label}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-cp-border/50">
+                    <MatchSlot
+                      name={m.teamAName}
+                      players={m.teamAPlayers}
+                      score={shouldShowScore(m, m.scoreA) ? m.scoreA : null}
+                      winner={m.winnerTeamId != null && m.winnerTeamId === m.teamAId}
+                      eliminated={
+                        m.status === "completed" &&
+                        m.winnerTeamId != null &&
+                        m.winnerTeamId !== m.teamAId
+                      }
+                      highlighted={Boolean(m.teamAId && highlightTeamIds.includes(m.teamAId))}
+                      showEmptySlots={showEmptySlots}
+                      compact
+                    />
+                    <MatchSlot
+                      name={m.teamBName}
+                      players={m.teamBPlayers}
+                      score={shouldShowScore(m, m.scoreB) ? m.scoreB : null}
+                      winner={m.winnerTeamId != null && m.winnerTeamId === m.teamBId}
+                      eliminated={
+                        m.status === "completed" &&
+                        m.winnerTeamId != null &&
+                        m.winnerTeamId !== m.teamBId
+                      }
+                      highlighted={Boolean(m.teamBId && highlightTeamIds.includes(m.teamBId))}
+                      showEmptySlots={showEmptySlots}
+                      compact
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-2" data-bracket-chrome="">
+        <p className="text-[11px] text-cp-muted">
+          {seedingMode
+            ? "Tap a first-round slot to place a team. Drag to pan the bracket."
+            : "All matches at 100% — drag to pan · use zoom if you need more detail."}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cp-border bg-cp-card text-cp-muted hover:text-foreground"
+            aria-label="Zoom out"
+            onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            className="h-8 min-w-[3.5rem] rounded-lg border border-cp-border bg-cp-card px-2 text-[11px] font-semibold tabular-nums text-cp-muted hover:text-foreground"
+            title="Reset to 100%"
+            onClick={() => setZoom(1)}
+          >
+            {Math.round(effectiveZoom * 100)}%
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cp-border bg-cp-card text-cp-muted hover:text-foreground"
+            aria-label="Zoom in"
+            onClick={() => setZoom((z) => Math.min(1.5, Number((z + 0.1).toFixed(2))))}
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
       <div
-        ref={scrollRef}
+        ref={viewportRef}
         className={cn(
-          "max-h-[min(70vh,40rem)] overflow-x-auto overflow-y-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/20 to-cp-elevated/5 pb-4 pt-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] sm:max-h-[min(75vh,48rem)]",
+          "h-[min(70vh,42rem)] overflow-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/15 to-transparent [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]",
           isPanning ? "cursor-grabbing select-none" : "cursor-grab",
         )}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           if (isInteractivePanTarget(e.target)) return;
-          onPanStart(e.clientX, e.clientY);
-          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+          const el = viewportRef.current;
+          if (!el) return;
+          draggedRef.current = false;
+          pointerOrigin.current = { x: e.clientX, y: e.clientY };
+          setIsPanning(true);
+          panStart.current = {
+            x: e.clientX,
+            y: e.clientY,
+            scrollLeft: el.scrollLeft,
+            scrollTop: el.scrollTop,
+          };
+          el.setPointerCapture(e.pointerId);
         }}
-        onPointerMove={(e) => onPanMove(e.clientX, e.clientY)}
-        onPointerUp={endPan}
-        onPointerLeave={endPan}
-        onPointerCancel={endPan}
+        onPointerMove={(e) => {
+          const el = viewportRef.current;
+          if (!el || !isPanning) return;
+          if (
+            Math.abs(e.clientX - pointerOrigin.current.x) > 6 ||
+            Math.abs(e.clientY - pointerOrigin.current.y) > 6
+          ) {
+            draggedRef.current = true;
+          }
+          el.scrollLeft = panStart.current.scrollLeft - (e.clientX - panStart.current.x);
+          el.scrollTop = panStart.current.scrollTop - (e.clientY - panStart.current.y);
+        }}
+        onPointerUp={() => setIsPanning(false)}
+        onPointerLeave={() => setIsPanning(false)}
+        onPointerCancel={() => setIsPanning(false)}
       >
         <div
-          ref={treeRef}
-          className="relative min-w-max px-3 py-4 sm:px-6 sm:py-5"
+          className="p-3 sm:p-4"
+          style={{
+            width: treeWidth * effectiveZoom + 24,
+            height: treeHeight * effectiveZoom + 16,
+          }}
         >
-          <BracketConnectorOverlay
-            paths={connectorPaths}
-            width={overlaySize.width}
-            height={overlaySize.height}
-          />
+          <div
+            className="relative"
+            style={{
+              width: treeWidth,
+              height: treeHeight,
+              transform: `scale(${effectiveZoom})`,
+              transformOrigin: "top left",
+            }}
+          >
+            <BracketConnectorOverlay
+              paths={connectorPaths}
+              width={treeWidth}
+              height={treeHeight}
+            />
 
-          <div className="relative z-10 flex items-stretch gap-0">
-            {roundNumbers.map((round, roundIndex) => {
-              const roundMatches = rounds.get(round) ?? [];
+            {roundNumbers.map((round, columnIndex) => {
+              const left = columnIndex * (metrics.columnWidth + metrics.gutterWidth);
               const label = getBracketRoundLabel(round, totalRounds);
-              const isFinalRound = round === totalRounds;
+              const tag = shortRoundTag(label);
+              const isFinal = round === totalRounds;
+              const roundMatches = matchesByRound.get(round) ?? [];
 
               return (
-                <Fragment key={round}>
-                  {roundIndex > 0 ? (
+                <div
+                  key={round}
+                  className="absolute top-0"
+                  style={{ left, width: metrics.columnWidth }}
+                >
+                  <p
+                    className="truncate text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-muted sm:text-[11px]"
+                    style={{
+                      height: metrics.headerHeight,
+                      lineHeight: `${metrics.headerHeight}px`,
+                    }}
+                  >
+                    {label}
+                  </p>
+
+                  {roundMatches.map((m) => {
+                    const anchor = anchorsById.get(m.id);
+                    if (!anchor) return null;
+                    const status = matchStatusLabel(m);
+                    const seedable =
+                      seedingMode &&
+                      m.roundNumber === firstMainRound &&
+                      m.status === "pending";
+
+                    return (
+                      <article
+                        key={m.id}
+                        className={cn(
+                          "absolute overflow-hidden rounded-lg border bg-cp-card shadow-sm",
+                          m.status === "completed"
+                            ? "border-cp-primary/35"
+                            : m.status === "in_progress"
+                              ? "border-emerald-500/45 ring-1 ring-emerald-500/20"
+                              : "border-cp-border/80",
+                        )}
+                        style={{
+                          top: anchor.centerY - metrics.rowHeight / 2,
+                          left: 0,
+                          width: metrics.columnWidth,
+                          height: metrics.rowHeight - 4,
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-cp-border/50 bg-cp-elevated/25 px-2 py-0.5">
+                          <span className="text-[9px] font-semibold uppercase tracking-wide text-cp-muted">
+                            {tag} · M{m.matchNumber}
+                          </span>
+                          <span className={cn("text-[9px] font-bold uppercase", status.className)}>
+                            {status.label}
+                          </span>
+                        </div>
+                        <div className="divide-y divide-cp-border/50">
+                          <MatchSlot
+                            name={m.teamAName}
+                            players={m.teamAPlayers}
+                            score={shouldShowScore(m, m.scoreA) ? m.scoreA : null}
+                            winner={m.winnerTeamId != null && m.winnerTeamId === m.teamAId}
+                            eliminated={
+                              m.status === "completed" &&
+                              m.winnerTeamId != null &&
+                              m.winnerTeamId !== m.teamAId
+                            }
+                            highlighted={Boolean(
+                              m.teamAId && highlightTeamIds.includes(m.teamAId),
+                            )}
+                            active={
+                              activeSeedSlot?.matchId === m.id && activeSeedSlot.slot === "a"
+                            }
+                            droppable={seedable}
+                            showEmptySlots={showEmptySlots}
+                            compact={metrics.compactPlayers}
+                            onClick={
+                              onSlotClick && seedable
+                                ? () => handleSlotClick(m.id, "a")
+                                : undefined
+                            }
+                          />
+                          <MatchSlot
+                            name={m.teamBName}
+                            players={m.teamBPlayers}
+                            score={shouldShowScore(m, m.scoreB) ? m.scoreB : null}
+                            winner={m.winnerTeamId != null && m.winnerTeamId === m.teamBId}
+                            eliminated={
+                              m.status === "completed" &&
+                              m.winnerTeamId != null &&
+                              m.winnerTeamId !== m.teamBId
+                            }
+                            highlighted={Boolean(
+                              m.teamBId && highlightTeamIds.includes(m.teamBId),
+                            )}
+                            active={
+                              activeSeedSlot?.matchId === m.id && activeSeedSlot.slot === "b"
+                            }
+                            droppable={seedable}
+                            showEmptySlots={showEmptySlots}
+                            compact={metrics.compactPlayers}
+                            onClick={
+                              onSlotClick && seedable
+                                ? () => handleSlotClick(m.id, "b")
+                                : undefined
+                            }
+                          />
+                        </div>
+                      </article>
+                    );
+                  })}
+
+                  {isFinal ? (
                     <div
-                      className="w-16 shrink-0 sm:w-24 md:w-28 lg:w-32"
-                      aria-hidden
-                    />
-                  ) : null}
-                  <div className="flex shrink-0 items-stretch">
-                  <div className="flex w-[15.5rem] shrink-0 flex-col sm:w-[18rem] md:w-[19.5rem] lg:w-80">
-                    <p className="mb-3 shrink-0 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-muted sm:mb-4 sm:text-[11px]">
-                      {label}
-                    </p>
-                    <div
-                      className="grid"
+                      className="pointer-events-none absolute flex items-center justify-center"
                       style={{
-                        minHeight: columnHeight,
-                        rowGap: rowGap,
-                        gridTemplateRows: `repeat(${gridSlots}, ${rowHeight}px)`,
+                        left: metrics.columnWidth + 6,
+                        top: metrics.headerHeight + metrics.columnHeight / 2 - 16,
                       }}
                     >
-                      {roundMatches.map((m, i) => {
-                        const status = matchStatusLabel(m);
-                        return (
-                          <motion.div
-                            key={m.id}
-                            ref={registerMatchRef(m.id)}
-                            style={matchGridStyle(round, i)}
-                            initial={seedingMode ? false : { opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={
-                              seedingMode
-                                ? { duration: 0 }
-                                : { delay: roundIndex * 0.04 + i * 0.03 }
-                            }
-                            onAnimationComplete={seedingMode ? undefined : measureConnectors}
-                            className={cn(
-                              "relative my-1.5 mx-1 max-h-full overflow-hidden rounded-xl border bg-cp-card shadow-sm",
-                              m.status === "completed"
-                                ? "border-cp-primary/35"
-                                : m.status === "in_progress"
-                                  ? "border-emerald-500/45 ring-1 ring-emerald-500/20"
-                                  : m.status === "bye"
-                                    ? "border-cp-border/70"
-                                    : "border-cp-border/80",
-                            )}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-cp-border/60 bg-cp-elevated/30 px-3 py-1.5">
-                              <span className="text-[10px] font-medium uppercase tracking-wider text-cp-muted">
-                                M{m.matchNumber}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-[10px] font-semibold uppercase",
-                                  status.className,
-                                )}
-                              >
-                                {status.label}
-                              </span>
-                            </div>
-                            <div className="divide-y divide-cp-border/60">
-                              <MatchSlot
-                                name={m.teamAName}
-                                players={m.teamAPlayers}
-                                score={m.scoreA}
-                                winner={m.winnerTeamId != null && m.winnerTeamId === m.teamAId}
-                                eliminated={
-                                  m.status === "completed" &&
-                                  m.winnerTeamId != null &&
-                                  m.winnerTeamId !== m.teamAId
-                                }
-                                highlighted={Boolean(
-                                  m.teamAId && highlightTeamIds.includes(m.teamAId),
-                                )}
-                                active={
-                                  activeSeedSlot?.matchId === m.id && activeSeedSlot.slot === "a"
-                                }
-                                droppable={
-                                  seedingMode && m.roundNumber === 1 && m.status === "pending"
-                                }
-                                showEmptySlots={showEmptySlots}
-                                onClick={
-                                  onSlotClick && m.roundNumber === 1 && m.status === "pending"
-                                    ? () => handleSlotClick(m.id, "a")
-                                    : undefined
-                                }
-                              />
-                              <MatchSlot
-                                name={m.teamBName}
-                                players={m.teamBPlayers}
-                                score={m.scoreB}
-                                winner={m.winnerTeamId != null && m.winnerTeamId === m.teamBId}
-                                eliminated={
-                                  m.status === "completed" &&
-                                  m.winnerTeamId != null &&
-                                  m.winnerTeamId !== m.teamBId
-                                }
-                                highlighted={Boolean(
-                                  m.teamBId && highlightTeamIds.includes(m.teamBId),
-                                )}
-                                active={
-                                  activeSeedSlot?.matchId === m.id && activeSeedSlot.slot === "b"
-                                }
-                                droppable={
-                                  seedingMode && m.roundNumber === 1 && m.status === "pending"
-                                }
-                                showEmptySlots={showEmptySlots}
-                                onClick={
-                                  onSlotClick && m.roundNumber === 1 && m.status === "pending"
-                                    ? () => handleSlotClick(m.id, "b")
-                                    : undefined
-                                }
-                              />
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {isFinalRound ? (
-                    <div className="ml-2 flex shrink-0 items-center self-center sm:ml-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cp-primary/30 bg-cp-primary/10 shadow-[0_0_20px_rgba(0,191,139,0.12)] sm:h-12 sm:w-12 lg:h-14 lg:w-14">
-                        <Trophy className="h-5 w-5 text-cp-primary/80 sm:h-6 sm:w-6 lg:h-7 lg:w-7" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-cp-primary/30 bg-cp-primary/10">
+                        <Trophy className="h-3.5 w-3.5 text-cp-primary/80" />
                       </div>
                     </div>
                   ) : null}
-                  </div>
-                </Fragment>
+                </div>
               );
             })}
           </div>
@@ -435,47 +456,47 @@ export function BracketTreeView({
   );
 }
 
-function formatPlayers(players?: string[]): string | null {
+function formatPlayerList(players?: string[], compact = false): string | null {
   if (!players?.length) return null;
-  return players.join(" / ");
+  const cleaned = players.map((p) => p.trim()).filter(Boolean);
+  if (!cleaned.length) return null;
+  if (!compact) return cleaned.join(" · ");
+  // Compact: keep full list but shorter separator for narrow cards.
+  return cleaned.join(" · ");
 }
 
 function MatchSlot({
   name,
   players,
   score,
-  winner,
-  eliminated,
-  highlighted,
+  winner = false,
+  eliminated = false,
+  highlighted = false,
   active = false,
-  droppable,
+  droppable = false,
   showEmptySlots = false,
+  compact = false,
   onClick,
 }: {
   name: string | null;
   players?: string[];
   score: number | null;
-  winner: boolean;
-  eliminated: boolean;
+  winner?: boolean;
+  eliminated?: boolean;
   highlighted?: boolean;
   active?: boolean;
   droppable?: boolean;
   showEmptySlots?: boolean;
+  compact?: boolean;
   onClick?: () => void;
 }) {
-  const playerLine = formatPlayers(players);
+  const playerLine = formatPlayerList(players, compact);
   const hasTeam = Boolean(name?.trim());
-  const hasPlayers = Boolean(playerLine);
-  const isEmpty = !hasTeam && !hasPlayers;
+  const isEmpty = !hasTeam && !playerLine;
   const isByeLabel = hasTeam && name!.trim().toUpperCase() === "BYE";
 
   if (isEmpty && !droppable && !showEmptySlots) {
-    return (
-      <div
-        className={cn("min-h-[44px] px-3 py-2.5", highlighted && "bg-emerald-500/10")}
-        aria-hidden
-      />
-    );
+    return <div className={compact ? "h-8" : "h-10"} aria-hidden />;
   }
 
   const teamLabel = hasTeam
@@ -483,33 +504,50 @@ function MatchSlot({
       ? "No opponent"
       : name
     : droppable
-      ? "Drop squad here"
+      ? "Drop squad"
       : "TBD";
-
-  const showScore = score != null && !isByeLabel;
 
   const content = (
     <>
       <div className="min-w-0 flex-1">
         <span
           className={cn(
-            "block text-sm font-semibold leading-snug",
+            "block truncate font-semibold leading-tight",
+            compact ? "text-[11px]" : "text-sm",
             winner && "text-emerald-500 dark:text-emerald-300",
             eliminated && "text-cp-muted line-through decoration-cp-muted/60",
             !winner && !eliminated && !isByeLabel && "text-foreground",
-            (droppable && !hasTeam) || isByeLabel ? "text-cp-muted" : "",
+            ((droppable && !hasTeam) || isByeLabel) && "text-cp-muted",
           )}
         >
           {teamLabel}
         </span>
-        {hasPlayers && !isByeLabel ? (
-          <span className="mt-0.5 block text-[11px] leading-snug text-cp-muted">{playerLine}</span>
+        {playerLine && !isByeLabel ? (
+          <span
+            className={cn(
+              "mt-0.5 block truncate leading-tight text-cp-muted",
+              compact ? "text-[9px]" : "text-[11px]",
+            )}
+            title={playerLine}
+          >
+            {playerLine}
+          </span>
+        ) : hasTeam && !isByeLabel && !droppable ? (
+          <span
+            className={cn(
+              "mt-0.5 block truncate leading-tight text-cp-muted/70",
+              compact ? "text-[9px]" : "text-[11px]",
+            )}
+          >
+            Players TBD
+          </span>
         ) : null}
       </div>
-      {showScore ? (
+      {score != null && !isByeLabel ? (
         <span
           className={cn(
-            "shrink-0 font-mono text-sm font-semibold tabular-nums",
+            "shrink-0 self-center font-mono font-semibold tabular-nums",
+            compact ? "text-xs" : "text-sm",
             winner ? "text-emerald-400" : "text-foreground",
           )}
         >
@@ -520,7 +558,8 @@ function MatchSlot({
   );
 
   const className = cn(
-    "flex min-h-[48px] items-center justify-between gap-3 px-3 py-2.5 transition-colors sm:min-h-[44px]",
+    "flex w-full items-center justify-between gap-2 px-2 text-left transition-colors",
+    compact ? "min-h-[2rem] py-1" : "min-h-[2.35rem] py-1.5",
     highlighted && "bg-emerald-500/10",
     droppable && "cursor-pointer hover:bg-cp-primary/5",
     active && "bg-cp-primary/10 ring-2 ring-inset ring-cp-primary/50",
@@ -532,7 +571,7 @@ function MatchSlot({
       <button
         type="button"
         data-bracket-slot=""
-        className={cn(className, "w-full text-left")}
+        className={className}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();

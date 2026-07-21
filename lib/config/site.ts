@@ -20,7 +20,7 @@ export const brandColors = {
   black: "#000000",
   forest: "#032921",
   forestAlt: "#042822",
-  emerald: "#00BF8B",
-  mint: "#B7F1C9",
-  emeraldHover: "#00a67a",
+  emerald: "#0a9e76",
+  mint: "#a8dcc4",
+  emeraldHover: "#088f6a",
 } as const;

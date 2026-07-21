@@ -17,7 +17,7 @@ export default function SportsDirectory({ sports }: SportsDirectoryProps) {
       className="relative scroll-mt-20"
       aria-labelledby="sports-databases-heading"
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(0,191,139,0.08),transparent)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(10,158,118,0.06),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(61,186,150,0.08),transparent)]" />
 
       <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <FadeInView>

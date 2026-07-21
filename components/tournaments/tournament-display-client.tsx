@@ -11,8 +11,11 @@ import { DisplayVenueButton } from "@/components/tournaments/display/display-ven
 import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboardDisplay } from "@/components/tournaments/live-scoreboard";
 import {
+  MULTI_COURT_PER_SLIDE,
+  MULTI_COURT_SLIDE_INTERVAL_MS,
   MultiCourtDisplayCard,
   MultiCourtDisplayGrid,
+  MultiCourtWaitingCard,
 } from "@/components/tournaments/display-multi-court-grid";
 import { DisplayVenueShell } from "@/components/tournaments/display-venue-shell";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
@@ -165,6 +168,7 @@ export function TournamentDisplayClient({
   const containerRef = useRef<HTMLDivElement>(null);
   const [rotationIndex, setRotationIndex] = useState(0);
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [multiCourtSlide, setMultiCourtSlide] = useState(0);
 
   const layout: TournamentDisplayLayout = useMemo(() => {
     if (courtIdParam) return layoutParam ?? "single";
@@ -245,6 +249,41 @@ export function TournamentDisplayClient({
       ) as LiveMatchView[],
     [data?.matches, data?.tournament.status],
   );
+
+  const sortedCourts = useMemo(
+    () =>
+      [...(data?.courts ?? [])].sort(
+        (a, b) => (a.sortOrder ?? a.courtNumber) - (b.sortOrder ?? b.courtNumber),
+      ),
+    [data?.courts],
+  );
+
+  const multiCourtItemCount =
+    sortedCourts.length > 0 ? sortedCourts.length : activeMatches.length;
+  const multiCourtSlideCount = Math.max(
+    1,
+    Math.ceil(multiCourtItemCount / MULTI_COURT_PER_SLIDE),
+  );
+
+  useEffect(() => {
+    if (effectiveLayout !== "multi_court" || multiCourtSlideCount <= 1) return;
+    const id = setInterval(() => {
+      setMultiCourtSlide((i) => (i + 1) % multiCourtSlideCount);
+    }, MULTI_COURT_SLIDE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [effectiveLayout, multiCourtSlideCount]);
+
+  useEffect(() => {
+    setMultiCourtSlide(0);
+  }, [
+    effectiveLayout,
+    sortedCourts.map((c) => c.id).join(","),
+    activeMatches.map((m) => m.id).join(","),
+  ]);
+
+  useEffect(() => {
+    setMultiCourtSlide((i) => Math.min(i, Math.max(0, multiCourtSlideCount - 1)));
+  }, [multiCourtSlideCount]);
 
   const activeMatch = useMemo(() => {
     if (courtIdParam && data?.courts) {
@@ -327,22 +366,33 @@ export function TournamentDisplayClient({
   const shellContent = (() => {
     switch (effectiveLayout) {
       case "multi_court": {
-        const courtList = [...(data.courts ?? [])].sort(
-          (a, b) => (a.sortOrder ?? a.courtNumber) - (b.sortOrder ?? b.courtNumber),
-        );
+        const courtList = sortedCourts;
         const matchByCourtId = new Map(
           activeMatches
             .filter((m) => m.courtId)
             .map((m) => [m.courtId as string, m]),
         );
+        const slide = multiCourtSlide % multiCourtSlideCount;
+        const pageStart = slide * MULTI_COURT_PER_SLIDE;
+        const visibleCourts = courtList.slice(pageStart, pageStart + MULTI_COURT_PER_SLIDE);
+        const visibleMatches = activeMatches.slice(
+          pageStart,
+          pageStart + MULTI_COURT_PER_SLIDE,
+        );
         return (
-          <div ref={containerRef} className="animate-in fade-in min-h-dvh duration-700 p-3 sm:p-6" key={slideKey}>
+          <div
+            ref={containerRef}
+            className="animate-in fade-in h-full min-h-0 overflow-hidden duration-700"
+            key={`${slideKey}-mc-${slide}`}
+          >
             {courtList.length > 0 ? (
               <MultiCourtDisplayGrid
                 tournamentName={data.tournament.name}
-                courtCount={courtList.length}
+                courtCount={visibleCourts.length}
+                slideIndex={slide}
+                slideCount={multiCourtSlideCount}
               >
-                {courtList.map((court) => {
+                {visibleCourts.map((court) => {
                   const m = matchByCourtId.get(court.id);
                   if (m?.teamAName && m.teamBName) {
                     const gamesMode = resolveGamesDisplayMode(data.scoring, m);
@@ -361,25 +411,17 @@ export function TournamentDisplayClient({
                       />
                     );
                   }
-                  return (
-                    <div
-                      key={court.id}
-                      className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.04] p-6 text-center"
-                    >
-                      <p className="text-sm font-semibold uppercase tracking-wider text-white/60">
-                        {court.name}
-                      </p>
-                      <p className="mt-2 text-xs text-white/40">Waiting for match</p>
-                    </div>
-                  );
+                  return <MultiCourtWaitingCard key={court.id} courtName={court.name} />;
                 })}
               </MultiCourtDisplayGrid>
             ) : activeMatches.length > 0 ? (
               <MultiCourtDisplayGrid
                 tournamentName={data.tournament.name}
-                courtCount={activeMatches.length}
+                courtCount={visibleMatches.length}
+                slideIndex={slide}
+                slideCount={multiCourtSlideCount}
               >
-                {activeMatches.map((m) => {
+                {visibleMatches.map((m) => {
                   const court = courtList.find((c) => c.id === m.courtId);
                   const courtLabel =
                     court?.name ??
@@ -404,7 +446,9 @@ export function TournamentDisplayClient({
                 })}
               </MultiCourtDisplayGrid>
             ) : (
-              <p className="text-center text-sm text-white/60">No courts configured yet.</p>
+              <p className="flex h-full items-center justify-center text-center text-sm text-white/60">
+                No courts configured yet.
+              </p>
             )}
             {displayControls}
           </div>
@@ -508,7 +552,11 @@ export function TournamentDisplayClient({
   })();
 
   if (shellContent) {
-    return <DisplayVenueShell>{shellContent}</DisplayVenueShell>;
+    return (
+      <DisplayVenueShell lockViewport={effectiveLayout === "multi_court"}>
+        {shellContent}
+      </DisplayVenueShell>
+    );
   }
 
   if (!featuredMatch?.teamAName || !featuredMatch?.teamBName) {

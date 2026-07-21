@@ -1,10 +1,12 @@
 export function getBracketRoundLabel(roundNumber: number, totalRounds: number): string {
+  if (roundNumber <= 0) return "Play-in";
   const fromFinal = totalRounds - roundNumber + 1;
   if (fromFinal === 1) return "Final";
   if (fromFinal === 2) return "Semifinal";
   if (fromFinal === 3) return "Quarterfinal";
   if (fromFinal === 4) return "Round of 16";
   if (fromFinal === 5) return "Round of 32";
+  if (fromFinal === 6) return "Round of 64";
   return `Round ${roundNumber}`;
 }
 

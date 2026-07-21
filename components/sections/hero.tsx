@@ -24,11 +24,11 @@ export default function Hero() {
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-[var(--cp-hero-overlay)]/8 dark:bg-[var(--cp-hero-overlay)]/25"
+          className="absolute inset-0 bg-[var(--cp-hero-overlay)]/6 dark:bg-[var(--cp-hero-overlay)]/20"
           aria-hidden
         />
         <div
-          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,191,139,0.12),transparent)] dark:bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(0,191,139,0.22),transparent)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(10,158,118,0.08),transparent)] dark:bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(61,186,150,0.14),transparent)]"
           aria-hidden
         />
       </div>
@@ -38,10 +38,10 @@ export default function Hero() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
             <div className="max-w-xl text-center lg:text-left">
               <FadeIn mountKey={`hero-badge-${pathname}`} delay={0}>
-                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-600/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-emerald-800 backdrop-blur-sm sm:px-4 sm:text-[11px] dark:border-[var(--cp-badge-border)] dark:bg-[#1C352A]/80 dark:text-[var(--cp-badge-green)]">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-cp-primary/25 bg-cp-primary/10 px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-cp-primary backdrop-blur-sm sm:px-4 sm:text-[11px] dark:border-cp-primary/30 dark:bg-cp-primary/15 dark:text-cp-primary">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-600 opacity-60 dark:bg-[var(--cp-badge-green)]" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-[var(--cp-badge-green)]" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cp-primary opacity-55" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cp-primary" />
                   </span>
                   The Official Community Hub
                 </div>
@@ -49,8 +49,8 @@ export default function Hero() {
 
               <FadeIn mountKey={`hero-title-${pathname}`} delay={0.06}>
                 <h1 className="mt-4 text-2xl font-bold leading-tight tracking-tight text-cp-text drop-shadow-[0_1px_12px_rgba(255,255,255,0.65)] sm:text-3xl md:text-[2rem] dark:text-white dark:drop-shadow-[0_2px_16px_rgba(0,0,0,0.85)]">
-                  Master the Game.{" "}
-                  <span className="text-gradient-primary">Know the Data.</span>
+                  Super sports app{" "}
+                  <span className="text-cp-primary">database and match maker</span>
                 </h1>
               </FadeIn>
 

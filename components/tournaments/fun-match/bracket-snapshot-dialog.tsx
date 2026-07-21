@@ -42,6 +42,7 @@ export function BracketSnapshotDialog({
           {matches.length > 0 ? (
             <BracketTreeView
               matches={matches}
+              showEmptySlots
               highlightTeamIds={highlightTeamIds}
               emptyMessage="Bracket data is not available for this snapshot."
             />

@@ -286,6 +286,7 @@ export function ReclubBracketPanel({
           <section className="rounded-2xl border border-cp-border bg-cp-card/60 p-4 sm:p-6">
             <BracketTreeView
               matches={matches}
+              showEmptySlots
               highlightTeamIds={userTeamId ? [userTeamId] : []}
               emptyMessage="Bracket is being prepared…"
             />
