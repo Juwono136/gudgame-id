@@ -148,6 +148,11 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
+      # Idempotent QA tournament fixtures on deploy (create-if-missing only)
+      ALLOW_DEPLOY_FIXTURE_SEED: ${ALLOW_DEPLOY_FIXTURE_SEED:-}
+      SEED_FIXTURE_HOST_EMAIL: ${SEED_FIXTURE_HOST_EMAIL:-}
+      SEED_DOUBLE_STAGE_PASSWORD: ${SEED_DOUBLE_STAGE_PASSWORD:-}
+      SEED_FIXTURE_PASSWORD: ${SEED_FIXTURE_PASSWORD:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

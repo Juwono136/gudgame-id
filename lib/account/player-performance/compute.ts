@@ -1,12 +1,13 @@
 import "server-only";
 
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { playerMatches, type StatsTier } from "@/db/schema/player-competition";
-import { sports } from "@/db/schema";
+import { sports, tournaments } from "@/db/schema";
 import { deriveTierFromPoints, type PlayerTierLevel } from "@/lib/player/tier";
-import { pointsForMatch } from "@/lib/account/player-performance/points";
+import { rankingDeltaForMatch } from "@/lib/account/player-performance/points";
 import { getPlayerRankOnLeaderboard } from "@/lib/wiki/player-leaderboard";
+import { normalizeAllowedTierLevels } from "@/lib/tournaments/tier-restrictions";
 
 export type PlayerMatchAggregate = {
   totalMatches: number;
@@ -21,13 +22,38 @@ export type PlayerMatchAggregate = {
   lastMatchAt: string | null;
 };
 
+async function loadSkillTierByTournamentIds(
+  tournamentIds: string[],
+): Promise<Map<string, PlayerTierLevel>> {
+  const map = new Map<string, PlayerTierLevel>();
+  if (!tournamentIds.length) return map;
+
+  const db = getDb();
+  const rows = await db
+    .select({ id: tournaments.id, settings: tournaments.settings })
+    .from(tournaments)
+    .where(inArray(tournaments.id, tournamentIds));
+
+  for (const row of rows) {
+    const settings =
+      row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)
+        ? (row.settings as Record<string, unknown>)
+        : {};
+    const allowed = normalizeAllowedTierLevels(settings.allowedTierLevels);
+    if (allowed?.[0]) map.set(row.id, allowed[0]);
+  }
+  return map;
+}
+
 function aggregateRows(
   rows: {
     resultType: string;
     isOfficial: boolean;
     statsTier: string | null;
+    tournamentId: string | null;
     playedAt: Date;
   }[],
+  skillByTournament: Map<string, PlayerTierLevel>,
 ): PlayerMatchAggregate {
   let wins = 0;
   let losses = 0;
@@ -39,17 +65,28 @@ function aggregateRows(
 
   for (const row of rows) {
     const result = row.resultType === "win" ? "win" : "loss";
+
+    // Fun Match history may exist, but never affects ranking / tier / win rate.
+    if (!row.isOfficial || row.statsTier === "fun_match") {
+      funMatches += 1;
+      if (!firstMatchAt || row.playedAt < firstMatchAt) firstMatchAt = row.playedAt;
+      if (!lastMatchAt || row.playedAt > lastMatchAt) lastMatchAt = row.playedAt;
+      continue;
+    }
+
     if (result === "win") wins += 1;
     else losses += 1;
+    officialMatches += 1;
 
-    if (row.isOfficial) officialMatches += 1;
-    else funMatches += 1;
+    const skillTier =
+      (row.tournamentId ? skillByTournament.get(row.tournamentId) : null) ?? null;
 
-    totalPoints += pointsForMatch(
-      row.statsTier as StatsTier | null,
-      row.isOfficial,
-      result,
-    );
+    totalPoints += rankingDeltaForMatch({
+      isOfficial: true,
+      statsTier: row.statsTier as StatsTier | null,
+      skillTier,
+      resultType: result,
+    });
 
     if (!firstMatchAt || row.playedAt < firstMatchAt) firstMatchAt = row.playedAt;
     if (!lastMatchAt || row.playedAt > lastMatchAt) lastMatchAt = row.playedAt;
@@ -88,13 +125,18 @@ export async function computePlayerMatchStats(
       resultType: playerMatches.resultType,
       isOfficial: playerMatches.isOfficial,
       statsTier: playerMatches.statsTier,
+      tournamentId: playerMatches.tournamentId,
       playedAt: playerMatches.playedAt,
     })
     .from(playerMatches)
     .where(and(...conditions))
     .orderBy(asc(playerMatches.playedAt));
 
-  return aggregateRows(rows);
+  const tournamentIds = [
+    ...new Set(rows.map((r) => r.tournamentId).filter((id): id is string => Boolean(id))),
+  ];
+  const skillByTournament = await loadSkillTierByTournamentIds(tournamentIds);
+  return aggregateRows(rows, skillByTournament);
 }
 
 export async function computeTournamentUserStats(
@@ -107,6 +149,7 @@ export async function computeTournamentUserStats(
       resultType: playerMatches.resultType,
       isOfficial: playerMatches.isOfficial,
       statsTier: playerMatches.statsTier,
+      tournamentId: playerMatches.tournamentId,
       playedAt: playerMatches.playedAt,
     })
     .from(playerMatches)
@@ -114,7 +157,8 @@ export async function computeTournamentUserStats(
       and(eq(playerMatches.userId, userId), eq(playerMatches.tournamentId, tournamentId)),
     );
 
-  const agg = aggregateRows(rows);
+  const skillByTournament = await loadSkillTierByTournamentIds([tournamentId]);
+  const agg = aggregateRows(rows, skillByTournament);
   return {
     wins: agg.wins,
     losses: agg.losses,
@@ -141,6 +185,7 @@ export async function computeSportRank(
     if (rank != null) return rank;
   }
 
+  // Fallback: count players with higher official match win totals (approx).
   const [row] = await db
     .select({
       rank: sql<number>`(
@@ -149,26 +194,17 @@ export async function computeSportRank(
           FROM player_matches pm
           WHERE pm.sport_id = ${sportId}
             AND pm.user_id <> ${userId}
+            AND pm.is_official = true
+            AND COALESCE(pm.stats_tier, 'official_free') <> 'fun_match'
             AND (
-              SELECT COALESCE(SUM(
-                CASE pm2.result_type
-                  WHEN 'win' THEN
-                    CASE COALESCE(pm2.stats_tier, CASE WHEN pm2.is_official THEN 'official_free' ELSE 'fun_match' END)
-                      WHEN 'official_paid' THEN 100
-                      WHEN 'official_free' THEN 60
-                      ELSE 20
-                    END
-                  ELSE
-                    CASE COALESCE(pm2.stats_tier, CASE WHEN pm2.is_official THEN 'official_free' ELSE 'fun_match' END)
-                      WHEN 'official_paid' THEN 25
-                      WHEN 'official_free' THEN 15
-                      ELSE 5
-                    END
-                END
-              ), 0)
+              SELECT COUNT(*) FILTER (WHERE pm2.result_type = 'win')
               FROM player_matches pm2
-              WHERE pm2.user_id = pm.user_id AND pm2.sport_id = ${sportId}
-            ) > ${_totalPoints}
+              WHERE pm2.user_id = pm.user_id AND pm2.sport_id = ${sportId} AND pm2.is_official = true
+            ) > (
+              SELECT COUNT(*) FILTER (WHERE pm3.result_type = 'win')
+              FROM player_matches pm3
+              WHERE pm3.user_id = ${userId} AND pm3.sport_id = ${sportId} AND pm3.is_official = true
+            )
         )
       )`,
     })

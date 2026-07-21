@@ -12,8 +12,6 @@ import { TournamentReviewRichBlock } from "@/components/tournaments/form/tournam
 import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
 import { formatWizardDateRange, formatWizardDateTime } from "@/lib/tournaments/form/format-wizard-dates";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
-import { formatAllowedTierLevelsLabel } from "@/lib/tournaments/tier-restrictions";
-import type { PlayerTierLevel } from "@/lib/player/tier";
 
 type ReclubWizardReviewProps = {
   sportName: string;
@@ -36,7 +34,6 @@ type ReclubWizardReviewProps = {
   summary: string;
   description: string;
   rules: string;
-  allowedTierLevels?: PlayerTierLevel[];
   isEdit?: boolean;
   onEditStep?: (stepIndex: number) => void;
 };
@@ -109,7 +106,6 @@ export function ReclubWizardReview({
   summary,
   description,
   rules,
-  allowedTierLevels,
   isEdit,
   onEditStep,
 }: ReclubWizardReviewProps) {
@@ -161,10 +157,6 @@ export function ReclubWizardReview({
         <dl className="grid gap-2 sm:grid-cols-2">
           <ReviewField label="Players per team" value={playersPerTeam} />
           <ReviewField label="Max squads" value={maxTeams} />
-          <ReviewField
-            label="Allowed tiers"
-            value={formatAllowedTierLevelsLabel(allowedTierLevels) ?? "—"}
-          />
           <ReviewField label="Rounds" value={maxRounds} />
           <ReviewField
             label="Match type"

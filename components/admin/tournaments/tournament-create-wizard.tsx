@@ -87,7 +87,7 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
-import { PLAYER_TIER_LEVELS, type PlayerTierLevel } from "@/lib/player/tier";
+import { type PlayerTierLevel } from "@/lib/player/tier";
 import { parseDoubleStageSettings, parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import { cn } from "@/lib/utils";
 import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
@@ -265,9 +265,6 @@ export function TournamentCreateWizard({
     String(initialDs?.teamsAdvancePerGroup ?? 2),
   );
   const [allowDraw, setAllowDraw] = useState(initialStandings?.allowDraw ?? false);
-  const [winPoints, setWinPoints] = useState(String(initialStandings?.winPoints ?? 3));
-  const [drawPoints, setDrawPoints] = useState(String(initialStandings?.drawPoints ?? 1));
-  const [lossPoints, setLossPoints] = useState(String(initialStandings?.lossPoints ?? 0));
   const [thirdPlaceEnabled, setThirdPlaceEnabled] = useState(
     initialDs?.thirdPlaceEnabled ?? false,
   );
@@ -296,7 +293,11 @@ export function TournamentCreateWizard({
     String(initial ? getTournamentRoundDurationMinutes(initial) : 15),
   );
   const [allowedTierLevels, setAllowedTierLevels] = useState<PlayerTierLevel[]>(
-    () => (initial ? getTournamentAllowedTierLevels(initial) : null) ?? [...PLAYER_TIER_LEVELS],
+    () => {
+      const existing = initial ? getTournamentAllowedTierLevels(initial) : null;
+      if (existing?.length) return [existing[0]!];
+      return ["bronze"];
+    },
   );
 
   useEffect(() => {
@@ -364,7 +365,11 @@ export function TournamentCreateWizard({
     setRaceToGames(String(getTournamentRaceToGames(initial)));
     setCourtCount(String(getTournamentCourtCount(initial)));
     setRoundDurationMinutes(String(getTournamentRoundDurationMinutes(initial)));
-    setAllowedTierLevels(getTournamentAllowedTierLevels(initial) ?? [...PLAYER_TIER_LEVELS]);
+    setAllowedTierLevels(() => {
+      const existing = getTournamentAllowedTierLevels(initial);
+      if (existing?.length) return [existing[0]!];
+      return ["bronze"];
+    });
   }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
 
   const resolvedSlug = slug.trim() || slugifyWikiName(name);
@@ -414,10 +419,9 @@ export function TournamentCreateWizard({
             : undefined,
       prizePoolIdr: prizePoolIdr ? Number(prizePoolIdr) : undefined,
       categoryLabel: categoryLabel || undefined,
-      allowedTierLevels:
-        isOfficialType(tournamentType) && officialBilling === "free"
-          ? allowedTierLevels
-          : undefined,
+      allowedTierLevels: isOfficialType(tournamentType)
+        ? allowedTierLevels.slice(0, 1)
+        : undefined,
       registrationClosesAt: toIso(registrationClosesAt),
       startsAt: toIso(startsAt),
       endsAt: toIso(endsAt),
@@ -431,9 +435,10 @@ export function TournamentCreateWizard({
             maxTeamsPerGroup: Number(maxTeamsPerGroup) || 4,
             teamsAdvancePerGroup: Number(teamsAdvancePerGroup) || 2,
             allowDraw,
-            winPoints: Number(winPoints) || 3,
-            drawPoints: Number(drawPoints) || 1,
-            lossPoints: Number(lossPoints) || 0,
+            // Group standings use fixed sport defaults (not host-editable).
+            winPoints: 3,
+            drawPoints: 1,
+            lossPoints: 0,
             thirdPlaceEnabled,
             matchScoreMode,
             raceToGames:
@@ -474,8 +479,8 @@ export function TournamentCreateWizard({
         if (!CATEGORY_OPTIONS.includes(categoryLabel as TournamentCategoryOption)) {
           nextErrors.category = "Choose a category: Male, Female, or Mix";
         }
-        if (officialBilling === "free" && allowedTierLevels.length < 1) {
-          nextErrors.tiers = "Select at least one player tier";
+        if (allowedTierLevels.length !== 1) {
+          nextErrors.tiers = "Select exactly one tournament skill tier";
         }
         if (
           matchType !== "americano" &&
@@ -816,19 +821,18 @@ export function TournamentCreateWizard({
                       required
                       error={fieldErrors.category}
                     />
-                    {officialBilling === "free" ? (
-                      <AllowedTierLevelsSelect
-                        value={allowedTierLevels}
-                        onChange={(value) => {
-                          clearFieldError("tiers");
-                          setAllowedTierLevels(value);
-                        }}
-                        className="sm:col-span-2"
-                        required
-                        error={fieldErrors.tiers}
-                        description="Free official tournaments can limit registration by player skill tier for fairer matchmaking."
-                      />
-                    ) : null}
+                    <AllowedTierLevelsSelect
+                      value={allowedTierLevels}
+                      onChange={(value) => {
+                        clearFieldError("tiers");
+                        setAllowedTierLevels(value.slice(0, 1));
+                      }}
+                      className="sm:col-span-2"
+                      required
+                      mode="single"
+                      error={fieldErrors.tiers}
+                      description="Official tournaments (paid and free) use one skill tier. Only players at that exact tier can register. Ranking points: win adds / loss subtracts the tier value."
+                    />
                   </>
                 ) : null}
                 <div className="sm:col-span-2">
@@ -865,36 +869,6 @@ export function TournamentCreateWizard({
                         max={4}
                         value={teamsAdvancePerGroup}
                         onChange={(e) => setTeamsAdvancePerGroup(e.target.value)}
-                        className="border-cp-border bg-cp-elevated"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Win points</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={winPoints}
-                        onChange={(e) => setWinPoints(e.target.value)}
-                        className="border-cp-border bg-cp-elevated"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Draw points</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={drawPoints}
-                        onChange={(e) => setDrawPoints(e.target.value)}
-                        className="border-cp-border bg-cp-elevated"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Loss points</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={lossPoints}
-                        onChange={(e) => setLossPoints(e.target.value)}
                         className="border-cp-border bg-cp-elevated"
                       />
                     </div>

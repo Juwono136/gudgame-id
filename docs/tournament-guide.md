@@ -1,7 +1,7 @@
 # Panduan Turnamen Gud Game
 
 > **Dokumen hidup.** Perbarui file ini setiap kali ada perubahan, penambahan, atau rombak fitur seputar turnamen (format match, scoring, form create/edit, aturan lifecycle, dsb.).  
-> Terakhir diselaraskan dengan aplikasi: **2026-07-18**.  
+> Terakhir diselaraskan dengan aplikasi: **2026-07-21**.  
 > Rule agen: `.cursor/rules/tournament-docs.mdc` — sync otomatis saat file turnamen terkait diubah.
 
 Dokumen ini menjelaskan:
@@ -24,7 +24,8 @@ Nama field di UI umumnya berbahasa Inggris; penjelasan di sini berbahasa Indones
 5. [Aturan scoring](#5-aturan-scoring)
 6. [Alur operasional per format](#6-alur-operasional-per-format)
 7. [Checklist field wajib](#7-checklist-field-wajib)
-8. [Catatan maintenance dokumen](#8-catatan-maintenance-dokumen)
+8. [Seed fixtures (local QA)](#8-seed-fixtures-local-qa)
+9. [Catatan maintenance dokumen](#9-catatan-maintenance-dokumen)
 
 ---
 
@@ -40,8 +41,10 @@ Turnamen resmi yang dikelola host/admin. Bisa **Paid** atau **Free**.
 | Biaya registrasi | Wajib (> 0 IDR), lewat payment gateway | Tidak boleh ada fee |
 | Prize pool | Opsional | Opsional |
 | Category | **Wajib**: Male / Female / Mix | **Wajib**: Male / Female / Mix |
+| **Tournament tier \*** | **Wajib** satu tier: Bronze / Silver / Gold / Platinum / International·National | Sama |
 | Match format | **Wajib**: Double Stage / Elimination / Americano | Sama |
-| Ranking / stats tier | `official_paid` | `official_free` |
+| Eligibility | Player tier **harus sama** dengan tournament tier | Sama |
+| Ranking points | ± poin sesuai tier turnamen (lihat §5.3) | Sama |
 | Double Stage | Tersedia | Tersedia |
 | Registrasi | Checkout / konfirmasi sesuai billing | Konfirmasi tanpa bayar |
 
@@ -61,8 +64,9 @@ Sesi komunitas / rekreasi. **Tidak** memengaruhi ranking official.
 | Fee | Harus 0 / tidak ada |
 | Category | Tidak ditampilkan di form Fun Match |
 | Format | Americano atau Elimination (bukan Double Stage) |
+| Tier gate | **Tidak ada** — semua player boleh join |
 | Jadwal | Start & end **wajib** |
-| Ranking | Tidak masuk tier official |
+| Ranking | **Tidak** memengaruhi tier, ranking, win rate, atau poin karier |
 
 Fun Match biasanya dibuat lewat wizard Fun Match / Reclub (UI terpisah dari wizard Official).
 
@@ -93,11 +97,12 @@ Ketersediaan format bergantung pada jenis turnamen dan (sebagian) sport defaults
 | --- | --- | --- |
 | Max teams per group | `doubleStage.maxTeamsPerGroup` | Batas ukuran grup (2–8) |
 | Teams advancing per group | `doubleStage.teamsAdvancePerGroup` | Berapa tim lolos per grup (≤ max/group) |
-| Win / Draw / Loss points | `standingsScoring.winPoints` dkk. | Poin klasemen |
 | Allow draw results | `standingsScoring.allowDraw` | Izinkan skor imbang di group |
 | Include 3rd place match | `doubleStage.thirdPlaceEnabled` | Bracket juara 3 |
 | Match score format | `matchScoreMode` | `games` (Race to N) atau `points` (flat) |
 | Race to | `raceToGames` | Target game (umum: 4 atau 6) untuk mode games |
+
+> **Catatan:** Win / Draw / Loss points **tidak** lagi diedit di form. Klasemen grup memakai default tetap (3 / 1 / 0). Poin ranking player memakai skema tier turnamen (§5.3), bukan input W/D/L.
 
 **Aturan group stage**
 
@@ -166,10 +171,10 @@ Tanda **\*** di UI = field wajib.
 | **Registration fee (IDR) \*** | Ya jika Paid | Harus > 0; ditolak jika Free + fee > 0 |
 | Prize pool (IDR) | Tidak | Opsional (Free ditandai optional di UI) |
 | **Category \*** | Ya (Official paid & free) | Male / Female / Mix — menentukan kategori peserta |
+| **Tournament tier \*** | Ya (Official paid & free) | Satu tier: Bronze / Silver / Gold / Platinum / International·National — eligibility exact-match + ranking ±poin |
 | **Match format \*** | Ya (Official) | Double Stage / Elimination / Americano — harus dipilih sadar |
 | Max teams per group | Double Stage | Lihat §2.1 |
 | Teams advancing per group | Double Stage | Tidak boleh > max/group |
-| Win / Draw / Loss points | Double Stage | Poin klasemen |
 | Allow draw | Double Stage | Toggle |
 | Include 3rd place match | Double Stage | Toggle |
 | Match score format | Double Stage | Race to games vs flat points |
@@ -204,6 +209,7 @@ Ringkasan semua pilihan sebelum submit. Submit menjalankan validasi seluruh step
 - `officialBilling` wajib paid | free.
 - Paid → `registrationFeeIdr` > 0.
 - Free → fee tidak boleh > 0.
+- `allowedTierLevels` **wajib tepat 1** skill tier (Bronze…International).
 - Venue tidak boleh kosong (client wizard).
 
 ---
@@ -228,7 +234,7 @@ Wizard: `components/tournaments/reclub/reclub-tournament-wizard.tsx`.
 | House rules | Tidak | Aturan rumah opsional |
 | Venue | Sesuai UI wizard | Lokasi sesi |
 
-**Tidak ada:** Category, Official billing, Double Stage settings, registration fee.
+**Tidak ada:** Category, Official billing, Double Stage settings, registration fee, tournament tier gate.
 
 ---
 
@@ -252,21 +258,37 @@ Digunakan terutama Double Stage olahraga raket (mis. padel).
 - Standings menampilkan kolom **Game** (agregat won–lost), bukan hanya +/- poin flat.
 - History / live score menampilkan label **Games**.
 
-### 5.3 Americano points
+### 5.3 Ranking points (Official skill tier)
 
-- Poin match menambah total individu (bukan hanya win/loss 3-1-0 klasik).
+Setiap Official tournament punya **satu** skill tier. Setelah match selesai (semua format Official):
+
+| Tournament tier | Win | Loss |
+| --- | --- | --- |
+| Bronze | +1 | −1 |
+| Silver | +3 | −3 |
+| Gold | +5 | −5 |
+| Platinum | +8 | −8 |
+| International / National | +10 | −10 |
+
+- Poin net memengaruhi **tier player**, ranking, dan win rate karier (hanya match Official).
+- Eligibility: player hanya boleh register turnamen dengan **tier yang sama** (exact match).
+- Fun Match: **0** poin ranking; tidak memengaruhi tier / win rate / ranking.
+
+### 5.4 Americano points (sesi)
+
+- Poin match menambah total individu sesi (bukan ranking karier).
 - Leaderboard sesi berbasis agregat poin pemain.
 
-### 5.4 Standings Double Stage (group)
+### 5.5 Standings Double Stage (group)
 
 Kolom umum:
 
 | Kolom | Arti |
 | --- | --- |
-| M | Matches played |
+| M / G | Matches / Games played (label UI) |
 | W / L | Wins / Losses |
 | Game atau +/- | Games won–lost (mode games) atau selisih skor (mode points) |
-| PTS | Poin klasemen dari win/draw/loss points |
+| PTS | Poin klasemen grup (default tetap 3 / 1 / 0 — bukan input form) |
 
 Tie-breaker (default): points → wins → scoreDiff → scoreFor → head-to-head → manual.
 
@@ -332,7 +354,31 @@ Mirip di atas, tanpa billing/category/ranking official. Fokus sesi komunitas + h
 
 ---
 
-## 8. Catatan maintenance dokumen
+## 8. Seed fixtures (local QA)
+
+Dev-only scripts (bukan CI). Creator harus sudah ada di DB.
+
+| Command | Isi |
+| --- | --- |
+| `npm run db:seed:double-stage -- --name you@email` | **5** Official Double Stage × 32 tim (satu per tier Bronze→International). Platinum & International = paid; sisanya free. |
+| `npm run db:seed:double-stage -- --name you@email --tier=gold --reset` | Hanya satu tier |
+| `npm run db:seed:double-stage -- --name you@email --go-live` | Langsung status live (groups init) |
+| `npm run db:seed:double-stage:purge -- --all` | Hapus semua fixture DS per-tier |
+| `npm run db:seed:fixtures -- --name you@email` | Matrix: Official free/paid × Americano/Elimination + Fun Match Americano/Elimination (16 tim, Official = Gold tier) |
+| `npm run db:seed:fixtures:purge` | Hapus matrix fixtures |
+
+**Deploy (CI/CD):** setelah migrate + bootstrap-admin, job `Ensure QA tournament fixtures (idempotent)` menjalankan:
+
+- `db:seed:double-stage -- --ensure --tier=gold --name <host>`
+- `db:seed:fixtures -- --ensure --name <host>`
+
+Dengan `ALLOW_DEPLOY_FIXTURE_SEED=true`. Mode **ensure** hanya membuat fixture yang belum ada; **tidak** memakai `--reset` / purge. Host default `juwonoindonesia@gmail.com` (override secret `SEED_FIXTURE_HOST_EMAIL`). Jika akun host belum ada, seed di-skip tanpa gagalkan deploy.
+
+Player dummy: `*@gudgame.local`, password default `SeedPlayer1!` (override via `SEED_DOUBLE_STAGE_PASSWORD` / `SEED_FIXTURE_PASSWORD`).
+
+---
+
+## 9. Catatan maintenance dokumen
 
 Saat mengubah fitur turnamen, update bagian terkait di file ini:
 
@@ -344,6 +390,7 @@ Saat mengubah fitur turnamen, update bagian terkait di file ini:
 | Aturan group / bracket / americano / schedule | §2 + §6 |
 | Validasi Zod / field wajib | §3.4 + §7 |
 | Official vs Fun Match policy | §1 |
+| Seed QA fixtures | §8 |
 
 **File kode acuan (non-exhaustive)**
 

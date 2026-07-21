@@ -22,7 +22,7 @@ export async function getPlayerTierForSport(
   sportId: string,
 ): Promise<PlayerTierLevel> {
   const stats = await computePlayerMatchStats(userId, sportId);
-  return stats.tierLevel ?? "pemula";
+  return stats.tierLevel ?? "bronze";
 }
 
 export async function evaluateTournamentTierEligibility(

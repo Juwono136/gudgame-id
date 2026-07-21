@@ -1,40 +1,47 @@
 /**
- * Dev-only fixture: official free Double Stage tournament with 32 confirmed teams.
- *
- * NOT wired into CI/CD — run locally when testing the double-stage manage flow.
+ * Dev-only: official Double Stage fixtures — one tournament per skill tier (32 teams each).
  *
  * Usage:
  *   npm run db:seed:double-stage -- --name juwonoindonesia@gmail.com
- *   npm run db:seed:double-stage -- --email=juwonoindonesia@gmail.com --reset
- *   npm run db:seed:double-stage -- --name you@example.com --go-live
+ *   npm run db:seed:double-stage -- --name you@example.com --reset
+ *   npm run db:seed:double-stage -- --name you@example.com --tier=gold --go-live
+ *   npm run db:seed:double-stage -- --name you@example.com --reset --go-live
  *
- * Note: npm requires `--` before script flags.
- *
- * Creator must already exist and will be granted `host` (kept with existing roles)
- * if they are not already `host` or `super_admin`.
+ * Creates 5 tournaments by default (Bronze → International/National), each with
+ * 32 confirmed Mix teams and players ranked at that exact tier for eligibility tests.
  */
 process.env.DB_SCRIPT_MODE = "true";
 
 import "dotenv/config";
-import { randomUUID } from "node:crypto";
-import { and, eq, like } from "drizzle-orm";
-import { hashPassword } from "better-auth/crypto";
-import { closeDatabase, getDb } from "@/db/client";
-import { account, user } from "@/db/schema/auth";
-import { sports } from "@/db/schema/sports";
-import {
-  tournamentRegistrations,
-  tournamentTeamMembers,
-  tournamentTeams,
-} from "@/db/schema/tournament-registration";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import {
-  DOUBLE_STAGE_FIXTURE_SLUG,
-  purgeDoubleStageFixture,
-} from "@/lib/dev/purge-double-stage-fixture";
+  ALL_SKILL_TIERS,
+  DOUBLE_STAGE_TEAM_COUNT,
+  DEFAULT_SEED_PASSWORD,
+  PLAYERS_PER_TEAM,
+  assertDevOnlySeed,
+  assertIdempotentEnsure,
+  doubleStagePlayerPrefix,
+  doubleStageSlugForTier,
+  ensureSeedPlayers,
+  insertConfirmedTeams,
+  isDeployFixtureSeedMode,
+  normalizeEnv,
+  parseCreatorEmail,
+  resolveCreatorUser,
+  resolveSport,
+  seedPlayerTierPoints,
+  takeFlagValue,
+  tierMatchPointsLabel,
+} from "@/lib/dev/seed-tournament-fixtures";
+import { purgeDoubleStageFixture } from "@/lib/dev/purge-double-stage-fixture";
+import { closeDatabase } from "@/db/client";
 import { logger } from "@/lib/logger";
-import type { AppRole } from "@/lib/roles/constants";
-import { getUserRoleAssignments, setUserRoles } from "@/lib/roles/sync";
+import {
+  PLAYER_TIER_LABELS,
+  normalizePlayerTier,
+  type PlayerTierLevel,
+} from "@/lib/player/tier";
 import {
   createTournament,
   getTournamentBySlug,
@@ -44,60 +51,38 @@ import { tournamentUpsertSchema } from "@/lib/validations/tournaments";
 
 const log = logger.child({ script: "seed-double-stage-32" });
 
-const TEAM_COUNT = 32;
-const PLAYERS_PER_TEAM = 2;
-const PLAYER_COUNT = TEAM_COUNT * PLAYERS_PER_TEAM;
 const DEFAULT_SPORT_SLUG = "padel";
-const DEFAULT_SLUG = DOUBLE_STAGE_FIXTURE_SLUG;
-const DEFAULT_PASSWORD = "SeedPlayer1!";
-const CREDENTIAL_PROVIDER_ID = "credential";
-const EMAIL_DOMAIN = "gudgame.local";
-const PLAYER_EMAIL_PREFIX = "ds32-p";
+const PLAYER_COUNT = DOUBLE_STAGE_TEAM_COUNT * PLAYERS_PER_TEAM;
 
 type CliOptions = {
   reset: boolean;
   goLive: boolean;
+  /** Idempotent create-if-missing (deploy-safe; never deletes). */
+  ensure: boolean;
   sportSlug: string;
-  tournamentSlug: string;
-  /** Existing account that will own / create the tournament */
   creatorEmail: string | null;
+  /** When set, only seed this tier; otherwise all tiers. */
+  onlyTier: PlayerTierLevel | null;
 };
-
-function takeFlagValue(argv: string[], index: number, prefix: string): string | null {
-  const arg = argv[index]!;
-  if (arg.startsWith(`${prefix}=`)) {
-    return arg.slice(prefix.length + 1).trim() || null;
-  }
-  if (arg === prefix) {
-    return argv[index + 1]?.trim() || null;
-  }
-  return null;
-}
-
-function normalizeEnv(value: string | undefined): string {
-  const trimmed = (value ?? "").trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1).trim();
-  }
-  return trimmed;
-}
 
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     reset: false,
     goLive: false,
+    ensure: isDeployFixtureSeedMode(),
     sportSlug: DEFAULT_SPORT_SLUG,
-    tournamentSlug: DEFAULT_SLUG,
-    creatorEmail: null,
+    creatorEmail: parseCreatorEmail(argv),
+    onlyTier: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
     if (arg === "--reset") {
       opts.reset = true;
+      continue;
+    }
+    if (arg === "--ensure") {
+      opts.ensure = true;
       continue;
     }
     if (arg === "--go-live") {
@@ -112,329 +97,56 @@ function parseArgs(argv: string[]): CliOptions {
       continue;
     }
 
-    const slug = takeFlagValue(argv, i, "--slug");
-    if (slug != null) {
-      opts.tournamentSlug = slug || DEFAULT_SLUG;
-      if (arg === "--slug") i += 1;
-      continue;
-    }
-
-    // `--name` / `--email` both mean creator account email (as requested).
-    const nameEmail = takeFlagValue(argv, i, "--name");
-    if (nameEmail != null) {
-      opts.creatorEmail = nameEmail.toLowerCase();
-      if (arg === "--name") i += 1;
-      continue;
-    }
-    const email = takeFlagValue(argv, i, "--email");
-    if (email != null) {
-      opts.creatorEmail = email.toLowerCase();
-      if (arg === "--email") i += 1;
+    const tierRaw = takeFlagValue(argv, i, "--tier");
+    if (tierRaw != null) {
+      const tier = normalizePlayerTier(tierRaw);
+      if (!tier) {
+        throw new Error(
+          `Unknown --tier "${tierRaw}". Use: ${ALL_SKILL_TIERS.join(", ")}`,
+        );
+      }
+      opts.onlyTier = tier;
+      if (arg === "--tier") i += 1;
     }
   }
 
-  if (!opts.creatorEmail) {
-    opts.creatorEmail =
-      normalizeEnv(process.env.SEED_DOUBLE_STAGE_HOST_EMAIL).toLowerCase() || null;
+  // Deploy / --ensure must never reset.
+  if (opts.ensure) {
+    opts.reset = false;
   }
 
   return opts;
 }
 
-function assertDevOnly(): void {
-  if (process.env.GITHUB_ACTIONS === "true") {
-    throw new Error(
-      "Refusing to run: this seed is for local development only (not CI/CD).",
-    );
-  }
-
-  if (
-    process.env.NODE_ENV === "production" &&
-    process.env.FORCE_DEV_SEED !== "true"
-  ) {
-    throw new Error(
-      "Refusing to run in production. Set FORCE_DEV_SEED=true only if you intentionally want this fixture on a non-prod database.",
-    );
-  }
-}
-
-function playerEmail(index1Based: number): string {
-  return `${PLAYER_EMAIL_PREFIX}${String(index1Based).padStart(3, "0")}@${EMAIL_DOMAIN}`;
-}
-
-function teamName(index1Based: number): string {
-  return `DS32 Team ${String(index1Based).padStart(2, "0")}`;
-}
-
-function playerDisplayName(index1Based: number): string {
-  return `DS32 Player ${String(index1Based).padStart(2, "0")}`;
-}
-
-function isOfficialCreatorRole(roles: AppRole[]): boolean {
-  return roles.includes("host") || roles.includes("super_admin");
-}
-
-/**
- * Resolve an existing user as tournament creator.
- * Ensures they can create official tournaments (host or super_admin).
- */
-async function resolveCreatorUser(email: string): Promise<{
-  userId: string;
-  email: string;
-  roles: AppRole[];
-}> {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized || !normalized.includes("@")) {
-    throw new Error(
-      "Creator email is required. Example:\n" +
-        "  npm run db:seed:double-stage -- --name juwonoindonesia@gmail.com",
-    );
-  }
-
-  const [existing] = await getDb()
-    .select({
-      id: user.id,
-      email: user.email,
-      isActive: user.isActive,
-    })
-    .from(user)
-    .where(eq(user.email, normalized))
-    .limit(1);
-
-  if (!existing) {
-    throw new Error(
-      `User "${normalized}" was not found. Register / bootstrap that account first, then re-run the seed.`,
-    );
-  }
-
-  if (!existing.isActive) {
-    throw new Error(`User "${normalized}" is inactive and cannot create tournaments.`);
-  }
-
-  let roles = await getUserRoleAssignments(existing.id);
-  if (!isOfficialCreatorRole(roles)) {
-    const merged = [...new Set<AppRole>([...roles, "host", "player"])];
-    await setUserRoles(existing.id, merged);
-    roles = await getUserRoleAssignments(existing.id);
-    console.log(
-      `[seed-double-stage] Granted host role to ${normalized} (roles: ${roles.join(", ")})`,
-    );
-  }
-
-  if (!isOfficialCreatorRole(roles)) {
-    throw new Error(
-      `User "${normalized}" still lacks host/super_admin after role update.`,
-    );
-  }
-
-  return { userId: existing.id, email: existing.email, roles };
-}
-
-async function ensureCredentialUser(input: {
-  email: string;
-  name: string;
-  password: string;
-  roles: AppRole[];
-}): Promise<string> {
-  const db = getDb();
-  const email = input.email.toLowerCase();
-  const now = new Date();
-
-  const [existing] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.email, email))
-    .limit(1);
-
-  if (existing) {
-    await db
-      .update(user)
-      .set({
-        name: input.name,
-        fullNameKtp: input.name,
-        emailVerified: true,
-        isActive: true,
-        mustChangePassword: false,
-        gender: null,
-        updatedAt: now,
-      })
-      .where(eq(user.id, existing.id));
-
-    const hashed = await hashPassword(input.password);
-    const [cred] = await db
-      .select({ id: account.id })
-      .from(account)
-      .where(
-        and(
-          eq(account.userId, existing.id),
-          eq(account.providerId, CREDENTIAL_PROVIDER_ID),
-        ),
-      )
-      .limit(1);
-
-    if (cred) {
-      await db
-        .update(account)
-        .set({ password: hashed, updatedAt: now })
-        .where(eq(account.id, cred.id));
-    } else {
-      await db.insert(account).values({
-        id: randomUUID(),
-        accountId: existing.id,
-        providerId: CREDENTIAL_PROVIDER_ID,
-        userId: existing.id,
-        password: hashed,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    await setUserRoles(existing.id, input.roles);
-    return existing.id;
-  }
-
-  const userId = randomUUID();
-  const hashed = await hashPassword(input.password);
-
-  await db.insert(user).values({
-    id: userId,
-    name: input.name,
-    email,
-    emailVerified: true,
-    isActive: true,
-    mustChangePassword: false,
-    invitedByAdmin: false,
-    fullNameKtp: input.name,
-    gender: null,
-    role: input.roles[0] ?? "player",
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  await db.insert(account).values({
-    id: randomUUID(),
-    accountId: userId,
-    providerId: CREDENTIAL_PROVIDER_ID,
-    userId,
-    password: hashed,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  await setUserRoles(userId, input.roles);
-  return userId;
-}
-
-async function resolveSport(sportSlug: string): Promise<{ id: string; slug: string }> {
-  const [row] = await getDb()
-    .select({ id: sports.id, slug: sports.slug })
-    .from(sports)
-    .where(eq(sports.slug, sportSlug))
-    .limit(1);
-
-  if (!row) {
-    throw new Error(
-      `Sport "${sportSlug}" not found. Run \`npm run db:seed\` first to provision sports.`,
-    );
-  }
-
-  return row;
-}
-
-async function ensurePlayers(password: string): Promise<string[]> {
-  const ids: string[] = [];
-  for (let i = 1; i <= PLAYER_COUNT; i += 1) {
-    const id = await ensureCredentialUser({
-      email: playerEmail(i),
-      name: playerDisplayName(i),
-      password,
-      roles: ["player"],
-    });
-    ids.push(id);
-  }
-  return ids;
-}
-
-async function insertConfirmedTeams(
-  tournamentId: string,
-  playerIds: string[],
-): Promise<void> {
-  const db = getDb();
-  const now = new Date();
-
-  for (let t = 0; t < TEAM_COUNT; t += 1) {
-    const captainId = playerIds[t * 2]!;
-    const memberId = playerIds[t * 2 + 1]!;
-    const teamId = randomUUID();
-    const registrationId = randomUUID();
-
-    await db.insert(tournamentTeams).values({
-      id: teamId,
-      tournamentId,
-      name: teamName(t + 1),
-      captainUserId: captainId,
-      sortOrder: t,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await db.insert(tournamentTeamMembers).values([
-      {
-        id: randomUUID(),
-        teamId,
-        userId: captainId,
-        slotIndex: 0,
-        role: "captain",
-        joinedAt: now,
-      },
-      {
-        id: randomUUID(),
-        teamId,
-        userId: memberId,
-        slotIndex: 1,
-        role: "member",
-        joinedAt: now,
-      },
-    ]);
-
-    await db.insert(tournamentRegistrations).values({
-      id: registrationId,
-      tournamentId,
-      teamId,
-      registeredByUserId: captainId,
-      status: "confirmed",
-      confirmedAt: now,
-      confirmedByUserId: captainId,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-}
-
 function buildUpsertInput(opts: {
   name: string;
   slug: string;
+  tier: PlayerTierLevel;
   status: "upcoming" | "live";
   startsAt: Date;
   endsAt: Date;
+  billing: "free" | "paid";
+  feeIdr?: number;
 }) {
   const regOpen = new Date(Date.now() - 2 * 60 * 60 * 1000);
   const regClose = new Date(opts.startsAt.getTime() - 60 * 60 * 1000);
+  const tierLabel = PLAYER_TIER_LABELS[opts.tier];
 
   const parsed = tournamentUpsertSchema.safeParse({
     name: opts.name,
     slug: opts.slug,
-    summary:
-      "Dev fixture: official free Double Stage with 32 Mix teams (8 groups × 4). For local testing only.",
+    summary: `Dev fixture: official ${opts.billing} Double Stage · ${tierLabel} (${tierMatchPointsLabel(opts.tier)} pts) · 32 Mix teams.`,
     description:
-      "<p>Seeded by <code>npm run db:seed:double-stage</code>. Use the manage UI to score group matches and advance to knockout.</p>",
+      "<p>Seeded by <code>npm run db:seed:double-stage</code>. Players are ranked at this tournament tier for eligibility testing. Use manage UI to score groups and advance to knockout.</p>",
     status: opts.status,
     tournamentType: "official",
-    officialBilling: "free",
+    officialBilling: opts.billing,
+    registrationFeeIdr: opts.billing === "paid" ? (opts.feeIdr ?? 150_000) : 0,
     format: "double_stage",
     categoryLabel: "Mix",
+    allowedTierLevels: [opts.tier],
     venue: "Gud Game Dev Courts",
-    maxTeams: TEAM_COUNT,
+    maxTeams: DOUBLE_STAGE_TEAM_COUNT,
     playersPerTeam: PLAYERS_PER_TEAM,
     courtCount: 4,
     maxTeamsPerGroup: 4,
@@ -454,15 +166,105 @@ function buildUpsertInput(opts: {
       `Invalid tournament payload: ${JSON.stringify(parsed.error.flatten())}`,
     );
   }
-
   return parsed.data;
 }
 
-async function main(): Promise<void> {
-  assertDevOnly();
+async function seedOneTier(input: {
+  sport: { id: string; slug: string };
+  creatorUserId: string;
+  tier: PlayerTierLevel;
+  password: string;
+  goLive: boolean;
+  billing: "free" | "paid";
+}): Promise<{
+  slug: string;
+  status: string;
+  manageUrl: string;
+  publicUrl: string;
+}> {
+  const slug = doubleStageSlugForTier(input.tier);
+  const label = PLAYER_TIER_LABELS[input.tier];
+  const emailPrefix = doubleStagePlayerPrefix(input.tier);
 
+  const playerIds = await ensureSeedPlayers({
+    emailPrefix,
+    displayPrefix: `DS ${label}`,
+    count: PLAYER_COUNT,
+    password: input.password,
+  });
+
+  await seedPlayerTierPoints({
+    userIds: playerIds,
+    sportId: input.sport.id,
+    targetTier: input.tier,
+  });
+
+  const startsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const endsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+
+  const created = await createTournament(
+    input.sport.id,
+    input.creatorUserId,
+    buildUpsertInput({
+      name: `Dev DS 32 · ${label}`,
+      slug,
+      tier: input.tier,
+      status: "upcoming",
+      startsAt,
+      endsAt,
+      billing: input.billing,
+    }),
+  );
+
+  await insertConfirmedTeams({
+    tournamentId: created.id,
+    playerIds,
+    teamCount: DOUBLE_STAGE_TEAM_COUNT,
+    teamNamePrefix: `${label.slice(0, 3).toUpperCase()} Team`,
+  });
+
+  let final = created;
+  if (input.goLive) {
+    const liveStarts = new Date();
+    const liveEnds = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    final = await updateTournament(
+      created.id,
+      input.sport.id,
+      buildUpsertInput({
+        name: created.name,
+        slug: created.slug,
+        tier: input.tier,
+        status: "live",
+        startsAt: liveStarts,
+        endsAt: liveEnds,
+        billing: input.billing,
+      }),
+    );
+  }
+
+  return {
+    slug: final.slug,
+    status: final.status,
+    manageUrl: publicSportRoutes.tournamentManage(input.sport.slug, final.slug),
+    publicUrl: publicSportRoutes.tournament(input.sport.slug, final.slug),
+  };
+}
+
+async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
+  assertDevOnlySeed("seed-double-stage", {
+    allowDeployEnsure: opts.ensure || isDeployFixtureSeedMode(),
+  });
+  assertIdempotentEnsure("seed-double-stage", opts.reset);
+
   if (!opts.creatorEmail) {
+    if (opts.ensure || isDeployFixtureSeedMode()) {
+      console.warn(
+        "[seed-double-stage] Ensure mode: creator email missing — skipping fixture seed (deploy continues).",
+      );
+      await closeDatabase();
+      return;
+    }
     throw new Error(
       "Creator email is required.\n" +
         "  npm run db:seed:double-stage -- --name juwonoindonesia@gmail.com",
@@ -470,128 +272,110 @@ async function main(): Promise<void> {
   }
 
   const password =
-    normalizeEnv(process.env.SEED_DOUBLE_STAGE_PASSWORD) || DEFAULT_PASSWORD;
+    normalizeEnv(process.env.SEED_DOUBLE_STAGE_PASSWORD) || DEFAULT_SEED_PASSWORD;
+  const tiers = opts.onlyTier ? [opts.onlyTier] : [...ALL_SKILL_TIERS];
 
-  console.log("[seed-double-stage] Starting fixture…");
+  console.log("[seed-double-stage] Starting multi-tier fixtures…");
   console.log(
-    `[seed-double-stage] creator=${opts.creatorEmail} sport=${opts.sportSlug} slug=${opts.tournamentSlug} reset=${opts.reset} goLive=${opts.goLive}`,
+    `[seed-double-stage] creator=${opts.creatorEmail} sport=${opts.sportSlug} tiers=${tiers.join(",")} reset=${opts.reset} ensure=${opts.ensure} goLive=${opts.goLive}`,
   );
 
   const sport = await resolveSport(opts.sportSlug);
-  const creator = await resolveCreatorUser(opts.creatorEmail);
 
-  if (opts.reset) {
-    const removed = await purgeDoubleStageFixture({
-      sportId: sport.id,
-      tournamentSlug: opts.tournamentSlug,
-    });
-    console.log(
-      removed
-        ? `[seed-double-stage] Removed existing tournament "${opts.tournamentSlug}"`
-        : `[seed-double-stage] No existing tournament to reset`,
-    );
-  } else {
-    const existing = await getTournamentBySlug(sport.slug, opts.tournamentSlug);
-    if (existing) {
-      console.log(
-        `[seed-double-stage] Tournament already exists at ${publicSportRoutes.tournamentManage(sport.slug, existing.slug)}`,
+  let creator: Awaited<ReturnType<typeof resolveCreatorUser>>;
+  try {
+    creator = await resolveCreatorUser(opts.creatorEmail);
+  } catch (err) {
+    if (opts.ensure || isDeployFixtureSeedMode()) {
+      console.warn(
+        `[seed-double-stage] Ensure mode: ${err instanceof Error ? err.message : String(err)} — skipping (deploy continues).`,
       );
-      console.log(
-        "[seed-double-stage] Re-run with --reset to recreate, or: npm run db:seed:double-stage:purge",
-      );
-
-      if (opts.goLive && existing.status !== "live") {
-        const detail = await getTournamentBySlug(sport.slug, opts.tournamentSlug);
-        if (!detail) throw new Error("Tournament disappeared during go-live");
-        const liveStarts = new Date();
-        const liveEnds = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-        await updateTournament(
-          detail.id,
-          sport.id,
-          buildUpsertInput({
-            name: detail.name,
-            slug: detail.slug,
-            status: "live",
-            startsAt: liveStarts,
-            endsAt: liveEnds,
-          }),
-        );
-        console.log("[seed-double-stage] Existing tournament set to live (groups initialized).");
-      }
-
       await closeDatabase();
       return;
     }
+    throw err;
   }
 
-  const playerIds = await ensurePlayers(password);
-  console.log(`[seed-double-stage] Ensured ${playerIds.length} player accounts`);
+  if (opts.reset) {
+    await purgeDoubleStageFixture({
+      sportId: sport.id,
+      allTiers: !opts.onlyTier,
+      tournamentSlug: opts.onlyTier
+        ? doubleStageSlugForTier(opts.onlyTier)
+        : undefined,
+      purgeSeedPlayers: false,
+    });
+    console.log("[seed-double-stage] Reset: previous fixtures purged (players kept).");
+  }
 
-  const startsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
-  const endsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  const results: Array<{
+    tier: PlayerTierLevel;
+    slug: string;
+    status: string;
+    manageUrl: string;
+    publicUrl: string;
+  }> = [];
 
-  const created = await createTournament(
-    sport.id,
-    creator.userId,
-    buildUpsertInput({
-      name: "Dev Double Stage 32",
-      slug: opts.tournamentSlug,
-      status: "upcoming",
-      startsAt,
-      endsAt,
-    }),
-  );
+  for (const tier of tiers) {
+    const slug = doubleStageSlugForTier(tier);
+    const existing = await getTournamentBySlug(sport.slug, slug);
+    if (existing && !opts.reset) {
+      console.log(
+        `[seed-double-stage] Skip ${tier}: already exists (${publicSportRoutes.tournamentManage(sport.slug, existing.slug)}). Use --reset.`,
+      );
+      results.push({
+        tier,
+        slug: existing.slug,
+        status: existing.status,
+        manageUrl: publicSportRoutes.tournamentManage(sport.slug, existing.slug),
+        publicUrl: publicSportRoutes.tournament(sport.slug, existing.slug),
+      });
+      continue;
+    }
 
-  await insertConfirmedTeams(created.id, playerIds);
-  console.log(
-    `[seed-double-stage] Created tournament + ${TEAM_COUNT} confirmed teams (${PLAYER_COUNT} players)`,
-  );
+    // Alternate free / paid for variety: bronze+silver+gold free; platinum+international paid
+    const billing: "free" | "paid" =
+      tier === "platinum" || tier === "international" ? "paid" : "free";
 
-  let final = created;
-  if (opts.goLive) {
-    const liveStarts = new Date();
-    const liveEnds = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    final = await updateTournament(
-      created.id,
-      sport.id,
-      buildUpsertInput({
-        name: created.name,
-        slug: created.slug,
-        status: "live",
-        startsAt: liveStarts,
-        endsAt: liveEnds,
-      }),
-    );
     console.log(
-      "[seed-double-stage] Status → live; double-stage groups should now be initialized (8×4).",
+      `[seed-double-stage] Creating ${PLAYER_TIER_LABELS[tier]} (${billing}, ${DOUBLE_STAGE_TEAM_COUNT} teams)…`,
     );
+    const seeded = await seedOneTier({
+      sport,
+      creatorUserId: creator.userId,
+      tier,
+      password,
+      goLive: opts.goLive,
+      billing,
+    });
+    results.push({ tier, ...seeded });
   }
-
-  const manageUrl = publicSportRoutes.tournamentManage(sport.slug, final.slug);
-  const publicUrl = publicSportRoutes.tournament(sport.slug, final.slug);
 
   console.log("");
-  console.log("────────────────────────────────────────");
-  console.log(" Double Stage fixture ready");
-  console.log("────────────────────────────────────────");
-  console.log(` Creator:       ${creator.email} (${creator.roles.join(", ")})`);
-  console.log(` Player sample: ${playerEmail(1)} … ${playerEmail(PLAYER_COUNT)}`);
-  console.log(` Player pass:   ${password}`);
-  console.log(` Status:        ${final.status}`);
-  console.log(` Manage:        ${manageUrl}`);
-  console.log(` Public:        ${publicUrl}`);
-  console.log(" Purge later:   npm run db:seed:double-stage:purge");
-  console.log("────────────────────────────────────────");
+  console.log("────────────────────────────────────────────────────────");
+  console.log(" Double Stage · per-tier fixtures ready");
+  console.log("────────────────────────────────────────────────────────");
+  console.log(` Creator:     ${creator.email} (${creator.roles.join(", ")})`);
+  console.log(` Player pass: ${password}`);
+  for (const row of results) {
+    const prefix = doubleStagePlayerPrefix(row.tier);
+    console.log("");
+    console.log(
+      ` ${PLAYER_TIER_LABELS[row.tier].padEnd(24)} ${row.status.padEnd(10)} ${tierMatchPointsLabel(row.tier)}`,
+    );
+    console.log(`   slug:    ${row.slug}`);
+    console.log(`   players: ${prefix}001@gudgame.local … ${prefix}${String(PLAYER_COUNT).padStart(3, "0")}@gudgame.local`);
+    console.log(`   manage:  ${row.manageUrl}`);
+    console.log(`   public:  ${row.publicUrl}`);
+  }
+  console.log("");
+  console.log(" Purge all:  npm run db:seed:double-stage:purge -- --all");
+  console.log(" Purge+players: npm run db:seed:double-stage:purge -- --all --players");
+  console.log("────────────────────────────────────────────────────────");
 
-  const leftover = await getDb()
-    .select({ id: user.id })
-    .from(user)
-    .where(like(user.email, `${PLAYER_EMAIL_PREFIX}%@${EMAIL_DOMAIN}`));
-  log.info("Seed complete", {
-    tournamentId: final.id,
+  log.info("Multi-tier double-stage seed complete", {
     creatorEmail: creator.email,
-    playerAccounts: leftover.length,
-    status: final.status,
+    tiers: results.map((r) => r.tier),
   });
 
   await closeDatabase();

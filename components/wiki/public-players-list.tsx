@@ -9,21 +9,25 @@ import type { PublicPlayerListItem } from "@/lib/wiki/public-players";
 import { cn } from "@/lib/utils";
 
 const TIER_STYLES: Record<string, string> = {
-  pemula: cn(
+  bronze: cn(
+    "border-amber-800/40 bg-amber-950/5 text-amber-950",
+    "dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-100",
+  ),
+  silver: cn(
     "border-slate-400/50 bg-slate-100 text-slate-700",
     "dark:border-slate-500/40 dark:bg-slate-500/15 dark:text-slate-200",
   ),
-  menengah: cn(
-    "border-cp-primary/35 bg-cp-primary/10 text-cp-primary",
-    "dark:border-cp-primary/40 dark:bg-cp-primary/15 dark:text-emerald-200",
-  ),
-  pro: cn(
+  gold: cn(
     "border-amber-500/40 bg-amber-50 text-amber-800",
     "dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200",
   ),
-  gold: cn(
-    "border-yellow-500/45 bg-yellow-50 text-yellow-900",
-    "dark:border-yellow-500/40 dark:bg-yellow-500/15 dark:text-yellow-200",
+  platinum: cn(
+    "border-sky-500/40 bg-sky-50 text-sky-800",
+    "dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-200",
+  ),
+  international: cn(
+    "border-rose-500/40 bg-rose-50 text-rose-900",
+    "dark:border-rose-500/40 dark:bg-rose-500/15 dark:text-rose-200",
   ),
 };
 
@@ -44,15 +48,15 @@ function formatLocation(player: PublicPlayerListItem): string {
 }
 
 function TierBadge({ tier, tierLevel }: { tier: string | null; tierLevel: string | null }) {
-  const key = normalizePlayerTier(tierLevel ?? tier) ?? "pemula";
+  const key = normalizePlayerTier(tierLevel ?? tier) ?? "bronze";
   return (
     <span
       className={cn(
         "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        TIER_STYLES[key] ?? TIER_STYLES.pemula,
+        TIER_STYLES[key] ?? TIER_STYLES.bronze,
       )}
     >
-      {tier ?? "Beginner"}
+      {tier ?? "Bronze"}
     </span>
   );
 }

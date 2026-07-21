@@ -6,14 +6,12 @@ import {
   type PlayerTierLevel,
 } from "@/lib/player/tier";
 
-/** Tournaments that support player skill tier eligibility rules. */
+/** Official (paid + free) use exact tier eligibility. Fun Match does not. */
 export function tournamentUsesTierRestrictions(
   tournamentType: string | null | undefined,
-  officialBilling: string | null | undefined,
+  _officialBilling?: string | null | undefined,
 ): boolean {
-  if (tournamentType === "fun_match") return true;
-  if (tournamentType === "official" && officialBilling === "free") return true;
-  return false;
+  return tournamentType === "official";
 }
 
 export function normalizeAllowedTierLevels(
@@ -30,22 +28,34 @@ export function normalizeAllowedTierLevels(
   return ordered.length > 0 ? ordered : undefined;
 }
 
-/** Effective allowed tiers for a restricted tournament (defaults to all tiers). */
+/** Single tournament skill tier (Official). Fun Match → null. */
+export function resolveTournamentSkillTier(
+  tournamentType: string | null | undefined,
+  officialBilling: string | null | undefined,
+  configured: PlayerTierLevel[] | undefined,
+): PlayerTierLevel | null {
+  if (!tournamentUsesTierRestrictions(tournamentType, officialBilling)) return null;
+  if (configured?.length) return configured[0] ?? null;
+  return "bronze";
+}
+
+/** Effective allowed tiers for a restricted tournament (exactly one skill tier). */
 export function resolveAllowedTierLevels(
   tournamentType: string | null | undefined,
   officialBilling: string | null | undefined,
   configured: PlayerTierLevel[] | undefined,
 ): PlayerTierLevel[] | null {
-  if (!tournamentUsesTierRestrictions(tournamentType, officialBilling)) return null;
-  return configured?.length ? configured : [...PLAYER_TIER_LEVELS];
+  const skill = resolveTournamentSkillTier(tournamentType, officialBilling, configured);
+  return skill ? [skill] : null;
 }
 
+/** Exact match: player tier must equal the tournament tier. */
 export function isPlayerTierAllowed(
   playerTier: PlayerTierLevel | null | undefined,
   allowedTiers: PlayerTierLevel[] | null,
 ): boolean {
   if (!allowedTiers?.length) return true;
-  const tier = playerTier ?? "pemula";
+  const tier = playerTier ?? "bronze";
   return allowedTiers.includes(tier);
 }
 
@@ -53,7 +63,6 @@ export function formatAllowedTierLevelsLabel(
   allowedTiers: PlayerTierLevel[] | null | undefined,
 ): string | null {
   if (!allowedTiers?.length) return null;
-  if (allowedTiers.length === PLAYER_TIER_LEVELS.length) return "All skill levels";
   return allowedTiers.map((tier) => PLAYER_TIER_LABELS[tier]).join(", ");
 }
 
@@ -62,8 +71,8 @@ export function formatPlayerTierRestrictionMessage(input: {
   allowedTiers: PlayerTierLevel[];
   tournamentLabel?: string;
 }): string {
-  const playerLabel = formatPlayerTierLabel(input.playerTier) ?? "Beginner";
-  const allowedLabel = formatAllowedTierLevelsLabel(input.allowedTiers) ?? "selected tiers";
+  const playerLabel = formatPlayerTierLabel(input.playerTier) ?? "Bronze";
+  const allowedLabel = formatAllowedTierLevelsLabel(input.allowedTiers) ?? "this tier";
   const scope = input.tournamentLabel ? ` for ${input.tournamentLabel}` : "";
   return `Your current tier is ${playerLabel}. This tournament${scope} is open to ${allowedLabel} players only.`;
 }

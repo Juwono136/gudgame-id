@@ -1,23 +1,78 @@
 import type { StatsTier } from "@/db/schema/player-competition";
+import {
+  matchPointsForTournamentTier,
+  normalizePlayerTier,
+  type PlayerTierLevel,
+} from "@/lib/player/tier";
 
-/** Ranking points per match outcome — weighted by event tier (similar to pro tour systems). */
-export const MATCH_POINTS_BY_TIER: Record<
+/**
+ * Legacy stats_tier values (billing category). Kept for stored rows & filtering.
+ * Ranking deltas for Official now come from tournament skill tier (±1/3/5/8/10).
+ */
+export const LEGACY_MATCH_POINTS_BY_STATS_TIER: Record<
   StatsTier,
   { win: number; loss: number }
 > = {
-  official_paid: { win: 100, loss: 25 },
-  official_free: { win: 60, loss: 15 },
-  fun_match: { win: 20, loss: 5 },
+  official_paid: { win: 5, loss: -5 },
+  official_free: { win: 5, loss: -5 },
+  fun_match: { win: 0, loss: 0 },
 };
 
+export type RankingPointsInput = {
+  isOfficial: boolean;
+  /** Billing category on the match row (official_paid | official_free | fun_match). */
+  statsTier?: StatsTier | string | null;
+  /** Tournament skill tier that determined the ± ranking delta. */
+  skillTier?: PlayerTierLevel | string | null;
+  resultType: "win" | "loss";
+};
+
+/**
+ * Ranking points for one match outcome.
+ * - Fun Match → always 0 (does not affect tier / ranking / win-rate aggregates).
+ * - Official → ± tournament tier points (Bronze 1 … International 10).
+ */
 export function pointsForMatch(
-  statsTier: StatsTier | null | undefined,
-  isOfficial: boolean,
-  resultType: "win" | "loss",
+  statsTierOrInput: StatsTier | null | undefined | RankingPointsInput,
+  isOfficial?: boolean,
+  resultType?: "win" | "loss",
 ): number {
-  const tier: StatsTier =
-    statsTier ??
-    (isOfficial ? "official_free" : "fun_match");
-  const table = MATCH_POINTS_BY_TIER[tier];
-  return resultType === "win" ? table.win : table.loss;
+  // New object API
+  if (
+    statsTierOrInput &&
+    typeof statsTierOrInput === "object" &&
+    "resultType" in statsTierOrInput
+  ) {
+    return rankingDeltaForMatch(statsTierOrInput);
+  }
+
+  // Legacy positional API — used by older call sites during transition
+  return rankingDeltaForMatch({
+    statsTier: statsTierOrInput as StatsTier | null | undefined,
+    isOfficial: Boolean(isOfficial),
+    resultType: resultType === "win" ? "win" : "loss",
+  });
 }
+
+export function rankingDeltaForMatch(input: RankingPointsInput): number {
+  if (!input.isOfficial) return 0;
+  if (input.statsTier === "fun_match") return 0;
+
+  const skill = normalizePlayerTier(
+    typeof input.skillTier === "string" ? input.skillTier : input.skillTier ?? null,
+  );
+
+  if (skill) {
+    const amount = matchPointsForTournamentTier(skill);
+    return input.resultType === "win" ? amount : -amount;
+  }
+
+  // Historical rows without skill tier: treat as Gold (±5) for official
+  const legacy = LEGACY_MATCH_POINTS_BY_STATS_TIER[
+    (input.statsTier as StatsTier) ?? "official_free"
+  ] ?? LEGACY_MATCH_POINTS_BY_STATS_TIER.official_free;
+  return input.resultType === "win" ? legacy.win : legacy.loss;
+}
+
+/** @deprecated Prefer rankingDeltaForMatch — kept for import compatibility */
+export const MATCH_POINTS_BY_TIER = LEGACY_MATCH_POINTS_BY_STATS_TIER;

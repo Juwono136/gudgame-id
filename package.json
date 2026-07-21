@@ -18,6 +18,8 @@
     "db:seed": "tsx db/seed.ts",
     "db:seed:double-stage": "node --conditions=react-server --import tsx scripts/seed-double-stage-32.ts",
     "db:seed:double-stage:purge": "node --conditions=react-server --import tsx scripts/purge-double-stage-32.ts",
+    "db:seed:fixtures": "node --conditions=react-server --import tsx scripts/seed-tournament-fixtures.ts",
+    "db:seed:fixtures:purge": "node --conditions=react-server --import tsx scripts/purge-tournament-fixtures.ts",
     "db:bootstrap-admin": "tsx scripts/bootstrap-admin-user.ts",
     "db:migrate-host-role": "tsx scripts/migrate-host-role.ts",
     "db:promote-user": "tsx scripts/promote-user-role.ts",

@@ -113,6 +113,32 @@ jobs:
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
 
+      # Idempotent QA fixtures: create only if missing. Never --reset / purge.
+      # Skips safely when host account is absent (deploy still succeeds).
+      - name: Ensure QA tournament fixtures (idempotent)
+        run: |
+          set -euo pipefail
+          HOST_EMAIL="${SEED_FIXTURE_HOST_EMAIL:-juwonoindonesia@gmail.com}"
+          echo "Ensuring fixtures for host=${HOST_EMAIL} (create-if-missing only)"
+
+          docker compose --profile migrate run --rm db-migrate \
+            npm run db:seed:double-stage -- \
+            --ensure --tier=gold --name "${HOST_EMAIL}"
+
+          docker compose --profile migrate run --rm db-migrate \
+            npm run db:seed:fixtures -- \
+            --ensure --name "${HOST_EMAIL}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DB_SCRIPT_MODE: "true"
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+          ALLOW_DEPLOY_FIXTURE_SEED: "true"
+          # Optional override; defaults to juwonoindonesia@gmail.com in the step script
+          SEED_FIXTURE_HOST_EMAIL: ${{ secrets.SEED_FIXTURE_HOST_EMAIL }}
+          SEED_DOUBLE_STAGE_PASSWORD: ${{ secrets.SEED_DOUBLE_STAGE_PASSWORD }}
+          SEED_FIXTURE_PASSWORD: ${{ secrets.SEED_FIXTURE_PASSWORD }}
+
       # Only recreate app + payout scheduler — never `docker compose down --remove-orphans`.
       - name: Deploy Gud Game app
         run: |

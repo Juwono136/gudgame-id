@@ -373,6 +373,14 @@ export function getTournamentAllowedTierLevels(
   );
 }
 
+/** Single Official skill tier used for ranking ±points and eligibility. */
+export function getTournamentSkillTier(
+  tournament: TournamentDetail,
+): PlayerTierLevel | null {
+  const allowed = getTournamentAllowedTierLevels(tournament);
+  return allowed?.[0] ?? null;
+}
+
 export function isOfficialTournamentStaff(
   tournament: TournamentDetail,
   userId: string | null | undefined,

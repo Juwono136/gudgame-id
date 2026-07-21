@@ -1,39 +1,70 @@
-/** Player skill tier — shown instead of "Career titles" on profiles and dashboards */
+/** Player / tournament skill tiers — ranking & eligibility (Official only). */
 
-export const PLAYER_TIER_LEVELS = ["pemula", "menengah", "pro", "gold"] as const;
+export const PLAYER_TIER_LEVELS = [
+  "bronze",
+  "silver",
+  "gold",
+  "platinum",
+  "international",
+] as const;
+
 export type PlayerTierLevel = (typeof PLAYER_TIER_LEVELS)[number];
 
 export const PLAYER_TIER_LABELS: Record<PlayerTierLevel, string> = {
-  pemula: "Beginner",
-  menengah: "Intermediate",
-  pro: "Pro",
+  bronze: "Bronze",
+  silver: "Silver",
   gold: "Gold",
+  platinum: "Platinum",
+  international: "International / National",
 };
 
-/** Ordered progression path for profile UX (English labels). */
-export const PLAYER_TIER_PATH = [
-  PLAYER_TIER_LABELS.pemula,
-  PLAYER_TIER_LABELS.menengah,
-  PLAYER_TIER_LABELS.pro,
-  PLAYER_TIER_LABELS.gold,
-] as const;
+/** Ranking points awarded for a win (loss subtracts the same amount). */
+export const TOURNAMENT_TIER_MATCH_POINTS: Record<PlayerTierLevel, number> = {
+  bronze: 1,
+  silver: 3,
+  gold: 5,
+  platinum: 8,
+  international: 10,
+};
+
+/** Ordered progression for profile UX. */
+export const PLAYER_TIER_PATH = PLAYER_TIER_LEVELS.map(
+  (tier) => PLAYER_TIER_LABELS[tier],
+) as readonly string[];
+
+/** Minimum net ranking points to hold each tier (Bronze is the floor). */
+export const PLAYER_TIER_POINT_THRESHOLDS: Record<PlayerTierLevel, number> = {
+  bronze: 0,
+  silver: 15,
+  gold: 40,
+  platinum: 80,
+  international: 150,
+};
 
 const TIER_ALIASES: Record<string, PlayerTierLevel> = {
-  pemula: "pemula",
-  beginner: "pemula",
-  bronze: "pemula",
-  menengah: "menengah",
-  intermediate: "menengah",
-  silver: "menengah",
-  pro: "pro",
-  professional: "pro",
+  bronze: "bronze",
+  pemula: "bronze",
+  beginner: "bronze",
+  silver: "silver",
+  menengah: "silver",
+  intermediate: "silver",
   gold: "gold",
-  platinum: "gold",
+  pro: "gold",
+  professional: "gold",
+  platinum: "platinum",
+  international: "international",
+  national: "international",
+  "international/national": "international",
+  "international / national": "international",
 };
 
 export function normalizePlayerTier(raw: string | null | undefined): PlayerTierLevel | null {
   if (!raw?.trim()) return null;
-  const key = raw.trim().toLowerCase().replace(/\s+tier$/, "");
+  const key = raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s+tier$/, "")
+    .replace(/\s+/g, " ");
   return TIER_ALIASES[key] ?? null;
 }
 
@@ -45,9 +76,15 @@ export function formatPlayerTierLabel(raw: string | null | undefined): string | 
 }
 
 export function deriveTierFromPoints(points: number | null): PlayerTierLevel | null {
-  if (points == null) return null;
-  if (points >= 10000) return "gold";
-  if (points >= 5000) return "pro";
-  if (points >= 1000) return "menengah";
-  return "pemula";
+  if (points == null || Number.isNaN(points)) return null;
+  const net = Math.max(0, Math.round(points));
+  if (net >= PLAYER_TIER_POINT_THRESHOLDS.international) return "international";
+  if (net >= PLAYER_TIER_POINT_THRESHOLDS.platinum) return "platinum";
+  if (net >= PLAYER_TIER_POINT_THRESHOLDS.gold) return "gold";
+  if (net >= PLAYER_TIER_POINT_THRESHOLDS.silver) return "silver";
+  return "bronze";
+}
+
+export function matchPointsForTournamentTier(tier: PlayerTierLevel): number {
+  return TOURNAMENT_TIER_MATCH_POINTS[tier];
 }

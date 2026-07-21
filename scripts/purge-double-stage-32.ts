@@ -1,13 +1,10 @@
 /**
- * Dev-only: remove the double-stage seed tournament (and related teams/matches).
+ * Dev-only: remove double-stage seed tournament(s).
  *
  * Usage:
- *   npm run db:seed:double-stage:purge
- *   npm run db:seed:double-stage:purge -- --slug=dev-double-stage-32
- *   npm run db:seed:double-stage:purge -- --players
- *
- * `--players` also deletes seeded accounts `ds32-p###@gudgame.local`.
- * Does NOT delete the host/creator account.
+ *   npm run db:seed:double-stage:purge -- --all
+ *   npm run db:seed:double-stage:purge -- --tier=gold
+ *   npm run db:seed:double-stage:purge -- --all --players
  */
 process.env.DB_SCRIPT_MODE = "true";
 
@@ -19,20 +16,28 @@ import {
   DOUBLE_STAGE_FIXTURE_SLUG,
   purgeDoubleStageFixtureDetailed,
 } from "@/lib/dev/purge-double-stage-fixture";
+import {
+  assertDevOnlySeed,
+  doubleStageSlugForTier,
+  takeFlagValue,
+} from "@/lib/dev/seed-tournament-fixtures";
 import { logger } from "@/lib/logger";
+import { normalizePlayerTier } from "@/lib/player/tier";
 
 const log = logger.child({ script: "purge-double-stage-32" });
 
 type CliOptions = {
   sportSlug: string;
-  tournamentSlug: string;
+  tournamentSlug: string | null;
+  allTiers: boolean;
   purgeSeedPlayers: boolean;
 };
 
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     sportSlug: "padel",
-    tournamentSlug: DOUBLE_STAGE_FIXTURE_SLUG,
+    tournamentSlug: null,
+    allTiers: false,
     purgeSeedPlayers: false,
   };
 
@@ -42,47 +47,44 @@ function parseArgs(argv: string[]): CliOptions {
       opts.purgeSeedPlayers = true;
       continue;
     }
-    if (arg.startsWith("--sport=")) {
-      opts.sportSlug = arg.slice("--sport=".length).trim() || "padel";
+    if (arg === "--all") {
+      opts.allTiers = true;
       continue;
     }
-    if (arg === "--sport") {
-      opts.sportSlug = argv[++i]?.trim() || "padel";
+    const sport = takeFlagValue(argv, i, "--sport");
+    if (sport != null) {
+      opts.sportSlug = sport || "padel";
+      if (arg === "--sport") i += 1;
       continue;
     }
-    if (arg.startsWith("--slug=")) {
-      opts.tournamentSlug =
-        arg.slice("--slug=".length).trim() || DOUBLE_STAGE_FIXTURE_SLUG;
+    const slug = takeFlagValue(argv, i, "--slug");
+    if (slug != null) {
+      opts.tournamentSlug = slug || DOUBLE_STAGE_FIXTURE_SLUG;
+      if (arg === "--slug") i += 1;
       continue;
     }
-    if (arg === "--slug") {
-      opts.tournamentSlug = argv[++i]?.trim() || DOUBLE_STAGE_FIXTURE_SLUG;
+    const tierRaw = takeFlagValue(argv, i, "--tier");
+    if (tierRaw != null) {
+      const tier = normalizePlayerTier(tierRaw);
+      if (!tier) throw new Error(`Unknown --tier "${tierRaw}"`);
+      opts.tournamentSlug = doubleStageSlugForTier(tier);
+      if (arg === "--tier") i += 1;
     }
+  }
+
+  if (!opts.tournamentSlug && !opts.allTiers) {
+    opts.allTiers = true;
   }
 
   return opts;
 }
 
-function assertDevOnly(): void {
-  if (process.env.GITHUB_ACTIONS === "true") {
-    throw new Error("Refusing to run purge in CI.");
-  }
-  if (
-    process.env.NODE_ENV === "production" &&
-    process.env.FORCE_DEV_SEED !== "true"
-  ) {
-    throw new Error(
-      "Refusing to run purge in production without FORCE_DEV_SEED=true.",
-    );
-  }
-}
-
 async function main(): Promise<void> {
-  assertDevOnly();
+  assertDevOnlySeed("purge-double-stage");
   const opts = parseArgs(process.argv.slice(2));
 
   console.log(
-    `[purge-double-stage] sport=${opts.sportSlug} slug=${opts.tournamentSlug} players=${opts.purgeSeedPlayers}`,
+    `[purge-double-stage] sport=${opts.sportSlug} all=${opts.allTiers} slug=${opts.tournamentSlug ?? "(all tiers)"} players=${opts.purgeSeedPlayers}`,
   );
 
   const [sport] = await getDb()
@@ -97,28 +99,22 @@ async function main(): Promise<void> {
 
   const result = await purgeDoubleStageFixtureDetailed({
     sportId: sport.id,
-    tournamentSlug: opts.tournamentSlug,
+    tournamentSlug: opts.tournamentSlug ?? undefined,
+    allTiers: opts.allTiers,
     purgeSeedPlayers: opts.purgeSeedPlayers,
   });
 
   if (!result.removed) {
-    console.log(
-      `[purge-double-stage] No tournament "${opts.tournamentSlug}" found — nothing to delete.`,
-    );
+    console.log("[purge-double-stage] No matching tournaments found.");
   } else {
-    console.log("[purge-double-stage] Tournament removed cleanly.");
-    console.log(`  tournamentId:        ${result.tournamentId}`);
-    console.log(`  payments deleted:    ${result.paymentsDeleted}`);
-    console.log(`  player matches:      ${result.playerMatchesCleared}`);
-    console.log(`  player results:      ${result.playerResultsCleared}`);
+    console.log("[purge-double-stage] Tournaments removed.");
+    console.log(`  payments deleted: ${result.paymentsDeleted}`);
   }
 
   if (opts.purgeSeedPlayers) {
     console.log(`  seed players deleted: ${result.seedPlayersDeleted}`);
   } else {
-    console.log(
-      "  Tip: add --players to also remove ds32-p###@gudgame.local accounts.",
-    );
+    console.log("  Tip: add --players to also remove ds32-*@gudgame.local accounts.");
   }
 
   log.info("Purge complete", result);

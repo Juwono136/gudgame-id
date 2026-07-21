@@ -80,8 +80,7 @@ export const tournamentUpsertSchema = z
     thirdPlaceEnabled: z.boolean().optional(),
     allowedTierLevels: z
       .array(z.enum(PLAYER_TIER_LEVELS))
-      .min(1, "Select at least one player tier")
-      .max(PLAYER_TIER_LEVELS.length)
+      .max(1, "Official tournaments use exactly one skill tier")
       .optional(),
   })
   .superRefine((data, ctx) => {
@@ -161,24 +160,23 @@ export const tournamentUpsertSchema = z
             path: ["registrationFeeIdr"],
           });
         }
-        if (!data.allowedTierLevels?.length) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Select at least one player tier that may register.",
-            path: ["allowedTierLevels"],
-          });
-        }
+      }
+      if (!data.allowedTierLevels?.length) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Select the tournament skill tier (Bronze–International / National).",
+          path: ["allowedTierLevels"],
+        });
+      } else if (data.allowedTierLevels.length !== 1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Official tournaments must use exactly one skill tier.",
+          path: ["allowedTierLevels"],
+        });
       }
     }
 
     if (data.tournamentType === "fun_match") {
-      if (!data.allowedTierLevels?.length) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Select at least one player tier that may join.",
-          path: ["allowedTierLevels"],
-        });
-      }
       if (data.officialBilling) {
         ctx.addIssue({
           code: "custom",

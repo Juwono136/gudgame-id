@@ -156,6 +156,7 @@ export function OfficialTournamentPage({
 }: OfficialTournamentPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isOfficialEvent = tournament.tournamentType === "official";
   const isFreeOfficial = tournament.officialBilling === "free";
   const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
   const displayStatus = liveData?.tournament.status ?? tournament.status;
@@ -315,7 +316,7 @@ export function OfficialTournamentPage({
   const { data: tierEligibility } = useTournamentTierEligibility(
     tournament.sportSlug,
     tournament.slug,
-    { enabled: isFreeOfficial && allowedTierLevels != null },
+    { enabled: isOfficialEvent && allowedTierLevels != null },
   );
   const tierBlocked =
     isAuthenticated &&
@@ -698,7 +699,7 @@ export function OfficialTournamentPage({
               >
                 {getOfficialBillingLabel(tournament.officialBilling)}
               </Badge>
-              {isFreeOfficial && allowedTierLevels ? (
+              {isOfficialEvent && allowedTierLevels ? (
                 <TournamentTierBadges allowedTierLevels={allowedTierLevels} />
               ) : null}
             </div>
@@ -1057,11 +1058,11 @@ export function OfficialTournamentPage({
               <p className="mt-2 text-xs text-cp-muted">{summary.spotsRemaining} spots remaining</p>
             ) : null}
 
-            {isFreeOfficial && allowedTierLevels ? (
+            {isOfficialEvent && allowedTierLevels ? (
               <div className="mt-4 space-y-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
-                    Open to tiers
+                    Open to tier
                   </p>
                   <div className="mt-2">
                     <TournamentTierBadges allowedTierLevels={allowedTierLevels} size="md" />

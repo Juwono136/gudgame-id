@@ -9,21 +9,25 @@ import {
 import { cn } from "@/lib/utils";
 
 const TIER_BADGE_CLASS: Record<PlayerTierLevel, string> = {
-  pemula: cn(
+  bronze: cn(
+    "border-amber-800/30 bg-amber-900/10 text-amber-950",
+    "dark:border-amber-700/40 dark:bg-amber-900/25 dark:text-amber-100",
+  ),
+  silver: cn(
     "border-slate-600/25 bg-slate-200/90 text-slate-800",
     "dark:border-slate-500/30 dark:bg-slate-500/15 dark:text-slate-200",
-  ),
-  menengah: cn(
-    "border-sky-600/25 bg-sky-500/12 text-sky-900",
-    "dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200",
-  ),
-  pro: cn(
-    "border-emerald-700/30 bg-emerald-600/12 text-emerald-900",
-    "dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200",
   ),
   gold: cn(
     "border-amber-600/25 bg-amber-500/12 text-amber-900",
     "dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200",
+  ),
+  platinum: cn(
+    "border-sky-600/25 bg-sky-500/12 text-sky-900",
+    "dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200",
+  ),
+  international: cn(
+    "border-rose-600/25 bg-rose-500/12 text-rose-900",
+    "dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-200",
   ),
 };
 

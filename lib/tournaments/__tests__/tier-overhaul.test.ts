@@ -52,8 +52,22 @@ describe("tournament validation rules", () => {
       format: "single_elimination",
       categoryLabel: "Mix",
       registrationFeeIdr: 0,
+      allowedTierLevels: ["gold"],
     });
     expect(result.success).toBe(true);
+  });
+
+  it("requires a tournament skill tier for official events", async () => {
+    const { tournamentUpsertSchema } = await import("@/lib/validations/tournaments");
+    const result = tournamentUpsertSchema.safeParse({
+      name: "Paid Open",
+      tournamentType: "official",
+      officialBilling: "paid",
+      format: "single_elimination",
+      categoryLabel: "Mix",
+      registrationFeeIdr: 100000,
+    });
+    expect(result.success).toBe(false);
   });
 });
 

@@ -1,8 +1,11 @@
 /**
  * Compact, professional formatting for ranking / career point totals.
- * Prefers readable magnitudes (1.2K / 1.25M) with full locale value available via title.
  */
-import { PLAYER_TIER_LABELS } from "@/lib/player/tier";
+import {
+  PLAYER_TIER_LABELS,
+  PLAYER_TIER_LEVELS,
+  PLAYER_TIER_POINT_THRESHOLDS,
+} from "@/lib/player/tier";
 
 export function formatRankingPoints(value: number | null | undefined): {
   display: string;
@@ -42,19 +45,20 @@ export function nextTierProgress(points: number | null | undefined): {
   percent: number;
 } | null {
   if (points == null || Number.isNaN(points)) return null;
-  const thresholds = [
-    { label: PLAYER_TIER_LABELS.menengah, at: 1000 },
-    { label: PLAYER_TIER_LABELS.pro, at: 5000 },
-    { label: PLAYER_TIER_LABELS.gold, at: 10000 },
-  ] as const;
+  const net = Math.max(0, Math.round(points));
+  const thresholds = PLAYER_TIER_LEVELS.slice(1).map((tier) => ({
+    label: PLAYER_TIER_LABELS[tier],
+    at: PLAYER_TIER_POINT_THRESHOLDS[tier],
+  }));
+
   for (let i = 0; i < thresholds.length; i++) {
     const next = thresholds[i]!;
-    if (points < next.at) {
+    if (net < next.at) {
       const prev = i === 0 ? 0 : thresholds[i - 1]!.at;
       const span = next.at - prev;
-      const percent = Math.max(0, Math.min(100, Math.round(((points - prev) / span) * 100)));
-      return { nextLabel: next.label, current: Math.round(points), target: next.at, percent };
+      const percent = Math.max(0, Math.min(100, Math.round(((net - prev) / span) * 100)));
+      return { nextLabel: next.label, current: net, target: next.at, percent };
     }
   }
-  return { nextLabel: null, current: Math.round(points), target: Math.round(points), percent: 100 };
+  return { nextLabel: null, current: net, target: net, percent: 100 };
 }

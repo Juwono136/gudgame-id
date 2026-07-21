@@ -24,7 +24,7 @@ import {
   computeTournamentUserStats,
   computeSportRank,
 } from "@/lib/account/player-performance/compute";
-import { pointsForMatch } from "@/lib/account/player-performance/points";
+import { rankingDeltaForMatch } from "@/lib/account/player-performance/points";
 import { formatPlayerTierLabel } from "@/lib/player/tier";
 import type {
   PlayerMatchDetail,
@@ -236,11 +236,11 @@ export async function getPlayerMatchDetail(
     userLosses: 0,
     userMatches: 0,
     userWinRate: null as number | null,
-    pointsEarned: pointsForMatch(
-      row.statsTier as StatsTier | null,
-      row.isOfficial,
-      row.resultType as "win" | "loss",
-    ),
+    pointsEarned: rankingDeltaForMatch({
+      isOfficial: row.isOfficial,
+      statsTier: row.statsTier as StatsTier | null,
+      resultType: row.resultType === "win" ? "win" : "loss",
+    }),
     placement: null as string | null,
   };
 
