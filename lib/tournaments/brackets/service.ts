@@ -20,6 +20,7 @@ import {
 } from "@/lib/tournaments/scoring/engine";
 import {
   applyGamePointDelta,
+  applyGamePointSet,
   emptyMatchGameState,
   reconcileMatchGamesScores,
   startNextGameAfterWin,
@@ -336,6 +337,8 @@ export async function updateBracketLiveScore(
     side?: MatchScoreEvent["side"];
     scorerName?: string;
     scorerUserId?: string;
+    /** Absolute intra-game points target when action is set_points. */
+    targetPoints?: number;
   },
 ): Promise<BracketMatchView> {
   if (tournament.format === "americano") {
@@ -452,6 +455,50 @@ export async function updateBracketLiveScore(
       eventScoreA = scoreA;
       eventScoreB = scoreB;
     }
+  } else if (input.action === "set_points") {
+    if (!useGamesMode) {
+      throw new AppError("set_points is only valid for race-to-N games scoring", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    if (!input.side) {
+      throw new AppError("Missing scoring side for set_points", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    const gameRules = getTournamentGameRules(tournament);
+    const target =
+      typeof input.targetPoints === "number"
+        ? input.targetPoints
+        : input.side === "a"
+          ? input.scoreA
+          : input.scoreB;
+    const applied = applyGamePointSet(
+      scoreA,
+      scoreB,
+      nextGameState,
+      input.side,
+      target,
+      gameRules,
+    );
+    if (!applied) {
+      throw new AppError(
+        nextGameState.pendingGameWinner
+          ? "Game finished — tap “Next game” to continue, or undo the last point"
+          : "Cannot set points to that target",
+        { code: "VALIDATION_ERROR", statusCode: 422 },
+      );
+    }
+    scoreA = applied.gamesA;
+    scoreB = applied.gamesB;
+    nextGameState = applied.gameState;
+    const synced = reconcileMatchGamesScores(scoreA, scoreB, nextGameState);
+    scoreA = synced.scoreA;
+    scoreB = synced.scoreB;
+    eventScoreA = nextGameState.currentPointsA;
+    eventScoreB = nextGameState.currentPointsB;
   } else if (input.action === "set") {
     scoreA = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreA));
     scoreB = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreB));
@@ -466,10 +513,13 @@ export async function updateBracketLiveScore(
     eventScoreA = useGamesMode ? 0 : scoreA;
     eventScoreB = useGamesMode ? 0 : scoreB;
   } else {
-    throw new AppError("action is required (increment, decrement, set, or next_game)", {
-      code: "VALIDATION_ERROR",
-      statusCode: 422,
-    });
+    throw new AppError(
+      "action is required (increment, decrement, set, set_points, or next_game)",
+      {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      },
+    );
   }
 
   const event = buildMatchScoreEvent(userId, userName, eventScoreA, eventScoreB, {

@@ -78,8 +78,9 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
       matchId: string;
       scoreA: number;
       scoreB: number;
-      action?: "set" | "increment" | "decrement" | "next_game";
+      action?: "set" | "increment" | "decrement" | "set_points" | "next_game";
       side?: "a" | "b";
+      targetPoints?: number;
       scorerName?: string;
       scorerUserId?: string;
     }) =>
@@ -93,6 +94,7 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
             scoreB: input.scoreB,
             action: input.action,
             side: input.side,
+            targetPoints: input.targetPoints,
             scorerName: input.scorerName,
             scorerUserId: input.scorerUserId,
           }),

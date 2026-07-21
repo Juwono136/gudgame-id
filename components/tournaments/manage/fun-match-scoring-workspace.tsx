@@ -912,6 +912,7 @@ export function FunMatchScoringWorkspace({
           scoreB: input.scoreB,
           action: input.action,
           side: input.side,
+          targetPoints: input.targetPoints,
           scorerName: input.scorerName,
           scorerUserId: input.scorerUserId,
         });
