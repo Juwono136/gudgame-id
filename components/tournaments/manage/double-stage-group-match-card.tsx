@@ -12,7 +12,20 @@ import {
   isRaceToGamesMatchComplete,
   type MatchGameRules,
 } from "@/lib/tournaments/scoring/game-mode";
+import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
+import { aggregateScorerPoints } from "@/lib/tournaments/scoring/match-score-events";
+import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
+
+type LivePointInput = {
+  scoreA: number;
+  scoreB: number;
+  scoreAction: "increment" | "decrement" | "next_game" | "set_points";
+  side?: "a" | "b";
+  targetPoints?: number;
+  scorerName?: string;
+  scorerUserId?: string;
+};
 
 type DoubleStageGroupMatchCardProps = {
   match: GroupMatchView;
@@ -21,12 +34,7 @@ type DoubleStageGroupMatchCardProps = {
   /** When set, use race-to-N games scoreboard + live point deltas. */
   gameRules?: MatchGameRules | null;
   onStart: () => void;
-  onLivePoint?: (input: {
-    scoreA: number;
-    scoreB: number;
-    scoreAction: "increment" | "decrement" | "next_game";
-    side?: "a" | "b";
-  }) => void | Promise<unknown>;
+  onLivePoint?: (input: LivePointInput) => void | Promise<unknown>;
   onFinalize: (scores: { scoreA: number; scoreB: number }) => void;
 };
 
@@ -39,6 +47,7 @@ export function DoubleStageGroupMatchCard({
   onLivePoint,
   onFinalize,
 }: DoubleStageGroupMatchCardProps) {
+  const { confirm } = useConfirmDialog();
   const isPending = match.status === "pending";
   const isLive = match.status === "in_progress";
   const isDone = match.status === "completed";
@@ -60,6 +69,12 @@ export function DoubleStageGroupMatchCard({
 
   const teamAPlayers = match.teamAPlayers.map((p) => p.displayName).filter(Boolean);
   const teamBPlayers = match.teamBPlayers.map((p) => p.displayName).filter(Boolean);
+  const rosterA = match.teamAPlayers
+    .filter((p) => p.userId && p.displayName)
+    .map((p) => ({ userId: p.userId, displayName: p.displayName }));
+  const rosterB = match.teamBPlayers
+    .filter((p) => p.userId && p.displayName)
+    .map((p) => ({ userId: p.userId, displayName: p.displayName }));
   const statusLabel = match.status.replace("_", " ");
   const gameState = match.gameState ?? emptyMatchGameState();
 
@@ -69,7 +84,11 @@ export function DoubleStageGroupMatchCard({
     return isRaceToGamesMatchComplete(serverScoreA, serverScoreB, gameRules).complete;
   })();
 
-  const queueLivePoint = (side: "a" | "b", delta: 1 | -1) => {
+  const queueLivePoint = (
+    side: "a" | "b",
+    delta: 1 | -1,
+    scorer?: ScoreAdjustOptions,
+  ) => {
     if (!onLivePoint || !canScore) return;
     const run = async () => {
       gamesWriteDepthRef.current += 1;
@@ -80,6 +99,37 @@ export function DoubleStageGroupMatchCard({
           scoreB: 0,
           scoreAction: delta > 0 ? "increment" : "decrement",
           side,
+          scorerName: delta > 0 ? scorer?.scorerName : undefined,
+          scorerUserId: delta > 0 ? scorer?.scorerUserId : undefined,
+        });
+      } catch {
+        // Parent toasts errors.
+      } finally {
+        gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+        if (gamesWriteDepthRef.current === 0) setSyncing(false);
+      }
+    };
+    gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+  };
+
+  const queueSetPoints = (
+    side: "a" | "b",
+    target: number,
+    scorer?: ScoreAdjustOptions,
+  ) => {
+    if (!onLivePoint || !canScore) return;
+    const run = async () => {
+      gamesWriteDepthRef.current += 1;
+      setSyncing(true);
+      try {
+        await onLivePoint({
+          scoreA: side === "a" ? target : 0,
+          scoreB: side === "b" ? target : 0,
+          scoreAction: "set_points",
+          side,
+          targetPoints: target,
+          scorerName: scorer?.scorerName,
+          scorerUserId: scorer?.scorerUserId,
         });
       } catch {
         // Parent toasts errors.
@@ -110,6 +160,19 @@ export function DoubleStageGroupMatchCard({
       }
     };
     gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+  };
+
+  const handleFinish = async () => {
+    const scoreA = gamesMode ? serverScoreA : localScoreA;
+    const scoreB = gamesMode ? serverScoreB : localScoreB;
+    const ok = await confirm({
+      title: "Finish this match?",
+      description: `Record final score ${scoreA}–${scoreB} for ${match.teamAName ?? "Team A"} vs ${match.teamBName ?? "Team B"}. Standings and fixtures will update immediately.`,
+      confirmLabel: "Finish match",
+      cancelLabel: "Keep scoring",
+    });
+    if (!ok) return;
+    onFinalize({ scoreA, scoreB });
   };
 
   return (
@@ -153,14 +216,18 @@ export function DoubleStageGroupMatchCard({
           teamBName={match.teamBName ?? "Team B"}
           teamAPlayers={teamAPlayers}
           teamBPlayers={teamBPlayers}
+          rosterA={rosterA}
+          rosterB={rosterB}
           gamesA={serverScoreA}
           gamesB={serverScoreB}
           gameState={gameState}
           rules={gameRules}
           disabled={!canScore || !onLivePoint}
           syncing={syncing}
-          onPointA={(delta) => queueLivePoint("a", delta)}
-          onPointB={(delta) => queueLivePoint("b", delta)}
+          onPointA={(delta, scorer) => queueLivePoint("a", delta, scorer)}
+          onPointB={(delta, scorer) => queueLivePoint("b", delta, scorer)}
+          onSetPointsA={(target, scorer) => queueSetPoints("a", target, scorer)}
+          onSetPointsB={(target, scorer) => queueSetPoints("b", target, scorer)}
           onNextGame={queueNextGame}
           className={cn(isPending && "opacity-60")}
         />
@@ -180,6 +247,10 @@ export function DoubleStageGroupMatchCard({
           className={cn(isPending && "opacity-60")}
         />
       )}
+
+      {gamesMode && match.scoreEvents?.length ? (
+        <ScorerBreakdown events={match.scoreEvents} />
+      ) : null}
 
       {isPending ? (
         <div className="mt-4 flex flex-col gap-2 border-t border-cp-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -209,15 +280,10 @@ export function DoubleStageGroupMatchCard({
             variant="secondary"
             className="w-full sm:w-auto"
             disabled={!canFinalize || syncing}
-            onClick={() =>
-              onFinalize({
-                scoreA: gamesMode ? serverScoreA : localScoreA,
-                scoreB: gamesMode ? serverScoreB : localScoreB,
-              })
-            }
+            onClick={() => void handleFinish()}
           >
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Finalize score
+            Finish
           </Button>
         </div>
       ) : null}
@@ -228,5 +294,32 @@ export function DoubleStageGroupMatchCard({
         </p>
       ) : null}
     </article>
+  );
+}
+
+function ScorerBreakdown({
+  events,
+}: {
+  events: NonNullable<GroupMatchView["scoreEvents"]>;
+}) {
+  const totals = aggregateScorerPoints(events);
+  if (!totals.length) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+        Points this match
+      </p>
+      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+        {totals.map((row) => (
+          <li
+            key={row.key}
+            className="rounded-full border border-cp-border/80 bg-cp-card px-2.5 py-0.5 text-[11px] text-foreground"
+          >
+            <span className="font-medium">{row.displayName}</span>
+            <span className="ml-1 tabular-nums text-cp-muted">{row.points}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

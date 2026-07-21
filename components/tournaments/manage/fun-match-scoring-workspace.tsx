@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FunMatchLiveHub } from "@/components/tournaments/fun-match/fun-match-live-hub";
 import { OfficialManagePointLogPanel } from "@/components/tournaments/official/official-manage-point-log-panel";
@@ -309,6 +309,43 @@ export function FunMatchScoringWorkspace({
         return a.matchNumber - b.matchNumber;
       });
   }, [groupMatches, groupNameById, isGroupStageMode]);
+
+  useEffect(() => {
+    if (!isGroupStageMode) return;
+    const pendingById = new Map(startableGroupMatches.map((m) => [m.id, m]));
+    setGroupPickByCourt((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [courtId, matchId] of Object.entries(next)) {
+        if (!matchId) continue;
+        const fixture = pendingById.get(matchId);
+        if (!fixture) {
+          next[courtId] = "";
+          changed = true;
+          continue;
+        }
+        const reservedPicks = Object.entries(next)
+          .filter(([id, idMatch]) => Boolean(idMatch) && id !== courtId)
+          .map(([, idMatch]) => {
+            const other = pendingById.get(idMatch);
+            return {
+              matchId: idMatch,
+              teamAId: other?.teamAId ?? null,
+              teamBId: other?.teamBId ?? null,
+            };
+          });
+        const lock = buildGroupCourtLockState(activeGroupMatches, {
+          excludeCourtId: courtId,
+          reservedPicks,
+        });
+        if (isGroupMatchLockedForCourt(fixture, lock)) {
+          next[courtId] = "";
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [activeGroupMatches, groupPickByCourt, isGroupStageMode, startableGroupMatches]);
 
   const matchByCourt = useMemo(() => {
     const map = new Map<string, ReclubMatchView>();
@@ -786,7 +823,7 @@ export function FunMatchScoringWorkspace({
     }
     const ok = await confirm({
       title: "Finish round?",
-      description: `Finalize ${liveCount} live match${liveCount === 1 ? "" : "es"} with current scores.`,
+      description: `Finish ${liveCount} live match${liveCount === 1 ? "" : "es"} with current scores.`,
       confirmLabel: "Finish round",
     });
     if (!ok) return;
@@ -841,8 +878,9 @@ export function FunMatchScoringWorkspace({
       input: {
         scoreA: number;
         scoreB: number;
-        action?: "increment" | "decrement" | "set" | "next_game";
+        action?: "increment" | "decrement" | "set" | "set_points" | "next_game";
         side?: "a" | "b";
+        targetPoints?: number;
         scorerName?: string;
         scorerUserId?: string;
         isBracket?: boolean;
@@ -862,6 +900,7 @@ export function FunMatchScoringWorkspace({
           scoreB: input.scoreB,
           scoreAction: input.action,
           side: input.side,
+          targetPoints: input.targetPoints,
           scorerName: input.scorerName,
           scorerUserId: input.scorerUserId,
         });
@@ -912,9 +951,10 @@ export function FunMatchScoringWorkspace({
       }
 
       const ok = await confirm({
-        title: "Finalize match?",
-        description: `Save ${match.teamAName} ${scoreA}–${scoreB} ${match.teamBName} to history.`,
-        confirmLabel: "Finalize",
+        title: "Finish this match?",
+        description: `Save ${match.teamAName} ${scoreA}–${scoreB} ${match.teamBName} to history. Groups standings will update immediately.`,
+        confirmLabel: "Finish match",
+        cancelLabel: "Keep scoring",
       });
       if (!ok) return;
 

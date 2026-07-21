@@ -44,8 +44,9 @@ type FunMatchRoundsPanelProps = {
     input: {
       scoreA: number;
       scoreB: number;
-      action?: "increment" | "decrement" | "set" | "next_game";
+      action?: "increment" | "decrement" | "set" | "set_points" | "next_game";
       side?: "a" | "b";
+      targetPoints?: number;
       scorerName?: string;
       scorerUserId?: string;
       isBracket?: boolean;
@@ -239,6 +240,9 @@ export function FunMatchRoundsPanel({
                     key={getReclubMatchHistoryKey(match)}
                     match={match}
                     courtName={resolveCourtLabel(match.courtId, courts, courtIndex)}
+                    teams={teams}
+                    activeGroupMatches={isGroupStageMode ? activeGroupMatches : []}
+                    isGroupStageMode={isGroupStageMode}
                     canManage={canManage && !readOnly}
                     readOnly={readOnly}
                     pointsPerMatch={pointsPerMatch}
@@ -278,12 +282,14 @@ export function FunMatchRoundsPanel({
                 .map((court) => (
                   <FunMatchRoundMatchCard
                     key={court.id}
+                    courtId={court.id}
                     courtName={court.name}
                     teams={teams.filter((t) => t.memberCount > 0)}
                     teamAId={teamAByCourt[court.id] ?? ""}
                     teamBId={teamBByCourt[court.id] ?? ""}
                     bracketMatchId={bracketPickByCourt[court.id] ?? ""}
                     groupMatchId={groupPickByCourt[court.id] ?? ""}
+                    groupPickByCourt={isGroupStageMode ? groupPickByCourt : {}}
                     startableBracketMatches={isBracketMode ? startableBracketMatches : []}
                     startableGroupMatches={isGroupStageMode ? startableGroupMatches : []}
                     activeGroupMatches={isGroupStageMode ? activeGroupMatches : []}

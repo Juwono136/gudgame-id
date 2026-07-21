@@ -478,11 +478,17 @@ export async function updateBracketLiveScore(
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });
-  const metadata = appendBracketScoreEvent(
-    prevMeta,
-    event,
-    useGamesMode ? nextGameState : undefined,
-  );
+  const metadata =
+    input.action === "decrement"
+      ? {
+          ...prevMeta,
+          ...(useGamesMode ? { gameState: nextGameState } : {}),
+        }
+      : appendBracketScoreEvent(
+          prevMeta,
+          event,
+          useGamesMode ? nextGameState : undefined,
+        );
 
   const [updated] = await db
     .update(tournamentBracketMatches)

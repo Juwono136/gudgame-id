@@ -289,7 +289,7 @@ export const ManageCourtCard = memo(function ManageCourtCard({
                 disabled={completing}
                 onClick={() => onComplete(elapsed)}
               >
-                Finalize
+                Finish
               </Button>
             ) : null}
           </div>

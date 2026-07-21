@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GAME_RULES_BY_UNIT,
   applyGamePointDelta,
+  applyGamePointSet,
   countCompletedRallies,
   emptyMatchGameState,
   formatIntraGamePoint,
@@ -103,6 +104,19 @@ describe("game-mode scoring", () => {
   it("blocks scoring after the match is complete", () => {
     const state = emptyMatchGameState();
     expect(applyGamePointDelta(4, 1, state, "a", 1, padelRules)).toBeNull();
+  });
+
+  it("jumps intra-game points to milestone targets", () => {
+    const state = emptyMatchGameState();
+    const to15 = applyGamePointSet(0, 0, state, "a", 15, padelRules)!;
+    expect(to15.gameState.currentPointsA).toBe(15);
+    expect(to15.gameJustWon).toBeNull();
+
+    const to40 = applyGamePointSet(0, 0, to15.gameState, "a", 40, padelRules)!;
+    expect(to40.gamesA).toBe(1);
+    expect(to40.gameJustWon).toBe("a");
+    expect(to40.gameState.pendingGameWinner).toBe("a");
+    expect(applyGamePointSet(1, 0, to40.gameState, "a", 30, padelRules)).toBeNull();
   });
 
   it("reconciles games won from completedGames when column scores drift", () => {

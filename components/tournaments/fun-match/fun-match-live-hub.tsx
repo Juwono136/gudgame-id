@@ -38,8 +38,9 @@ type FunMatchLiveHubProps = {
     input: {
       scoreA: number;
       scoreB: number;
-      action?: "increment" | "decrement" | "set" | "next_game";
+      action?: "increment" | "decrement" | "set" | "set_points" | "next_game";
       side?: "a" | "b";
+      targetPoints?: number;
       scorerName?: string;
       scorerUserId?: string;
       isBracket?: boolean;

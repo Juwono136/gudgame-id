@@ -1,22 +1,30 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   GAME_RALLY_MILESTONES,
-  countCompletedRallies,
   formatRaceToGamesLabel,
-  nextRallyTarget,
   type MatchGameRules,
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
+import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
+
+export type GameRaceRosterPlayer = {
+  userId: string;
+  displayName: string;
+};
 
 type GameRaceScoreboardProps = {
   teamAName: string;
   teamBName: string;
+  /** Display-only player names (legacy). Prefer rosterA/rosterB for scorer attribution. */
   teamAPlayers?: string[];
   teamBPlayers?: string[];
+  rosterA?: GameRaceRosterPlayer[];
+  rosterB?: GameRaceRosterPlayer[];
   gamesA: number;
   gamesB: number;
   gameState: MatchGameState;
@@ -24,8 +32,11 @@ type GameRaceScoreboardProps = {
   disabled?: boolean;
   /** True while a score write is in flight / queued — buttons stay clickable (queued). */
   syncing?: boolean;
-  onPointA: (delta: 1 | -1) => void;
-  onPointB: (delta: 1 | -1) => void;
+  onPointA: (delta: 1 | -1, scorer?: ScoreAdjustOptions) => void;
+  onPointB: (delta: 1 | -1, scorer?: ScoreAdjustOptions) => void;
+  /** Jump selected side points to an absolute milestone (15 / 30 / 40). */
+  onSetPointsA?: (target: number, scorer?: ScoreAdjustOptions) => void;
+  onSetPointsB?: (target: number, scorer?: ScoreAdjustOptions) => void;
   /** After a game is won (points held), continue to the next game at 0–0. */
   onNextGame?: () => void;
   className?: string;
@@ -34,7 +45,7 @@ type GameRaceScoreboardProps = {
 };
 
 /**
- * Race-to-N live scoreboard — sequential +1 points (0…40), not tennis jumps.
+ * Race-to-N live scoreboard — ±1 points plus optional jump-to milestones (15/30/40).
  * First to pointsToWinGame (40) wins 1 game toward Race to N.
  * Winning score stays on screen until the operator taps “Next game”.
  */
@@ -43,6 +54,8 @@ export function GameRaceScoreboard({
   teamBName,
   teamAPlayers,
   teamBPlayers,
+  rosterA,
+  rosterB,
   gamesA,
   gamesB,
   gameState,
@@ -51,6 +64,8 @@ export function GameRaceScoreboard({
   syncing = false,
   onPointA,
   onPointB,
+  onSetPointsA,
+  onSetPointsB,
   onNextGame,
   className,
   hideTeamHeaders = false,
@@ -61,16 +76,47 @@ export function GameRaceScoreboard({
   const pendingWinner = gameState.pendingGameWinner ?? null;
   const gameHeld = Boolean(pendingWinner);
   const canInc = !disabled && !matchComplete && !gameHeld;
-  const canDecA =
-    !disabled && pointsA > 0 && (!gameHeld || pendingWinner === "a");
-  const canDecB =
-    !disabled && pointsB > 0 && (!gameHeld || pendingWinner === "b");
+  const canDecA = !disabled && pointsA > 0 && (!gameHeld || pendingWinner === "a");
+  const canDecB = !disabled && pointsB > 0 && (!gameHeld || pendingWinner === "b");
   const milestones =
     rules.pointsToWinGame === 40
       ? GAME_RALLY_MILESTONES
       : ([rules.pointsToWinGame] as readonly number[]);
   const winnerName =
     pendingWinner === "a" ? teamAName : pendingWinner === "b" ? teamBName : null;
+
+  const resolvedRosterA = useMemo(
+    () => resolveRoster(rosterA, teamAPlayers),
+    [rosterA, teamAPlayers],
+  );
+  const resolvedRosterB = useMemo(
+    () => resolveRoster(rosterB, teamBPlayers),
+    [rosterB, teamBPlayers],
+  );
+
+  const [scorerAId, setScorerAId] = useState<string | null>(
+    () => resolvedRosterA[0]?.userId ?? null,
+  );
+  const [scorerBId, setScorerBId] = useState<string | null>(
+    () => resolvedRosterB[0]?.userId ?? null,
+  );
+
+  useEffect(() => {
+    setScorerAId((prev) => {
+      if (prev && resolvedRosterA.some((p) => p.userId === prev)) return prev;
+      return resolvedRosterA[0]?.userId ?? null;
+    });
+  }, [resolvedRosterA]);
+
+  useEffect(() => {
+    setScorerBId((prev) => {
+      if (prev && resolvedRosterB.some((p) => p.userId === prev)) return prev;
+      return resolvedRosterB[0]?.userId ?? null;
+    });
+  }, [resolvedRosterB]);
+
+  const scorerOptsA = scorerOptionsFor(resolvedRosterA, scorerAId);
+  const scorerOptsB = scorerOptionsFor(resolvedRosterB, scorerBId);
 
   return (
     <div className={cn("w-full min-w-0 space-y-3", className)}>
@@ -113,26 +159,34 @@ export function GameRaceScoreboard({
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-primary">
             Points this game
           </p>
-          <RallyMilestoneTrack
+          <MilestoneTrack
             pointsA={pointsA}
             pointsB={pointsB}
             milestones={milestones}
-            target={rules.pointsToWinGame}
           />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3">
           <SideScorePanel
             name={teamAName}
-            players={teamAPlayers}
+            roster={resolvedRosterA}
+            selectedScorerId={scorerAId}
+            onSelectScorer={setScorerAId}
             points={pointsA}
             milestones={milestones}
             incrementDisabled={!canInc}
-            onIncrement={() => onPointA(1)}
-            onDecrement={() => onPointA(-1)}
+            onIncrement={() => onPointA(1, scorerOptsA)}
+            onDecrement={() => onPointA(-1, scorerOptsA)}
+            onSetPoints={
+              onSetPointsA
+                ? (target) => onSetPointsA(target, scorerOptsA)
+                : undefined
+            }
             canDecrement={canDecA}
+            canSetPoints={canInc}
             hideHeader={hideTeamHeaders}
             highlight={pendingWinner === "a"}
+            scoringDisabled={Boolean(disabled)}
           />
 
           <div className="hidden items-center justify-center sm:flex">
@@ -141,16 +195,24 @@ export function GameRaceScoreboard({
 
           <SideScorePanel
             name={teamBName}
-            players={teamBPlayers}
+            roster={resolvedRosterB}
+            selectedScorerId={scorerBId}
+            onSelectScorer={setScorerBId}
             points={pointsB}
             milestones={milestones}
             incrementDisabled={!canInc}
-            onIncrement={() => onPointB(1)}
-            onDecrement={() => onPointB(-1)}
+            onIncrement={() => onPointB(1, scorerOptsB)}
+            onDecrement={() => onPointB(-1, scorerOptsB)}
+            onSetPoints={
+              onSetPointsB
+                ? (target) => onSetPointsB(target, scorerOptsB)
+                : undefined
+            }
             canDecrement={canDecB}
+            canSetPoints={canInc}
             hideHeader={hideTeamHeaders}
-            align="right"
             highlight={pendingWinner === "b"}
+            scoringDisabled={Boolean(disabled)}
           />
         </div>
 
@@ -161,7 +223,7 @@ export function GameRaceScoreboard({
             </p>
             {matchComplete ? (
               <p className="text-xs text-cp-muted">
-                Race to {rules.raceToGames} reached — finalize the match when ready.
+                Race to {rules.raceToGames} reached — finish the match when ready.
               </p>
             ) : (
               <Button
@@ -178,10 +240,10 @@ export function GameRaceScoreboard({
       </div>
 
       <p className="text-center text-[11px] leading-relaxed text-cp-muted">
-        Each <span className="font-medium text-foreground">+</span> adds{" "}
-        <span className="font-medium text-foreground">1 point</span>
-        {" · "}
-        Reach {milestones.join(" → ")} to win a game
+        Use <span className="font-medium text-foreground">+/−</span> for 1 point, or jump with{" "}
+        <span className="font-medium text-foreground">
+          {milestones.map((m) => `+${m}`).join(" / ")}
+        </span>
         {" · "}
         First to {rules.raceToGames} games wins
       </p>
@@ -189,21 +251,47 @@ export function GameRaceScoreboard({
   );
 }
 
-function RallyMilestoneTrack({
+function resolveRoster(
+  roster: GameRaceRosterPlayer[] | undefined,
+  names: string[] | undefined,
+): GameRaceRosterPlayer[] {
+  if (roster?.length) {
+    return roster.filter((p) => p.userId && p.displayName.trim());
+  }
+  return (names ?? [])
+    .map((displayName, index) => ({
+      userId: `name:${index}:${displayName}`,
+      displayName,
+    }))
+    .filter((p) => p.displayName.trim());
+}
+
+function scorerOptionsFor(
+  roster: GameRaceRosterPlayer[],
+  selectedId: string | null,
+): ScoreAdjustOptions | undefined {
+  const selected = roster.find((p) => p.userId === selectedId) ?? roster[0];
+  if (!selected) return undefined;
+  const isSynthetic = selected.userId.startsWith("name:");
+  return {
+    scorerName: selected.displayName,
+    scorerUserId: isSynthetic ? undefined : selected.userId,
+  };
+}
+
+function MilestoneTrack({
   pointsA,
   pointsB,
   milestones,
-  target,
 }: {
   pointsA: number;
   pointsB: number;
   milestones: readonly number[];
-  target: number;
 }) {
   const lead = Math.max(pointsA, pointsB);
   return (
     <div className="flex w-full max-w-md flex-wrap items-center justify-center gap-1.5">
-      {milestones.map((m, i) => {
+      {milestones.map((m) => {
         const reached = lead >= m;
         return (
           <span
@@ -221,8 +309,7 @@ function RallyMilestoneTrack({
                 reached ? "bg-cp-primary" : "bg-cp-muted/50",
               )}
             />
-            Rally {i + 1} · {m}
-            {m === target ? "" : ""}
+            {m}
           </span>
         );
       })}
@@ -232,57 +319,82 @@ function RallyMilestoneTrack({
 
 function SideScorePanel({
   name,
-  players,
+  roster,
+  selectedScorerId,
+  onSelectScorer,
   points,
   milestones,
   incrementDisabled,
   onIncrement,
   onDecrement,
+  onSetPoints,
   canDecrement,
+  canSetPoints,
   hideHeader,
-  align = "left",
   highlight = false,
+  scoringDisabled,
 }: {
   name: string;
-  players?: string[];
+  roster: GameRaceRosterPlayer[];
+  selectedScorerId: string | null;
+  onSelectScorer: (userId: string) => void;
   points: number;
   milestones: readonly number[];
   incrementDisabled?: boolean;
   onIncrement: () => void;
   onDecrement: () => void;
+  onSetPoints?: (target: number) => void;
   canDecrement: boolean;
+  canSetPoints: boolean;
   hideHeader?: boolean;
-  align?: "left" | "right";
   highlight?: boolean;
+  scoringDisabled?: boolean;
 }) {
-  const ralliesDone = countCompletedRallies(points, milestones);
-  const next = nextRallyTarget(points, milestones);
-
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-xl border bg-cp-card/60 p-3",
+        "flex min-w-0 flex-col items-center gap-2 rounded-xl border bg-cp-card/60 p-3",
         highlight ? "border-cp-primary/50 ring-1 ring-cp-primary/25" : "border-cp-border/60",
-        align === "right" && "sm:items-end",
       )}
     >
       {!hideHeader ? (
-        <div className={cn("min-w-0", align === "right" && "sm:text-right")}>
+        <div className="min-w-0 w-full text-center">
           <p className="truncate text-sm font-semibold text-foreground" title={name}>
             {name}
           </p>
-          {players?.length ? (
-            <p
-              className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-cp-muted"
-              title={players.join(", ")}
-            >
-              {players.join(" · ")}
-            </p>
+          {roster.length > 0 ? (
+            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
+              {roster.map((player) => {
+                const active = player.userId === selectedScorerId;
+                return (
+                  <button
+                    key={player.userId}
+                    type="button"
+                    disabled={scoringDisabled || roster.length < 2}
+                    onClick={() => onSelectScorer(player.userId)}
+                    className={cn(
+                      "max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                      active
+                        ? "border-cp-primary/40 bg-cp-primary/15 text-cp-primary"
+                        : "border-cp-border/70 bg-cp-elevated/30 text-cp-muted hover:text-foreground",
+                      (scoringDisabled || roster.length < 2) && "cursor-default",
+                    )}
+                    title={
+                      roster.length > 1
+                        ? `Attribute points to ${player.displayName}`
+                        : player.displayName
+                    }
+                  >
+                    {player.displayName}
+                  </button>
+                );
+              })}
+            </div>
           ) : null}
         </div>
       ) : null}
 
-      <div className={cn("flex items-center justify-center gap-2", align === "right" && "sm:justify-end")}>
+      <div className="flex items-center justify-center gap-2">
         <Button
           type="button"
           size="icon"
@@ -310,20 +422,29 @@ function SideScorePanel({
         </Button>
       </div>
 
-      <p
-        className={cn(
-          "text-center text-[11px] text-cp-muted",
-          align === "right" && "sm:text-right",
-        )}
-      >
-        {next != null ? (
-          <>
-            Rally {ralliesDone + 1} · {points}/{next}
-          </>
-        ) : (
-          <>Game point reached</>
-        )}
-      </p>
+      {onSetPoints ? (
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          {milestones.map((target) => {
+            const disabledBtn = !canSetPoints || points === target;
+            return (
+              <Button
+                key={target}
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 min-w-[3.25rem] touch-manipulation rounded-full px-2.5 text-xs font-semibold tabular-nums"
+                disabled={disabledBtn}
+                onClick={() => onSetPoints(target)}
+                aria-label={`Set ${name} points to ${target}`}
+              >
+                +{target}
+              </Button>
+            );
+          })}
+        </div>
+      ) : points >= (milestones[milestones.length - 1] ?? 40) ? (
+        <p className="text-center text-[11px] text-cp-muted">Game point reached</p>
+      ) : null}
     </div>
   );
 }
@@ -426,7 +547,7 @@ export function LiveGameRaceDisplay({
       </div>
 
       <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
-        {milestones.map((m, i) => (
+        {milestones.map((m) => (
           <span
             key={m}
             className={cn(
@@ -436,7 +557,7 @@ export function LiveGameRaceDisplay({
                 : "border-white/15 text-white/45",
             )}
           >
-            Rally {i + 1} · {m}
+            {m}
           </span>
         ))}
       </div>

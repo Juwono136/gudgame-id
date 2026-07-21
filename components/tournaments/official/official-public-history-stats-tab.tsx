@@ -19,6 +19,7 @@ import { formatStatDuration } from "@/lib/tournaments/stats/compute";
 import { computeOfficialPlayerStandings } from "@/lib/tournaments/stats/official-standings";
 import type { HistoryRoundItem } from "@/lib/tournaments/stats/map-history-items";
 import { formatPlayerNameList } from "@/lib/format/player-names";
+import { buildPointLogRows } from "@/lib/tournaments/scoring/event-labels";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
@@ -77,8 +78,8 @@ export function OfficialPublicHistoryStatsTab({
       context: PointLogMatchContext;
     }> = [];
     for (const m of bracketMatches) {
-      const events = m.scoreEvents ?? [];
-      if (!events.length) continue;
+      const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
+      if (!displayCount) continue;
       const playerLineA = formatPlayerNameList(m.teamAPlayers);
       const playerLineB = formatPlayerNameList(m.teamBPlayers);
       rows.push({
@@ -87,8 +88,8 @@ export function OfficialPublicHistoryStatsTab({
         stage: `Round ${m.roundNumber}, Match ${m.matchNumber}`,
         players:
           playerLineA || playerLineB ? `${playerLineA || "—"} vs ${playerLineB || "—"}` : null,
-        eventCount: events.length,
-        events,
+        eventCount: displayCount,
+        events: m.scoreEvents ?? [],
         context: {
           teamAName: m.teamAName,
           teamBName: m.teamBName,
@@ -98,8 +99,8 @@ export function OfficialPublicHistoryStatsTab({
       });
     }
     for (const m of reclubMatches) {
-      const events = m.scoreEvents ?? [];
-      if (!events.length) continue;
+      const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
+      if (!displayCount) continue;
       const playerLineA = formatPlayerNameList(m.teamAPlayers);
       const playerLineB = formatPlayerNameList(m.teamBPlayers);
       rows.push({
@@ -108,8 +109,8 @@ export function OfficialPublicHistoryStatsTab({
         stage: m.roundLabel ?? `Round ${m.roundNumber}`,
         players:
           playerLineA || playerLineB ? `${playerLineA || "—"} vs ${playerLineB || "—"}` : null,
-        eventCount: events.length,
-        events,
+        eventCount: displayCount,
+        events: m.scoreEvents ?? [],
         context: {
           teamAName: m.teamAName,
           teamBName: m.teamBName,
@@ -228,7 +229,8 @@ export function OfficialPublicHistoryStatsTab({
           Point-by-point logs
         </h3>
         <p className="mt-1 text-sm text-cp-muted">
-          Timestamped record of every scoring action during official matches.
+          Points scored with player, team, time, and resulting score. Score reductions are not
+          listed.
         </p>
 
         {loggedMatches.length > 0 ? (

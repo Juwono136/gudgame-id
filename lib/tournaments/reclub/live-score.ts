@@ -99,7 +99,8 @@ export async function updateReclubLiveScore(
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });
-  const metadata = appendScoreEvent(prevMeta, event);
+  const metadata =
+    input.action === "decrement" ? prevMeta : appendScoreEvent(prevMeta, event);
 
   const [updated] = await db
     .update(tournamentReclubMatches)

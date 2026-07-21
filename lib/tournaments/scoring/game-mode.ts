@@ -335,6 +335,70 @@ export function applyGamePointDelta(
 }
 
 /**
+ * Jump the selected side's intra-game points to an absolute target (e.g. 15 / 30 / 40).
+ * Same completion rules as {@link applyGamePointDelta}; blocked while a game is held.
+ */
+export function applyGamePointSet(
+  gamesA: number,
+  gamesB: number,
+  gameState: MatchGameState,
+  side: "a" | "b",
+  targetPoints: number,
+  rules: MatchGameRules,
+): GameScoreApplyResult | null {
+  const matchDone = isRaceToGamesMatchComplete(gamesA, gamesB, rules);
+  if (gameState.pendingGameWinner) return null;
+  if (matchDone.complete) return null;
+
+  const target = Math.max(0, Math.min(Math.floor(targetPoints), rules.pointsToWinGame));
+  let pointsA = gameState.currentPointsA;
+  let pointsB = gameState.currentPointsB;
+
+  if (side === "a") {
+    if (pointsA === target) return null;
+    pointsA = target;
+  } else {
+    if (pointsB === target) return null;
+    pointsB = target;
+  }
+
+  const gameDone = isGamePointComplete(pointsA, pointsB, rules);
+  if (!gameDone.complete || !gameDone.winner) {
+    return {
+      gamesA,
+      gamesB,
+      gameState: {
+        ...gameState,
+        currentPointsA: pointsA,
+        currentPointsB: pointsB,
+        pendingGameWinner: null,
+      },
+      gameJustWon: null,
+      matchComplete: false,
+      matchWinner: null,
+    };
+  }
+
+  const nextGamesA = gamesA + (gameDone.winner === "a" ? 1 : 0);
+  const nextGamesB = gamesB + (gameDone.winner === "b" ? 1 : 0);
+  const nextMatch = isRaceToGamesMatchComplete(nextGamesA, nextGamesB, rules);
+
+  return {
+    gamesA: nextGamesA,
+    gamesB: nextGamesB,
+    gameState: {
+      currentPointsA: pointsA,
+      currentPointsB: pointsB,
+      completedGames: [...gameState.completedGames, { pointsA, pointsB }],
+      pendingGameWinner: gameDone.winner,
+    },
+    gameJustWon: gameDone.winner,
+    matchComplete: nextMatch.complete,
+    matchWinner: nextMatch.winner,
+  };
+}
+
+/**
  * After a game win is held at the finishing score (e.g. 40–x), reset points to 0–0
  * for the next game. No-op if nothing is pending.
  */

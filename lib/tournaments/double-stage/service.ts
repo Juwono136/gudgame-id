@@ -55,6 +55,7 @@ import { buildMatchScoreEvent } from "@/lib/tournaments/scoring/build-score-even
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
 import {
   applyGamePointDelta,
+  applyGamePointSet,
   emptyMatchGameState,
   isRaceToGamesMatchComplete,
   reconcileMatchGamesScores,
@@ -710,7 +711,9 @@ export async function startGroupStageMatch(
   await assertCourtAvailable(tournament.id, resolvedCourtId);
 
   const activeMatches = await getActiveGroupMatches(tournament.id);
-  const lock = buildGroupCourtLockState(activeMatches, resolvedCourtId);
+  const lock = buildGroupCourtLockState(activeMatches, {
+    excludeCourtId: resolvedCourtId,
+  });
   const candidate = mapGroupMatchView(match);
   if (isGroupMatchLockedForCourt(candidate, lock)) {
     throw new AppError(
@@ -753,10 +756,12 @@ export async function updateGroupStageLiveScore(
   input: {
     scoreA: number;
     scoreB: number;
-    scoreAction?: "increment" | "decrement" | "set" | "next_game";
+    scoreAction?: "increment" | "decrement" | "set" | "set_points" | "next_game";
     side?: "a" | "b";
     scorerName?: string;
     scorerUserId?: string;
+    /** Absolute intra-game points target when scoreAction is set_points. */
+    targetPoints?: number;
   },
 ): Promise<GroupMatchView> {
   assertDoubleStageGroupScoringAllowed(tournament);
@@ -872,6 +877,50 @@ export async function updateGroupStageLiveScore(
         eventScoreA = scoreA;
         eventScoreB = scoreB;
       }
+    } else if (scoreAction === "set_points") {
+      if (!useGamesMode) {
+        throw new AppError("set_points is only valid for race-to-N games scoring", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      if (!side) {
+        throw new AppError("Missing scoring side for set_points", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      const gameRules = getTournamentGameRules(tournament);
+      const target =
+        typeof input.targetPoints === "number"
+          ? input.targetPoints
+          : side === "a"
+            ? input.scoreA
+            : input.scoreB;
+      const applied = applyGamePointSet(
+        scoreA,
+        scoreB,
+        nextGameState,
+        side,
+        target,
+        gameRules,
+      );
+      if (!applied) {
+        throw new AppError(
+          nextGameState.pendingGameWinner
+            ? "Game finished — tap “Next game” to continue, or undo the last point"
+            : "Cannot set points to that target",
+          { code: "VALIDATION_ERROR", statusCode: 422 },
+        );
+      }
+      scoreA = applied.gamesA;
+      scoreB = applied.gamesB;
+      nextGameState = applied.gameState;
+      const synced = reconcileMatchGamesScores(scoreA, scoreB, nextGameState);
+      scoreA = synced.scoreA;
+      scoreB = synced.scoreB;
+      eventScoreA = nextGameState.currentPointsA;
+      eventScoreB = nextGameState.currentPointsB;
     } else if (scoreAction === "set") {
       scoreA = Math.max(0, input.scoreA);
       scoreB = Math.max(0, input.scoreB);
@@ -886,10 +935,13 @@ export async function updateGroupStageLiveScore(
       eventScoreA = useGamesMode ? 0 : scoreA;
       eventScoreB = useGamesMode ? 0 : scoreB;
     } else {
-      throw new AppError("scoreAction is required (increment, decrement, set, or next_game)", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
+      throw new AppError(
+        "scoreAction is required (increment, decrement, set, set_points, or next_game)",
+        {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        },
+      );
     }
 
     const event = buildMatchScoreEvent(userId, userName, eventScoreA, eventScoreB, {
@@ -898,8 +950,11 @@ export async function updateGroupStageLiveScore(
       scorerName: input.scorerName,
       scorerUserId: input.scorerUserId,
     });
+    // Point log is scoring-only — do not persist score reductions.
+    const withEvent =
+      scoreAction === "decrement" ? prevMeta : appendScoreEvent(prevMeta, event);
     const metadata = {
-      ...appendScoreEvent(prevMeta, event),
+      ...withEvent,
       ...(useGamesMode ? { gameState: nextGameState } : {}),
     };
 

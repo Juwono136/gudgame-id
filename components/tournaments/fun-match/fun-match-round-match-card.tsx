@@ -47,6 +47,8 @@ import {
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
 import { uniquePlayerNames } from "@/lib/format/player-names";
+import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
+import { aggregateScorerPoints } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
 
 const SELECT_NONE = "__none__";
@@ -63,6 +65,8 @@ type FunMatchRoundMatchCardProps = {
   startableGroupMatches?: StartableGroupFixture[];
   groupMatchId?: string;
   activeGroupMatches?: GroupMatchView[];
+  /** Idle-court fixture picks keyed by court id — used to reserve teams across courts. */
+  groupPickByCourt?: Record<string, string>;
   isGroupStageMode?: boolean;
   onGroupPickChange?: (v: string) => void;
   onTeamAChange?: (v: string) => void;
@@ -78,8 +82,9 @@ type FunMatchRoundMatchCardProps = {
   onScoreChange?: (input: {
     scoreA: number;
     scoreB: number;
-    action?: "increment" | "decrement" | "set" | "next_game";
+    action?: "increment" | "decrement" | "set" | "set_points" | "next_game";
     side?: "a" | "b";
+    targetPoints?: number;
     scorerName?: string;
     scorerUserId?: string;
   }) => void | Promise<unknown>;
@@ -205,6 +210,7 @@ function formatBracketPick(m: BracketMatchView): string {
 export function FunMatchRoundMatchCard({
   match,
   courtName,
+  courtId,
   teams = [],
   teamAId = "",
   teamBId = "",
@@ -213,6 +219,7 @@ export function FunMatchRoundMatchCard({
   startableGroupMatches = [],
   groupMatchId = "",
   activeGroupMatches = [],
+  groupPickByCourt = {},
   isGroupStageMode = false,
   onGroupPickChange,
   onTeamAChange,
@@ -242,10 +249,22 @@ export function FunMatchRoundMatchCard({
   const useGroupPicker = isPlanning && isGroupStageMode && startableGroupMatches.length > 0;
   const useBracketPicker =
     isPlanning && !useGroupPicker && startableBracketMatches.length > 0;
-  const groupLock = useMemo(
-    () => buildGroupCourtLockState(activeGroupMatches),
-    [activeGroupMatches],
-  );
+  const groupLock = useMemo(() => {
+    const reservedPicks = Object.entries(groupPickByCourt)
+      .filter(([id, matchId]) => Boolean(matchId) && id !== courtId)
+      .map(([, matchId]) => {
+        const fixture = startableGroupMatches.find((m) => m.id === matchId);
+        return {
+          matchId,
+          teamAId: fixture?.teamAId ?? null,
+          teamBId: fixture?.teamBId ?? null,
+        };
+      });
+    return buildGroupCourtLockState(activeGroupMatches, {
+      excludeCourtId: courtId,
+      reservedPicks,
+    });
+  }, [activeGroupMatches, courtId, groupPickByCourt, startableGroupMatches]);
 
   const serverScoreA = match?.scoreA ?? 0;
   const serverScoreB = match?.scoreB ?? 0;
@@ -295,8 +314,10 @@ export function FunMatchRoundMatchCard({
   const activeGameState = serverGameState;
 
   const adjustScore = useCallback(
-    (side: "a" | "b", delta: 1 | -1, scorerName?: string) => {
+    (side: "a" | "b", delta: 1 | -1, scorer?: ScoreAdjustOptions | string) => {
       if (!onScoreChange || readOnly || !isLive) return;
+      const scorerName = typeof scorer === "string" ? scorer : scorer?.scorerName;
+      const scorerUserId = typeof scorer === "string" ? undefined : scorer?.scorerUserId;
 
       // Games mode: queue server deltas strictly in order (no optimistic desync).
       if (gameRules) {
@@ -312,6 +333,7 @@ export function FunMatchRoundMatchCard({
               action: delta > 0 ? "increment" : "decrement",
               side,
               scorerName: delta > 0 ? scorerName : undefined,
+              scorerUserId: delta > 0 ? scorerUserId : undefined,
             });
           } catch {
             // Mutation hook already toasts; keep the queue moving.
@@ -338,12 +360,41 @@ export function FunMatchRoundMatchCard({
             action: "set",
             side,
             scorerName: delta > 0 ? scorerName : undefined,
+            scorerUserId: delta > 0 ? scorerUserId : undefined,
           });
         }, 120);
         return { a: nextA, b: nextB };
       });
     },
     [gameRules, isLive, onScoreChange, readOnly, serverScoreA, serverScoreB],
+  );
+
+  const setGamePoints = useCallback(
+    (side: "a" | "b", target: number, scorer?: ScoreAdjustOptions) => {
+      if (!onScoreChange || readOnly || !isLive || !gameRules) return;
+      const run = async () => {
+        gamesWriteDepthRef.current += 1;
+        setGamesWritePending(true);
+        try {
+          await onScoreChange({
+            scoreA: side === "a" ? target : 0,
+            scoreB: side === "b" ? target : 0,
+            action: "set_points",
+            side,
+            targetPoints: target,
+            scorerName: scorer?.scorerName,
+            scorerUserId: scorer?.scorerUserId,
+          });
+        } catch {
+          // Mutation hook already toasts.
+        } finally {
+          gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+          if (gamesWriteDepthRef.current === 0) setGamesWritePending(false);
+        }
+      };
+      gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+    },
+    [gameRules, isLive, onScoreChange, readOnly],
   );
 
   const startNextGame = useCallback(() => {
@@ -414,6 +465,70 @@ export function FunMatchRoundMatchCard({
 
   const leftPlayerNames = uniquePlayerNames(leftPlayers);
   const rightPlayerNames = uniquePlayerNames(rightPlayers);
+  const leftRoster = useMemo(() => {
+    const fromGroup =
+      activeGroupMatches.find((m) => m.id === match?.id)?.teamAPlayers ??
+      pickedGroup?.teamAPlayers;
+    if (fromGroup?.length) {
+      return fromGroup
+        .filter((p) => p.userId && p.displayName?.trim())
+        .map((p) => ({ userId: p.userId, displayName: p.displayName }));
+    }
+    const teamId = match?.teamAId ?? teamAId;
+    const members = teams.find((t) => t.id === teamId)?.members ?? [];
+    if (members.length) {
+      return members
+        .filter((m) => m.userId && (m.displayName ?? "").trim())
+        .map((m) => ({
+          userId: m.userId,
+          displayName: m.displayName ?? "Player",
+        }));
+    }
+    return leftPlayerNames.map((displayName, index) => ({
+      userId: `name:a:${index}:${displayName}`,
+      displayName,
+    }));
+  }, [
+    activeGroupMatches,
+    leftPlayerNames,
+    match?.id,
+    match?.teamAId,
+    pickedGroup?.teamAPlayers,
+    teamAId,
+    teams,
+  ]);
+  const rightRoster = useMemo(() => {
+    const fromGroup =
+      activeGroupMatches.find((m) => m.id === match?.id)?.teamBPlayers ??
+      pickedGroup?.teamBPlayers;
+    if (fromGroup?.length) {
+      return fromGroup
+        .filter((p) => p.userId && p.displayName?.trim())
+        .map((p) => ({ userId: p.userId, displayName: p.displayName }));
+    }
+    const teamId = match?.teamBId ?? teamBId;
+    const members = teams.find((t) => t.id === teamId)?.members ?? [];
+    if (members.length) {
+      return members
+        .filter((m) => m.userId && (m.displayName ?? "").trim())
+        .map((m) => ({
+          userId: m.userId,
+          displayName: m.displayName ?? "Player",
+        }));
+    }
+    return rightPlayerNames.map((displayName, index) => ({
+      userId: `name:b:${index}:${displayName}`,
+      displayName,
+    }));
+  }, [
+    activeGroupMatches,
+    match?.id,
+    match?.teamBId,
+    pickedGroup?.teamBPlayers,
+    rightPlayerNames,
+    teamBId,
+    teams,
+  ]);
   const leftSingleScorer = leftPlayerNames.length === 1 ? leftPlayerNames[0]! : undefined;
   const rightSingleScorer = rightPlayerNames.length === 1 ? rightPlayerNames[0]! : undefined;
   const usePlayerPointButtons =
@@ -439,7 +554,9 @@ export function FunMatchRoundMatchCard({
   const canIncB =
     rules && isLive ? canIncrementScore(scoreA, scoreB, "b", rules) : true;
 
-  const canStartGroup = useGroupPicker && Boolean(groupMatchId);
+  const pickedGroupLocked =
+    Boolean(pickedGroup) && isGroupMatchLockedForCourt(pickedGroup!, groupLock);
+  const canStartGroup = useGroupPicker && Boolean(groupMatchId) && !pickedGroupLocked;
   const canStartBracket = useBracketPicker && Boolean(bracketMatchId);
   const canStartAmericano = isAmericanoMode && Boolean(americanoLabels);
   const canStartSquads =
@@ -457,14 +574,18 @@ export function FunMatchRoundMatchCard({
         teamBName={rightTeamName ?? "Team B"}
         teamAPlayers={leftPlayerNames}
         teamBPlayers={rightPlayerNames}
+        rosterA={leftRoster}
+        rosterB={rightRoster}
         gamesA={displayGamesA}
         gamesB={displayGamesB}
         gameState={activeGameState}
         rules={gameRules}
         disabled={!canManage}
         syncing={gamesWritePending}
-        onPointA={(delta) => adjustScore("a", delta, leftSingleScorer)}
-        onPointB={(delta) => adjustScore("b", delta, rightSingleScorer)}
+        onPointA={(delta, scorer) => adjustScore("a", delta, scorer ?? leftSingleScorer)}
+        onPointB={(delta, scorer) => adjustScore("b", delta, scorer ?? rightSingleScorer)}
+        onSetPointsA={(target, scorer) => setGamePoints("a", target, scorer)}
+        onSetPointsB={(target, scorer) => setGamePoints("b", target, scorer)}
         onNextGame={startNextGame}
       />
     ) : (
@@ -540,6 +661,11 @@ export function FunMatchRoundMatchCard({
     </div>
   );
 
+  const scorerBreakdown =
+    gameRules && match?.scoreEvents?.length ? (
+      <ScorerBreakdown events={match.scoreEvents} />
+    ) : null;
+
   return (
     <article
       className={cn(
@@ -595,6 +721,8 @@ export function FunMatchRoundMatchCard({
           </div>
         </>
       )}
+
+      {scorerBreakdown}
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-cp-border/60 pt-2.5">
         <div className="flex items-center gap-1.5 text-xs text-cp-muted">
@@ -736,11 +864,38 @@ export function FunMatchRoundMatchCard({
 
           {isLive && canManage && onComplete && !readOnly ? (
             <Button type="button" size="sm" variant="secondary" className="h-8" onClick={onComplete}>
-              Finalize
+              Finish
             </Button>
           ) : null}
         </div>
       </footer>
     </article>
+  );
+}
+
+function ScorerBreakdown({
+  events,
+}: {
+  events: NonNullable<ReclubMatchView["scoreEvents"]>;
+}) {
+  const totals = aggregateScorerPoints(events);
+  if (!totals.length) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+        Points this match
+      </p>
+      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+        {totals.map((row) => (
+          <li
+            key={row.key}
+            className="rounded-full border border-cp-border/80 bg-cp-card px-2.5 py-0.5 text-[11px] text-foreground"
+          >
+            <span className="font-medium">{row.displayName}</span>
+            <span className="ml-1 tabular-nums text-cp-muted">{row.points}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

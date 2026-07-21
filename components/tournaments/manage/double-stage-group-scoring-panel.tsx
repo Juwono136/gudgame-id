@@ -61,8 +61,11 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
       scores?: {
         scoreA: number;
         scoreB: number;
-        scoreAction?: "increment" | "decrement" | "set" | "next_game";
+        scoreAction?: "increment" | "decrement" | "set" | "set_points" | "next_game";
         side?: "a" | "b";
+        targetPoints?: number;
+        scorerName?: string;
+        scorerUserId?: string;
       },
     ) => {
       const showBusy = action !== "update";
@@ -79,6 +82,9 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
                   scoreB: scores!.scoreB,
                   scoreAction: scores!.scoreAction,
                   side: scores!.side,
+                  targetPoints: scores!.targetPoints,
+                  scorerName: scores!.scorerName,
+                  scorerUserId: scores!.scorerUserId,
                 }
               : { action: "record", matchId, scoreA: scores!.scoreA, scoreB: scores!.scoreB };
         await enqueueGroupScoreUpdate(matchId, async () => {

@@ -28,11 +28,12 @@ const bodySchema = z.discriminatedUnion("action", [
     scoreA: z.coerce.number().int().min(0).default(0),
     scoreB: z.coerce.number().int().min(0).default(0),
     scoreAction: z
-      .enum(["increment", "decrement", "set", "next_game"])
+      .enum(["increment", "decrement", "set", "set_points", "next_game"])
       .default("increment"),
     side: z.enum(["a", "b"]).optional(),
     scorerName: z.string().trim().min(1).max(120).optional(),
     scorerUserId: z.string().uuid().optional(),
+    targetPoints: z.coerce.number().int().min(0).max(100).optional(),
   }),
   z.object({
     action: z.literal("record"),
@@ -106,6 +107,7 @@ export async function POST(
           side: parsed.data.side,
           scorerName: parsed.data.scorerName,
           scorerUserId: parsed.data.scorerUserId,
+          targetPoints: parsed.data.targetPoints,
         },
       );
       // Live +/- only needs the updated match — skip overview rebuild for speed/reliability.

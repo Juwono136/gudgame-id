@@ -9,6 +9,7 @@ import {
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
+import { buildPointLogRows } from "@/lib/tournaments/scoring/event-labels";
 import { cn } from "@/lib/utils";
 
 type LoggedMatch = {
@@ -47,30 +48,30 @@ export function OfficialManagePointLogPanel({
   const loggedMatches = useMemo((): LoggedMatch[] => {
     const rows: LoggedMatch[] = [];
     for (const m of bracketMatches) {
-      const events = m.scoreEvents ?? [];
-      if (!events.length) continue;
+      const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
+      if (!displayCount) continue;
       rows.push({
         id: m.id,
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         sublabel: `Bracket — Round ${m.roundNumber}, Match ${m.matchNumber}`,
-        events,
+        events: m.scoreEvents ?? [],
         context: buildMatchContext(m),
       });
     }
     for (const m of reclubMatches) {
-      const events = m.scoreEvents ?? [];
-      if (!events.length) continue;
+      const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
+      if (!displayCount) continue;
       rows.push({
         id: m.id,
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         sublabel: m.roundLabel ?? `Round ${m.roundNumber}`,
-        events,
+        events: m.scoreEvents ?? [],
         context: buildMatchContext(m),
       });
     }
     return rows.sort((a, b) => {
-      const aLast = a.events[a.events.length - 1]?.at ?? "";
-      const bLast = b.events[b.events.length - 1]?.at ?? "";
+      const aLast = buildPointLogRows(a.events).at(-1)?.event.at ?? "";
+      const bLast = buildPointLogRows(b.events).at(-1)?.event.at ?? "";
       return bLast.localeCompare(aLast);
     });
   }, [bracketMatches, reclubMatches]);
@@ -84,16 +85,16 @@ export function OfficialManagePointLogPanel({
         <ListOrdered className="h-4 w-4 text-cp-primary" />
         Official point log
       </h3>
-      <p className="mt-1 text-sm text-cp-muted">
-        Timestamped scoring record for every official match
-        {categoryLabel ? (
-          <>
-            {" "}
-            <span className="text-foreground/80">({categoryLabel})</span>
-          </>
-        ) : null}
-        .
-      </p>
+        <p className="mt-1 text-sm text-cp-muted">
+          Points scored with player, team, time, and resulting score
+          {categoryLabel ? (
+            <>
+              {" "}
+              <span className="text-foreground/80">({categoryLabel})</span>
+            </>
+          ) : null}
+          . Score reductions are not listed.
+        </p>
 
       {loggedMatches.length === 0 ? (
         <div className="mt-4">
@@ -117,7 +118,7 @@ export function OfficialManagePointLogPanel({
                   <span className="font-medium text-foreground">{m.label}</span>
                   <span className="mt-0.5 block text-xs text-cp-muted">{m.sublabel}</span>
                   <span className="mt-0.5 block text-[11px] tabular-nums text-cp-muted">
-                    {m.events.length} scoring events
+                    {buildPointLogRows(m.events).length} scoring events
                   </span>
                 </button>
               </li>

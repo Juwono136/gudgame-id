@@ -210,7 +210,7 @@ export function FunMatchRoundPanel({
     }
     const ok = await confirm({
       title: "Finish round?",
-      description: `Finalize ${activeMatches.length} live match${activeMatches.length === 1 ? "" : "es"} with current scores.`,
+      description: `Finish ${activeMatches.length} live match${activeMatches.length === 1 ? "" : "es"} with current scores.`,
       confirmLabel: "Finish round",
     });
     if (!ok) return;
@@ -243,9 +243,10 @@ export function FunMatchRoundPanel({
   const handleComplete = useCallback(
     async (match: ReclubMatchView, elapsed: number) => {
       const ok = await confirm({
-        title: "Finalize match?",
+        title: "Finish this match?",
         description: `Save ${match.teamAName} ${match.scoreA ?? 0}–${match.scoreB ?? 0} ${match.teamBName} to history.`,
-        confirmLabel: "Finalize",
+        confirmLabel: "Finish match",
+        cancelLabel: "Keep scoring",
       });
       if (!ok) return;
       await completeRound.mutateAsync({
