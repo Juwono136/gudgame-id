@@ -15,6 +15,9 @@ import {
   notifyRegistrationCancelled,
 } from "@/lib/tournaments/registration/notify-flow";
 import {
+  assertUserEligibleForTournamentTier,
+} from "@/lib/tournaments/tier-eligibility";
+import {
   issueRegistrationInvoice,
   rollbackDraftRegistration,
 } from "@/lib/tournaments/registration/service";
@@ -68,6 +71,8 @@ export async function confirmParticipation(
       statusCode: 400,
     });
   }
+
+  await assertUserEligibleForTournamentTier(userId, tournament);
 
   let teamName = "Team";
   if (registration.teamId) {

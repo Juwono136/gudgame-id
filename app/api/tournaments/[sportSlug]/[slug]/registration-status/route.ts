@@ -2,6 +2,7 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { getServerSession } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
+import { evaluateTournamentTierEligibility } from "@/lib/tournaments/tier-eligibility";
 import { getUserRegistrationStatus } from "@/lib/tournaments/registration/service";
 
 export const runtime = "nodejs";
@@ -23,8 +24,16 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    const registration = await getUserRegistrationStatus(tournament.id, session.user.id);
-    return jsonSuccess({ ...registration, isAuthenticated: true });
+    const [registration, tierEligibility] = await Promise.all([
+      getUserRegistrationStatus(tournament.id, session.user.id),
+      evaluateTournamentTierEligibility(tournament, session.user.id),
+    ]);
+
+    return jsonSuccess({
+      ...registration,
+      isAuthenticated: true,
+      tierEligibility,
+    });
   } catch (error) {
     return jsonError(error);
   }

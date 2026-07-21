@@ -18,6 +18,7 @@ import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
 import {
   buildDoubleStageOverview,
   listGroupMatches,
+  reconcileDoubleStageGroups,
 } from "@/lib/tournaments/double-stage/service";
 import {
   isTournamentLivePhaseTerminal,
@@ -176,6 +177,10 @@ export async function buildTournamentLivePayload(
   const includeBracket = shouldExposeBracketPublicData(tournament);
   const includeGroupStage = shouldExposeGroupStagePublicData(tournament);
   const includeLobbyRounds = supportsRoundBasedPlay(tournament);
+
+  if (includeGroupStage) {
+    await reconcileDoubleStageGroups(tournament);
+  }
 
   const db = getDb();
   const [bracketMatchesRaw, leaderboard, teams, lobbyMatchesRaw, courts, groupMatchesRaw, doubleStageOverview] =

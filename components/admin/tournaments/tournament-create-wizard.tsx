@@ -17,6 +17,7 @@ import {
   TOURNAMENT_CATEGORY_OPTIONS,
   type TournamentCategoryOption,
 } from "@/components/tournaments/form/category-select";
+import { AllowedTierLevelsSelect } from "@/components/tournaments/form/allowed-tier-levels-select";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { CurrencyInput } from "@/components/tournaments/form/currency-input";
@@ -56,6 +57,7 @@ import {
   TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
   TOURNAMENT_ROUND_DURATION_OPTIONS,
   getTournamentRuleSections,
+  getTournamentAllowedTierLevels,
   getTournamentCourtCount,
   getTournamentFormatLabel,
   getTournamentMatchScoreMode,
@@ -85,6 +87,7 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
+import { PLAYER_TIER_LEVELS, type PlayerTierLevel } from "@/lib/player/tier";
 import { parseDoubleStageSettings, parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import { cn } from "@/lib/utils";
 import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
@@ -239,6 +242,7 @@ export function TournamentCreateWizard({
     billing?: string;
     fee?: string;
     venue?: string;
+    tiers?: string;
   }>({});
   const clearFieldError = (key: keyof typeof fieldErrors) => {
     setFieldErrors((prev) => {
@@ -290,6 +294,9 @@ export function TournamentCreateWizard({
   );
   const [roundDurationMinutes, setRoundDurationMinutes] = useState(
     String(initial ? getTournamentRoundDurationMinutes(initial) : 15),
+  );
+  const [allowedTierLevels, setAllowedTierLevels] = useState<PlayerTierLevel[]>(
+    () => (initial ? getTournamentAllowedTierLevels(initial) : null) ?? [...PLAYER_TIER_LEVELS],
   );
 
   useEffect(() => {
@@ -357,6 +364,7 @@ export function TournamentCreateWizard({
     setRaceToGames(String(getTournamentRaceToGames(initial)));
     setCourtCount(String(getTournamentCourtCount(initial)));
     setRoundDurationMinutes(String(getTournamentRoundDurationMinutes(initial)));
+    setAllowedTierLevels(getTournamentAllowedTierLevels(initial) ?? [...PLAYER_TIER_LEVELS]);
   }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
 
   const resolvedSlug = slug.trim() || slugifyWikiName(name);
@@ -406,6 +414,10 @@ export function TournamentCreateWizard({
             : undefined,
       prizePoolIdr: prizePoolIdr ? Number(prizePoolIdr) : undefined,
       categoryLabel: categoryLabel || undefined,
+      allowedTierLevels:
+        isOfficialType(tournamentType) && officialBilling === "free"
+          ? allowedTierLevels
+          : undefined,
       registrationClosesAt: toIso(registrationClosesAt),
       startsAt: toIso(startsAt),
       endsAt: toIso(endsAt),
@@ -461,6 +473,9 @@ export function TournamentCreateWizard({
         }
         if (!CATEGORY_OPTIONS.includes(categoryLabel as TournamentCategoryOption)) {
           nextErrors.category = "Choose a category: Male, Female, or Mix";
+        }
+        if (officialBilling === "free" && allowedTierLevels.length < 1) {
+          nextErrors.tiers = "Select at least one player tier";
         }
         if (
           matchType !== "americano" &&
@@ -801,6 +816,19 @@ export function TournamentCreateWizard({
                       required
                       error={fieldErrors.category}
                     />
+                    {officialBilling === "free" ? (
+                      <AllowedTierLevelsSelect
+                        value={allowedTierLevels}
+                        onChange={(value) => {
+                          clearFieldError("tiers");
+                          setAllowedTierLevels(value);
+                        }}
+                        className="sm:col-span-2"
+                        required
+                        error={fieldErrors.tiers}
+                        description="Free official tournaments can limit registration by player skill tier for fairer matchmaking."
+                      />
+                    ) : null}
                   </>
                 ) : null}
                 <div className="sm:col-span-2">

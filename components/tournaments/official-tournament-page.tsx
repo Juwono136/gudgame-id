@@ -57,10 +57,16 @@ import type { TournamentRuleSections } from "@/lib/tournaments/settings";
 import {
   getTournamentCourtCount,
   getTournamentFormatLabel,
+  getTournamentAllowedTierLevels,
   getTournamentMatchScoreMode,
   getTournamentScoringDetailLabel,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
+import {
+  TournamentTierBadges,
+  TournamentTierEligibilityNotice,
+} from "@/components/tournaments/tournament-tier-display";
+import { useTournamentTierEligibility } from "@/hooks/use-tournament-tier-eligibility";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { mapBracketMatchesToRecentRows, mapLivePayloadToRecentRows, mapReclubMatchesToRecentRows, mergeRecentMatchRows } from "@/lib/tournaments/recent-matches";
 import {
@@ -299,6 +305,19 @@ export function OfficialTournamentPage({
     tournament.slug,
     isAuthenticated,
   );
+  const allowedTierLevels = useMemo(
+    () => getTournamentAllowedTierLevels(tournament),
+    [tournament],
+  );
+  const { data: tierEligibility } = useTournamentTierEligibility(
+    tournament.sportSlug,
+    tournament.slug,
+    { enabled: isFreeOfficial && allowedTierLevels != null },
+  );
+  const tierBlocked =
+    isAuthenticated &&
+    Boolean(tierEligibility?.restricted) &&
+    tierEligibility?.eligible === false;
   const regStatusRef = useRef(regStatus?.status);
   useEffect(() => {
     const prev = regStatusRef.current;
@@ -573,6 +592,10 @@ export function OfficialTournamentPage({
       );
       return;
     }
+    if (tierBlocked) {
+      toast.error(tierEligibility?.message ?? "Your player tier is not eligible for this tournament.");
+      return;
+    }
     if (regStatus?.status === "awaiting_confirmation" && regStatus.confirmUrl) {
       router.push(regStatus.confirmUrl);
       return;
@@ -672,6 +695,9 @@ export function OfficialTournamentPage({
               >
                 {getOfficialBillingLabel(tournament.officialBilling)}
               </Badge>
+              {isFreeOfficial && allowedTierLevels ? (
+                <TournamentTierBadges allowedTierLevels={allowedTierLevels} />
+              ) : null}
             </div>
             <h1 className={tournamentHeroStyles.title}>{tournament.name}</h1>
             {tournament.creatorName ? (
@@ -1002,6 +1028,28 @@ export function OfficialTournamentPage({
               <p className="mt-2 text-xs text-cp-muted">{summary.spotsRemaining} spots remaining</p>
             ) : null}
 
+            {isFreeOfficial && allowedTierLevels ? (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
+                    Open to tiers
+                  </p>
+                  <div className="mt-2">
+                    <TournamentTierBadges allowedTierLevels={allowedTierLevels} size="md" />
+                  </div>
+                </div>
+                {isAuthenticated ? (
+                  <TournamentTierEligibilityNotice
+                    restricted={tierEligibility?.restricted ?? true}
+                    eligible={tierEligibility?.eligible ?? false}
+                    allowedTierLabel={tierEligibility?.allowedTierLabel}
+                    playerTierLabel={tierEligibility?.playerTierLabel}
+                    message={tierEligibility?.message}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+
             {regStatus?.status === "confirmed" ? (
               <Badge variant="success" className="mt-4 border-0">
                 You&apos;re registered
@@ -1022,6 +1070,7 @@ export function OfficialTournamentPage({
                 className="btn-interactive mt-6 h-12 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light"
                 disabled={
                   resumingPayment ||
+                  tierBlocked ||
                   (!summary.registrationOpen &&
                     regStatus?.status !== "pending_payment" &&
                     regStatus?.status !== "awaiting_confirmation")

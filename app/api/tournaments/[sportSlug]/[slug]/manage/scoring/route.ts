@@ -16,6 +16,7 @@ import {
   buildDoubleStageOverview,
   initializeDoubleStageGroups,
   listGroupMatches,
+  reconcileDoubleStageGroups,
 } from "@/lib/tournaments/double-stage/service";
 import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
 import { computeManageWorkspaceStats } from "@/lib/tournaments/stats/from-manage-workspace";
@@ -45,6 +46,7 @@ export async function GET(
 
     if (tournament.format === "double_stage" && tournament.status === "live") {
       await initializeDoubleStageGroups(tournament);
+      await reconcileDoubleStageGroups(tournament);
     }
 
     const courts = await provisionTournamentCourts(tournament);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -26,8 +26,8 @@ import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
 import { MAX_SEARCH_TERM_LENGTH } from "@/lib/search/sanitize-search-term";
 import type { TournamentParticipantRow } from "@/lib/tournaments/participants/query";
-import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { toast } from "sonner";
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -45,11 +45,20 @@ type TournamentParticipantsPanelProps = {
   tournamentType: "official" | "fun_match";
   variant?: "official" | "reclub";
   officialBilling?: string | null;
-  /** Fun match: squad stats keyed by team id (preferred) or team name */
   teamScoreByName?: Record<string, FunMatchTeamScore>;
   teamScoreByTeamId?: Record<string, FunMatchTeamScore>;
-  /** Host manage: allow removing an entire confirmed team */
   canRemoveTeams?: boolean;
+};
+
+type GroupedTeamEntry = {
+  teamId: string;
+  teamName: string;
+  players: TournamentParticipantRow[];
+  captain?: TournamentParticipantRow;
+  registrationStatus: string | null;
+  paymentStatus: string | null;
+  amountIdr: number | null;
+  canHardRemove: boolean;
 };
 
 function formatIdr(amount: number | null) {
@@ -115,16 +124,12 @@ function ParticipantPlayerCell({
       <p className="truncate font-semibold text-foreground transition-colors group-hover:text-cp-primary">
         {row.displayName}
       </p>
-      {!compact && row.genderLabel ? (
-        <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p>
-      ) : null}
+      {row.genderLabel ? <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p> : null}
     </Link>
   ) : (
     <div className="min-w-0">
       <p className="truncate font-semibold text-foreground">{row.displayName}</p>
-      {!compact && row.genderLabel ? (
-        <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p>
-      ) : null}
+      {row.genderLabel ? <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p> : null}
     </div>
   );
 
@@ -142,25 +147,36 @@ function ParticipantPlayerCell({
   return (
     <div className="flex min-w-0 items-center gap-3">
       {avatarNode}
-      {nameBlock}
+      <div className="min-w-0">
+        {nameBlock}
+        {compact ? (
+          <p className="mt-1 text-[11px] capitalize text-cp-muted">{row.role}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function OfficialStatusBadges({ row }: { row: TournamentParticipantRow }) {
+function OfficialStatusBadges({
+  registrationStatus,
+  paymentStatus,
+  amountIdr,
+}: {
+  registrationStatus: string | null;
+  paymentStatus: string | null;
+  amountIdr: number | null;
+}) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1.5 sm:justify-start lg:justify-end">
+    <div className="flex flex-wrap items-center gap-1.5">
       <Badge variant="muted" className="capitalize">
-        {formatRegistrationStatus(row.registrationStatus)}
+        {formatRegistrationStatus(registrationStatus)}
       </Badge>
-      <Badge variant={paymentBadgeVariant(row.paymentStatus)} className="capitalize">
+      <Badge variant={paymentBadgeVariant(paymentStatus)} className="capitalize">
         <CreditCard className="mr-1 h-3 w-3" />
-        {row.paymentStatus ?? "—"}
+        {paymentStatus ?? "—"}
       </Badge>
-      {row.amountIdr != null ? (
-        <span className="w-full text-right text-[11px] tabular-nums text-cp-muted sm:w-auto lg:text-right">
-          {formatIdr(row.amountIdr)}
-        </span>
+      {amountIdr != null ? (
+        <span className="w-full text-[11px] tabular-nums text-cp-muted">{formatIdr(amountIdr)}</span>
       ) : null}
     </div>
   );
@@ -186,9 +202,7 @@ function FunMatchScore({
       (stat.losses ?? 0) > 0 ||
       (stat.points ?? 0) > 0);
 
-  if (!hasActivity) {
-    return <span className="text-sm text-cp-muted">—</span>;
-  }
+  if (!hasActivity) return <span className="text-sm text-cp-muted">—</span>;
 
   const rankingPts = stat.points ?? 0;
   const label = rankingPts > 0 ? `${rankingPts} pts` : `${stat.pointsFor} pts`;
@@ -202,6 +216,127 @@ function FunMatchScore({
         </span>
       ) : null}
     </span>
+  );
+}
+
+function TeamPlayersList({
+  players,
+  variant,
+  compact = false,
+}: {
+  players: TournamentParticipantRow[];
+  variant: "official" | "reclub";
+  compact?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      {players.map((player) => (
+        <div
+          key={`${player.teamId}-${player.userId}`}
+          className={cn(
+            "flex items-center justify-between gap-3 rounded-xl border border-cp-border/70 bg-cp-elevated/10 px-3 py-2",
+            compact && "px-2.5",
+          )}
+        >
+          <ParticipantPlayerCell
+            row={player}
+            variant={variant}
+            compact
+            avatarClassName={compact ? "h-9 w-9" : undefined}
+          />
+          <Badge
+            variant="muted"
+            className={cn("hidden shrink-0 capitalize sm:inline-flex", compact && "text-[11px]")}
+          >
+            {player.role}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TeamStatusCell({
+  team,
+  isOfficial,
+  teamScoreByName,
+  teamScoreByTeamId,
+}: {
+  team: GroupedTeamEntry;
+  isOfficial: boolean;
+  teamScoreByName?: Record<string, FunMatchTeamScore>;
+  teamScoreByTeamId?: Record<string, FunMatchTeamScore>;
+}) {
+  const anchorRow = team.captain ?? team.players[0];
+
+  if (isOfficial) {
+    return (
+      <OfficialStatusBadges
+        registrationStatus={team.registrationStatus}
+        paymentStatus={team.paymentStatus}
+        amountIdr={team.amountIdr}
+      />
+    );
+  }
+
+  return (
+    <FunMatchScore
+      row={anchorRow}
+      teamScoreByName={teamScoreByName}
+      teamScoreByTeamId={teamScoreByTeamId}
+    />
+  );
+}
+
+function TeamActionButton({
+  team,
+  canRemoveTeams,
+  isRemoving,
+  removePending,
+  onRemove,
+}: {
+  team: GroupedTeamEntry;
+  canRemoveTeams: boolean;
+  isRemoving: boolean;
+  removePending: boolean;
+  onRemove: (row: TournamentParticipantRow) => void;
+}) {
+  if (!canRemoveTeams) return null;
+  const actionRow = team.captain ?? team.players[0];
+  if (!actionRow) return null;
+
+  if (team.canHardRemove === false) {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-10 w-full cursor-not-allowed border-cp-border text-cp-muted lg:w-[170px]"
+        disabled
+        title="This team has already competed. Career stats are preserved."
+      >
+        <Lock className="mr-1.5 h-3.5 w-3.5" />
+        Locked
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="h-10 w-full border-red-300/80 text-red-700 hover:bg-red-50 hover:text-red-800 lg:w-[170px] dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+      disabled={isRemoving || removePending}
+      onClick={() => onRemove(actionRow)}
+    >
+      {isRemoving ? (
+        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+      )}
+      Remove team
+    </Button>
   );
 }
 
@@ -223,10 +358,6 @@ export function TournamentParticipantsPanel({
   const debouncedSearch = useDebounce(searchInput, SEARCH_DEBOUNCE_MS);
   const activeSearch = debouncedSearch.trim();
 
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
-
   const { data, isLoading, isFetching, isError, error, refetch, isPlaceholderData } =
     useTournamentParticipants(sportSlug, slug, page, pageSize, {
       search: activeSearch,
@@ -244,15 +375,27 @@ export function TournamentParticipantsPanel({
       ? "text-amber-700 dark:text-amber-300/95"
       : "text-emerald-700 dark:text-emerald-300/95";
 
-  const items = data?.items ?? [];
-  const firstRowByTeamId = useMemo(() => {
-    const map = new Map<string, string>();
+  const groupedTeams = useMemo(() => {
+    const map = new Map<string, GroupedTeamEntry>();
     for (const row of data?.items ?? []) {
-      if (!map.has(row.teamId)) {
-        map.set(row.teamId, `${row.teamId}-${row.userId}`);
+      const current = map.get(row.teamId);
+      if (current) {
+        current.players.push(row);
+        if (row.role.toLowerCase() === "captain") current.captain = row;
+      } else {
+        map.set(row.teamId, {
+          teamId: row.teamId,
+          teamName: row.teamName,
+          players: [row],
+          captain: row.role.toLowerCase() === "captain" ? row : undefined,
+          registrationStatus: row.registrationStatus,
+          paymentStatus: row.paymentStatus,
+          amountIdr: row.amountIdr,
+          canHardRemove: row.canHardRemove !== false,
+        });
       }
     }
-    return map;
+    return [...map.values()];
   }, [data?.items]);
 
   const clearSearch = () => {
@@ -278,6 +421,7 @@ export function TournamentParticipantsPanel({
       variant: "destructive",
     });
     if (!ok) return;
+
     setRemovingTeamId(row.teamId);
     try {
       await removeTeam.mutateAsync(row.teamId);
@@ -322,31 +466,28 @@ export function TournamentParticipantsPanel({
   const showNoMatches = total === 0 && hasActiveSearch;
   const isSearchPending = searchInput.trim() !== activeSearch;
   const showFetching = (isFetching || isPlaceholderData || isSearchPending) && !isLoading;
-  const gridCols = canRemoveTeams
-    ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_minmax(0,1fr)_auto]"
-    : "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto_minmax(0,1.1fr)]";
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Users className={cn("h-5 w-5 shrink-0", accent)} />
-            {isOfficial ? "Registered players" : "Session players"}
+            {isOfficial ? "Registered teams" : "Session squads"}
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-cp-muted">
+          <p className="mt-1 max-w-3xl text-sm text-cp-muted">
             {isOfficial
               ? isFreeOfficial
-                ? "Confirmed teams with completed registration — updated as players finalize their spot."
-                : "Confirmed teams with completed payment — updated as registrations are finalized."
-              : "Everyone currently in the lobby squads for this Fun Match."}
+                ? "Confirmed teams are grouped together so hosts can review each roster more clearly."
+                : "Confirmed and paid teams are grouped together so roster review stays clean and consistent."
+              : "Active squads are grouped together to make lineup review easier across every screen size."}
             {canRemoveTeams
               ? " You can remove a team only if it has not played any matches yet — this keeps player career statistics consistent."
               : null}
           </p>
         </div>
 
-        <div className="relative w-full shrink-0 lg:max-w-sm">
+        <div className="relative w-full shrink-0 xl:max-w-sm">
           <Search
             className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-emerald-800 dark:text-cp-muted"
             aria-hidden
@@ -354,15 +495,17 @@ export function TournamentParticipantsPanel({
           <Input
             type="search"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value.slice(0, MAX_SEARCH_TERM_LENGTH))}
+            onChange={(e) => {
+              setSearchInput(e.target.value.slice(0, MAX_SEARCH_TERM_LENGTH));
+              setPage(1);
+            }}
             placeholder="Search player or team…"
             maxLength={MAX_SEARCH_TERM_LENGTH}
             autoComplete="off"
             spellCheck={false}
-            aria-label={isOfficial ? "Search registered players" : "Search session players"}
+            aria-label={isOfficial ? "Search registered teams" : "Search session squads"}
             className={cn(
               "border-cp-border bg-cp-bg-input pr-10 pl-10 text-foreground placeholder:text-cp-muted",
-              // Hide native clear so only our custom X shows.
               "[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
             )}
           />
@@ -384,7 +527,7 @@ export function TournamentParticipantsPanel({
           <div className="flex min-w-0 items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
             <div className="min-w-0">
-              <p className="text-sm text-foreground">Could not refresh player list</p>
+              <p className="text-sm text-foreground">Could not refresh registrations</p>
               <p className="mt-0.5 text-xs text-cp-muted">
                 {error instanceof Error ? error.message : "Something went wrong"}
               </p>
@@ -405,18 +548,9 @@ export function TournamentParticipantsPanel({
       {!showEmptyRoster ? (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
           {[
-            {
-              label: hasActiveSearch ? "Matches" : "Players",
-              value: String(total),
-            },
-            {
-              label: isOfficial ? "Teams" : "Squads",
-              value: String(teamCount),
-            },
-            {
-              label: "Page",
-              value: `${page} / ${Math.max(1, data?.totalPages ?? 1)}`,
-            },
+            { label: hasActiveSearch ? "Matches" : "Players", value: String(total) },
+            { label: isOfficial ? "Teams" : "Squads", value: String(teamCount) },
+            { label: "Page", value: `${page} / ${Math.max(1, data?.totalPages ?? 1)}` },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -454,9 +588,9 @@ export function TournamentParticipantsPanel({
       ) : showNoMatches ? (
         <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-6 py-14 text-center">
           <Search className="mx-auto h-8 w-8 text-cp-muted/70" />
-          <p className="mt-3 text-sm font-medium text-foreground">No players match your search</p>
+          <p className="mt-3 text-sm font-medium text-foreground">No registrations match your search</p>
           <p className="mt-1 text-xs text-cp-muted">
-            Try another name or team for &ldquo;{activeSearch}&rdquo;.
+            Try another player or team name for &ldquo;{activeSearch}&rdquo;.
           </p>
           <Button
             type="button"
@@ -475,113 +609,116 @@ export function TournamentParticipantsPanel({
             showFetching && "opacity-80",
           )}
         >
+          <div className="border-b border-cp-border/80 bg-cp-elevated/20 px-4 py-3 lg:hidden">
+            <p className="text-xs text-cp-muted">
+              Teams are grouped together so each roster stays easier to scan on smaller screens.
+            </p>
+          </div>
+
           <div
             className={cn(
-              "hidden border-b border-cp-border/80 bg-cp-elevated/40 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:gap-4 lg:px-5",
-              gridCols,
+              "hidden items-center border-b border-cp-border/80 bg-cp-elevated/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:gap-4 xl:gap-5",
+              canRemoveTeams
+                ? "lg:grid-cols-[minmax(160px,0.75fr)_minmax(260px,1.45fr)_minmax(140px,0.8fr)_minmax(140px,156px)] xl:grid-cols-[minmax(190px,0.8fr)_minmax(320px,1.55fr)_minmax(180px,0.9fr)_minmax(150px,170px)]"
+                : "lg:grid-cols-[minmax(190px,0.85fr)_minmax(320px,1.7fr)_minmax(180px,1fr)]",
             )}
           >
-            <span>Player</span>
             <span>Team / squad</span>
-            <span>Role</span>
-            <span className="text-right">{isOfficial ? "Status" : "Score"}</span>
+            <span>Players</span>
+            <span>{isOfficial ? "Status" : "Score"}</span>
             {canRemoveTeams ? <span className="text-right">Actions</span> : null}
           </div>
 
-          <ul className="divide-y divide-cp-border/70">
-            {items.map((row) => {
-              const rowKey = `${row.teamId}-${row.userId}`;
-              const showTeamAction =
-                canRemoveTeams && firstRowByTeamId.get(row.teamId) === rowKey;
-              const isRemoving = removingTeamId === row.teamId;
-
-              return (
-                <li
-                  key={rowKey}
-                  className={cn(
-                    "p-4 transition-colors hover:bg-cp-elevated/20 lg:grid lg:items-center lg:gap-4 lg:px-5 lg:py-3.5",
-                    gridCols,
-                  )}
-                >
-                  <ParticipantPlayerCell row={row} variant={variant} />
-
-                  <div className="mt-3 min-w-0 lg:mt-0">
-                    <p className={cn("truncate text-sm font-medium", teamAccent)}>
-                      {row.teamName}
-                    </p>
-                    <p className="mt-0.5 text-xs text-cp-muted lg:hidden">
-                      {row.genderLabel ? `${row.genderLabel} · ` : ""}
-                      <span className="capitalize">{row.role}</span>
+          <ul className="space-y-3 p-3 lg:hidden">
+            {groupedTeams.map((team) => (
+              <li
+                key={team.teamId}
+                className="rounded-2xl border border-cp-border/80 bg-cp-card/90 p-4 shadow-sm transition-colors hover:bg-cp-elevated/10"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={cn("truncate text-base font-semibold", teamAccent)}>{team.teamName}</p>
+                    <p className="mt-1 text-xs text-cp-muted">
+                      {team.players.length} player{team.players.length === 1 ? "" : "s"}
                     </p>
                   </div>
-
-                  <div className="mt-2 hidden lg:block">
-                    <Badge variant="muted" className="capitalize">
-                      {row.role}
-                    </Badge>
+                  <div className="min-w-0">
+                    <TeamStatusCell
+                      team={team}
+                      isOfficial={isOfficial}
+                      teamScoreByName={teamScoreByName}
+                      teamScoreByTeamId={teamScoreByTeamId}
+                    />
                   </div>
+                </div>
 
-                  <div className="mt-3 lg:mt-0">
-                    {isOfficial ? (
-                      <OfficialStatusBadges row={row} />
-                    ) : (
-                      <div className="flex items-center justify-between gap-2 lg:justify-end">
-                        <span className="text-xs text-cp-muted lg:hidden">Score</span>
-                        <FunMatchScore
-                          row={row}
-                          teamScoreByName={teamScoreByName}
-                          teamScoreByTeamId={teamScoreByTeamId}
-                        />
-                      </div>
-                    )}
+                <div className="mt-4">
+                  <TeamPlayersList players={team.players} variant={variant} />
+                </div>
+
+                {canRemoveTeams ? (
+                  <div className="mt-4">
+                    <TeamActionButton
+                      team={team}
+                      canRemoveTeams={canRemoveTeams}
+                      isRemoving={removingTeamId === team.teamId}
+                      removePending={removeTeam.isPending}
+                      onRemove={(row) => void handleRemoveTeam(row)}
+                    />
                   </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
 
-                  {canRemoveTeams ? (
-                    <div className="mt-3 flex justify-end lg:mt-0">
-                      {showTeamAction ? (
-                        row.canHardRemove === false ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-9 w-full cursor-not-allowed border-cp-border text-cp-muted sm:w-auto"
-                            disabled
-                            title="This team has already competed. Career stats are preserved."
-                          >
-                            <Lock className="mr-1.5 h-3.5 w-3.5" />
-                            Locked
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-9 w-full border-red-300/80 text-red-700 hover:bg-red-50 hover:text-red-800 sm:w-auto dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-                            disabled={isRemoving || removeTeam.isPending}
-                            onClick={() => void handleRemoveTeam(row)}
-                          >
-                            {isRemoving ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            Remove team
-                          </Button>
-                        )
-                      ) : (
-                        <span className="hidden text-xs text-cp-muted lg:inline">—</span>
-                      )}
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
+          <ul className="hidden divide-y divide-cp-border/70 lg:block">
+            {groupedTeams.map((team) => (
+              <li
+                key={team.teamId}
+                className={cn(
+                  "grid items-start px-5 py-4 transition-colors hover:bg-cp-elevated/20 lg:gap-4 xl:gap-5",
+                  canRemoveTeams
+                    ? "lg:grid-cols-[minmax(160px,0.75fr)_minmax(260px,1.45fr)_minmax(140px,0.8fr)_minmax(140px,156px)] xl:grid-cols-[minmax(190px,0.8fr)_minmax(320px,1.55fr)_minmax(180px,0.9fr)_minmax(150px,170px)]"
+                    : "lg:grid-cols-[minmax(190px,0.85fr)_minmax(320px,1.7fr)_minmax(180px,1fr)]",
+                )}
+              >
+                <div className="min-w-0">
+                  <p className={cn("truncate text-sm font-semibold", teamAccent)}>{team.teamName}</p>
+                  <p className="mt-1 text-xs text-cp-muted">
+                    {team.players.length} player{team.players.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+
+                <TeamPlayersList players={team.players} variant={variant} compact />
+
+                <div className="min-w-0">
+                  <TeamStatusCell
+                    team={team}
+                    isOfficial={isOfficial}
+                    teamScoreByName={teamScoreByName}
+                    teamScoreByTeamId={teamScoreByTeamId}
+                  />
+                </div>
+
+                {canRemoveTeams ? (
+                  <div className="flex min-w-0 justify-end">
+                    <TeamActionButton
+                      team={team}
+                      canRemoveTeams={canRemoveTeams}
+                      isRemoving={removingTeamId === team.teamId}
+                      removePending={removeTeam.isPending}
+                      onRemove={(row) => void handleRemoveTeam(row)}
+                    />
+                  </div>
+                ) : null}
+              </li>
+            ))}
           </ul>
 
           <DataTablePagination
             page={page}
             pageSize={pageSize}
-            total={total}
+            total={teamCount}
             totalPages={data?.totalPages ?? 0}
             onPageChange={setPage}
             onPageSizeChange={(size) => {

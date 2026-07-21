@@ -10,7 +10,11 @@ import {
 import { tournaments } from "@/db/schema/tournaments";
 import { AppError } from "@/lib/errors";
 import { listBracketEligibleTeamsForGenerate } from "@/lib/tournaments/brackets/eligible-teams";
-import { distributeTeamsToGroups } from "@/lib/tournaments/double-stage/allocate-groups";
+import {
+  distributeTeamsToGroups,
+  groupNameForIndex,
+  planBalancedGroups,
+} from "@/lib/tournaments/double-stage/allocate-groups";
 import { generateRoundRobinFixtures } from "@/lib/tournaments/double-stage/fixtures";
 import {
   buildQualifiedTeamsFromStandings,
@@ -136,6 +140,22 @@ export type DoubleStageOverview = {
   knockoutReady: boolean;
   allGroupMatchesCompleted: boolean;
   qualifiedCount: number;
+  eligibleTeamCount: number;
+  assignedTeamCount: number;
+  unassignedEligibleTeams: {
+    id: string;
+    name: string;
+    memberCount: number;
+    players: GroupMatchPlayerView[];
+  }[];
+  canManageAssignments: boolean;
+};
+
+type EligibleGroupTeam = {
+  id: string;
+  name: string;
+  memberCount: number;
+  players: GroupMatchPlayerView[];
 };
 
 async function patchDoubleStageSettings(
@@ -258,6 +278,248 @@ export async function initializeDoubleStageGroups(
   return { groupCount: groups.length, matchCount };
 }
 
+function matchesStartedOrCompleted(
+  matches: (typeof tournamentGroupMatches.$inferSelect)[],
+): boolean {
+  return matches.some((match) => match.status !== "pending");
+}
+
+async function loadEligibleGroupTeams(
+  tournament: TournamentDetail,
+): Promise<EligibleGroupTeam[]> {
+  const eligible = await listBracketEligibleTeamsForGenerate(tournament);
+  if (eligible.length === 0) return [];
+
+  const lobbyTeams = await import("@/lib/tournaments/reclub/teams").then((mod) =>
+    mod.listLobbyTeamsDetailed(tournament.id),
+  );
+  const lobbyMap = new Map(lobbyTeams.map((team) => [team.id, team]));
+
+  return eligible.map((team) => {
+    const detailed = lobbyMap.get(team.id);
+    return {
+      id: team.id,
+      name: team.name,
+      memberCount: detailed?.memberCount ?? 0,
+      players:
+        detailed?.members.map((member) => ({
+          userId: member.userId,
+          displayName: member.displayName,
+          image: member.image,
+        })) ?? [],
+    };
+  });
+}
+
+async function replaceGroupStructure(
+  tournament: TournamentDetail,
+  groupsInput: { name: string; teamIds: string[] }[],
+): Promise<{ groupCount: number; matchCount: number }> {
+  const eligibleTeams = await loadEligibleGroupTeams(tournament);
+  const eligibleById = new Map(eligibleTeams.map((team) => [team.id, team]));
+
+  if (eligibleTeams.length < 2) {
+    throw new AppError("Need at least 2 eligible teams to build groups.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
+
+  const seen = new Set<string>();
+  for (const group of groupsInput) {
+    for (const teamId of group.teamIds) {
+      if (seen.has(teamId)) {
+        throw new AppError("A team can only be assigned to one group.", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      if (!eligibleById.has(teamId)) {
+        throw new AppError("Only eligible teams may be assigned to double-stage groups.", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      seen.add(teamId);
+    }
+  }
+
+  if (seen.size !== eligibleTeams.length) {
+    throw new AppError("Every eligible team must be assigned to a group.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
+
+  const maxPerGroup = parseDoubleStageSettings(
+    (tournament.settings as Record<string, unknown>)?.doubleStage,
+  ).maxTeamsPerGroup;
+  for (const group of groupsInput) {
+    if (group.teamIds.length < 2) {
+      throw new AppError("Each group must contain at least 2 teams.", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+    if (group.teamIds.length > maxPerGroup) {
+      throw new AppError(`Groups may contain at most ${maxPerGroup} teams.`, {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+  }
+
+  const db = getDb();
+  const current = await loadGroupData(tournament.id);
+  if (matchesStartedOrCompleted(current.matches)) {
+    throw new AppError(
+      "Groups cannot be rebuilt after any group match has started. Finish the current stage as-is.",
+      { code: "CONFLICT", statusCode: 409 },
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const currentGroupIds = current.groups.map((group) => group.id);
+    if (currentGroupIds.length > 0) {
+      await tx
+        .delete(tournamentGroupMatches)
+        .where(eq(tournamentGroupMatches.tournamentId, tournament.id));
+      await tx
+        .delete(tournamentGroupTeams)
+        .where(inArray(tournamentGroupTeams.groupId, currentGroupIds));
+      await tx
+        .delete(tournamentGroups)
+        .where(eq(tournamentGroups.tournamentId, tournament.id));
+    }
+
+    let matchCount = 0;
+    for (let index = 0; index < groupsInput.length; index++) {
+      const group = groupsInput[index]!;
+      const [createdGroup] = await tx
+        .insert(tournamentGroups)
+        .values({
+          tournamentId: tournament.id,
+          name: group.name,
+          sortOrder: index,
+        })
+        .returning();
+
+      if (!createdGroup) continue;
+
+      const teams = group.teamIds
+        .map((teamId) => eligibleById.get(teamId))
+        .filter((team): team is EligibleGroupTeam => team != null);
+
+      for (const team of teams) {
+        await tx.insert(tournamentGroupTeams).values({
+          groupId: createdGroup.id,
+          teamId: team.id,
+          qualificationStatus: "pending",
+        });
+      }
+
+      const fixtures = generateRoundRobinFixtures(teams);
+      for (let matchIndex = 0; matchIndex < fixtures.length; matchIndex++) {
+        const fixture = fixtures[matchIndex]!;
+        await tx.insert(tournamentGroupMatches).values({
+          tournamentId: tournament.id,
+          groupId: createdGroup.id,
+          matchNumber: matchIndex + 1,
+          teamAId: fixture.teamA.id,
+          teamBId: fixture.teamB.id,
+          teamAName: fixture.teamA.name,
+          teamBName: fixture.teamB.name,
+          status: "pending",
+        });
+        matchCount++;
+      }
+    }
+
+    return { groupCount: groupsInput.length, matchCount };
+  }).then(async (result) => {
+    await patchDoubleStageSettings(tournament, {
+      phase: "group",
+      groupsLockedAt: new Date().toISOString(),
+      knockoutReadyAt: undefined,
+      knockoutGeneratedAt: undefined,
+    });
+    return result;
+  });
+}
+
+export async function reconcileDoubleStageGroups(
+  tournament: TournamentDetail,
+): Promise<{ changed: boolean; groupCount: number; matchCount: number }> {
+  if (tournament.format !== "double_stage") {
+    return { changed: false, groupCount: 0, matchCount: 0 };
+  }
+
+  const eligibleTeams = await loadEligibleGroupTeams(tournament);
+  if (eligibleTeams.length < 2) {
+    return { changed: false, groupCount: 0, matchCount: 0 };
+  }
+
+  const current = await loadGroupData(tournament.id);
+  if (current.groups.length === 0) {
+    const created = await initializeDoubleStageGroups(tournament);
+    return { changed: created.groupCount > 0, ...created };
+  }
+
+  if (matchesStartedOrCompleted(current.matches)) {
+    return { changed: false, groupCount: current.groups.length, matchCount: current.matches.length };
+  }
+
+  const assignedIds = new Set(current.groupTeams.map((row) => row.teamId));
+  const eligibleIds = new Set(eligibleTeams.map((team) => team.id));
+  const missingEligible = eligibleTeams.filter((team) => !assignedIds.has(team.id));
+  const staleAssigned = current.groupTeams.filter((row) => !eligibleIds.has(row.teamId));
+
+  if (missingEligible.length === 0 && staleAssigned.length === 0) {
+    return { changed: false, groupCount: current.groups.length, matchCount: current.matches.length };
+  }
+
+  const orderedEligible = eligibleTeams
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const dsSettings = parseDoubleStageSettings(
+    (tournament.settings as Record<string, unknown>)?.doubleStage,
+  );
+  const plannedGroups = distributeTeamsToGroups(orderedEligible, dsSettings.maxTeamsPerGroup);
+  const rebuilt = await replaceGroupStructure(
+    tournament,
+    plannedGroups.map((group) => ({
+      name: group.name,
+      teamIds: group.teams.map((team) => team.id),
+    })),
+  );
+  return { changed: true, ...rebuilt };
+}
+
+export async function saveManualDoubleStageAssignments(
+  tournament: TournamentDetail,
+  assignments: { groupName: string; teamIds: string[] }[],
+): Promise<{ groupCount: number; matchCount: number }> {
+  if (tournament.format !== "double_stage") {
+    throw new AppError("Not a double stage tournament", {
+      code: "INVALID_TOURNAMENT_TYPE",
+      statusCode: 400,
+    });
+  }
+
+  if (assignments.length === 0) {
+    throw new AppError("At least one group assignment is required.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
+
+  const normalized = assignments.map((group, index) => ({
+    name: group.groupName.trim() || groupNameForIndex(index),
+    teamIds: group.teamIds,
+  }));
+  return replaceGroupStructure(tournament, normalized);
+}
+
 async function loadGroupData(tournamentId: string) {
   const db = getDb();
   const groups = await db
@@ -325,6 +587,10 @@ export async function buildDoubleStageOverview(
   const teamNameMap = new Map(lobbyTeams.map((t) => [t.id, t.name]));
 
   const allDone = allGroupMatchesCompleted(matches);
+  const eligibleTeams = await loadEligibleGroupTeams(tournament);
+  const assignedTeamIds = new Set(groupTeams.map((row) => row.teamId));
+  const unassignedEligibleTeams = eligibleTeams.filter((team) => !assignedTeamIds.has(team.id));
+  const canManageAssignments = !matchesStartedOrCompleted(matches);
   const groupOverviews: GroupOverview[] = groups.map((g) => {
     const gTeamIds = groupTeams.filter((gt) => gt.groupId === g.id).map((gt) => gt.teamId);
     const gTeams = gTeamIds.map((id) => ({
@@ -381,6 +647,10 @@ export async function buildDoubleStageOverview(
     knockoutReady: allDone && dsSettings.phase === "group",
     allGroupMatchesCompleted: allDone,
     qualifiedCount,
+    eligibleTeamCount: eligibleTeams.length,
+    assignedTeamCount: assignedTeamIds.size,
+    unassignedEligibleTeams,
+    canManageAssignments,
   };
 }
 

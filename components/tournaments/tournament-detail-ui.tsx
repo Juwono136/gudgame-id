@@ -24,16 +24,16 @@ export function TournamentHeroBanner({
   const isReclub = variant === "reclub";
   const coverGradient = cn(
     isReclub
-      ? "from-cp-bg/95 via-cp-bg/82 to-cp-bg"
-      : "from-cp-bg/95 via-cp-bg/78 to-cp-bg",
+      ? "from-cp-bg/70 via-cp-bg/35 to-cp-bg/90"
+      : "from-cp-bg/65 via-cp-bg/30 to-cp-bg/88",
     isReclub
       ? "dark:from-cp-bg/70 dark:via-cp-bg/25 dark:to-cp-bg"
       : "dark:from-cp-bg/65 dark:via-cp-bg/20 dark:to-cp-bg",
   );
   const sideScrim = cn(
     isReclub
-      ? "from-white/70 via-cp-bg/88 to-transparent"
-      : "from-white/65 via-cp-bg/85 to-transparent",
+      ? "from-white/35 via-cp-bg/40 to-transparent"
+      : "from-white/30 via-cp-bg/35 to-transparent",
     isReclub
       ? "dark:from-cp-bg/70 dark:via-cp-bg/30 dark:to-transparent"
       : "dark:from-cp-bg/65 dark:via-cp-bg/25 dark:to-transparent",
@@ -56,7 +56,7 @@ export function TournamentHeroBanner({
               className="object-cover object-center"
               unoptimized
             />
-            <div className="absolute inset-0 bg-white/55 dark:bg-black/40" />
+            <div className="absolute inset-0 bg-white/20 dark:bg-black/40" />
             <div className={cn("absolute inset-0 bg-linear-to-b", coverGradient)} />
             <div className={cn("absolute inset-0 bg-linear-to-r", sideScrim)} />
           </>

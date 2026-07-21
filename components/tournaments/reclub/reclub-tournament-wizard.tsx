@@ -19,6 +19,7 @@ import { ReclubWizardReview } from "@/components/tournaments/reclub/reclub-wizar
 import { ReclubWizardStepper } from "@/components/tournaments/reclub/reclub-wizard-stepper";
 import { TournamentCoverUpload, type TournamentCoverValue } from "@/components/tournaments/form/tournament-cover-upload";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
+import { AllowedTierLevelsSelect } from "@/components/tournaments/form/allowed-tier-levels-select";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { TOURNAMENT_FIELD_LIMITS } from "@/lib/tournaments/form/field-limits";
 import {
@@ -55,7 +56,7 @@ import { useCreateTournament, useUpdateAdminTournament } from "@/hooks/use-tourn
 import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
 import { dashboardRoutes, adminRoutes } from "@/lib/constants/routes";
 import { tournamentAfterCreateUrl, tournamentAfterSaveUrl } from "@/lib/tournaments/edit-routes";
-import { getMaxRounds, getVenueMapsUrl } from "@/lib/tournaments/settings";
+import { getMaxRounds, getVenueMapsUrl, getTournamentAllowedTierLevels } from "@/lib/tournaments/settings";
 import {
   TOURNAMENT_COURT_COUNT_OPTIONS,
   TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
@@ -69,6 +70,7 @@ import {
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentStatus } from "@/lib/domain/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
+import { PLAYER_TIER_LEVELS, type PlayerTierLevel } from "@/lib/player/tier";
 import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
 
 const STEPS = [
@@ -204,6 +206,9 @@ export function ReclubTournamentWizard({
   );
   const [startsAt, setStartsAt] = useState(hydrated?.startsAt ?? "");
   const [endsAt, setEndsAt] = useState(hydrated?.endsAt ?? "");
+  const [allowedTierLevels, setAllowedTierLevels] = useState<PlayerTierLevel[]>(
+    () => (initial ? getTournamentAllowedTierLevels(initial) : null) ?? [...PLAYER_TIER_LEVELS],
+  );
 
   useEffect(() => {
     if (isEdit) return;
@@ -240,6 +245,7 @@ export function ReclubTournamentWizard({
     courtCount,
     startsAt,
     endsAt,
+    allowedTierLevels: String(allowedTierLevels.length),
   };
 
   const resolvedBackHref =
@@ -323,6 +329,7 @@ export function ReclubTournamentWizard({
       roundDurationMinutes:
         scoringType === "timed" ? Number(roundDurationMinutes) || 15 : undefined,
       courtCount: Number(courtCount) || 1,
+      allowedTierLevels,
     };
   };
 
@@ -491,6 +498,12 @@ export function ReclubTournamentWizard({
 
           {step === 1 ? (
             <div className="space-y-6">
+              <AllowedTierLevelsSelect
+                value={allowedTierLevels}
+                onChange={setAllowedTierLevels}
+                required
+                description="Fun Match sessions can limit who may join based on current player skill tier."
+              />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Players per team</Label>
@@ -676,6 +689,7 @@ export function ReclubTournamentWizard({
               summary={summary}
               description={description}
               rules={rules}
+              allowedTierLevels={allowedTierLevels}
               isEdit={isEdit}
               onEditStep={goToStep}
             />

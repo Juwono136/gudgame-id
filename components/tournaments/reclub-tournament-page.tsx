@@ -65,6 +65,11 @@ import {
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { useReclubSessionPhase } from "@/hooks/use-reclub-session-phase";
 import { FunMatchJoinDialog } from "@/components/tournaments/fun-match-join-dialog";
+import {
+  TournamentTierBadges,
+  TournamentTierEligibilityNotice,
+} from "@/components/tournaments/tournament-tier-display";
+import { useTournamentTierEligibility } from "@/hooks/use-tournament-tier-eligibility";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
 import { TournamentBreadcrumbs } from "@/components/tournaments/tournament-breadcrumbs";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
@@ -73,6 +78,7 @@ import { authRoutes, dashboardRoutes, publicSportRoutes } from "@/lib/constants/
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import {
   getMaxRounds,
+  getTournamentAllowedTierLevels,
   getTournamentCourtCount,
   getTournamentFormatLabel,
   getTournamentPointsPerMatch,
@@ -309,6 +315,19 @@ export function ReclubTournamentPage({
 
   const sessionPhase = useReclubSessionPhase(tournament);
   const canJoinSession = sessionPhase !== "ended";
+  const allowedTierLevels = useMemo(
+    () => getTournamentAllowedTierLevels(tournament),
+    [tournament],
+  );
+  const { data: tierEligibility } = useTournamentTierEligibility(
+    tournament.sportSlug,
+    tournament.slug,
+    { enabled: allowedTierLevels != null },
+  );
+  const tierBlocked =
+    isAuthenticated &&
+    Boolean(tierEligibility?.restricted) &&
+    tierEligibility?.eligible === false;
   const canPlaySession = sessionPhase === "live";
   const canLeaveSession = Boolean(userTeamId) && sessionPhase !== "ended";
 
@@ -369,6 +388,10 @@ export function ReclubTournamentPage({
     if (!isAuthenticated) {
       const callback = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
       router.push(`${authRoutes.register}?callbackUrl=${encodeURIComponent(callback)}`);
+      return;
+    }
+    if (tierBlocked) {
+      toast.error(tierEligibility?.message ?? "Your player tier is not eligible for this session.");
       return;
     }
     setJoinPreselectedTeamId(null);
@@ -530,6 +553,9 @@ export function ReclubTournamentPage({
               <Badge variant="muted" className={tournamentHeroStyles.statusBadge}>
                 Syncing…
               </Badge>
+            ) : null}
+            {allowedTierLevels ? (
+              <TournamentTierBadges allowedTierLevels={allowedTierLevels} />
             ) : null}
           </div>
 
@@ -748,10 +774,31 @@ export function ReclubTournamentPage({
                         <dd className="font-medium text-foreground">{courtCountLive}</dd>
                       </div>
                     </dl>
+                    {allowedTierLevels ? (
+                      <div className="mt-4 space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
+                            Open to tiers
+                          </p>
+                          <div className="mt-2">
+                            <TournamentTierBadges allowedTierLevels={allowedTierLevels} size="md" />
+                          </div>
+                        </div>
+                        {isAuthenticated ? (
+                          <TournamentTierEligibilityNotice
+                            restricted={tierEligibility?.restricted ?? true}
+                            eligible={tierEligibility?.eligible ?? false}
+                            allowedTierLabel={tierEligibility?.allowedTierLabel}
+                            playerTierLabel={tierEligibility?.playerTierLabel}
+                            message={tierEligibility?.message}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
                     {!userTeamId && canJoinSession ? (
                       <Button
                         className="mt-4 w-full bg-emerald-600 hover:bg-emerald-500"
-                        disabled={joining}
+                        disabled={joining || tierBlocked}
                         onClick={() => void handleJoin()}
                       >
                         {joining ? (

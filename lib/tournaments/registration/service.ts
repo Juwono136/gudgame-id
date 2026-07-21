@@ -19,6 +19,10 @@ import { getPlatformPaymentSettings } from "@/lib/tournaments/payments/platform-
 import { calculateOfficialPaymentSplit } from "@/lib/tournaments/payments/split";
 import { syncReclubParticipation } from "@/lib/tournaments/stats/sync";
 import { assertUserEligibleForTournamentCategory } from "@/lib/tournaments/category-eligibility";
+import {
+  assertUserEligibleForTournamentTier,
+  assertUsersEligibleForTournamentTier,
+} from "@/lib/tournaments/tier-eligibility";
 import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
 import { assertReclubSessionJoinable } from "@/lib/tournaments/reclub/session-guard";
 import { createNamedTeam, switchTeam } from "@/lib/tournaments/reclub/teams";
@@ -214,6 +218,8 @@ export async function joinFunMatchTournament(
   const existingTeamId = existing[0]?.teamId ?? null;
 
   assertReclubSessionJoinable(tournament);
+
+  await assertUserEligibleForTournamentTier(userId, tournament);
 
   if (input.mode === "create_squad") {
     const name =
@@ -761,6 +767,7 @@ export async function startOfficialRegistration(
   assertRegistrationWindow(tournament);
 
   await assertUserEligibleForTournamentCategory(payerUserId, tournament.categoryLabel);
+  await assertUserEligibleForTournamentTier(payerUserId, tournament);
 
   const existing = await getUserRegistrationStatus(tournament.id, payerUserId);
   if (existing.status === "confirmed") {
@@ -816,6 +823,8 @@ export async function startOfficialRegistration(
   let team: { id: string };
   let registration: { id: string };
   const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
+
+  await assertUsersEligibleForTournamentTier(uniqueMembers, tournament);
 
   try {
     const [insertedTeam] = await db

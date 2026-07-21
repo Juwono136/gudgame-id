@@ -8,6 +8,11 @@ import {
 } from "@/lib/tournaments/scoring/game-mode";
 import { isUuid } from "@/lib/domain/uuid";
 import {
+  normalizeAllowedTierLevels,
+  resolveAllowedTierLevels,
+} from "@/lib/tournaments/tier-restrictions";
+import type { PlayerTierLevel } from "@/lib/player/tier";
+import {
   getDefaultStandingsScoringForSport,
   parseDoubleStageSettings,
   parseStandingsScoring,
@@ -55,6 +60,8 @@ export type TournamentDisplayConfig = {
 
 export type TournamentSettings = TournamentRuleSections & {
   venueMapsUrl?: string;
+  /** Skill tiers allowed to register (official free + fun match). */
+  allowedTierLevels?: PlayerTierLevel[];
   /** Max playable rounds for reclub sessions (set at creation). */
   maxRounds?: number;
   scoringType?: TournamentScoringType;
@@ -242,6 +249,7 @@ export function parseTournamentSettings(
   const matchScoreMode = raw.matchScoreMode;
   const raceToGames = raw.raceToGames;
   const gameDecider = raw.gameDecider;
+  const allowedTierLevels = raw.allowedTierLevels;
 
   const parsedPoints =
     typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
@@ -311,6 +319,7 @@ export function parseTournamentSettings(
       typeof bracketSeedingFinalized === "boolean" ? bracketSeedingFinalized : undefined,
     doubleStage: parseDoubleStageSettings(doubleStage),
     standingsScoring: parseStandingsScoring(standingsScoring),
+    allowedTierLevels: normalizeAllowedTierLevels(allowedTierLevels),
   };
 }
 
@@ -351,6 +360,17 @@ export function getOfficialTournamentStaff(
   tournament: TournamentDetail,
 ): OfficialTournamentStaffMember[] {
   return parseTournamentSettings(tournament.settings).officialStaff ?? [];
+}
+
+export function getTournamentAllowedTierLevels(
+  tournament: TournamentDetail,
+): PlayerTierLevel[] | null {
+  const configured = parseTournamentSettings(tournament.settings).allowedTierLevels;
+  return resolveAllowedTierLevels(
+    tournament.tournamentType,
+    tournament.officialBilling,
+    configured,
+  );
 }
 
 export function isOfficialTournamentStaff(
@@ -485,6 +505,7 @@ export type TournamentSettingsInput = {
   displayConfig?: TournamentDisplayConfig;
   doubleStage?: DoubleStageSettings;
   standingsScoring?: StandingsScoringConfig;
+  allowedTierLevels?: PlayerTierLevel[];
 };
 
 export type TournamentSettingsUpsertFields = {
@@ -506,6 +527,7 @@ export type TournamentSettingsUpsertFields = {
   displayConfig?: TournamentDisplayConfig;
   doubleStage?: DoubleStageSettings;
   standingsScoring?: StandingsScoringConfig;
+  allowedTierLevels?: PlayerTierLevel[];
   format?: string;
   maxTeamsPerGroup?: number;
   teamsAdvancePerGroup?: number;
@@ -582,6 +604,7 @@ export function settingsInputFromUpsert(
     displayConfig: input.displayConfig,
     doubleStage: input.doubleStage ?? formatSpecific.doubleStage,
     standingsScoring: input.standingsScoring ?? formatSpecific.standingsScoring,
+    allowedTierLevels: input.allowedTierLevels,
   };
 }
 
@@ -691,6 +714,12 @@ export function buildTournamentSettings(
     next.standingsScoring = input.standingsScoring;
   } else if ("standingsScoring" in input) {
     delete next.standingsScoring;
+  }
+
+  if (input.allowedTierLevels?.length) {
+    next.allowedTierLevels = input.allowedTierLevels;
+  } else if ("allowedTierLevels" in input) {
+    delete next.allowedTierLevels;
   }
 
   return next;

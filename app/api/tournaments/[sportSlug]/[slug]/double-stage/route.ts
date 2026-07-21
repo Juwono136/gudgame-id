@@ -1,6 +1,9 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
-import { buildDoubleStageOverview } from "@/lib/tournaments/double-stage/service";
+import {
+  buildDoubleStageOverview,
+  reconcileDoubleStageGroups,
+} from "@/lib/tournaments/double-stage/service";
 import { shouldExposeGroupStagePublicData } from "@/lib/tournaments/lifecycle-guards";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 
@@ -25,6 +28,7 @@ export async function GET(
       });
     }
 
+    await reconcileDoubleStageGroups(tournament);
     const overview = await buildDoubleStageOverview(tournament);
 
     return jsonSuccess({

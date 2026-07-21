@@ -142,7 +142,7 @@ export function MatchScheduleBoard({
 
                         <div
                           className={cn(
-                            "flex w-[4.25rem] flex-col items-center justify-center rounded-xl border px-1.5 py-1.5 sm:w-[5rem] sm:px-2 sm:py-2",
+                            "flex min-w-[5.75rem] flex-col items-center justify-center rounded-xl border px-2 py-1.5 sm:min-w-[6.5rem] sm:px-2.5 sm:py-2",
                             displayScore
                               ? "border-cp-border/80 bg-cp-elevated/50"
                               : "border-transparent bg-transparent",
@@ -162,7 +162,7 @@ export function MatchScheduleBoard({
                               ) : null}
                             </>
                           ) : (
-                            <p className="text-xs font-semibold tabular-nums text-cp-muted sm:text-sm">
+                            <p className="whitespace-nowrap text-xs font-semibold tabular-nums text-cp-muted sm:text-sm">
                               {formatKickoffTime(m.scheduledAt)}
                             </p>
                           )}

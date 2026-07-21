@@ -6,6 +6,7 @@ import {
   TOURNAMENT_STATUSES,
   TOURNAMENT_TYPES,
 } from "@/db/schema/tournaments";
+import { PLAYER_TIER_LEVELS } from "@/lib/player/tier";
 import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import {
   TOURNAMENT_POINTS_PER_MATCH_OPTIONS,
@@ -77,6 +78,11 @@ export const tournamentUpsertSchema = z
     drawPoints: z.coerce.number().min(0).max(10).optional(),
     lossPoints: z.coerce.number().min(0).max(10).optional(),
     thirdPlaceEnabled: z.boolean().optional(),
+    allowedTierLevels: z
+      .array(z.enum(PLAYER_TIER_LEVELS))
+      .min(1, "Select at least one player tier")
+      .max(PLAYER_TIER_LEVELS.length)
+      .optional(),
   })
   .superRefine((data, ctx) => {
     const allowedFormats = ["americano", "single_elimination", "double_stage"] as const;
@@ -155,10 +161,24 @@ export const tournamentUpsertSchema = z
             path: ["registrationFeeIdr"],
           });
         }
+        if (!data.allowedTierLevels?.length) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Select at least one player tier that may register.",
+            path: ["allowedTierLevels"],
+          });
+        }
       }
     }
 
     if (data.tournamentType === "fun_match") {
+      if (!data.allowedTierLevels?.length) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Select at least one player tier that may join.",
+          path: ["allowedTierLevels"],
+        });
+      }
       if (data.officialBilling) {
         ctx.addIssue({
           code: "custom",

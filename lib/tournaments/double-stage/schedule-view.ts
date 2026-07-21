@@ -109,12 +109,33 @@ export function groupMatchesByScheduleDay(rows: ScheduleMatchRow[]): ScheduleDay
   return days;
 }
 
+/** Keep AM/PM on the same line as the clock time in tight UI slots. */
+function withNonBreakingAmPm(label: string): string {
+  return label.replace(/\s+(AM|PM)$/i, "\u00A0$1");
+}
+
 export function formatKickoffTime(iso: string | null): string {
   if (!iso) return "TBA";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "TBA";
-  return new Intl.DateTimeFormat("en", {
-    hour: "2-digit",
-    minute: "2-digit",
+  return withNonBreakingAmPm(
+    new Intl.DateTimeFormat("en", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d),
+  );
+}
+
+/** Compact date + time for group fixture lists (matches Match schedule kickoff). */
+export function formatKickoffDateTime(iso: string | null): string {
+  if (!iso) return "TBA";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "TBA";
+  const date = new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
   }).format(d);
+  return `${date} · ${formatKickoffTime(iso)}`;
 }

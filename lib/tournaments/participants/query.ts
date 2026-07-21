@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import {
@@ -192,6 +192,23 @@ async function listReclubParticipants(
   searchFilter: SQL | undefined,
 ): Promise<TournamentParticipantRow[]> {
   const db = getDb();
+  const pagedTeams = await db
+    .select({
+      teamId: tournamentTeams.id,
+      teamName: tournamentTeams.name,
+    })
+    .from(tournamentTeams)
+    .innerJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .where(reclubBaseWhere(tournamentId, searchFilter))
+    .groupBy(tournamentTeams.id, tournamentTeams.name)
+    .orderBy(asc(tournamentTeams.name))
+    .limit(limit)
+    .offset(offset);
+
+  const teamIds = pagedTeams.map((team) => team.teamId);
+  if (teamIds.length === 0) return [];
+
   const rows = await db
     .select({
       userId: tournamentTeamMembers.userId,
@@ -212,10 +229,8 @@ async function listReclubParticipants(
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .leftJoin(wikiEntities, publishedPlayerProfileJoin(sportId))
-    .where(reclubBaseWhere(tournamentId, searchFilter))
+    .where(and(reclubBaseWhere(tournamentId, searchFilter), inArray(tournamentTeams.id, teamIds)))
     .orderBy(asc(tournamentTeams.name), asc(tournamentTeamMembers.slotIndex))
-    .limit(limit)
-    .offset(offset);
 
   return rows.map((row) => mapRow(row, sportSlug));
 }
@@ -231,6 +246,34 @@ async function listOfficialParticipants(
 ): Promise<TournamentParticipantRow[]> {
   const db = getDb();
   const isFree = isFreeOfficialBilling(officialBilling);
+  const pagedTeams = await db
+    .select({
+      teamId: tournamentTeams.id,
+      teamName: tournamentTeams.name,
+    })
+    .from(tournamentTeams)
+    .innerJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
+    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .innerJoin(
+      tournamentRegistrations,
+      and(
+        eq(tournamentRegistrations.teamId, tournamentTeams.id),
+        eq(tournamentRegistrations.tournamentId, tournamentId),
+        eq(tournamentRegistrations.status, "confirmed"),
+      ),
+    )
+    .leftJoin(
+      tournamentPayments,
+      eq(tournamentPayments.registrationId, tournamentRegistrations.id),
+    )
+    .where(officialBaseWhere(tournamentId, officialBilling, searchFilter))
+    .groupBy(tournamentTeams.id, tournamentTeams.name)
+    .orderBy(asc(tournamentTeams.name))
+    .limit(limit)
+    .offset(offset);
+
+  const teamIds = pagedTeams.map((team) => team.teamId);
+  if (teamIds.length === 0) return [];
 
   const rows = await db
     .select({
@@ -266,10 +309,13 @@ async function listOfficialParticipants(
       tournamentPayments,
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
     )
-    .where(officialBaseWhere(tournamentId, officialBilling, searchFilter))
+    .where(
+      and(
+        officialBaseWhere(tournamentId, officialBilling, searchFilter),
+        inArray(tournamentTeams.id, teamIds),
+      ),
+    )
     .orderBy(asc(tournamentTeams.name), asc(tournamentTeamMembers.slotIndex))
-    .limit(limit)
-    .offset(offset);
 
   return rows.map((row) => mapRow(row, sportSlug));
 }
@@ -338,7 +384,7 @@ export async function queryTournamentParticipants(input: {
     teamCount,
     page,
     pageSize: limit,
-    totalPages: toTotalPages(total, limit),
+    totalPages: toTotalPages(teamCount, limit),
     tournamentType: input.tournamentType,
     search,
   };

@@ -60,7 +60,7 @@ export function useRemoveTournamentParticipant(sportSlug: string, slug: string) 
       }
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "participants", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", sportSlug, slug, "participants"] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "player-invites", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
       toast.success("Player removed from tournament");
@@ -92,7 +92,7 @@ export function useRemoveTournamentTeam(sportSlug: string, slug: string) {
       return json.data;
     },
     onSuccess: (data) => {
-      void qc.invalidateQueries({ queryKey: ["tournaments", "participants", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", sportSlug, slug, "participants"] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "player-invites", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
       void qc.invalidateQueries({ queryKey: ["tournaments", "manage-detail", sportSlug, slug] });

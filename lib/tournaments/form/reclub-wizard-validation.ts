@@ -16,6 +16,7 @@ export type ReclubWizardFormState = {
   courtCount: string;
   startsAt: string;
   endsAt: string;
+  allowedTierLevels: string;
 };
 
 const URL_RE = /^https?:\/\/.+/i;
@@ -86,6 +87,10 @@ export function validateReclubWizardStep(
     if (Number.isNaN(end)) return "End date & time is invalid.";
     if (end <= start) {
       return "End time must be after start time.";
+    }
+    const tierCount = Number(data.allowedTierLevels);
+    if (!Number.isFinite(tierCount) || tierCount < 1) {
+      return "Select at least one player tier.";
     }
     return null;
   }
