@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { getPublicObjectUrl, uploadObject } from "@/lib/storage/client";
 import { logger } from "@/lib/logger";
+import { MAX_PROFILE_PHOTO_BYTES } from "@/lib/validations/auth";
 
 const log = logger.child({ module: "storage-import-remote-image" });
 
@@ -34,7 +35,7 @@ export async function importRemoteProfilePhoto(
     }
 
     const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.length === 0 || buffer.length > 2 * 1024 * 1024) {
+    if (buffer.length === 0 || buffer.length > MAX_PROFILE_PHOTO_BYTES) {
       log.warn("Remote profile photo size invalid", { bytes: buffer.length });
       return null;
     }

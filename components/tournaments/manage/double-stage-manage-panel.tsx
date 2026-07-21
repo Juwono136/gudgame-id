@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
 import { DoubleStageFlowGuide } from "@/components/tournaments/double-stage/double-stage-flow-guide";
-import { DoubleStageStandingsTable } from "@/components/tournaments/double-stage/double-stage-standings-table";
+import { DoubleStageStandingsLegend, DoubleStageStandingsTable } from "@/components/tournaments/double-stage/double-stage-standings-table";
 import { DoubleStageScheduleManage } from "@/components/tournaments/manage/double-stage-schedule-manage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -334,9 +334,11 @@ function FixtureList({
                       "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-200",
                   )}
                 >
-                  {match.status === "pending" && !hasKickoff
-                    ? "Pending · TBA"
-                    : match.status.replace("_", " ")}
+                  {match.status === "completed"
+                    ? "Ended"
+                    : match.status === "pending" && !hasKickoff
+                      ? "Pending · TBA"
+                      : match.status.replace("_", " ")}
                 </Badge>
               </div>
             </li>
@@ -434,6 +436,8 @@ export function DoubleStageManagePanel({
           </CardContent>
         </Card>
 
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="px-1" />
+
         <div className="grid gap-4 lg:grid-cols-2">
           {overview.groups.map((group) => (
             <Card key={group.id}>
@@ -487,6 +491,7 @@ export function DoubleStageManagePanel({
             start. You can also adjust team-to-group placement manually while the group stage is
             still pending.
           </p>
+          <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-2.5" />
         </div>
         <div className="grid gap-2 sm:grid-cols-2 md:flex md:w-[230px] md:flex-col">
           <Button
@@ -503,17 +508,21 @@ export function DoubleStageManagePanel({
             )}
             Sync groups
           </Button>
-          {overview.canManageAssignments ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-center md:justify-start"
-              onClick={() => setAssignmentOpen(true)}
-            >
-              <Settings2 className="mr-2 h-4 w-4" />
-              Manage assignments
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center md:justify-start"
+            onClick={() => setAssignmentOpen(true)}
+            disabled={!overview.canManageAssignments}
+            title={
+              overview.canManageAssignments
+                ? "Move teams between groups"
+                : "Assignments are locked because group-stage matches have already started"
+            }
+          >
+            <Settings2 className="mr-2 h-4 w-4" />
+            Manage groups
+          </Button>
           {onOpenLiveScoring ? (
             <Button
               type="button"

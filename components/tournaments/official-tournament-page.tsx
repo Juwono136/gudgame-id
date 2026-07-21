@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, ChevronLeft, CreditCard, Loader2, MapPin, Radio, Trophy, Users } from "lucide-react";
+import { Calendar, ChevronLeft, CreditCard, Loader2, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
+import { TournamentAddToCalendar } from "@/components/tournaments/tournament-add-to-calendar";
+import { TournamentHeroVenueLink } from "@/components/tournaments/tournament-hero-venue-link";
 import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
 import { DoubleStageMatchesTab } from "@/components/tournaments/official/double-stage-matches-tab";
 import { OfficialPublicBracketTab } from "@/components/tournaments/official/official-public-bracket-tab";
@@ -62,6 +64,7 @@ import {
   getTournamentScoringDetailLabel,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
+import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import {
   TournamentTierBadges,
   TournamentTierEligibilityNotice,
@@ -714,15 +717,41 @@ export function OfficialTournamentPage({
               </div>
             ) : null}
             <div className={tournamentHeroStyles.metaRow}>
-              <span className={tournamentHeroStyles.metaItem}>
-                <Calendar className={tournamentHeroStyles.metaIcon} />
-                {formatDateRange(tournament.startsAt, tournament.endsAt)}
-              </span>
-              {tournament.venue ? (
-                <span className={tournamentHeroStyles.metaItem}>
-                  <MapPin className={tournamentHeroStyles.metaIcon} />
-                  <span className="break-words">{tournament.venue}</span>
-                </span>
+              {(tournament.startsAt || tournament.venue) ? (
+                <div className={tournamentHeroStyles.metaFacts}>
+                  {tournament.startsAt ? (
+                    <span className={tournamentHeroStyles.metaItem}>
+                      <Calendar className={tournamentHeroStyles.metaIcon} />
+                      {formatDateRange(tournament.startsAt, tournament.endsAt)}
+                    </span>
+                  ) : null}
+                  {tournament.venue ? (
+                    <TournamentHeroVenueLink
+                      venue={tournament.venue}
+                      mapsUrl={venueMapsUrl}
+                      className={tournamentHeroStyles.metaItem}
+                      iconClassName={tournamentHeroStyles.metaIcon}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+              {tournament.startsAt ? (
+                <div className={tournamentHeroStyles.metaActions}>
+                  <TournamentAddToCalendar
+                    tone="hero"
+                    event={{
+                      title: tournament.name,
+                      description: tournament.summary
+                        ? stripHtmlToText(tournament.summary).slice(0, 500)
+                        : null,
+                      location: tournament.venue,
+                      startsAt: tournament.startsAt,
+                      endsAt: tournament.endsAt,
+                      url: tournamentPublicHref,
+                      uid: `${tournament.id}@gud-game`,
+                    }}
+                  />
+                </div>
               ) : null}
             </div>
           </div>

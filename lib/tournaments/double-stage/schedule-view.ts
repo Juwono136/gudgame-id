@@ -23,14 +23,17 @@ export type ScheduleDayGroup = {
   matches: ScheduleMatchRow[];
 };
 
-export function scheduleStatusLabel(status: string): {
+export function scheduleStatusLabel(
+  status: string,
+  kind: "group" | "bracket" = "bracket",
+): {
   short: string;
   full: string;
   className: string;
 } {
   if (status === "completed") {
     return {
-      short: "Final",
+      short: kind === "group" ? "Ended" : "Final",
       full: "Match finished",
       className: "border-cp-border/70 bg-cp-elevated/40 text-cp-muted",
     };

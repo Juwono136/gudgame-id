@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayIdleScoreboard } from "@/components/tournaments/display/display-idle-scoreboard";
+import { DisplaySessionLeaderboard } from "@/components/tournaments/display/display-session-leaderboard";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
 import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboardDisplay } from "@/components/tournaments/live-scoreboard";
@@ -417,48 +418,35 @@ export function TournamentDisplayClient({
         const playerRows = [...(data.playerStats?.players ?? [])].sort(
           (a, b) => b.teamPointsFor - a.teamPointsFor || b.teamWins - a.teamWins,
         );
+        const playersByTeam = new Map<string, string[]>();
+        for (const squad of data.players ?? []) {
+          playersByTeam.set(
+            squad.teamId,
+            squad.members.map((m) => m.name?.trim() || "Player").filter(Boolean),
+          );
+        }
+        const leaderboardRows =
+          teamRows.length > 0
+            ? teamRows.map((t) => ({
+                id: t.teamId ?? t.name,
+                name: t.name,
+                subtitle: (t.teamId ? playersByTeam.get(t.teamId) : undefined)?.join(", "),
+                stats: `${t.wins}W · ${t.pointsFor} pts`,
+              }))
+            : playerRows.map((p) => ({
+                id: p.userId,
+                name: p.displayName,
+                subtitle: p.teamName,
+                stats: `${p.teamPointsFor} pts`,
+              }));
+
         return (
-          <div ref={containerRef} className="animate-in fade-in duration-700 p-6" key={slideKey}>
-            <h1 className="text-2xl font-bold text-white">{data.tournament.name}</h1>
-            <p className="mt-1 text-sm text-white/60">Session leaderboard</p>
-            {teamRows.length > 0 ? (
-              <ul className="mt-8 space-y-2">
-                {teamRows.slice(0, 12).map((t, i) => (
-                  <li
-                    key={t.teamId ?? t.name}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm"
-                  >
-                    <span className="text-white">
-                      <span className="mr-3 text-white/40">#{i + 1}</span>
-                      {t.name}
-                    </span>
-                    <span className="font-mono text-lg text-white">
-                      {t.wins}W · {t.pointsFor} pts
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : playerRows.length > 0 ? (
-              <ul className="mt-8 space-y-2">
-                {playerRows.slice(0, 12).map((p, i) => (
-                  <li
-                    key={p.userId}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm"
-                  >
-                    <span className="min-w-0 break-words text-white">
-                      <span className="mr-3 text-white/40">#{i + 1}</span>
-                      {p.displayName}
-                      <span className="ml-2 text-sm text-white/50">({p.teamName})</span>
-                    </span>
-                    <span className="shrink-0 font-mono text-lg text-white">{p.teamPointsFor} pts</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-12 text-center text-sm text-white/50">
-                Standings appear after the first match is scored.
-              </p>
-            )}
+          <div ref={containerRef} className="relative" key={slideKey}>
+            <DisplaySessionLeaderboard
+              tournamentName={data.tournament.name}
+              title="Session leaderboard"
+              rows={leaderboardRows}
+            />
             {displayControls}
           </div>
         );

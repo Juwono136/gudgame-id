@@ -12,7 +12,7 @@ export type HistoryRoundItem = {
   scoreA: number;
   scoreB: number;
   status: string;
-  type?: "bracket" | "lobby_round" | "americano_round";
+  type?: "bracket" | "lobby_round" | "americano_round" | "group_stage";
 };
 
 export type LiveHistoryEntry = {
@@ -35,6 +35,8 @@ function parseScorePair(score: string): [number, number] {
 export function mapLiveHistoryToRoundItems(entries: LiveHistoryEntry[]): HistoryRoundItem[] {
   return entries.map((m) => {
     const [scoreA, scoreB] = parseScorePair(m.score);
+    const isGroup =
+      m.playType === "group_stage" || /group/i.test(m.label ?? "");
     return {
       id: m.id,
       roundLabel: m.label,
@@ -45,7 +47,7 @@ export function mapLiveHistoryToRoundItems(entries: LiveHistoryEntry[]): History
       scoreA,
       scoreB,
       status: "completed",
-      type: m.playType === "bracket" ? "bracket" : "lobby_round",
+      type: m.playType === "bracket" ? "bracket" : isGroup ? "group_stage" : "lobby_round",
     };
   });
 }
@@ -75,18 +77,24 @@ export function mapReclubMatchesToHistoryItems(
 ): HistoryRoundItem[] {
   return matches
     .filter((m) => m.status === "completed")
-    .map((m) => ({
-      id: m.id,
-      roundLabel: m.roundLabel ?? `Round ${m.roundNumber}`,
-      teamAName: m.teamAName,
-      teamBName: m.teamBName,
-      teamAPlayers: m.teamAPlayers ?? [],
-      teamBPlayers: m.teamBPlayers ?? [],
-      scoreA: m.scoreA ?? 0,
-      scoreB: m.scoreB ?? 0,
-      status: "completed",
-      type: "lobby_round" as const,
-    }));
+    .map((m) => {
+      const isGroup =
+        m.sourceKind === "group_stage" ||
+        m.playType === "group_stage" ||
+        /group/i.test(m.roundLabel ?? "");
+      return {
+        id: m.id,
+        roundLabel: m.roundLabel ?? `Round ${m.roundNumber}`,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        teamAPlayers: m.teamAPlayers ?? [],
+        teamBPlayers: m.teamBPlayers ?? [],
+        scoreA: m.scoreA ?? 0,
+        scoreB: m.scoreB ?? 0,
+        status: "completed",
+        type: isGroup ? ("group_stage" as const) : ("lobby_round" as const),
+      };
+    });
 }
 
 export function mergeHistoryItems(...groups: HistoryRoundItem[][]): HistoryRoundItem[] {

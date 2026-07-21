@@ -1,7 +1,10 @@
 "use client";
 
 import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
-import { DoubleStageStandingsTable } from "@/components/tournaments/double-stage/double-stage-standings-table";
+import {
+  DoubleStageStandingsLegend,
+  DoubleStageStandingsTable,
+} from "@/components/tournaments/double-stage/double-stage-standings-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
@@ -39,6 +42,7 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
         <span className="font-medium text-foreground">Group stage</span> — teams play round-robin
         within each group. Top {cfg.teamsAdvancePerGroup} per group advance to knockout when the
         stage completes.
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-2.5" />
       </div>
 
       {doubleStage?.knockoutReady && doubleStage.phase === "group" ? (

@@ -748,7 +748,7 @@ export function FunMatchRoundMatchCard({
           ) : isDone ? (
             <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", finalBadgeClass)}>
               <CheckCircle2 className="h-3 w-3" />
-              Final
+              {isGroupStageMode ? "Ended" : "Final"}
             </span>
           ) : null}
 

@@ -1,6 +1,10 @@
 import "server-only";
 import nodemailer from "nodemailer";
-import { getSmtpSettings, GMAIL_SMTP_HOST, isSmtpReady } from "@/lib/email/config";
+import {
+  getEmailIdentity,
+  getSmtpSettings,
+  isSmtpReady,
+} from "@/lib/email/config";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ module: "email" });
@@ -16,13 +20,15 @@ export async function sendRawEmail(params: {
   text: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const { host, port, user, pass } = getSmtpSettings();
+  const identity = getEmailIdentity();
 
   if (!user || !pass) {
     if (process.env.NODE_ENV === "development") {
       log.warn("SMTP not configured — email logged to console", {
         to: params.to,
         subject: params.subject,
-        hint: `Set SMTP_USER and SMTP_PASS (Gmail App Password) with SMTP_HOST=${GMAIL_SMTP_HOST}`,
+        from: identity.fromHeader,
+        hint: `Set SMTP_USER and SMTP_PASS with SMTP_FROM=${identity.fromAddress}`,
       });
       log.info(params.text);
       return { ok: true };
@@ -46,24 +52,41 @@ export async function sendRawEmail(params: {
     });
 
     await transport.sendMail({
-      from: `"Gud Game" <${user}>`,
+      from: identity.fromHeader,
+      replyTo: identity.replyTo,
       to: params.to,
       subject: params.subject,
       html: params.html,
       text: params.text,
-      replyTo: user,
+      headers: {
+        "X-Auto-Response-Suppress": "All",
+        "Auto-Submitted": "auto-generated",
+      },
     });
 
-    log.info("Email sent", { to: params.to, subject: params.subject, host });
+    log.info("Email sent", {
+      to: params.to,
+      subject: params.subject,
+      from: identity.fromAddress,
+      replyTo: identity.replyTo,
+      host,
+    });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    log.error("Failed to send email", { error: message, to: params.to, host });
+    log.error("Failed to send email", {
+      error: message,
+      to: params.to,
+      from: identity.fromAddress,
+      host,
+    });
 
     const friendly =
       host.includes("gmail") && message.toLowerCase().includes("auth")
         ? "Gmail rejected credentials. Use an App Password (not your normal password) with 2FA enabled."
-        : message;
+        : message.includes("Sender") || message.toLowerCase().includes("from")
+          ? `Sender rejected. Ensure ${identity.fromAddress} is allowed for SMTP user ${user} (alias / Send mail as).`
+          : message;
 
     return { ok: false, error: friendly };
   }

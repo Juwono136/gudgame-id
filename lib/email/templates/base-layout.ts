@@ -13,7 +13,7 @@ export function renderEmailBaseLayout({
   previewText,
   title,
   bodyHtml,
-  footerNote = `You received this email because of activity on your ${siteConfig.shortName} account.`,
+  footerNote = `This is an automated message from ${siteConfig.shortName}. Please do not reply to this email.`,
   heroTag = "Tournaments · Live scores · Community",
 }: BaseLayoutParams): string {
   const appUrl = (
@@ -61,6 +61,7 @@ export function renderEmailBaseLayout({
           <tr>
             <td class="email-padding" style="padding:20px 32px 28px;border-top:1px solid #D4EBE3;background-color:#F5FAF8;text-align:center;">
               <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:#4A6B60;">${footerNote}</p>
+              <p style="margin:0 0 8px;font-size:12px;color:#6B8F82;">Sent from noreply@gudgame.id · Replies go to master@gudgame.id</p>
               <p style="margin:0;font-size:12px;color:#6B8F82;">© ${new Date().getFullYear()} ${siteConfig.name} · <a href="${appUrl}" style="color:${brandColors.emerald};text-decoration:none;font-weight:600;">Visit ${siteConfig.shortName}</a></p>
             </td>
           </tr>

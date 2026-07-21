@@ -26,12 +26,16 @@ type FunMatchLiveMatchesProps = {
   className?: string;
 };
 
-function statusMeta(status: string | undefined) {
+function statusMeta(status: string | undefined, isGroupStage = false) {
   if (status === "in_progress") {
     return { label: "Live", variant: "warning" as const, icon: Radio };
   }
   if (status === "completed") {
-    return { label: "Final", variant: "success" as const, icon: CheckCircle2 };
+    return {
+      label: isGroupStage ? "Ended" : "Final",
+      variant: "success" as const,
+      icon: CheckCircle2,
+    };
   }
   return { label: "Scheduled", variant: "muted" as const, icon: Timer };
 }
@@ -57,7 +61,9 @@ export function FunMatchLiveMatches({ matches, className }: FunMatchLiveMatchesP
 
       <ul className="mt-4 grid gap-3 sm:grid-cols-2">
         {sorted.map((m) => {
-          const meta = statusMeta(m.status);
+          const isGroupStage =
+            m.type === "group_stage" || m.playType === "group_stage";
+          const meta = statusMeta(m.status, isGroupStage);
           const Icon = meta.icon;
           const isLive = m.status === "in_progress";
           const roundLabel =
@@ -69,6 +75,10 @@ export function FunMatchLiveMatches({ matches, className }: FunMatchLiveMatchesP
                 ? m.playNumber
                   ? `Rematch #${m.playNumber}`
                   : "Rematch"
+                : isGroupStage
+                  ? m.matchNumber
+                    ? `Group · M${m.matchNumber}`
+                    : "Group stage"
                 : m.type === "bracket"
                   ? m.matchNumber
                     ? `Bracket · M${m.matchNumber}`

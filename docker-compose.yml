@@ -46,6 +46,9 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_REPLY_TO: ${SMTP_REPLY_TO:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
 
       # SeaweedFS object storage (nginx gateway on host :8333)
       STORAGE_ALLOW_LOCALHOST: ${STORAGE_ALLOW_LOCALHOST:-true}

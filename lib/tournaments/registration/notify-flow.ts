@@ -65,9 +65,9 @@ export async function notifyAwaitingConfirmation(
     title: tournamentNotificationTitle(
       tournament.sportName,
       tournament.name,
-      "Confirm your spot",
+      "You're registered",
     ),
-    body: `[${tournament.sportName}] Team "${teamName}" is reserved. Confirm participation within ${PAYMENT_WINDOW_HOURS}h to unlock payment.`,
+    body: `[${tournament.sportName}] Team "${teamName}" joined successfully. Confirm participation in the app within ${PAYMENT_WINDOW_HOURS}h to unlock payment.`,
     actionUrl,
     metadata: tournamentNotificationMetadata(tournament, { registrationId, teamName }),
   });
@@ -88,7 +88,7 @@ export async function notifyAwaitingConfirmation(
       },
     }).then((result) => {
       if (!result.ok) {
-        log.warn("Confirm participation email failed", { registrationId, error: result.error });
+        log.warn("Registration joined email failed", { registrationId, error: result.error });
       }
     });
   }
@@ -102,7 +102,7 @@ export async function notifyAwaitingConfirmation(
         tournament.name,
         "New registration",
       ),
-      body: `${displayName} registered team "${teamName}" for ${tournament.sportName} and is awaiting confirmation.`,
+      body: `${displayName} registered team "${teamName}" for ${tournament.sportName}. Awaiting in-app confirmation.`,
       actionUrl: `${appBaseUrl()}/dashboard/host/tournaments/${tournament.id}`,
       metadata: tournamentNotificationMetadata(tournament, { registrationId }),
     });

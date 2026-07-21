@@ -8,11 +8,9 @@ import {
   Calendar,
   ChevronLeft,
   Clock,
-  ExternalLink,
   Gamepad2,
   Info,
   Loader2,
-  MapPin,
   Swords,
   Timer,
   Trophy,
@@ -20,6 +18,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
+import { TournamentAddToCalendar } from "@/components/tournaments/tournament-add-to-calendar";
+import { TournamentHeroVenueLink } from "@/components/tournaments/tournament-hero-venue-link";
 import { FunMatchPublicLiveScore } from "@/components/tournaments/fun-match/fun-match-public-live-score";
 import { FunMatchPublicBracketTab } from "@/components/tournaments/fun-match/fun-match-public-bracket-tab";
 import { FunMatchPublicPlayersTab } from "@/components/tournaments/fun-match/fun-match-public-players-tab";
@@ -85,6 +85,7 @@ import {
   getTournamentScoringPrimaryLabel,
   getVenueMapsUrl,
 } from "@/lib/tournaments/settings";
+import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
 import type { BracketMatchStatsSource } from "@/lib/tournaments/reclub/types";
 import {
@@ -577,29 +578,41 @@ export function ReclubTournamentPage({
           ) : null}
 
           <div className={tournamentHeroStyles.metaRow}>
-            {tournament.venue ? (
-              <span className={tournamentHeroStyles.metaItem}>
-                <MapPin className={cn(tournamentHeroStyles.metaIcon, "mt-0.5 sm:mt-0")} />
-                {mapsUrl ? (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-w-0 items-center gap-1 break-words text-foreground hover:text-emerald-800 dark:hover:text-emerald-200"
-                  >
-                    {tournament.venue}
-                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                  </a>
-                ) : (
-                  <span className="break-words">{tournament.venue}</span>
-                )}
-              </span>
+            {(tournament.startsAt || tournament.venue) ? (
+              <div className={tournamentHeroStyles.metaFacts}>
+                {tournament.startsAt ? (
+                  <span className={tournamentHeroStyles.metaItem}>
+                    <Calendar className={tournamentHeroStyles.metaIcon} />
+                    {formatTournamentScheduleRange(tournament.startsAt, tournament.endsAt)}
+                  </span>
+                ) : null}
+                {tournament.venue ? (
+                  <TournamentHeroVenueLink
+                    venue={tournament.venue}
+                    mapsUrl={mapsUrl}
+                    className={tournamentHeroStyles.metaItem}
+                    iconClassName={tournamentHeroStyles.metaIcon}
+                  />
+                ) : null}
+              </div>
             ) : null}
             {tournament.startsAt ? (
-              <span className={tournamentHeroStyles.metaItem}>
-                <Calendar className={tournamentHeroStyles.metaIcon} />
-                {formatTournamentScheduleRange(tournament.startsAt, tournament.endsAt)}
-              </span>
+              <div className={tournamentHeroStyles.metaActions}>
+                <TournamentAddToCalendar
+                  tone="hero"
+                  event={{
+                    title: tournament.name,
+                    description: tournament.summary
+                      ? stripHtmlToText(tournament.summary).slice(0, 500)
+                      : null,
+                    location: tournament.venue,
+                    startsAt: tournament.startsAt,
+                    endsAt: tournament.endsAt,
+                    url: publicSportRoutes.tournament(tournament.sportSlug, tournament.slug),
+                    uid: `${tournament.id}@gud-game`,
+                  }}
+                />
+              </div>
             ) : null}
           </div>
 

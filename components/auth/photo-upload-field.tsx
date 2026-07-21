@@ -34,7 +34,7 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
       return;
     }
     if (file.size > MAX_PROFILE_PHOTO_BYTES) {
-      setLocalError("Photo must be 2 MB or smaller");
+      setLocalError("Photo must be 5 MB or smaller");
       onChange(null);
       return;
     }
@@ -65,7 +65,7 @@ export function PhotoUploadField({ error, onChange }: PhotoUploadFieldProps) {
         <div className="mt-4 flex flex-col items-center text-center sm:mt-0 sm:items-start sm:text-left">
           <p className="text-sm font-medium text-foreground">Upload profile photo</p>
           <p className="mt-1 text-xs text-cp-muted">
-            JPEG, PNG, WebP or GIF · max 2 MB · required
+            JPEG, PNG, WebP or GIF · max 5 MB · required
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button

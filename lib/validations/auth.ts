@@ -44,7 +44,7 @@ export const resetPasswordSchema = z
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 const imageMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const maxPhotoBytes = 2 * 1024 * 1024;
+const maxPhotoBytes = 5 * 1024 * 1024;
 
 export const registerSchema = z
   .object({
@@ -89,7 +89,7 @@ export function validateProfilePhoto(file: File | null | undefined):
     };
   }
   if (file.size > maxPhotoBytes) {
-    return { ok: false, message: "Photo must be 2 MB or smaller" };
+    return { ok: false, message: "Photo must be 5 MB or smaller" };
   }
   return { ok: true, file };
 }

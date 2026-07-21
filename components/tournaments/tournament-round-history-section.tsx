@@ -15,7 +15,7 @@ export type RoundHistoryItem = {
   scoreA: number | null;
   scoreB: number | null;
   status: string;
-  type?: "bracket" | "lobby_round" | "americano_round";
+  type?: "bracket" | "lobby_round" | "americano_round" | "group_stage";
 };
 
 type TournamentRoundHistorySectionProps = {
@@ -124,8 +124,8 @@ export function TournamentRoundHistorySection({
                 </span>
               ) : item.status === "completed" ? (
                 <span className="absolute right-3 top-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
-                  <Trophy className="h-3 w-3" />
-                  Final
+                  {item.type === "group_stage" ? null : <Trophy className="h-3 w-3" />}
+                  {item.type === "group_stage" ? "Ended" : "Final"}
                 </span>
               ) : null}
 

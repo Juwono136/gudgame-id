@@ -74,48 +74,70 @@ function PublicGroupStageLiveCourts({
           return (
             <li
               key={match.id}
-              className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-4"
+              className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-3 sm:p-4"
             >
               <p className="text-xs text-cp-muted">
                 {resolveCourtLabel(match.courtId, courts)}
               </p>
-              <p className="mt-1 font-semibold text-foreground">
-                {match.teamAName ?? "TBD"} vs {match.teamBName ?? "TBD"}
-              </p>
-              {match.teamAPlayers?.length || match.teamBPlayers?.length ? (
-                <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
-                  {[formatPlayerNameList(match.teamAPlayers), formatPlayerNameList(match.teamBPlayers)]
-                    .filter(Boolean)
-                    .join(" vs ")}
+
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-3">
+                <div className="min-w-0 text-left">
+                  <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+                    {match.teamAName ?? "TBD"}
+                  </p>
+                  {match.teamAPlayers?.length ? (
+                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-cp-muted sm:text-[11px]">
+                      {formatPlayerNameList(match.teamAPlayers)}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex min-w-[4.5rem] flex-col items-center justify-center px-1 sm:min-w-[5.5rem]">
+                  {gameRules ? (
+                    <>
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-cp-muted">
+                        Games
+                      </p>
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {match.scoreA ?? 0}
+                        <span className="mx-1 font-normal text-cp-muted">–</span>
+                        {match.scoreB ?? 0}
+                      </p>
+                      <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider text-cp-primary">
+                        Points
+                      </p>
+                      <p className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
+                        {pointsA}
+                        <span className="mx-1.5 font-light text-cp-muted">:</span>
+                        {pointsB}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
+                      {match.scoreA ?? 0}
+                      <span className="mx-1.5 font-light text-cp-muted">:</span>
+                      {match.scoreB ?? 0}
+                    </p>
+                  )}
+                </div>
+
+                <div className="min-w-0 text-right">
+                  <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+                    {match.teamBName ?? "TBD"}
+                  </p>
+                  {match.teamBPlayers?.length ? (
+                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-cp-muted sm:text-[11px]">
+                      {formatPlayerNameList(match.teamBPlayers)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {gameRules ? (
+                <p className="mt-2 text-center text-[10px] text-cp-muted sm:text-[11px]">
+                  Race to {gameRules.raceToGames} · first to {gameRules.pointsToWinGame} pts
                 </p>
               ) : null}
-              {gameRules ? (
-                <div className="mt-3 space-y-2 text-center">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-                    Games · Race to {gameRules.raceToGames}
-                  </p>
-                  <p className="text-lg font-bold tabular-nums text-foreground">
-                    {match.scoreA ?? 0}
-                    <span className="mx-1.5 font-normal text-cp-muted">–</span>
-                    {match.scoreB ?? 0}
-                  </p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-primary">
-                    Points this game
-                  </p>
-                  <p className="text-3xl font-bold tabular-nums text-foreground">
-                    {pointsA}
-                    <span className="mx-2 font-light text-cp-muted">:</span>
-                    {pointsB}
-                  </p>
-                  <p className="text-[11px] text-cp-muted">
-                    First to {gameRules.pointsToWinGame} · +1 per point
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-3 text-center text-3xl font-bold tabular-nums text-foreground">
-                  {match.scoreA ?? 0} : {match.scoreB ?? 0}
-                </p>
-              )}
             </li>
           );
         })}

@@ -102,7 +102,7 @@ export function MatchScheduleBoard({
               </div>
               <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
                 {day.matches.map((m) => {
-                  const status = scheduleStatusLabel(m.status);
+                  const status = scheduleStatusLabel(m.status, m.kind);
                   const displayScore =
                     m.status === "completed" || m.status === "in_progress";
 

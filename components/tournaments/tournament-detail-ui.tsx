@@ -79,8 +79,11 @@ export const tournamentHeroStyles = {
   title:
     "mt-3 break-words text-2xl font-bold tracking-tight text-foreground drop-shadow-md sm:mt-4 sm:text-3xl md:text-4xl lg:text-5xl",
   summaryWrap: "mt-3 max-w-2xl text-base text-foreground/90 sm:text-lg",
-  metaRow:
-    "mt-4 flex flex-col gap-2.5 text-sm font-medium text-foreground drop-shadow-sm sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-4",
+  /** Schedule + venue facts; calendar CTA sits below via metaActions. */
+  metaRow: "mt-4 flex flex-col items-start gap-2.5 sm:mt-5",
+  metaFacts:
+    "flex w-full min-w-0 flex-col gap-2 text-sm font-medium text-foreground drop-shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2",
+  metaActions: "flex w-full min-w-0 flex-wrap items-center gap-2",
   metaItem: "inline-flex min-w-0 items-center gap-1.5",
   metaIcon: "h-4 w-4 shrink-0 text-emerald-800 dark:text-cp-primary",
   /** Solid chip — apply AFTER status color classes so opaque bg wins over translucent pills. */

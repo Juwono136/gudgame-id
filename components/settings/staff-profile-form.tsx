@@ -65,7 +65,7 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
       return;
     }
     if (file.size > MAX_PROFILE_PHOTO_BYTES) {
-      setPhotoError("Photo must be 2 MB or smaller");
+      setPhotoError("Photo must be 5 MB or smaller");
       return;
     }
     setPhotoError(undefined);
@@ -139,7 +139,7 @@ export function StaffProfileForm({ settings }: StaffProfileFormProps) {
                 {photoError}
               </p>
             ) : (
-              <p className="text-xs text-cp-muted">JPEG, PNG, WebP or GIF · max 2 MB</p>
+              <p className="text-xs text-cp-muted">JPEG, PNG, WebP or GIF · max 5 MB</p>
             )}
           </div>
         </div>

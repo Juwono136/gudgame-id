@@ -47,8 +47,16 @@ const serverSchema = z
       .optional()
       .transform((v) => v !== "false"),
     SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.string().optional(),
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
+    /** Public From address (e.g. noreply@gudgame.id). Defaults in lib/email/config. */
+    SMTP_FROM: z.string().email().optional(),
+    EMAIL_FROM: z.string().email().optional(),
+    SMTP_REPLY_TO: z.string().email().optional(),
+    EMAIL_REPLY_TO: z.string().email().optional(),
+    SMTP_FROM_NAME: z.string().optional(),
+    EMAIL_FROM_NAME: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;
