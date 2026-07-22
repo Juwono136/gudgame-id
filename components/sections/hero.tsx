@@ -49,16 +49,20 @@ export default function Hero() {
 
               <FadeIn mountKey={`hero-logo-${pathname}`} delay={0.04}>
                 <div className="mt-4 flex justify-center lg:justify-start">
-                  {/* Solid plate keeps the green logo readable over bright/dark photo backgrounds */}
-                  <div className="inline-flex items-center justify-center rounded-2xl border border-slate-900/10 bg-white/95 px-4 py-2.5 shadow-[0_8px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:px-5 sm:py-3 dark:border-white/15 dark:bg-slate-950/90 dark:shadow-[0_10px_32px_rgba(0,0,0,0.55)]">
+                  {/* Soft halo (no hard plate) — keeps green mark readable over the photo */}
+                  <div className="relative inline-flex items-center justify-center">
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-1/2 top-1/2 h-[140%] w-[150%] -translate-x-1/2 -translate-y-1/2 rounded-[100%] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.95)_0%,rgba(255,255,255,0.55)_38%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(2,8,16,0.92)_0%,rgba(2,8,16,0.5)_40%,transparent_72%)]"
+                    />
                     <Image
                       src="/images/logo-gud-game.png"
                       alt="Gud Game"
                       width={280}
                       height={88}
                       priority
-                      className="h-9 w-auto object-contain sm:h-11 md:h-12"
-                      sizes="(max-width: 640px) 148px, 200px"
+                      className="relative z-[1] h-10 w-auto object-contain [filter:drop-shadow(0_1px_0_rgba(255,255,255,0.95))_drop-shadow(0_2px_10px_rgba(15,23,42,0.22))] sm:h-12 md:h-[3.25rem] dark:[filter:drop-shadow(0_1px_0_rgba(0,0,0,0.75))_drop-shadow(0_0_14px_rgba(61,186,150,0.35))_drop-shadow(0_3px_12px_rgba(0,0,0,0.55))]"
+                      sizes="(max-width: 640px) 156px, 210px"
                     />
                   </div>
                 </div>
