@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { playerMatches } from "@/db/schema/player-competition";
 import { wikiEntities } from "@/db/schema/wiki";
 import { computePlayerMatchStats } from "@/lib/account/player-performance/compute";
-import { formatPlayerTierLabel } from "@/lib/player/tier";
+import { formatPlayerTierLabel, resolveCareerTierLevel } from "@/lib/player/tier";
 
 /** Recompute match-driven stats and persist to the player's wiki profile for a sport. */
 export async function syncPlayerWikiPerformance(
@@ -56,7 +56,10 @@ export async function syncPlayerWikiPerformance(
     ...existing,
     totalPoints: stats.totalPoints,
     winRate: stats.winRate,
-    tier: stats.tierLevel,
+    tier: resolveCareerTierLevel({
+      totalPoints: stats.totalPoints,
+      storedTier: stats.tierLevel,
+    }),
     matchWins: stats.wins,
     matchLosses: stats.losses,
     matchCount: stats.totalMatches,

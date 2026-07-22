@@ -1,9 +1,8 @@
 import "server-only";
 
 import {
-  deriveTierFromPoints,
   formatPlayerTierLabel,
-  normalizePlayerTier,
+  resolveCareerTierLevel,
 } from "@/lib/player/tier";
 import type { PlayerEquipmentItem } from "@/lib/wiki/player-equipment";
 import { equipmentFromAttributes } from "@/lib/wiki/player-equipment";
@@ -41,14 +40,16 @@ export function getPlayerCareerStats(entity: PlayerCareerStatsSource): PlayerCar
   };
 
   const tierRaw = perf.tier ?? entity.attributes.tier;
-  const tierLevel =
-    normalizePlayerTier(typeof tierRaw === "string" ? tierRaw : null) ??
-    deriveTierFromPoints(num("totalPoints"));
+  const totalPoints = num("totalPoints");
+  const tierLevel = resolveCareerTierLevel({
+    totalPoints,
+    storedTier: typeof tierRaw === "string" ? tierRaw : null,
+  });
   const tier = tierLevel ? formatPlayerTierLabel(tierLevel) : null;
 
   return {
     worldRank: num("worldRank"),
-    totalPoints: num("totalPoints"),
+    totalPoints,
     winRate: num("winRate"),
     tier,
     tierLevel,

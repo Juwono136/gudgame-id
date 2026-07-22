@@ -85,6 +85,20 @@ export function deriveTierFromPoints(points: number | null): PlayerTierLevel | n
   return "bronze";
 }
 
+/**
+ * Career tier for public profiles — ranking points are the source of truth.
+ * Stored wiki `tier` fields are only used when no point total exists yet.
+ */
+export function resolveCareerTierLevel(input: {
+  totalPoints: number | null | undefined;
+  storedTier?: string | null;
+}): PlayerTierLevel | null {
+  if (input.totalPoints != null && !Number.isNaN(input.totalPoints)) {
+    return deriveTierFromPoints(input.totalPoints);
+  }
+  return normalizePlayerTier(input.storedTier ?? null);
+}
+
 export function matchPointsForTournamentTier(tier: PlayerTierLevel): number {
   return TOURNAMENT_TIER_MATCH_POINTS[tier];
 }

@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import {
   playerMatches,
   playerTournamentResults,
+  type StatsTier,
 } from "@/db/schema/player-competition";
 import type { tournamentReclubMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers } from "@/db/schema/tournament-registration";
@@ -20,6 +21,36 @@ function statsTierFor(tournament: TournamentDetail) {
     tournamentType: tournament.tournamentType,
     officialBilling: tournament.officialBilling,
   });
+}
+
+type PlayerMatchHistoryInsert = {
+  userId: string;
+  sportId: string;
+  tournamentId: string;
+  isOfficial: boolean;
+  statsTier: StatsTier;
+  tournamentName: string;
+  opponents: string;
+  resultType: "win" | "loss";
+  score: string;
+  round: string;
+  playedAt: Date;
+};
+
+/** Replace a prior sync for the same fixture so rescoring does not double-count points. */
+async function replacePlayerMatchHistoryEntry(input: PlayerMatchHistoryInsert): Promise<void> {
+  const db = getDb();
+  await db
+    .delete(playerMatches)
+    .where(
+      and(
+        eq(playerMatches.userId, input.userId),
+        eq(playerMatches.tournamentId, input.tournamentId),
+        eq(playerMatches.round, input.round),
+        eq(playerMatches.opponents, input.opponents),
+      ),
+    );
+  await db.insert(playerMatches).values(input);
 }
 
 export async function syncReclubMatchToPlayerHistory(input: {
@@ -63,7 +94,7 @@ export async function syncReclubMatchToPlayerHistory(input: {
     if (userTeam === match.teamBId && teamBWin) resultType = "win";
     if (!teamAWin && !teamBWin) resultType = "loss";
 
-    await db.insert(playerMatches).values({
+    await replacePlayerMatchHistoryEntry({
       userId,
       sportId: tournament.sportId,
       tournamentId: tournament.id,
@@ -140,7 +171,7 @@ export async function syncOfficialMatchToPlayerHistory(input: {
     if (userTeam === teamAId && teamAWin) resultType = "win";
     if (userTeam === teamBId && teamBWin) resultType = "win";
 
-    await db.insert(playerMatches).values({
+    await replacePlayerMatchHistoryEntry({
       userId,
       sportId: tournament.sportId,
       tournamentId: tournament.id,
@@ -261,7 +292,7 @@ export async function syncReclubBracketResult(input: {
     if (userTeam === teamAId && teamAWin) resultType = "win";
     if (userTeam === teamBId && teamBWin) resultType = "win";
 
-    await db.insert(playerMatches).values({
+    await replacePlayerMatchHistoryEntry({
       userId,
       sportId: tournament.sportId,
       tournamentId: tournament.id,

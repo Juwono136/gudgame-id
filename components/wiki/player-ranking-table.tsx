@@ -102,10 +102,10 @@ export function PlayerRankingTable({ sportSlug, sportName }: PlayerRankingTableP
               </SelectTrigger>
               <SelectContent className={cpSelectContentClass}>
                 <SelectItem value="points-desc" className={cpSelectItemClass}>
-                  Points (highest)
+                  Career points (highest)
                 </SelectItem>
                 <SelectItem value="points-asc" className={cpSelectItemClass}>
-                  Points (lowest)
+                  Career points (lowest)
                 </SelectItem>
                 <SelectItem value="rank-asc" className={cpSelectItemClass}>
                   Rank (best first)

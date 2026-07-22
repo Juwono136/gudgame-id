@@ -26,6 +26,7 @@ import {
 } from "@/lib/account/player-performance/compute";
 import { rankingDeltaForMatch } from "@/lib/account/player-performance/points";
 import { formatPlayerTierLabel } from "@/lib/player/tier";
+import { loadSkillTierForTournament } from "@/lib/tournaments/skill-tier";
 import type {
   PlayerMatchDetail,
   PlayerMatchListItem,
@@ -231,6 +232,10 @@ export async function getPlayerMatchDetail(
 
   const source = await findSourceMatch(listFields);
 
+  const skillTier = row.tournamentId
+    ? await loadSkillTierForTournament(row.tournamentId)
+    : null;
+
   let tournamentContext = {
     userWins: 0,
     userLosses: 0,
@@ -239,6 +244,7 @@ export async function getPlayerMatchDetail(
     pointsEarned: rankingDeltaForMatch({
       isOfficial: row.isOfficial,
       statsTier: row.statsTier as StatsTier | null,
+      skillTier,
       resultType: row.resultType === "win" ? "win" : "loss",
     }),
     placement: null as string | null,

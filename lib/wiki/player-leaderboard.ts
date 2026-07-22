@@ -6,7 +6,7 @@ import { getDb } from "@/db/client";
 import { sports, user, wikiEntities } from "@/db/schema";
 import { computeOwnedPlayerCareerStats } from "@/lib/account/player-performance/compute-owned-career-stats";
 import { withCache, getCached, setCached, invalidateCached } from "@/lib/cache/redis-cache";
-import { formatPlayerTierLabel, normalizePlayerTier } from "@/lib/player/tier";
+import { formatPlayerTierLabel, resolveCareerTierLevel } from "@/lib/player/tier";
 import { archiveOrphanPublishedPlayerProfiles } from "@/lib/wiki/active-player-eligibility";
 import { parsePlayerEditableAttributes } from "@/lib/wiki/player-profile-fields";
 import type { PlayerCareerStats } from "@/lib/wiki/player-career-stats";
@@ -163,11 +163,11 @@ export async function getPlayerRankOnLeaderboard(
 
 export function mapLeaderboardEntryToListItem(entry: ActivePlayerLeaderboardEntry) {
   const editable = parsePlayerEditableAttributes(entry.attributes);
-  const tierLevel =
-    entry.career.tierLevel ??
-    normalizePlayerTier(readPlayerField(entry.attributes, "tier")) ??
-    "bronze";
-  const tier = entry.career.tier ?? formatPlayerTierLabel(tierLevel) ?? "Bronze";
+  const tierLevel = resolveCareerTierLevel({
+    totalPoints: entry.career.totalPoints,
+    storedTier: entry.career.tierLevel,
+  });
+  const tier = tierLevel ? formatPlayerTierLabel(tierLevel) : entry.career.tier ?? "Bronze";
 
   return {
     rank: entry.rank,

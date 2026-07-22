@@ -1,7 +1,7 @@
 "use client";
 
 import type { PlayerWikiProfileView } from "@/lib/account/player-profile/service";
-import { formatRankingPoints } from "@/lib/player/format-ranking-points";
+import { formatRankingPoints, CAREER_POINTS_LABEL } from "@/lib/player/format-ranking-points";
 
 type PlayerStatsReadonlyProps = {
   profile: PlayerWikiProfileView | null;
@@ -35,7 +35,7 @@ export function PlayerStatsReadonly({ profile }: PlayerStatsReadonlyProps) {
       ? { label: "World rank", ...formatStat(stats.worldRank, "rank") }
       : null,
     stats.totalPoints != null
-      ? { label: "Ranking score", ...formatStat(stats.totalPoints, "points") }
+      ? { label: CAREER_POINTS_LABEL, ...formatStat(stats.totalPoints, "points") }
       : null,
     stats.winRate != null
       ? { label: "Win rate", ...formatStat(stats.winRate, "percent") }

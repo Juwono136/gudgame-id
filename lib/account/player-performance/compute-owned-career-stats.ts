@@ -2,7 +2,7 @@ import "server-only";
 
 import { computePlayerMatchStats } from "@/lib/account/player-performance/compute";
 import { syncPlayerWikiPerformanceSafe } from "@/lib/account/player-performance/sync-wiki";
-import { formatPlayerTierLabel } from "@/lib/player/tier";
+import { formatPlayerTierLabel, normalizePlayerTier, resolveCareerTierLevel } from "@/lib/player/tier";
 import {
   getPlayerCareerStats,
   type PlayerCareerStats,
@@ -27,11 +27,30 @@ export async function computeOwnedPlayerCareerStats(input: {
   const wikiStats = getPlayerCareerStats(input.entity);
   const computed = await computePlayerMatchStats(input.ownerUserId, input.sportId);
 
+  const totalPoints =
+    computed.totalMatches > 0 ? computed.totalPoints : (wikiStats.totalPoints ?? 0);
+  const tierLevel = resolveCareerTierLevel({
+    totalPoints,
+    storedTier: wikiStats.tierLevel,
+  });
+  const tier = tierLevel ? formatPlayerTierLabel(tierLevel) : wikiStats.tier;
+
   if (computed.totalMatches === 0) {
-    return wikiStats;
+    return {
+      ...wikiStats,
+      totalPoints: wikiStats.totalPoints ?? 0,
+      tierLevel,
+      tier,
+    };
   }
 
-  if ((wikiStats.totalPoints ?? 0) !== computed.totalPoints) {
+  const storedPerfTier = normalizePlayerTier(
+    typeof input.entity.performance?.tier === "string" ? input.entity.performance.tier : null,
+  );
+  const pointsMismatch = (wikiStats.totalPoints ?? 0) !== computed.totalPoints;
+  const tierMismatch = storedPerfTier !== tierLevel;
+
+  if (pointsMismatch || tierMismatch) {
     void syncPlayerWikiPerformanceSafe(input.ownerUserId, input.sportId);
   }
 
@@ -42,8 +61,8 @@ export async function computeOwnedPlayerCareerStats(input: {
     worldRank: wikiStats.worldRank,
     totalPoints: computed.totalPoints,
     winRate: computed.winRate,
-    tier: computed.tierLevel ? formatPlayerTierLabel(computed.tierLevel) : wikiStats.tier,
-    tierLevel: computed.tierLevel ?? wikiStats.tierLevel,
+    tier,
+    tierLevel,
     yearsActive,
   };
 }

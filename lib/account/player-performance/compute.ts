@@ -7,7 +7,7 @@ import { sports, tournaments } from "@/db/schema";
 import { deriveTierFromPoints, type PlayerTierLevel } from "@/lib/player/tier";
 import { rankingDeltaForMatch } from "@/lib/account/player-performance/points";
 import { getPlayerRankOnLeaderboard } from "@/lib/wiki/player-leaderboard";
-import { normalizeAllowedTierLevels } from "@/lib/tournaments/tier-restrictions";
+import { loadSkillTierByTournamentIds } from "@/lib/tournaments/skill-tier";
 
 export type PlayerMatchAggregate = {
   totalMatches: number;
@@ -21,29 +21,6 @@ export type PlayerMatchAggregate = {
   firstMatchAt: string | null;
   lastMatchAt: string | null;
 };
-
-async function loadSkillTierByTournamentIds(
-  tournamentIds: string[],
-): Promise<Map<string, PlayerTierLevel>> {
-  const map = new Map<string, PlayerTierLevel>();
-  if (!tournamentIds.length) return map;
-
-  const db = getDb();
-  const rows = await db
-    .select({ id: tournaments.id, settings: tournaments.settings })
-    .from(tournaments)
-    .where(inArray(tournaments.id, tournamentIds));
-
-  for (const row of rows) {
-    const settings =
-      row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)
-        ? (row.settings as Record<string, unknown>)
-        : {};
-    const allowed = normalizeAllowedTierLevels(settings.allowedTierLevels);
-    if (allowed?.[0]) map.set(row.id, allowed[0]);
-  }
-  return map;
-}
 
 function aggregateRows(
   rows: {

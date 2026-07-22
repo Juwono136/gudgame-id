@@ -6,6 +6,7 @@ import { ArrowRight, MapPin, TrendingUp, User } from "lucide-react";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { normalizePlayerTier } from "@/lib/player/tier";
 import type { PublicPlayerListItem } from "@/lib/wiki/public-players";
+import { CAREER_POINTS_SHORT_HINT } from "@/lib/player/format-ranking-points";
 import { cn } from "@/lib/utils";
 
 const TIER_STYLES: Record<string, string> = {
@@ -132,7 +133,7 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
               <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 p-2.5">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-                    Points
+                    Career pts
                   </p>
                   <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">
                     {formatPoints(player.points)}
@@ -169,7 +170,9 @@ export function PublicPlayersList({ sportSlug, items }: PublicPlayersListProps) 
               <th className="min-w-[220px] px-4 py-3">Player</th>
               <th className="px-4 py-3">Location</th>
               <th className="px-4 py-3">Tier</th>
-              <th className="px-4 py-3 text-right">Points</th>
+              <th className="px-4 py-3 text-right" title={CAREER_POINTS_SHORT_HINT}>
+                Career pts
+              </th>
               <th className="px-4 py-3 text-right">Win rate</th>
               <th className="w-12 px-4 py-3" />
             </tr>

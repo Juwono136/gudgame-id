@@ -1,6 +1,8 @@
 import { Trophy } from "lucide-react";
 import { PlayerPageCard } from "@/components/wiki/player/player-page-card";
 import {
+  CAREER_POINTS_HINT,
+  CAREER_POINTS_LABEL,
   formatRankingPoints,
   nextTierProgress,
 } from "@/lib/player/format-ranking-points";
@@ -33,7 +35,7 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
       title="Career performance"
       description={
         hasAnyStat
-          ? "Rankings from recorded tournament and Fun Match results"
+          ? "Official tournament results update rank, career points, and tier automatically."
           : "Stats will appear here once tournament results are recorded."
       }
     >
@@ -50,11 +52,12 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
             <div className="mt-3 space-y-1.5">
               <div className="flex items-center justify-between gap-2 text-[11px] text-cp-muted">
                 <span>
-                  Next: <span className="font-medium text-foreground">{progress.nextLabel}</span>
+                  Progress to{" "}
+                  <span className="font-medium text-foreground">{progress.nextLabel}</span>
                 </span>
                 <span className="tabular-nums" title={pointsFmt.title}>
                   {progress.current.toLocaleString("en-US")} /{" "}
-                  {progress.target.toLocaleString("en-US")}
+                  {progress.target.toLocaleString("en-US")} pts
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-cp-elevated">
@@ -81,7 +84,7 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
         </div>
         <div className="rounded-xl border border-cp-border bg-cp-elevated/50 px-4 py-3.5 dark:bg-cp-elevated/30">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:text-xs">
-            Ranking score
+            {CAREER_POINTS_LABEL}
           </p>
           <p
             className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl"
@@ -92,7 +95,7 @@ export function PlayerCareerStatsSection({ stats }: PlayerCareerStatsProps) {
           {pointsFmt.abbreviated ? (
             <p className="mt-0.5 text-[10px] text-cp-muted">{pointsFmt.title} pts</p>
           ) : (
-            <p className="mt-0.5 text-[10px] text-cp-muted">Career points from results</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-cp-muted">{CAREER_POINTS_HINT}</p>
           )}
         </div>
         <div className="rounded-xl border border-cp-border bg-cp-elevated/50 px-4 py-3.5 dark:bg-cp-elevated/30">
