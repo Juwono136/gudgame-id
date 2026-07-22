@@ -38,7 +38,6 @@ export async function POST(request: Request) {
       phoneCountryCode: formData.get("phoneCountryCode"),
       phone: formData.get("phone"),
       nickname: formData.get("nickname") || "",
-      clubName: formData.get("clubName") || "",
       roles: formData.getAll("roles"),
       isActive: formData.get("isActive") ?? "true",
     });

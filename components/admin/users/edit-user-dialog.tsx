@@ -167,7 +167,10 @@ export function EditUserDialog({
                   : "—"
               }
             />
-            <InfoRow label="Club" value={user.clubName ?? "—"} />
+            <InfoRow
+              label="Player tier"
+              value={`${user.playerTier} · ${user.careerPoints.toLocaleString("en-US")} career pts`}
+            />
             <InfoRow
               label="Email verified"
               value={user.emailVerified ? "Yes" : "No"}

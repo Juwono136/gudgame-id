@@ -508,13 +508,25 @@ export function UserManagementPage({ context }: UserManagementPageProps) {
               <div className="hidden overflow-x-auto lg:block">
                 <table className="w-full min-w-[720px] text-left text-sm">
                   <thead>
-                    <tr className="border-b border-cp-border bg-cp-elevated/30 text-[10px] font-semibold uppercase tracking-widest text-cp-muted">
-                      <th className="px-4 py-3.5">User</th>
-                      <th className="px-4 py-3.5">Role</th>
-                      <th className="px-4 py-3.5">Status</th>
-                      <th className="px-4 py-3.5">Joined</th>
-                      <th className="px-4 py-3.5">Last login</th>
-                      <th className="px-4 py-3.5 text-right">Actions</th>
+                    <tr className="border-b border-cp-border bg-cp-elevated/40">
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-cp-muted">
+                        User
+                      </th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-cp-muted">
+                        Role
+                      </th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-cp-muted">
+                        Status
+                      </th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-cp-muted">
+                        Joined
+                      </th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-cp-muted">
+                        Last login
+                      </th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-cp-muted">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

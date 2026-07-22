@@ -209,11 +209,11 @@ export function SportsManagementPage({ context }: SportsManagementPageProps) {
             <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:gap-4">
               <Button
                 onClick={openCreate}
-                className="h-10 w-auto shrink-0 self-start bg-cp-primary px-3 hover:bg-cp-primary-light sm:h-11 sm:px-4"
+                className="h-10 w-full shrink-0 bg-cp-primary px-3 hover:bg-cp-primary-light sm:h-11 sm:w-auto sm:self-start sm:px-4"
                 aria-label="Add sport"
               >
-                <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Add sport</span>
+                <Plus className="mr-2 h-4 w-4" />
+                Add sport
               </Button>
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />

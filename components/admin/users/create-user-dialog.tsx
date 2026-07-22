@@ -72,7 +72,6 @@ const createFormSchema = z.object({
       const err = getNicknameFormatError(trimmed);
       if (err) ctx.addIssue({ code: "custom", message: err });
     }),
-  clubName: z.string().trim().max(100).optional(),
   roles: z.array(z.enum(APP_ROLES)).min(1, "Select at least one role"),
   isActive: z.boolean(),
 });
@@ -103,7 +102,6 @@ export function CreateUserDialog({
       phoneCountryCode: defaultPhoneCountry.code,
       phone: "",
       nickname: "",
-      clubName: "",
       roles: ["player"],
       isActive: true,
     },
@@ -117,7 +115,6 @@ export function CreateUserDialog({
         phoneCountryCode: defaultPhoneCountry.code,
         phone: "",
         nickname: "",
-        clubName: "",
         roles: ["player"],
         isActive: true,
       });
@@ -167,7 +164,6 @@ export function CreateUserDialog({
     formData.append("phoneCountryCode", values.phoneCountryCode);
     formData.append("phone", values.phone);
     if (values.nickname?.trim()) formData.append("nickname", values.nickname.trim());
-    if (values.clubName?.trim()) formData.append("clubName", values.clubName.trim());
     for (const role of values.roles) formData.append("roles", role);
     formData.append("isActive", values.isActive ? "true" : "false");
 
@@ -285,14 +281,21 @@ export function CreateUserDialog({
                 />
               </AuthField>
 
-              <AuthField label="Club name" htmlFor="create-club" error={form.formState.errors.clubName?.message}>
-                <AuthInput
-                  id="create-club"
-                  placeholder="Optional"
-                  className="border-cp-border bg-cp-bg-input text-foreground placeholder:text-cp-muted"
-                  {...form.register("clubName")}
-                />
-              </AuthField>
+              <div className="space-y-2">
+                <Label htmlFor="create-tier" className="text-sm font-medium text-foreground">
+                  Player tier
+                </Label>
+                <div
+                  id="create-tier"
+                  className="rounded-xl border border-cp-border bg-cp-elevated/40 px-3 py-2.5"
+                >
+                  <p className="text-sm font-semibold text-foreground">Bronze</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-cp-muted">
+                    New players start at Bronze. Tier and career points update automatically
+                    from official tournament results (win/loss by event tier).
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">

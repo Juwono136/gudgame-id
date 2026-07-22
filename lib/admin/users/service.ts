@@ -43,8 +43,11 @@ export type AdminUserListItem = {
   lastLoginAt: string | null;
   phone: string | null;
   phoneCountryCode: string | null;
-  clubName: string | null;
   fullNameKtp: string | null;
+  /** Highest career tier from linked player profiles (defaults to Bronze). */
+  playerTier: string;
+  playerTierLevel: string;
+  careerPoints: number;
 };
 
 export type AdminUsersListResult = {
@@ -128,7 +131,6 @@ export async function listAdminUsers(
       lastLoginAt: user.lastLoginAt,
       phone: user.phone,
       phoneCountryCode: user.phoneCountryCode,
-      clubName: user.clubName,
       fullNameKtp: user.fullNameKtp,
     })
     .from(user)
@@ -138,11 +140,14 @@ export async function listAdminUsers(
     .offset(offset);
 
   const lastLoginMap = await getLastLoginMap(rows.map((r) => r.id));
+  const { getAdminUserPlayerTierMap } = await import("@/lib/admin/users/player-tier");
+  const tierMap = await getAdminUserPlayerTierMap(rows.map((r) => r.id));
 
   const items: AdminUserListItem[] = await Promise.all(
     rows.map(async (row) => {
       const roles = await getUserRoleAssignments(row.id);
       const lastLogin = row.lastLoginAt ?? lastLoginMap[row.id] ?? null;
+      const tier = tierMap.get(row.id)!;
       return {
         id: row.id,
         name: row.name,
@@ -157,8 +162,10 @@ export async function listAdminUsers(
         lastLoginAt: lastLogin ? lastLogin.toISOString() : null,
         phone: row.phone,
         phoneCountryCode: row.phoneCountryCode,
-        clubName: row.clubName,
         fullNameKtp: row.fullNameKtp,
+        playerTier: tier.tierLabel,
+        playerTierLevel: tier.tierLevel,
+        careerPoints: tier.totalPoints,
       };
     }),
   );
@@ -187,7 +194,6 @@ export async function getAdminUserById(id: string): Promise<AdminUserListItem | 
       lastLoginAt: user.lastLoginAt,
       phone: user.phone,
       phoneCountryCode: user.phoneCountryCode,
-      clubName: user.clubName,
       fullNameKtp: user.fullNameKtp,
     })
     .from(user)
@@ -199,6 +205,8 @@ export async function getAdminUserById(id: string): Promise<AdminUserListItem | 
   const roles = await getUserRoleAssignments(row.id);
   const lastLoginMap = await getLastLoginMap([row.id]);
   const lastLogin = row.lastLoginAt ?? lastLoginMap[row.id] ?? null;
+  const { getAdminUserPlayerTierMap } = await import("@/lib/admin/users/player-tier");
+  const tier = (await getAdminUserPlayerTierMap([row.id])).get(row.id)!;
 
   return {
     id: row.id,
@@ -214,8 +222,10 @@ export async function getAdminUserById(id: string): Promise<AdminUserListItem | 
     lastLoginAt: lastLogin ? lastLogin.toISOString() : null,
     phone: row.phone,
     phoneCountryCode: row.phoneCountryCode,
-    clubName: row.clubName,
     fullNameKtp: row.fullNameKtp,
+    playerTier: tier.tierLabel,
+    playerTierLevel: tier.tierLevel,
+    careerPoints: tier.totalPoints,
   };
 }
 
@@ -306,7 +316,6 @@ export async function createAdminUser(
       nickname: normalizedNick,
       phone: input.phone,
       phoneCountryCode: phoneDialCode,
-      clubName: input.clubName?.trim() || null,
       fullNameKtp: input.fullNameKtp,
       image: options.imageUrl ?? null,
       imageStorageKey: options.imageStorageKey ?? null,

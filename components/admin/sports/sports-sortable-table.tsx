@@ -18,8 +18,8 @@ const VISIBILITY_BADGE: Record<string, string> = {
   hidden: statusBadgeClass.muted,
 };
 
-const TABLE_HEAD_CLASS =
-  "border-b border-cp-border/80 bg-cp-elevated/40 px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-cp-muted sm:px-4";
+const TABLE_TH_CLASS =
+  "border-b border-cp-border bg-cp-elevated/50 px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-cp-muted";
 
 type SportsSortableTableProps = {
   items: SportDetail[];
@@ -77,13 +77,17 @@ function SportsDesktopTable({
 }) {
   const head = (
     <thead>
-      <tr className={TABLE_HEAD_CLASS}>
-        {sortable ? <th className="w-10 px-2" aria-label="Reorder" /> : null}
-        <th className="min-w-[10rem]">Sport</th>
-        <th className="w-[6.5rem] whitespace-nowrap">Visibility</th>
-        <th className="w-[5.5rem] whitespace-nowrap">Status</th>
-        <th className="hidden w-[8.5rem] whitespace-nowrap xl:table-cell">Updated</th>
-        <th className="w-[7.5rem] text-right">Actions</th>
+      <tr>
+        {sortable ? (
+          <th className={cn(TABLE_TH_CLASS, "w-12 px-2")} aria-label="Reorder" />
+        ) : null}
+        <th className={cn(TABLE_TH_CLASS, "min-w-[12rem]")}>Sport</th>
+        <th className={cn(TABLE_TH_CLASS, "w-[7.5rem] whitespace-nowrap")}>Visibility</th>
+        <th className={cn(TABLE_TH_CLASS, "w-[6.5rem] whitespace-nowrap")}>Status</th>
+        <th className={cn(TABLE_TH_CLASS, "hidden w-[9.5rem] whitespace-nowrap xl:table-cell")}>
+          Updated
+        </th>
+        <th className={cn(TABLE_TH_CLASS, "w-[8rem] text-right")}>Actions</th>
       </tr>
     </thead>
   );

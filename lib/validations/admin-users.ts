@@ -36,7 +36,6 @@ export const adminCreateUserSchema = z.object({
       const err = getNicknameFormatError(trimmed);
       if (err) ctx.addIssue({ code: "custom", message: err });
     }),
-  clubName: z.string().trim().max(100).optional().or(z.literal("")),
   roles: z.array(roleSchema).min(1, "Select at least one role"),
   isActive: z
     .union([z.boolean(), z.literal("true"), z.literal("false")])
