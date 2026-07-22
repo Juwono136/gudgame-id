@@ -140,7 +140,11 @@ export function reshuffleAmericanoOnIdleCourts(input: {
     : input.players;
 
   const plan = planAmericanoRound({
-    players: availablePlayers.map((p) => ({ id: p.id, name: p.name })),
+    players: availablePlayers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      squadId: p.squadId,
+    })),
     courtCount: input.idleCourtIds.length || 1,
     roundNumber: input.roundNumber,
     seed: input.seed,

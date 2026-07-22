@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FunMatchLiveHub } from "@/components/tournaments/fun-match/fun-match-live-hub";
+import { AmericanoManagePairingsDialog } from "@/components/tournaments/manage/americano-manage-pairings-dialog";
+import { FunMatchHostTools } from "@/components/tournaments/manage/fun-match-host-tools";
 import { OfficialManagePointLogPanel } from "@/components/tournaments/official/official-manage-point-log-panel";
 import { OfficialPlayerStandingsTable } from "@/components/tournaments/official/official-player-standings-table";
 import { ManageScoringHistoryPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
@@ -75,6 +77,7 @@ import {
   useUpdateGroupLiveScore,
 } from "@/hooks/use-double-stage-group-score";
 import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
+import { LiveFormatConfigBanner } from "@/components/tournaments/manage/live-format-config-banner";
 import {
   buildGroupCourtLockState,
   isGroupMatchLockedForCourt,
@@ -486,7 +489,7 @@ export function FunMatchScoringWorkspace({
   );
 
   const allPlayers = useMemo(
-    () => americanoPlayers.map((p) => ({ id: p.id, name: p.name })),
+    () => americanoPlayers.map((p) => ({ id: p.id, name: p.name, squadId: p.squadId })),
     [americanoPlayers],
   );
 
@@ -495,7 +498,11 @@ export function FunMatchScoringWorkspace({
     const availablePlayers = americanoPlayers.filter((p) => !busyPlayerIds.has(p.id));
     if (availablePlayers.length < 4) return null;
     return planAmericanoRound({
-      players: availablePlayers.map((p) => ({ id: p.id, name: p.name })),
+      players: availablePlayers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        squadId: p.squadId,
+      })),
       courtCount: courts.filter((c) => !matchByCourt.get(c.id)).length || courts.length || 1,
       roundNumber: currentRound,
       seed: tournament.id.charCodeAt(0) + reshuffleSeed,
@@ -522,21 +529,51 @@ export function FunMatchScoringWorkspace({
     });
 
     if (!result.ok) {
-      toast.message(result.message);
-      return;
+      return result;
     }
 
     const state = assignmentsToCourtState(result.assignments);
     setTeamAByCourt((prev) => ({ ...prev, ...state.teamAByCourt }));
     setTeamBByCourt((prev) => ({ ...prev, ...state.teamBByCourt }));
-
-    toast.success("Round plan applied to idle courts", {
-      description: result.restingNames.length
-        ? `Resting this round: ${result.restingNames.join(", ")}`
-        : `${result.assignments.length} court${result.assignments.length === 1 ? "" : "s"} assigned — review pairings, then start.`,
-    });
+    return result;
   }, [busyPlayerIds, courts, matchByCourt, roundPlan, teams]);
 
+  // Auto-apply Americano plan when idle courts have no pairings yet (no separate Apply plan step).
+  const autoPlanKeyRef = useRef("");
+  useEffect(() => {
+    if (!isAmericanoMode || !canScore || !roundPlan) return;
+    const idleCourtIds = courts.filter((c) => !matchByCourt.get(c.id)).map((c) => c.id);
+    if (!idleCourtIds.length) return;
+    const key = `${currentRound}:${reshuffleSeed}:${idleCourtIds.join(",")}`;
+    if (autoPlanKeyRef.current === key) return;
+
+    const needsPlan = idleCourtIds.some(
+      (id) => !isAmericanoPairKey(teamAByCourt[id]) || !isAmericanoPairKey(teamBByCourt[id]),
+    );
+    if (!needsPlan) {
+      autoPlanKeyRef.current = key;
+      return;
+    }
+
+    const result = applyRoundPlanToCourts();
+    if (result && result.ok) {
+      autoPlanKeyRef.current = key;
+    }
+  }, [
+    applyRoundPlanToCourts,
+    canScore,
+    courts,
+    currentRound,
+    isAmericanoMode,
+    matchByCourt,
+    reshuffleSeed,
+    roundPlan,
+    teamAByCourt,
+    teamBByCourt,
+  ]);
+
+  const [managePairingsCourtId, setManagePairingsCourtId] = useState<string | null>(null);
+  const managePairingsCourt = courts.find((c) => c.id === managePairingsCourtId) ?? null;
   const handleReshuffle = useCallback(() => {
     const idleCourtIds = courts.filter((c) => !matchByCourt.get(c.id)).map((c) => c.id);
     if (!idleCourtIds.length) {
@@ -684,13 +721,21 @@ export function FunMatchScoringWorkspace({
       if (!pairing) return null;
 
       const playerById = new Map(americanoPlayers.map((p) => [p.id, p]));
-      const sideASquads = pairing.sideA.map((id) => playerById.get(id)?.squadId).filter(Boolean);
-      const sideBSquads = pairing.sideB.map((id) => playerById.get(id)?.squadId).filter(Boolean);
-      if (sideASquads.length !== 2 || sideBSquads.length !== 2) return null;
+      const sideA = pairing.sideA.map((id) => playerById.get(id));
+      const sideB = pairing.sideB.map((id) => playerById.get(id));
+      if (sideA.some((p) => !p) || sideB.some((p) => !p)) return null;
+
+      const allIds = [...pairing.sideA, ...pairing.sideB];
+      if (new Set(allIds).size !== 4) return null;
+
+      const squadA = sideA[0]!.squadId;
+      const squadB =
+        sideB[0]!.squadId !== squadA ? sideB[0]!.squadId : sideB[1]!.squadId;
+      if (!squadA || !squadB) return null;
 
       return {
-        teamAId: sideASquads[0]!,
-        teamBId: sideBSquads[0]!,
+        teamAId: squadA,
+        teamBId: squadB,
         americanoPairing: pairing,
       };
     },
@@ -717,7 +762,7 @@ export function FunMatchScoringWorkspace({
     if (isAmericanoMode) {
       const payload = resolveAmericanoStart(courtId);
       if (!payload) {
-        toast.error("Apply the round plan or reshuffle idle courts first");
+        toast.error("Reshuffle idle courts or manage pairings first");
         return;
       }
       await startRound.mutateAsync({
@@ -800,7 +845,7 @@ export function FunMatchScoringWorkspace({
           isGroupStageMode
             ? "Assign group fixtures on idle courts first"
             : isAmericanoMode
-              ? "Apply the round plan to idle courts first"
+              ? "Reshuffle idle courts or manage pairings first"
               : "Assign squads or bracket matches on idle courts first",
           {
             description: parallelCapacity.blockReason ?? undefined,
@@ -1075,17 +1120,6 @@ export function FunMatchScoringWorkspace({
         <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
           {isFetching ? "Refreshing…" : "Refresh"}
         </Button>
-        {!isBracketMode && canScore && isAmericanoMode ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={applyRoundPlanToCourts}
-            title="Assign this round's 2v2 partner rotation to idle courts"
-          >
-            Apply plan
-          </Button>
-        ) : null}
       </div>
     </div>
   );
@@ -1113,6 +1147,10 @@ export function FunMatchScoringWorkspace({
             </div>
           ) : null}
         </>
+      ) : isAmericanoMode ? (
+        <LiveFormatConfigBanner tournament={tournament} mode="americano" />
+      ) : isBracketMode ? (
+        <LiveFormatConfigBanner tournament={tournament} mode="elimination" />
       ) : null}
 
       {courts.length > 0 ? (
@@ -1171,7 +1209,46 @@ export function FunMatchScoringWorkspace({
         accentVariant={accentVariant}
         isAmericanoMode={isAmericanoMode}
         americanoPlayers={americanoPlayers}
+        onManageAmericanoPairings={
+          canScore && isAmericanoMode
+            ? (courtId) => setManagePairingsCourtId(courtId)
+            : undefined
+        }
       />
+
+      {canScore && !isGroupStageMode ? (
+        <FunMatchHostTools
+          sportSlug={tournament.sportSlug}
+          slug={tournament.slug}
+          teams={teams}
+          activeReclubMatches={activeMatches}
+          activeBracketMatches={activeBracketMatches}
+          canManage={canScore}
+          showReshuffle={false}
+          onMoved={() => void refetch()}
+        />
+      ) : null}
+
+      {managePairingsCourt && isAmericanoMode ? (
+        <AmericanoManagePairingsDialog
+          open={Boolean(managePairingsCourtId)}
+          onOpenChange={(open) => {
+            if (!open) setManagePairingsCourtId(null);
+          }}
+          courtName={managePairingsCourt.name}
+          players={americanoPlayers}
+          busyPlayerIds={busyPlayerIds}
+          sideAKey={teamAByCourt[managePairingsCourt.id]}
+          sideBKey={teamBByCourt[managePairingsCourt.id]}
+          onSave={(sideAKey, sideBKey) => {
+            setTeamAByCourt((prev) => ({ ...prev, [managePairingsCourt.id]: sideAKey }));
+            setTeamBByCourt((prev) => ({ ...prev, [managePairingsCourt.id]: sideBKey }));
+            toast.success("Pairings updated", {
+              description: `${managePairingsCourt.name} is ready to start.`,
+            });
+          }}
+        />
+      ) : null}
 
       {editingCourtId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

@@ -94,12 +94,12 @@ export function FunMatchHostTools({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Users className="h-4 w-4 text-emerald-400" />
-            Squad tools
+            <Users className="h-4 w-4 text-cp-primary" />
+            Manage squads &amp; players
           </h3>
           <p className="mt-1 text-xs text-cp-muted">
-            Reshuffle idle courts or move a player between squads. Players on a live court cannot be
-            moved.
+            Move a player between squads when registrations need fixing. Players on a live court
+            cannot be moved until that match finishes.
           </p>
         </div>
         {showReshuffle && onReshuffle ? (

@@ -199,24 +199,43 @@ export function BracketPlayReadinessCard({
 
       {ready.length > 0 && !isCompleted ? (
         <div className="mt-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
-            Match queue
-          </p>
-          <ul className="mt-2 space-y-2">
-            {ready.slice(0, 6).map((m) => (
-              <li
-                key={m.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cp-border/80 bg-cp-elevated/25 px-3 py-2 text-sm"
-              >
-                <span className="font-medium text-foreground">
-                  R{m.roundNumber} M{m.matchNumber}: {m.teamAName} vs {m.teamBName}
-                </span>
-                <Badge variant="muted">Ready</Badge>
-              </li>
-            ))}
-            {ready.length > 6 ? (
-              <li className="text-xs text-cp-muted">+{ready.length - 6} more ready matches</li>
-            ) : null}
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
+              Match queue
+            </p>
+            <p className="text-[11px] text-cp-muted">
+              {ready.length} ready match{ready.length === 1 ? "" : "es"}
+            </p>
+          </div>
+          <ul className="mt-2 max-h-[min(28rem,50vh)] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
+            {ready.map((m) => {
+              const playersA = m.teamAPlayers?.filter(Boolean) ?? [];
+              const playersB = m.teamBPlayers?.filter(Boolean) ?? [];
+              return (
+                <li
+                  key={m.id}
+                  className="rounded-lg border border-cp-border/80 bg-cp-elevated/25 px-3 py-2.5 text-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">
+                        R{m.roundNumber} M{m.matchNumber}: {m.teamAName} vs {m.teamBName}
+                      </p>
+                      {(playersA.length > 0 || playersB.length > 0) ? (
+                        <p className="mt-1 text-[11px] leading-snug text-cp-muted">
+                          {playersA.length ? playersA.join(" · ") : "TBD"}
+                          <span className="mx-1.5 text-cp-muted/50">vs</span>
+                          {playersB.length ? playersB.join(" · ") : "TBD"}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Badge variant="muted" className="shrink-0">
+                      Ready
+                    </Badge>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}

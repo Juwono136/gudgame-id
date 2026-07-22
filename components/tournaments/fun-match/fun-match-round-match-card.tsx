@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Minus, Pencil, Play, Plus, Radio } from "lucide-react";
+import { CheckCircle2, Minus, Pencil, Play, Plus, Radio, Users } from "lucide-react";
 import { DeuceScoreBadge } from "@/components/tournaments/fun-match/deuce-score-badge";
 import {
   GameRaceScoreBadge,
@@ -94,6 +94,7 @@ type FunMatchRoundMatchCardProps = {
   accentVariant?: "fun" | "official";
   isAmericanoMode?: boolean;
   americanoPlayers?: AmericanoPlayerRef[];
+  onManageAmericanoPairings?: () => void;
 };
 
 function TeamColumn({
@@ -238,6 +239,7 @@ export function FunMatchRoundMatchCard({
   accentVariant = "fun",
   isAmericanoMode = false,
   americanoPlayers = [],
+  onManageAmericanoPairings,
 }: FunMatchRoundMatchCardProps) {
   const finalBadgeClass =
     accentVariant === "official"
@@ -443,29 +445,50 @@ export function FunMatchRoundMatchCard({
     null;
 
   const leftPlayers =
-    match?.teamAPlayers?.length
-      ? match.teamAPlayers
-      : pickedGroup?.teamAPlayers?.length
-        ? pickedGroup.teamAPlayers.map((p) => p.displayName)
-        : pickedBracket?.teamAPlayers?.length
-        ? pickedBracket.teamAPlayers
-        : americanoLabels?.sideAPlayers.length
-          ? americanoLabels.sideAPlayers
-          : teamA?.members?.map((m) => m.displayName ?? "Player") ?? [];
+    match?.americanoPairing
+      ? match.teamAPlayers?.length
+        ? match.teamAPlayers
+        : match.americanoPairing.sideA.map(
+            (id) => americanoPlayers.find((p) => p.id === id)?.name ?? "Player",
+          )
+      : match?.teamAPlayers?.length
+        ? match.teamAPlayers
+        : pickedGroup?.teamAPlayers?.length
+          ? pickedGroup.teamAPlayers.map((p) => p.displayName)
+          : pickedBracket?.teamAPlayers?.length
+            ? pickedBracket.teamAPlayers
+            : americanoLabels?.sideAPlayers.length
+              ? americanoLabels.sideAPlayers
+              : teamA?.members?.map((m) => m.displayName ?? "Player") ?? [];
   const rightPlayers =
-    match?.teamBPlayers?.length
-      ? match.teamBPlayers
-      : pickedGroup?.teamBPlayers?.length
-        ? pickedGroup.teamBPlayers.map((p) => p.displayName)
-        : pickedBracket?.teamBPlayers?.length
-        ? pickedBracket.teamBPlayers
-        : americanoLabels?.sideBPlayers.length
-          ? americanoLabels.sideBPlayers
-          : teamB?.members?.map((m) => m.displayName ?? "Player") ?? [];
+    match?.americanoPairing
+      ? match.teamBPlayers?.length
+        ? match.teamBPlayers
+        : match.americanoPairing.sideB.map(
+            (id) => americanoPlayers.find((p) => p.id === id)?.name ?? "Player",
+          )
+      : match?.teamBPlayers?.length
+        ? match.teamBPlayers
+        : pickedGroup?.teamBPlayers?.length
+          ? pickedGroup.teamBPlayers.map((p) => p.displayName)
+          : pickedBracket?.teamBPlayers?.length
+            ? pickedBracket.teamBPlayers
+            : americanoLabels?.sideBPlayers.length
+              ? americanoLabels.sideBPlayers
+              : teamB?.members?.map((m) => m.displayName ?? "Player") ?? [];
 
   const leftPlayerNames = uniquePlayerNames(leftPlayers);
   const rightPlayerNames = uniquePlayerNames(rightPlayers);
   const leftRoster = useMemo(() => {
+    if (match?.americanoPairing) {
+      return match.americanoPairing.sideA.map((userId, index) => ({
+        userId,
+        displayName:
+          americanoPlayers.find((p) => p.id === userId)?.name ??
+          match.teamAPlayers[index] ??
+          "Player",
+      }));
+    }
     const fromGroup =
       activeGroupMatches.find((m) => m.id === match?.id)?.teamAPlayers ??
       pickedGroup?.teamAPlayers;
@@ -490,14 +513,26 @@ export function FunMatchRoundMatchCard({
     }));
   }, [
     activeGroupMatches,
+    americanoPlayers,
     leftPlayerNames,
+    match?.americanoPairing,
     match?.id,
     match?.teamAId,
+    match?.teamAPlayers,
     pickedGroup?.teamAPlayers,
     teamAId,
     teams,
   ]);
   const rightRoster = useMemo(() => {
+    if (match?.americanoPairing) {
+      return match.americanoPairing.sideB.map((userId, index) => ({
+        userId,
+        displayName:
+          americanoPlayers.find((p) => p.id === userId)?.name ??
+          match.teamBPlayers[index] ??
+          "Player",
+      }));
+    }
     const fromGroup =
       activeGroupMatches.find((m) => m.id === match?.id)?.teamBPlayers ??
       pickedGroup?.teamBPlayers;
@@ -522,8 +557,11 @@ export function FunMatchRoundMatchCard({
     }));
   }, [
     activeGroupMatches,
+    americanoPlayers,
+    match?.americanoPairing,
     match?.id,
     match?.teamBId,
+    match?.teamBPlayers,
     pickedGroup?.teamBPlayers,
     rightPlayerNames,
     teamBId,
@@ -806,9 +844,23 @@ export function FunMatchRoundMatchCard({
                   </SelectContent>
                 </Select>
               ) : isAmericanoMode ? (
-                <span className="text-[11px] text-cp-muted">
-                  {americanoLabels ? "Pairings ready" : "Use Apply plan or Reshuffle"}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-cp-muted">
+                    {americanoLabels ? "Pairings ready" : "Reshuffle or manage pairings"}
+                  </span>
+                  {onManageAmericanoPairings ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1 text-xs"
+                      onClick={onManageAmericanoPairings}
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      Manage
+                    </Button>
+                  ) : null}
+                </div>
               ) : (
                 <>
                   <Select

@@ -110,6 +110,7 @@ export function FunMatchRoundPanel({
         (t.members ?? []).map((m) => ({
           id: m.userId,
           name: m.displayName ?? "Player",
+          squadId: t.id,
           teamId: t.id,
           teamName: t.name,
         })),
@@ -120,7 +121,11 @@ export function FunMatchRoundPanel({
   const roundPlan = useMemo(() => {
     if (allPlayers.length < 4) return null;
     return planAmericanoRound({
-      players: allPlayers.map((p) => ({ id: p.id, name: p.name })),
+      players: allPlayers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        squadId: p.squadId,
+      })),
       courtCount: courts.length || 1,
       roundNumber: displayRound,
       seed: tournament.id.charCodeAt(0) + reshuffleSeed,
@@ -301,9 +306,6 @@ export function FunMatchRoundPanel({
                 <Button type="button" variant="outline" size="sm" onClick={handleReshuffle}>
                   <Shuffle className="mr-1.5 h-4 w-4" />
                   Reshuffle
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={applyRoundPlanToCourts}>
-                  Apply plan
                 </Button>
                 <Button type="button" size="sm" onClick={() => void handleStartAllCourts()}>
                   Start all courts

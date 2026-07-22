@@ -143,6 +143,7 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
         (t.members ?? []).map((m) => ({
           id: m.userId,
           name: m.displayName ?? "Player",
+          squadId: t.id,
         })),
       ),
     [teams],

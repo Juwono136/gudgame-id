@@ -100,7 +100,7 @@ export function BracketTreeView({
     );
   }, [roundNumbers.length, metrics.columnWidth, metrics.gutterWidth]);
 
-  const treeHeight = metrics.headerHeight + metrics.columnHeight + 8;
+  const treeHeight = metrics.headerHeight + metrics.columnHeight + 56;
 
   const matchesByRound = useMemo(() => {
     const map = new Map<number, BracketMatchView[]>();
@@ -262,7 +262,7 @@ export function BracketTreeView({
       <div
         ref={viewportRef}
         className={cn(
-          "h-[min(70vh,42rem)] overflow-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/15 to-transparent [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]",
+          "max-h-[min(85vh,56rem)] min-h-[16rem] overflow-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/15 to-transparent [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]",
           isPanning ? "cursor-grabbing select-none" : "cursor-grab",
         )}
         onPointerDown={(e) => {
@@ -298,10 +298,10 @@ export function BracketTreeView({
         onPointerCancel={() => setIsPanning(false)}
       >
         <div
-          className="p-3 sm:p-4"
+          className="p-3 pb-12 sm:p-4 sm:pb-14"
           style={{
-            width: treeWidth * effectiveZoom + 24,
-            height: treeHeight * effectiveZoom + 16,
+            width: treeWidth * effectiveZoom + 32,
+            minHeight: treeHeight * effectiveZoom + 48,
           }}
         >
           <div

@@ -70,6 +70,7 @@ type FunMatchRoundsPanelProps = {
   accentVariant?: "fun" | "official";
   isAmericanoMode?: boolean;
   americanoPlayers?: AmericanoPlayerRef[];
+  onManageAmericanoPairings?: (courtId: string) => void;
 };
 
 function roundTitle(
@@ -130,6 +131,7 @@ export function FunMatchRoundsPanel({
   accentVariant = "fun",
   isAmericanoMode = false,
   americanoPlayers = [],
+  onManageAmericanoPairings,
 }: FunMatchRoundsPanelProps) {
   const accentLabel = accentVariant === "official" ? "text-cp-primary" : "text-emerald-400";
   const [search, setSearch] = useState("");
@@ -308,6 +310,11 @@ export function FunMatchRoundsPanel({
                     accentVariant={accentVariant}
                     isAmericanoMode={isAmericanoMode}
                     americanoPlayers={americanoPlayers}
+                    onManageAmericanoPairings={
+                      onManageAmericanoPairings
+                        ? () => onManageAmericanoPairings(court.id)
+                        : undefined
+                    }
                   />
                 ))}
             </div>

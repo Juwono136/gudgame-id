@@ -66,6 +66,7 @@ type FunMatchLiveHubProps = {
   accentVariant?: "fun" | "official";
   isAmericanoMode?: boolean;
   americanoPlayers?: AmericanoPlayerRef[];
+  onManageAmericanoPairings?: (courtId: string) => void;
 };
 
 export function FunMatchLiveHub({
@@ -108,6 +109,7 @@ export function FunMatchLiveHub({
   accentVariant = "fun",
   isAmericanoMode = false,
   americanoPlayers = [],
+  onManageAmericanoPairings,
 }: FunMatchLiveHubProps) {
   return (
     <div className={cn("space-y-4", className)}>
@@ -150,6 +152,7 @@ export function FunMatchLiveHub({
         accentVariant={accentVariant}
         isAmericanoMode={isAmericanoMode}
         americanoPlayers={americanoPlayers}
+        onManageAmericanoPairings={onManageAmericanoPairings}
       />
     </div>
   );

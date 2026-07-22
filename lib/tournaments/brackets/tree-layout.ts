@@ -46,13 +46,13 @@ export function getMainDrawGridSlots(matches: BracketTreeMatchLike[]): number {
  */
 export function getBracketGridMetrics(visibleSlots: number) {
   const slots = Math.max(visibleSlots, 1);
-  const rowGap = slots >= 16 ? 8 : slots >= 8 ? 10 : slots >= 4 ? 14 : 18;
-  // Tall enough for match header + 2× (team name + player line).
-  const rowHeight = slots >= 16 ? 92 : slots >= 8 ? 100 : slots >= 4 ? 112 : 120;
+  const rowGap = slots >= 16 ? 10 : slots >= 8 ? 12 : slots >= 4 ? 16 : 20;
+  // Tall enough for match header + 2× (team name + player line) without clipping.
+  const rowHeight = slots >= 16 ? 100 : slots >= 8 ? 110 : slots >= 4 ? 124 : 132;
   const columnHeight = slots * rowHeight + Math.max(slots - 1, 0) * rowGap;
-  const columnWidth = slots >= 16 ? 212 : slots >= 8 ? 228 : 248;
-  const gutterWidth = slots >= 16 ? 36 : slots >= 8 ? 44 : 56;
-  const headerHeight = 26;
+  const columnWidth = slots >= 16 ? 216 : slots >= 8 ? 232 : 252;
+  const gutterWidth = slots >= 16 ? 40 : slots >= 8 ? 48 : 60;
+  const headerHeight = 28;
 
   return {
     gridSlots: slots,
