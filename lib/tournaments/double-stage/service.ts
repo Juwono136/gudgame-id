@@ -69,7 +69,9 @@ import {
   getTournamentPointsPerMatch,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
+  getTournamentSkillTier,
 } from "@/lib/tournaments/settings";
+import { matchPointsForTournamentTier } from "@/lib/player/tier";
 
 function buildScoringRules(tournament: TournamentDetail): ScoringRules {
   return {
@@ -187,10 +189,20 @@ async function patchDoubleStageSettings(
 
 function getStandingsConfig(tournament: TournamentDetail) {
   const raw = (tournament.settings as Record<string, unknown>)?.standingsScoring;
-  if (!raw) {
-    return getDefaultStandingsScoringForSport(tournament.sportSlug);
+  const base = raw
+    ? parseStandingsScoring(raw)
+    : getDefaultStandingsScoringForSport(tournament.sportSlug);
+
+  // Official skill tier owns PTS-per-win (Gold=5, …) so standings match the
+  // published match-point scheme even for tournaments created before this wiring.
+  const skillTier = getTournamentSkillTier(tournament);
+  if (skillTier) {
+    return {
+      ...base,
+      winPoints: matchPointsForTournamentTier(skillTier),
+    };
   }
-  return parseStandingsScoring(raw);
+  return base;
 }
 
 export async function initializeDoubleStageGroups(

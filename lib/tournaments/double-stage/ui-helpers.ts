@@ -4,12 +4,14 @@ import {
   getTournamentMatchScoringHint,
   getTournamentPointsPerMatch,
   getTournamentScoringType,
+  getTournamentSkillTier,
   getScoringTypeLabel,
 } from "@/lib/tournaments/settings";
 import {
   parseDoubleStageSettings,
   parseStandingsScoring,
 } from "@/lib/tournaments/scoring/config";
+import { matchPointsForTournamentTier } from "@/lib/player/tier";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type DoubleStageConfigSummary = {
@@ -36,12 +38,16 @@ export function getDoubleStageConfigSummary(
   const settings = (tournament.settings ?? {}) as Record<string, unknown>;
   const ds = parseDoubleStageSettings(settings.doubleStage);
   const standings = parseStandingsScoring(settings.standingsScoring);
+  const skillTier = getTournamentSkillTier(tournament);
+  const winPoints = skillTier
+    ? matchPointsForTournamentTier(skillTier)
+    : standings.winPoints;
 
   return {
     maxTeamsPerGroup: ds.maxTeamsPerGroup,
     teamsAdvancePerGroup: ds.teamsAdvancePerGroup,
     thirdPlaceEnabled: ds.thirdPlaceEnabled ?? false,
-    winPoints: standings.winPoints,
+    winPoints,
     drawPoints: standings.drawPoints,
     lossPoints: standings.lossPoints,
     allowDraw: standings.allowDraw,

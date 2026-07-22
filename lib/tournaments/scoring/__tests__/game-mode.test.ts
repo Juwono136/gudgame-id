@@ -99,6 +99,17 @@ describe("game-mode scoring", () => {
       winner: "a",
     });
     expect(isRaceToGamesMatchComplete(3, 2, padelRules).complete).toBe(false);
+    expect(isRaceToGamesMatchComplete(2, 0, padelRules).complete).toBe(false);
+    expect(isRaceToGamesMatchComplete(5, 3, padelRules).complete).toBe(false);
+  });
+
+  it("rejects inflated tallies when race target is lower", () => {
+    const raceTo2 = { ...padelRules, raceToGames: 2 as const };
+    expect(isRaceToGamesMatchComplete(2, 0, raceTo2)).toEqual({
+      complete: true,
+      winner: "a",
+    });
+    expect(isRaceToGamesMatchComplete(4, 2, raceTo2).complete).toBe(false);
   });
 
   it("blocks scoring after the match is complete", () => {

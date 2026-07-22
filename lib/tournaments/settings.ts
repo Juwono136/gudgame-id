@@ -12,6 +12,7 @@ import {
   resolveAllowedTierLevels,
 } from "@/lib/tournaments/tier-restrictions";
 import type { PlayerTierLevel } from "@/lib/player/tier";
+import { matchPointsForTournamentTier } from "@/lib/player/tier";
 import {
   getDefaultStandingsScoringForSport,
   parseDoubleStageSettings,
@@ -563,6 +564,11 @@ export function buildFormatSpecificSettingsFromUpsert(
       ? DEFAULT_GAME_RULES_BY_UNIT.sets.raceToGames
       : DEFAULT_GAME_RULES_BY_UNIT.games.raceToGames);
 
+  // Official skill tier drives standings PTS per win (Gold=5, Platinum=8, …).
+  const tierForPoints = input.allowedTierLevels?.[0];
+  const tierWinPoints =
+    tierForPoints != null ? matchPointsForTournamentTier(tierForPoints) : undefined;
+
   return {
     doubleStage: {
       ...DEFAULT_DOUBLE_STAGE_SETTINGS,
@@ -574,7 +580,7 @@ export function buildFormatSpecificSettingsFromUpsert(
     standingsScoring: {
       ...sportDefaults,
       allowDraw: input.allowDraw ?? sportDefaults.allowDraw,
-      winPoints: input.winPoints ?? sportDefaults.winPoints,
+      winPoints: input.winPoints ?? tierWinPoints ?? sportDefaults.winPoints,
       drawPoints: input.drawPoints ?? sportDefaults.drawPoints,
       lossPoints: input.lossPoints ?? sportDefaults.lossPoints,
     },

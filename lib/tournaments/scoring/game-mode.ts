@@ -201,7 +201,10 @@ export function isRaceToGamesMatchComplete(
 ): GameCompletion {
   if (gamesA === gamesB) return { complete: false, winner: null };
   const max = Math.max(gamesA, gamesB);
-  if (max < rules.raceToGames) return { complete: false, winner: null };
+  const min = Math.min(gamesA, gamesB);
+  // First-to-N: winner must land exactly on the race target (no inflated tallies).
+  if (max !== rules.raceToGames) return { complete: false, winner: null };
+  if (min >= rules.raceToGames) return { complete: false, winner: null };
   return { complete: true, winner: gamesA > gamesB ? "a" : "b" };
 }
 

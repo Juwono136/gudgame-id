@@ -87,7 +87,7 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
-import { type PlayerTierLevel } from "@/lib/player/tier";
+import { matchPointsForTournamentTier, type PlayerTierLevel } from "@/lib/player/tier";
 import { parseDoubleStageSettings, parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import { cn } from "@/lib/utils";
 import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
@@ -435,9 +435,11 @@ export function TournamentCreateWizard({
             maxTeamsPerGroup: Number(maxTeamsPerGroup) || 4,
             teamsAdvancePerGroup: Number(teamsAdvancePerGroup) || 2,
             allowDraw,
-            // Group standings use fixed sport defaults (not host-editable).
-            winPoints: 3,
-            drawPoints: 1,
+            // Standings PTS follow official skill tier (Gold=5, …); sport default otherwise.
+            winPoints: isOfficialType(tournamentType)
+              ? matchPointsForTournamentTier(allowedTierLevels[0] ?? "bronze")
+              : 3,
+            drawPoints: allowDraw ? 1 : 0,
             lossPoints: 0,
             thirdPlaceEnabled,
             matchScoreMode,

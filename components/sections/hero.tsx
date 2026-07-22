@@ -47,14 +47,31 @@ export default function Hero() {
                 </div>
               </FadeIn>
 
-              <FadeIn mountKey={`hero-title-${pathname}`} delay={0.06}>
-                <h1 className="mt-4 text-2xl font-bold leading-tight tracking-tight text-cp-text drop-shadow-[0_1px_12px_rgba(255,255,255,0.65)] sm:text-3xl md:text-[2rem] dark:text-white dark:drop-shadow-[0_2px_16px_rgba(0,0,0,0.85)]">
+              <FadeIn mountKey={`hero-logo-${pathname}`} delay={0.04}>
+                <div className="mt-4 flex justify-center lg:justify-start">
+                  {/* Solid plate keeps the green logo readable over bright/dark photo backgrounds */}
+                  <div className="inline-flex items-center justify-center rounded-2xl border border-slate-900/10 bg-white/95 px-4 py-2.5 shadow-[0_8px_28px_rgba(15,23,42,0.12)] backdrop-blur-md sm:px-5 sm:py-3 dark:border-white/15 dark:bg-slate-950/90 dark:shadow-[0_10px_32px_rgba(0,0,0,0.55)]">
+                    <Image
+                      src="/images/logo-gud-game.png"
+                      alt="Gud Game"
+                      width={280}
+                      height={88}
+                      priority
+                      className="h-9 w-auto object-contain sm:h-11 md:h-12"
+                      sizes="(max-width: 640px) 148px, 200px"
+                    />
+                  </div>
+                </div>
+              </FadeIn>
+
+              <FadeIn mountKey={`hero-title-${pathname}`} delay={0.08}>
+                <h1 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-cp-text drop-shadow-[0_1px_12px_rgba(255,255,255,0.65)] sm:mt-4 sm:text-3xl md:text-[2rem] dark:text-white dark:drop-shadow-[0_2px_16px_rgba(0,0,0,0.85)]">
                   Super sports app{" "}
                   <span className="text-cp-primary">database and match maker</span>
                 </h1>
               </FadeIn>
 
-              <FadeIn mountKey={`hero-desc-${pathname}`} delay={0.12}>
+              <FadeIn mountKey={`hero-desc-${pathname}`} delay={0.14}>
                 <p className="mt-2 text-sm leading-relaxed text-cp-muted sm:mt-3 sm:text-[15px] dark:text-slate-300 dark:drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)]">
                   Player profiles, gear specs, and tournament coverage — all in one
                   place.

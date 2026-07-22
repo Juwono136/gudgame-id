@@ -11,6 +11,11 @@ import {
   updateGroupStageLiveScore,
 } from "@/lib/tournaments/double-stage/service";
 import { getTournamentBySlug, type TournamentDetail } from "@/lib/tournaments/service";
+import {
+  optionalAuthUserIdSchema,
+  optionalScorerNameSchema,
+} from "@/lib/validations/scoring";
+import { zodErrorToAppError } from "@/lib/validations/format-zod-error";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -31,8 +36,8 @@ const bodySchema = z.discriminatedUnion("action", [
       .enum(["increment", "decrement", "set", "set_points", "next_game"])
       .default("increment"),
     side: z.enum(["a", "b"]).optional(),
-    scorerName: z.string().trim().min(1).max(120).optional(),
-    scorerUserId: z.string().uuid().optional(),
+    scorerName: optionalScorerNameSchema,
+    scorerUserId: optionalAuthUserIdSchema,
     targetPoints: z.coerce.number().int().min(0).max(100).optional(),
   }),
   z.object({
@@ -79,7 +84,7 @@ export async function POST(
     const json = await request.json();
     const parsed = bodySchema.safeParse(json);
     if (!parsed.success) {
-      throw new AppError("Invalid request", { code: "VALIDATION_ERROR", statusCode: 422 });
+      throw zodErrorToAppError(parsed.error);
     }
 
     if (parsed.data.action === "start") {

@@ -39,6 +39,7 @@ import { closeDatabase } from "@/db/client";
 import { logger } from "@/lib/logger";
 import {
   PLAYER_TIER_LABELS,
+  TOURNAMENT_TIER_MATCH_POINTS,
   normalizePlayerTier,
   type PlayerTierLevel,
 } from "@/lib/player/tier";
@@ -154,7 +155,10 @@ function buildUpsertInput(opts: {
     thirdPlaceEnabled: false,
     allowDraw: false,
     matchScoreMode: "games",
-    raceToGames: 2,
+    raceToGames: 4,
+    winPoints: TOURNAMENT_TIER_MATCH_POINTS[opts.tier],
+    drawPoints: 0,
+    lossPoints: 0,
     registrationOpensAt: regOpen.toISOString(),
     registrationClosesAt: regClose.toISOString(),
     startsAt: opts.startsAt.toISOString(),

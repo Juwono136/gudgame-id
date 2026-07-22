@@ -10,6 +10,11 @@ import {
 import { updateReclubLiveScore } from "@/lib/tournaments/reclub/live-score";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
+import {
+  optionalAuthUserIdSchema,
+  optionalScorerNameSchema,
+} from "@/lib/validations/scoring";
+import { zodErrorToAppError } from "@/lib/validations/format-zod-error";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -20,8 +25,8 @@ const bodySchema = z.object({
   scoreB: z.coerce.number().int().min(0).max(99),
   action: z.enum(["set", "increment", "decrement"]).optional(),
   side: z.enum(["a", "b"]).optional(),
-  scorerName: z.string().trim().min(1).max(120).optional(),
-  scorerUserId: z.string().uuid().optional(),
+  scorerName: optionalScorerNameSchema,
+  scorerUserId: optionalAuthUserIdSchema,
 });
 
 export async function PATCH(
@@ -50,7 +55,7 @@ export async function PATCH(
 
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {
-      throw new AppError("Invalid score payload", { code: "VALIDATION_ERROR", statusCode: 422 });
+      throw zodErrorToAppError(parsed.error);
     }
 
     const session = await getServerSession();

@@ -24,12 +24,16 @@ export function getDoubleStageStandingsLegend(
 ): StandingsLegendItem[] {
   const showGames = scoreDisplay === "games";
   return [
-    { key: "G", label: "Games played (matches)" },
-    { key: "W", label: "Wins" },
-    { key: "L", label: "Losses" },
+    { key: "G", label: "Matches played in the group" },
+    { key: "W", label: "Match wins" },
+    { key: "L", label: "Match losses" },
     showGames
-      ? { key: "S", label: "Skor -> games won - games lost" }
-      : { key: "S", label: "Skor -> score difference" },
+      ? {
+          key: "S",
+          label:
+            "Total games won–lost across all matches (Race to N applies per match only)",
+        }
+      : { key: "S", label: "Score difference (points for − against)" },
     { key: "PTS", label: "Standings points" },
   ];
 }
@@ -73,7 +77,9 @@ export function DoubleStageStandingsTable({
   showLegend = false,
 }: DoubleStageStandingsTableProps) {
   const showGames = scoreDisplay === "games";
-  const scoreTitle = showGames ? "Skor (games won – games lost)" : "Skor (score difference)";
+  const scoreTitle = showGames
+    ? "Total games won – lost (sum of all matches)"
+    : "Skor (score difference)";
 
   return (
     <div className="space-y-2">
