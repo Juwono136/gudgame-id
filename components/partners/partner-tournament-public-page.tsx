@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Monitor, Settings2 } from "lucide-react";
+import { Monitor, Settings2, UserPlus } from "lucide-react";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
 import { FunMatchPublicLiveScore } from "@/components/tournaments/fun-match/fun-match-public-live-score";
@@ -53,6 +53,29 @@ import {
 } from "@/lib/tournaments/stats/map-history-items";
 import { alertPanelClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
+
+/** Client-safe re-implementation of computeRegistrationOpen (that helper is server-only). */
+function isPartnerRegistrationOpen(tournament: TournamentDetail): boolean {
+  if (
+    tournament.status === "completed" ||
+    tournament.status === "cancelled" ||
+    tournament.status === "draft"
+  ) {
+    return false;
+  }
+
+  const now = Date.now();
+  if (tournament.registrationOpensAt && now < new Date(tournament.registrationOpensAt).getTime()) {
+    return false;
+  }
+
+  const closesAt = tournament.registrationClosesAt ?? tournament.endsAt;
+  if (closesAt && now >= new Date(closesAt).getTime()) {
+    return false;
+  }
+
+  return true;
+}
 
 const TABS = [
   "Overview",
@@ -130,6 +153,30 @@ export function PartnerTournamentPublicPage({
   const formatLabel = getTournamentFormatLabel(tournament.format);
   const manageHref = partnerPublicRoutes.tournamentManage(partnerSlug, tournament.slug);
   const displayHref = partnerPublicRoutes.tournamentDisplay(partnerSlug, tournament.slug);
+  const registerHref = partnerPublicRoutes.tournamentRegister(partnerSlug, tournament.slug);
+  const registrationOpen = isPartnerRegistrationOpen(tournament);
+  const registrationClosesLabel = (() => {
+    const closes = tournament.registrationClosesAt ?? tournament.endsAt;
+    if (!closes) return null;
+    const d = new Date(closes);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  })();
+  const isPaidRegistration =
+    tournament.officialBilling === "paid" && (tournament.registrationFeeIdr ?? 0) > 0;
+  const feeLabel = isPaidRegistration
+    ? new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      }).format(tournament.registrationFeeIdr ?? 0)
+    : null;
   const brandTheme = getTournamentDisplayConfig(tournament).brandTheme;
   const eventPrimary = brandTheme?.primaryColor;
 
@@ -271,16 +318,33 @@ export function PartnerTournamentPublicPage({
           backLabel="Tournaments"
           title={tournament.name}
           description={
-            <span className="mt-2 flex flex-wrap items-center gap-2">
-              <PartnerStatusBadge status={displayStatus} />
-              <span>
-                {formatLabel} · {tournament.sportName}
-                {tournament.venue ? ` · ${tournament.venue}` : null}
+            <span className="mt-2 flex flex-col gap-1.5">
+              <span className="flex flex-wrap items-center gap-2">
+                <PartnerStatusBadge status={displayStatus} />
+                <span>
+                  {formatLabel} · {tournament.sportName}
+                  {tournament.venue ? ` · ${tournament.venue}` : null}
+                </span>
               </span>
+              {registrationClosesLabel ? (
+                <span className="text-sm text-cp-muted">
+                  {registrationOpen
+                    ? `Registration closes ${registrationClosesLabel}`
+                    : `Registration closed ${registrationClosesLabel}`}
+                </span>
+              ) : null}
             </span>
           }
           actions={
             <>
+              {registrationOpen ? (
+                <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+                  <Link href={registerHref}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Register{feeLabel ? ` · ${feeLabel}` : ""}
+                  </Link>
+                </Button>
+              ) : null}
               {canManage ? (
                 <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
                   <Link href={manageHref}>

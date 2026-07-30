@@ -85,6 +85,7 @@ export async function POST(request: Request) {
     ) {
       const regId =
         readNotificationEntityId(body.data?.metadata?.registrationId) ||
+        readNotificationEntityId(body.data?.metadata?.partnerRegistrationId) ||
         parseRegistrationIdFromReference(qrRef);
       if (regId) await confirmPaymentByRegistrationId(regId);
       return jsonSuccess({ received: true });

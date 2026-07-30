@@ -13,6 +13,8 @@ import {
   TOURNAMENT_CATEGORY_OPTIONS,
   type TournamentCategoryOption,
 } from "@/components/tournaments/form/category-select";
+import { BillingTypeSelect } from "@/components/tournaments/form/billing-type-select";
+import { CurrencyInput } from "@/components/tournaments/form/currency-input";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
@@ -48,6 +50,11 @@ import {
 import type { MatchFormat } from "@/lib/tournaments/scoring/classic-sets";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
+  formatPartnerScheduleLabel,
+  validatePartnerTournamentSchedule,
+} from "@/lib/partners/tournament-schedule";
+import { partnerPageWidthClass } from "@/lib/partners/layout";
+import {
   cpSelectContentClass,
   cpSelectItemClass,
   cpSelectTriggerClass,
@@ -62,9 +69,24 @@ const STEPS = [
   { id: "review", label: "Review", shortLabel: "Review" },
 ] as const;
 
+const MAX_TEAMS_MIN = 4;
+const MAX_TEAMS_MAX = 64;
+
+function parseMaxTeamsInput(raw: string): number | null {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : null;
+}
+
+function clampMaxTeams(n: number): number {
+  return Math.min(MAX_TEAMS_MAX, Math.max(MAX_TEAMS_MIN, n));
+}
+
 type GameDecider = "golden_point" | "star_point" | "advantage";
 type ScoreEntryMode = "live" | "paper";
 type ScoringType = "points" | "timed";
+
 function toLocalDatetime(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -107,9 +129,10 @@ type FormState = {
   venue: string;
   venueMapsUrl: string;
   courtCount: number;
-  maxTeams: number;
+  maxTeams: string;
   startsAt: string;
   endsAt: string;
+  registrationClosesAt: string;
   /** Preserved on edit so PATCH does not reset live/draft via schema defaults. */
   status: "draft" | "upcoming" | "live" | "completed" | "cancelled";
   format: TournamentFormat;
@@ -123,6 +146,8 @@ type FormState = {
   scoreEntryMode: ScoreEntryMode;
   scoringType: ScoringType;
   roundDurationMinutes: number;
+  entryBilling: "paid" | "free";
+  registrationFeeIdr: string;
 };
 
 function formFromInitial(initial?: TournamentDetail | null): FormState {
@@ -134,9 +159,10 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       venue: "",
       venueMapsUrl: "",
       courtCount: 2,
-      maxTeams: 32,
+      maxTeams: "32",
       startsAt: schedule.startsAt,
       endsAt: schedule.endsAt,
+      registrationClosesAt: schedule.endsAt,
       status: "upcoming",
       format: "double_stage",
       maxTeamsPerGroup: 4,
@@ -149,6 +175,8 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       scoreEntryMode: "live",
       scoringType: "points",
       roundDurationMinutes: 45,
+      entryBilling: "free",
+      registrationFeeIdr: "",
     };
   }
 
@@ -158,6 +186,11 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
     settings.gameDecider === "star_point" || settings.gameDecider === "advantage"
       ? settings.gameDecider
       : "golden_point";
+  const entryBilling: "paid" | "free" =
+    initial.officialBilling === "paid" ||
+    (initial.registrationFeeIdr != null && initial.registrationFeeIdr > 0)
+      ? "paid"
+      : "free";
   return {
     name: initial.name,
     categoryLabel: (TOURNAMENT_CATEGORY_OPTIONS.includes(
@@ -168,9 +201,13 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
     venue: initial.venue ?? "",
     venueMapsUrl: settings.venueMapsUrl ?? "",
     courtCount: getTournamentCourtCount(initial),
-    maxTeams: initial.maxTeams ?? 32,
+    maxTeams: String(initial.maxTeams ?? 32),
     startsAt: toLocalDatetime(initial.startsAt) || schedule.startsAt,
     endsAt: toLocalDatetime(initial.endsAt) || schedule.endsAt,
+    registrationClosesAt:
+      toLocalDatetime(initial.registrationClosesAt) ||
+      toLocalDatetime(initial.endsAt) ||
+      schedule.endsAt,
     status:
       initial.status === "draft" ||
       initial.status === "upcoming" ||
@@ -190,6 +227,11 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
     scoreEntryMode: getTournamentScoreEntryMode(initial),
     scoringType: getTournamentScoringType(initial),
     roundDurationMinutes: getTournamentRoundDurationMinutes(initial),
+    entryBilling,
+    registrationFeeIdr:
+      entryBilling === "paid" && initial.registrationFeeIdr
+        ? String(initial.registrationFeeIdr)
+        : "",
   };
 }
 
@@ -206,15 +248,31 @@ export function PartnerTournamentWizard({
   const [stepIndex, setStepIndex] = useState(0);
   const [pending, setPending] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [feeError, setFeeError] = useState<string | null>(null);
+  const [regCloseError, setRegCloseError] = useState<string | null>(null);
+  const [maxTeamsError, setMaxTeamsError] = useState<string | null>(null);
+  const [venueError, setVenueError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => formFromInitial(initial));
 
   const step = STEPS[stepIndex]!;
   const isLast = stepIndex === STEPS.length - 1;
   const isDoubleStage = form.format === "double_stage";
   const isRace = form.matchFormat === "race_to_games";
+  const scheduleLocked =
+    isEdit && (form.status === "live" || form.status === "completed");
 
   const patch = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // Keep registration deadline aligned when end moves and deadline was tied to old end.
+      if (key === "endsAt" && typeof value === "string" && !scheduleLocked) {
+        const prevEnd = prev.endsAt;
+        if (!prev.registrationClosesAt || prev.registrationClosesAt === prevEnd) {
+          next.registrationClosesAt = value;
+        }
+      }
+      return next;
+    });
   };
 
   const validateStep = (index: number): boolean => {
@@ -225,18 +283,75 @@ export function PartnerTournamentWizard({
         return false;
       }
       setNameError(null);
-      if (form.startsAt && form.endsAt) {
-        const start = new Date(form.startsAt).getTime();
-        const end = new Date(form.endsAt).getTime();
-        if (!Number.isNaN(start) && !Number.isNaN(end) && end <= start) {
-          toast.error("End time must be after start time");
+
+      if (form.venue.trim().length < 2) {
+        setVenueError("Venue is required");
+        toast.error("Enter a venue for this tournament");
+        return false;
+      }
+      setVenueError(null);
+
+      const maxTeamsParsed = parseMaxTeamsInput(form.maxTeams);
+      if (maxTeamsParsed == null) {
+        setMaxTeamsError(`Enter max teams (${MAX_TEAMS_MIN}–${MAX_TEAMS_MAX})`);
+        toast.error("Enter a valid max teams value");
+        return false;
+      }
+      const maxTeamsClamped = clampMaxTeams(maxTeamsParsed);
+      if (String(maxTeamsClamped) !== form.maxTeams) {
+        patch("maxTeams", String(maxTeamsClamped));
+      }
+      if (maxTeamsParsed < MAX_TEAMS_MIN || maxTeamsParsed > MAX_TEAMS_MAX) {
+        setMaxTeamsError(`Max teams must be between ${MAX_TEAMS_MIN} and ${MAX_TEAMS_MAX}`);
+        toast.error(`Max teams must be between ${MAX_TEAMS_MIN} and ${MAX_TEAMS_MAX}`);
+        return false;
+      }
+      setMaxTeamsError(null);
+
+      const schedule = validatePartnerTournamentSchedule({
+        startsAt: form.startsAt,
+        endsAt: form.endsAt,
+        registrationClosesAt: form.registrationClosesAt,
+      });
+      if (!schedule.ok) {
+        if (schedule.field === "registrationClosesAt") {
+          setRegCloseError(schedule.message);
+        } else {
+          setRegCloseError(null);
+        }
+        toast.error(schedule.message);
+        return false;
+      }
+      setRegCloseError(null);
+
+      if (
+        form.entryBilling === "paid" &&
+        (!form.registrationFeeIdr || Number(form.registrationFeeIdr) <= 0)
+      ) {
+        setFeeError("Paid entry requires a fee (IDR)");
+        toast.error("Enter an entry fee for paid registration");
+        return false;
+      }
+      setFeeError(null);
+    }
+    if (index === 1) {
+      if (!form.format) {
+        toast.error("Choose a tournament format");
+        return false;
+      }
+      if (form.format === "double_stage") {
+        if (form.teamsAdvancePerGroup > form.maxTeamsPerGroup) {
+          toast.error("Teams advancing per pool cannot exceed pairs per pool");
+          return false;
+        }
+        const maxTeams = clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32);
+        if (maxTeams < form.maxTeamsPerGroup) {
+          toast.error(
+            `Max teams (${maxTeams}) is smaller than pairs per pool (${form.maxTeamsPerGroup}). Increase max teams or reduce pool size.`,
+          );
           return false;
         }
       }
-    }
-    if (index === 1 && !form.format) {
-      toast.error("Choose a tournament format");
-      return false;
     }
     return true;
   };
@@ -258,14 +373,19 @@ export function PartnerTournamentWizard({
       format: form.format,
       categoryLabel: form.categoryLabel,
       tournamentType: "fun_match",
-      officialBilling: null,
+      officialBilling: form.entryBilling,
+      registrationFeeIdr:
+        form.entryBilling === "paid" ? Number(form.registrationFeeIdr) : 0,
       status: form.status,
       playersPerTeam: 2,
-      maxTeams: form.maxTeams,
-      venue: form.venue.trim() || undefined,
+      maxTeams: clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32),
+      venue: form.venue.trim(),
       venueMapsUrl: form.venueMapsUrl.trim() || undefined,
       startsAt,
       endsAt,
+      registrationClosesAt: form.registrationClosesAt
+        ? new Date(form.registrationClosesAt).toISOString()
+        : endsAt,
       matchScoreMode: "games",
       matchFormat: form.matchFormat,
       raceToGames: form.raceToGamesGroup,
@@ -398,14 +518,29 @@ export function PartnerTournamentWizard({
             : "Untimed",
       },
       { label: "Courts", value: String(form.courtCount) },
-      { label: "Max teams", value: String(form.maxTeams) },
+      { label: "Max teams", value: form.maxTeams || "—" },
+      {
+        label: "Entry",
+        value:
+          form.entryBilling === "paid"
+            ? `Paid · Rp ${Number(form.registrationFeeIdr || 0).toLocaleString("id-ID")}`
+            : "Free",
+      },
+      {
+        label: "Registration closes",
+        value: formatPartnerScheduleLabel(
+          form.registrationClosesAt
+            ? new Date(form.registrationClosesAt).toISOString()
+            : null,
+        ),
+      },
       { label: "Venue", value: form.venue.trim() || "—" },
     );
     return rows;
   }, [form, isDoubleStage, isRace]);
 
   return (
-    <div className="relative mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className={cn("relative space-y-6 py-8", partnerPageWidthClass)}>
       {pending ? (
         <LoadingOverlay show label={isEdit ? "Saving…" : "Creating tournament…"} />
       ) : null}
@@ -471,8 +606,13 @@ export function PartnerTournamentWizard({
                 <VenueAutocompleteField
                   venue={form.venue}
                   mapsUrl={form.venueMapsUrl}
-                  onVenueChange={(venue) => patch("venue", venue)}
+                  onVenueChange={(venue) => {
+                    setVenueError(null);
+                    patch("venue", venue);
+                  }}
                   onMapsUrlChange={(mapsUrl) => patch("venueMapsUrl", mapsUrl)}
+                  required
+                  fieldError={venueError}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -494,35 +634,103 @@ export function PartnerTournamentWizard({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="partner-max-teams">Max teams</Label>
+                    <Label htmlFor="partner-max-teams">
+                      Max teams
+                      <RequiredMark />
+                    </Label>
                     <Input
                       id="partner-max-teams"
-                      type="number"
-                      min={4}
-                      max={64}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      min={MAX_TEAMS_MIN}
+                      max={MAX_TEAMS_MAX}
                       value={form.maxTeams}
-                      onChange={(e) =>
-                        patch("maxTeams", Math.min(64, Math.max(4, Number(e.target.value) || 4)))
-                      }
+                      onChange={(e) => {
+                        setMaxTeamsError(null);
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
+                        patch("maxTeams", digits);
+                      }}
+                      onBlur={() => {
+                        const parsed = parseMaxTeamsInput(form.maxTeams);
+                        if (parsed == null) {
+                          patch("maxTeams", String(MAX_TEAMS_MIN));
+                          return;
+                        }
+                        patch("maxTeams", String(clampMaxTeams(parsed)));
+                      }}
                       className="border-cp-border bg-cp-bg-input"
+                      placeholder="32"
                     />
+                    <FieldError message={maxTeamsError} />
+                    <p className="text-xs text-cp-muted">
+                      Capacity for guest registration ({MAX_TEAMS_MIN}–{MAX_TEAMS_MAX} teams).
+                    </p>
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Starts</Label>
+                  <DateTimePicker
+                    label="Starts"
+                    value={form.startsAt}
+                    onChange={(v) => patch("startsAt", v)}
+                  />
+                  <DateTimePicker
+                    label="Ends"
+                    value={form.endsAt}
+                    onChange={(v) => patch("endsAt", v)}
+                    min={form.startsAt}
+                  />
+                  <div className="sm:col-span-2 space-y-2">
                     <DateTimePicker
-                      value={form.startsAt}
-                      onChange={(v) => patch("startsAt", v)}
+                      label="Registration closes"
+                      value={form.registrationClosesAt}
+                      onChange={(v) => {
+                        setRegCloseError(null);
+                        patch("registrationClosesAt", v);
+                      }}
+                      disabled={scheduleLocked}
                     />
+                    <FieldError message={regCloseError} />
+                    {scheduleLocked ? (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Registration deadline cannot be changed while the tournament is live or
+                        completed.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-cp-muted">
+                        Guests can register until this deadline — including after the tournament
+                        has started. Must be on or before the end time.
+                      </p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Ends</Label>
-                    <DateTimePicker
-                      value={form.endsAt}
-                      onChange={(v) => patch("endsAt", v)}
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-cp-border/80 bg-cp-elevated/40 p-4">
+                  <BillingTypeSelect
+                    value={form.entryBilling}
+                    onChange={(v) => {
+                      setFeeError(null);
+                      patch("entryBilling", v);
+                      if (v === "free") patch("registrationFeeIdr", "");
+                    }}
+                    required
+                    label="Entry: Free / Paid"
+                  />
+                  {form.entryBilling === "paid" ? (
+                    <div className="space-y-2">
+                      <Label>
+                        Entry fee (IDR)
+                        <RequiredMark />
+                      </Label>
+                      <CurrencyInput
+                        value={form.registrationFeeIdr}
+                        onChange={(v) => {
+                          setFeeError(null);
+                          patch("registrationFeeIdr", v);
+                        }}
+                      />
+                      <FieldError message={feeError} />
+                    </div>
+                  ) : null}
                 </div>
               </>
             ) : null}
@@ -538,6 +746,7 @@ export function PartnerTournamentWizard({
                   value={form.format}
                   onChange={(v) => patch("format", v)}
                   sportSlug={sportSlug}
+                  partnerTenant
                   required
                 />
                 {isDoubleStage ? (

@@ -2,6 +2,7 @@ import "server-only";
 
 import { ilike, or, sql, type SQL } from "drizzle-orm";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import { tournamentTeams } from "@/db/schema/tournament-registration";
 import {
   sanitizeSearchTerm,
@@ -11,8 +12,8 @@ import {
 const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`;
 
 /**
- * Participant list filter: match player display name / name / nickname or team name.
- * Returns `undefined` when search is empty (no extra WHERE clause).
+ * Participant list filter: match player display name / name / nickname / partner guest
+ * name, or team name. Returns `undefined` when search is empty (no extra WHERE clause).
  */
 export function buildParticipantSearchFilter(rawSearch: string | undefined): SQL | undefined {
   const term = sanitizeSearchTerm(rawSearch);
@@ -23,6 +24,7 @@ export function buildParticipantSearchFilter(rawSearch: string | undefined): SQL
     ilike(displayNameSql, pattern),
     ilike(user.name, pattern),
     ilike(user.nickname, pattern),
+    ilike(partnerPlayers.fullName, pattern),
     ilike(tournamentTeams.name, pattern),
   );
 }

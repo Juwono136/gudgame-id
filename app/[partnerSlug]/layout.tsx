@@ -2,13 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PartnerPublicNav } from "@/components/partners/partner-public-nav";
 import {
-  getActivePartnerBySlug,
-  getPartnerBySlug,
-} from "@/lib/partners/service";
-import {
   isReservedPartnerSlug,
   normalizePartnerSlug,
 } from "@/lib/partners/constants";
+import { partnerPublicRoutes } from "@/lib/constants/routes";
+import {
+  getActivePartnerBySlug,
+  getPartnerBySlug,
+} from "@/lib/partners/service";
 import { listPartnerTournaments } from "@/lib/partners/tournaments";
 
 type LayoutProps = {
@@ -49,7 +50,7 @@ export default async function PartnerPublicLayout({ children, params }: LayoutPr
 
   return (
     <div
-      className="relative min-h-screen overflow-x-hidden bg-background text-foreground"
+      className="relative min-h-screen min-w-0 overflow-x-clip bg-background text-foreground"
       style={
         {
           ["--cp-primary" as string]: primary,
@@ -88,17 +89,37 @@ export default async function PartnerPublicLayout({ children, params }: LayoutPr
 
       <main className="min-h-[72vh]">{children}</main>
 
-      <footer className="mt-8 border-t border-cp-border/70 bg-cp-card/40">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-8 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:text-left lg:px-8">
-          <div>
+      <footer className="mt-10 border-t border-cp-border/70 sm:mt-12">
+        <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-4 px-3 py-7 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-8 sm:text-left lg:px-8">
+          <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">{partner.displayName}</p>
-            <p className="mt-0.5 text-xs text-cp-muted">
-              White-label events · powered by Gud Game
+            <p className="text-xs text-cp-muted">
+              © {new Date().getFullYear()} · Platform by Gud Game
             </p>
           </div>
-          <p className="text-[11px] text-cp-muted">
-            Sign in once with your Gud Game account — it works here too.
-          </p>
+          <nav
+            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-cp-muted sm:justify-end"
+            aria-label="Footer"
+          >
+            <Link
+              href={partnerPublicRoutes.tournaments(partner.slug)}
+              className="hover:text-foreground"
+            >
+              Tournaments
+            </Link>
+            <Link
+              href={partnerPublicRoutes.leagues(partner.slug)}
+              className="hover:text-foreground"
+            >
+              Leagues
+            </Link>
+            <Link
+              href={partnerPublicRoutes.players(partner.slug)}
+              className="hover:text-foreground"
+            >
+              Players
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

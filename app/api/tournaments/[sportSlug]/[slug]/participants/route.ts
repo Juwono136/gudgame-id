@@ -41,7 +41,11 @@ export async function GET(
 
     const result = await queryTournamentParticipants(queryInput);
 
-    const userIds = result.items.map((row) => row.userId).filter(Boolean);
+    // Partner white-label rosters may include guest players (partnerPlayerId, not a
+    // Gud Game userId) — never feed those into Gud Game wiki profile provisioning.
+    const userIds = tournament.partnerId
+      ? []
+      : result.items.map((row) => row.userId).filter(Boolean);
     if (userIds.length) {
       await ensurePlayerWikiProfilesForTournament(tournament.sportId, userIds);
       const refreshed = await queryTournamentParticipants(queryInput);

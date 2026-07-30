@@ -30,7 +30,9 @@ type PaymentInvoiceViewProps = {
 export function PaymentInvoiceView({ invoice, className, id }: PaymentInvoiceViewProps) {
   const eventDates = formatEventDates(invoice.tournament.startsAt, invoice.tournament.endsAt);
   const showHostBreakdown =
-    invoice.viewerRole === "host" || invoice.viewerRole === "admin";
+    invoice.viewerRole === "host" ||
+    invoice.viewerRole === "admin" ||
+    invoice.viewerRole === "partner";
 
   return (
     <article
@@ -150,7 +152,9 @@ export function PaymentInvoiceView({ invoice, className, id }: PaymentInvoiceVie
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-600">Host payout</dt>
+                <dt className="text-slate-600">
+                  {invoice.viewerRole === "partner" ? "Your payout" : "Host payout"}
+                </dt>
                 <dd className="font-semibold tabular-nums text-emerald-700">
                   {formatIdrDisplay(invoice.hostPayoutIdr)}
                 </dd>

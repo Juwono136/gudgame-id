@@ -587,6 +587,27 @@ export async function createTournament(
   options?: { partnerId?: string | null },
 ): Promise<TournamentDetail> {
   const partnerId = options?.partnerId ?? null;
+  const allowPartnerBilling = Boolean(partnerId);
+  const allowOfficialBilling = input.tournamentType === "official";
+  const allowBilling = allowOfficialBilling || allowPartnerBilling;
+
+  const resolveBilling = () => {
+    if (!allowBilling) {
+      return { officialBilling: null as string | null, registrationFeeIdr: null as number | null };
+    }
+    const officialBilling = input.officialBilling ?? (allowPartnerBilling ? "free" : null);
+    if (officialBilling === "paid") {
+      return {
+        officialBilling,
+        registrationFeeIdr: input.registrationFeeIdr ?? null,
+      };
+    }
+    if (officialBilling === "free") {
+      return { officialBilling, registrationFeeIdr: 0 };
+    }
+    return { officialBilling: null, registrationFeeIdr: null };
+  };
+  const billing = resolveBilling();
   const baseSlug = input.slug?.trim() || slugifyWikiName(input.name);
   const slug = await ensureUniqueSlug(sportId, baseSlug, undefined, partnerId);
   const startsAt = parseOptionalDate(input.startsAt);
@@ -618,25 +639,22 @@ export async function createTournament(
       description: rich.description,
       status,
       tournamentType: input.tournamentType,
-      officialBilling:
-        input.tournamentType === "official" ? (input.officialBilling ?? null) : null,
+      officialBilling: billing.officialBilling,
       format: input.format,
       categoryLabel: input.categoryLabel || null,
       rules: rich.matchFormatRules || rich.rules,
       venue: input.venue || null,
       maxTeams: input.maxTeams ?? null,
       playersPerTeam: input.playersPerTeam,
-      registrationFeeIdr:
-        input.tournamentType === "official" && input.officialBilling === "paid"
-          ? (input.registrationFeeIdr ?? null)
-          : null,
+      registrationFeeIdr: billing.registrationFeeIdr,
       prizePoolIdr:
         input.tournamentType === "official" && input.officialBilling === "free"
           ? (input.prizePoolIdr ?? null)
           : input.prizePoolIdr ?? null,
       registrationOpensAt: parseOptionalDate(input.registrationOpensAt),
       registrationClosesAt:
-        parseOptionalDate(input.registrationClosesAt) ?? startsAt,
+        parseOptionalDate(input.registrationClosesAt) ??
+        (partnerId ? endsAt : startsAt),
       startsAt,
       endsAt,
       coverImageUrl: input.coverImageStorageKey
@@ -792,7 +810,7 @@ export async function updateTournament(
   }
 
   const scheduleLocked =
-    current.tournamentType === "official" &&
+    (current.tournamentType === "official" || Boolean(current.partnerId)) &&
     (current.status === "live" || current.status === "completed");
 
   const registrationOpensAt = scheduleLocked
@@ -800,7 +818,23 @@ export async function updateTournament(
     : parseOptionalDate(input.registrationOpensAt);
   const registrationClosesAt = scheduleLocked
     ? current.registrationClosesAt
-    : (parseOptionalDate(input.registrationClosesAt) ?? startsAt);
+    : (parseOptionalDate(input.registrationClosesAt) ??
+      (current.partnerId ? endsAt : startsAt));
+
+  const allowPartnerBilling = Boolean(current.partnerId);
+  const allowOfficialBilling = input.tournamentType === "official";
+  const allowBilling = allowOfficialBilling || allowPartnerBilling;
+  let nextOfficialBilling: string | null = null;
+  let nextRegistrationFeeIdr: number | null = null;
+  if (allowBilling) {
+    nextOfficialBilling =
+      input.officialBilling ?? (allowPartnerBilling ? "free" : null);
+    if (nextOfficialBilling === "paid") {
+      nextRegistrationFeeIdr = input.registrationFeeIdr ?? null;
+    } else if (nextOfficialBilling === "free") {
+      nextRegistrationFeeIdr = 0;
+    }
+  }
 
   const rich = sanitizeTournamentRichFields({
     summary: input.summary,
@@ -827,18 +861,14 @@ export async function updateTournament(
       description: rich.description,
       status,
       tournamentType: input.tournamentType,
-      officialBilling:
-        input.tournamentType === "official" ? (input.officialBilling ?? null) : null,
+      officialBilling: nextOfficialBilling,
       format: input.format,
       categoryLabel: input.categoryLabel || null,
       rules: rich.matchFormatRules || rich.rules,
       venue: input.venue || null,
       maxTeams: input.maxTeams ?? null,
       playersPerTeam: input.playersPerTeam,
-      registrationFeeIdr:
-        input.tournamentType === "official" && input.officialBilling === "paid"
-          ? (input.registrationFeeIdr ?? null)
-          : null,
+      registrationFeeIdr: nextRegistrationFeeIdr,
       prizePoolIdr:
         input.tournamentType === "official" && input.officialBilling === "free"
           ? (input.prizePoolIdr ?? null)

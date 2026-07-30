@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
-import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,8 +31,8 @@ export default function PartnerNewLeaguePage() {
       description: (
         <>
           Start{" "}
-          <span className="font-medium text-foreground">&ldquo;{name.trim()}&rdquo;</span> for
-          manual scores and standings. Results do not sync to Gud Game careers.
+          <span className="font-medium text-foreground">&ldquo;{name.trim()}&rdquo;</span> with
+          manual scores and standings on your site.
         </>
       ),
       confirmLabel: "Create league",
@@ -68,15 +67,14 @@ export default function PartnerNewLeaguePage() {
   };
 
   return (
-    <PageShell showGridBackground={false}>
-      <div className="relative mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="relative mx-auto max-w-lg space-y-6">
+    <div className="relative mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-lg space-y-6">
         {pending ? <LoadingOverlay show label="Creating league…" /> : null}
         <PartnerPageHeader
           backHref={dashboardRoutes.partnerLeagues}
           backLabel="Leagues"
           title="New league"
-          description="Season mode with manual scores and rolling standings — partner-only, no Gud Game career sync."
+          description="Create a season with manual scores and rolling standings."
         />
 
         <form
@@ -103,8 +101,7 @@ export default function PartnerNewLeaguePage() {
             Create league
           </Button>
         </form>
-        </div>
       </div>
-    </PageShell>
+    </div>
   );
 }

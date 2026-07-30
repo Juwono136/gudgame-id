@@ -34,10 +34,16 @@ export default async function PaymentReceiptPage({ params }: PageProps) {
   const backHref =
     invoice.viewerRole === "host"
       ? dashboardRoutes.hostPayments
-      : dashboardRoutes.payments;
+      : invoice.viewerRole === "partner"
+        ? dashboardRoutes.partnerPayments
+        : dashboardRoutes.payments;
 
   const backLabel =
-    invoice.viewerRole === "host" ? "Back to payments & payout" : "Back to payments";
+    invoice.viewerRole === "host"
+      ? "Back to payments & payout"
+      : invoice.viewerRole === "partner"
+        ? "Back to payments"
+        : "Back to payments";
 
   return (
     <PageShell showGridBackground={false}>

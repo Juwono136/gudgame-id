@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
@@ -123,11 +124,12 @@ async function getBracketTeamPlayers(teamIds: string[]): Promise<Map<string, str
   const rows = await getDb()
     .select({
       teamId: tournamentTeamMembers.teamId,
-      displayName: sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`,
+      displayName: sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name}, ${partnerPlayers.fullName})`,
       slotIndex: tournamentTeamMembers.slotIndex,
     })
     .from(tournamentTeamMembers)
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .where(inArray(tournamentTeamMembers.teamId, teamIds))
     .orderBy(asc(tournamentTeamMembers.slotIndex));
 
@@ -333,6 +335,35 @@ export async function submitBracketMatchScore(
           placementRank: 1,
         });
       }
+    }
+  }
+
+  if (tournament.partnerId) {
+    const { syncPartnerMatchResult, syncPartnerTournamentPlacements } = await import(
+      "@/lib/partners/stats/sync"
+    );
+    const totalRounds = await db
+      .select({ roundNumber: tournamentBracketMatches.roundNumber })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    const maxRound = Math.max(...totalRounds.map((r) => r.roundNumber), 1);
+    const { getBracketRoundLabel } = await import("@/lib/tournaments/brackets/round-labels");
+    await syncPartnerMatchResult({
+      tournament,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      scoreA,
+      scoreB,
+      round: getBracketRoundLabel(match.roundNumber, maxRound),
+    });
+
+    if (isFinal && winnerTeamId) {
+      await syncPartnerTournamentPlacements({
+        tournament,
+        placements: [{ teamId: winnerTeamId, placement: "Champion", placementRank: 1 }],
+      });
     }
   }
 

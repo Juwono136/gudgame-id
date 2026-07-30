@@ -1328,25 +1328,43 @@ export async function recordGroupStageScore(
     .map((p) => p.userId)
     .filter(Boolean);
 
-  if (participantUserIds.length > 0) {
-    const { syncOfficialMatchToPlayerHistory } = await import("@/lib/tournaments/stats/sync");
+  if (participantUserIds.length > 0 || tournament.partnerId) {
     const groupName =
       (await db
         .select({ name: tournamentGroups.name })
         .from(tournamentGroups)
         .where(eq(tournamentGroups.id, match.groupId))
         .limit(1))[0]?.name ?? "Group";
-    await syncOfficialMatchToPlayerHistory({
-      tournament,
-      roundLabel: `Group stage: ${groupName}`,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
-      scoreA: scores.scoreA,
-      scoreB: scores.scoreB,
-      participantUserIds,
-    });
+    const roundLabel = `Group stage: ${groupName}`;
+
+    if (participantUserIds.length > 0 && !tournament.partnerId) {
+      const { syncOfficialMatchToPlayerHistory } = await import("@/lib/tournaments/stats/sync");
+      await syncOfficialMatchToPlayerHistory({
+        tournament,
+        roundLabel,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        scoreA: scores.scoreA,
+        scoreB: scores.scoreB,
+        participantUserIds,
+      });
+    }
+
+    if (tournament.partnerId) {
+      const { syncPartnerMatchResult } = await import("@/lib/partners/stats/sync");
+      await syncPartnerMatchResult({
+        tournament,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        scoreA: scores.scoreA,
+        scoreB: scores.scoreB,
+        round: roundLabel,
+      });
+    }
   }
 
   return mapGroupMatchView(updated!, teamPlayerMap);

@@ -11,7 +11,9 @@ export type EmailTemplateId =
   | "registration-cancelled"
   | "host-payment-received"
   | "host-payout-disbursed"
-  | "host-payout-failed";
+  | "host-payout-failed"
+  | "partner-registration-payment"
+  | "partner-registration-confirmed";
 
 export type VerifyEmailTemplateData = {
   userName: string;
@@ -147,6 +149,30 @@ export type HostPayoutFailedTemplateData = {
   paymentsUrl: string;
 };
 
+export type PartnerRegistrationPaymentTemplateData = {
+  appName: string;
+  partnerName: string;
+  captainName: string;
+  tournamentName: string;
+  teamName: string;
+  amountFormatted: string;
+  payUrl: string;
+  expiresAtFormatted: string;
+};
+
+export type PartnerRegistrationConfirmedTemplateData = {
+  appName: string;
+  partnerName: string;
+  captainName: string;
+  tournamentName: string;
+  teamName: string;
+  venue: string | null;
+  dateRange: string;
+  roster: string[];
+  tournamentUrl: string;
+  receiptUrl: string | null;
+};
+
 export type EmailTemplateDataMap = {
   "verify-email": VerifyEmailTemplateData;
   "reset-password": ResetPasswordTemplateData;
@@ -161,6 +187,8 @@ export type EmailTemplateDataMap = {
   "host-payment-received": HostPaymentReceivedTemplateData;
   "host-payout-disbursed": HostPayoutDisbursedTemplateData;
   "host-payout-failed": HostPayoutFailedTemplateData;
+  "partner-registration-payment": PartnerRegistrationPaymentTemplateData;
+  "partner-registration-confirmed": PartnerRegistrationConfirmedTemplateData;
 };
 
 export type SendTemplatedEmailInput<T extends EmailTemplateId> = {

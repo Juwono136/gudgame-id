@@ -1,6 +1,9 @@
 export type PaymentTransactionRow = {
   paymentId: string;
-  registrationId: string;
+  /** Gud Game official registration — null for partner guest payments. */
+  registrationId: string | null;
+  /** Partner guest registration — null for Gud Game official payments. */
+  partnerRegistrationId: string | null;
   tournamentId: string;
   tournamentName: string;
   sportSlug: string;
@@ -10,7 +13,8 @@ export type PaymentTransactionRow = {
   /** Set when the event belongs to a white-label partner tenant. */
   partnerSlug: string | null;
   teamName: string | null;
-  payerUserId: string;
+  /** Null for partner guest payments (no Gud Game account). */
+  payerUserId: string | null;
   payerName: string | null;
   hostUserId: string | null;
   hostName: string | null;

@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers, partnerTournamentRegistrations } from "@/db/schema/partner-players";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournamentRegistrations, tournamentTeams } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
@@ -31,6 +32,8 @@ export type TransactionQueryOptions = {
 };
 
 const hostUser = alias(user, "host_user");
+/** Captain of a partner guest registration — stands in for `payerName` when there's no Gud Game user. */
+const captainPlayer = alias(partnerPlayers, "captain_player");
 
 export async function queryPaymentTransactions(
   options: TransactionQueryOptions,
@@ -74,9 +77,11 @@ export async function queryPaymentTransactions(
         ilike(tournaments.name, `%${search}%`),
         ilike(sports.name, `%${search}%`),
         ilike(tournamentTeams.name, `%${search}%`),
+        ilike(partnerTournamentRegistrations.teamName, `%${search}%`),
         ilike(tournamentPayments.xenditExternalId, `%${search}%`),
         ilike(user.name, `%${search}%`),
         ilike(hostUser.name, `%${search}%`),
+        ilike(captainPlayer.fullName, `%${search}%`),
       )!,
     );
   }
@@ -87,6 +92,7 @@ export async function queryPaymentTransactions(
     .select({
       paymentId: tournamentPayments.id,
       registrationId: tournamentPayments.registrationId,
+      partnerRegistrationId: tournamentPayments.partnerRegistrationId,
       tournamentId: tournamentPayments.tournamentId,
       tournamentName: tournaments.name,
       sportSlug: sports.slug,
@@ -95,8 +101,10 @@ export async function queryPaymentTransactions(
       tournamentType: tournaments.tournamentType,
       partnerSlug: partners.slug,
       teamName: tournamentTeams.name,
+      partnerTeamName: partnerTournamentRegistrations.teamName,
       payerUserId: tournamentPayments.payerUserId,
       payerName: user.name,
+      captainName: captainPlayer.fullName,
       hostUserId: tournaments.createdBy,
       hostName: hostUser.name,
       amountIdr: tournamentPayments.amountIdr,
@@ -119,8 +127,16 @@ export async function queryPaymentTransactions(
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
     )
     .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentPayments.payerUserId, user.id))
+    .leftJoin(user, eq(tournamentPayments.payerUserId, user.id))
     .leftJoin(hostUser, eq(tournaments.createdBy, hostUser.id))
+    .leftJoin(
+      partnerTournamentRegistrations,
+      eq(tournamentPayments.partnerRegistrationId, partnerTournamentRegistrations.id),
+    )
+    .leftJoin(
+      captainPlayer,
+      eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
+    )
     .where(whereClause)
     .orderBy(desc(tournamentPayments.createdAt));
 
@@ -135,8 +151,16 @@ export async function queryPaymentTransactions(
         eq(tournamentPayments.registrationId, tournamentRegistrations.id),
       )
       .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
-      .innerJoin(user, eq(tournamentPayments.payerUserId, user.id))
+      .leftJoin(user, eq(tournamentPayments.payerUserId, user.id))
       .leftJoin(hostUser, eq(tournaments.createdBy, hostUser.id))
+      .leftJoin(
+        partnerTournamentRegistrations,
+        eq(tournamentPayments.partnerRegistrationId, partnerTournamentRegistrations.id),
+      )
+      .leftJoin(
+        captainPlayer,
+        eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
+      )
       .where(whereClause),
     getDb()
       .select({
@@ -153,8 +177,16 @@ export async function queryPaymentTransactions(
         eq(tournamentPayments.registrationId, tournamentRegistrations.id),
       )
       .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
-      .innerJoin(user, eq(tournamentPayments.payerUserId, user.id))
+      .leftJoin(user, eq(tournamentPayments.payerUserId, user.id))
       .leftJoin(hostUser, eq(tournaments.createdBy, hostUser.id))
+      .leftJoin(
+        partnerTournamentRegistrations,
+        eq(tournamentPayments.partnerRegistrationId, partnerTournamentRegistrations.id),
+      )
+      .leftJoin(
+        captainPlayer,
+        eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
+      )
       .where(whereClause)
       .groupBy(tournamentPayments.status),
   ]);
@@ -190,6 +222,7 @@ export async function queryPaymentTransactions(
     return {
       paymentId: r.paymentId,
       registrationId: r.registrationId,
+      partnerRegistrationId: r.partnerRegistrationId,
       tournamentId: r.tournamentId,
       tournamentName: r.tournamentName,
       sportSlug: r.sportSlug,
@@ -197,9 +230,9 @@ export async function queryPaymentTransactions(
       tournamentSlug: r.tournamentSlug,
       tournamentType: r.tournamentType,
       partnerSlug: r.partnerSlug ?? null,
-      teamName: r.teamName,
+      teamName: r.teamName ?? r.partnerTeamName ?? null,
       payerUserId: r.payerUserId,
-      payerName: r.payerName,
+      payerName: r.payerName ?? r.captainName ?? null,
       hostUserId: r.hostUserId,
       hostName: r.hostName,
       amountIdr: r.amountIdr,

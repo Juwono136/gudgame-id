@@ -21,12 +21,21 @@ function normalizePartnerTournamentBody(
   body: Record<string, unknown>,
   existingStatus?: string,
 ) {
+  const officialBilling =
+    body.officialBilling === "paid" || body.officialBilling === "free"
+      ? body.officialBilling
+      : "free";
+  const registrationFeeIdr =
+    officialBilling === "paid"
+      ? Number(body.registrationFeeIdr) || undefined
+      : 0;
+
   return {
     ...body,
     allowedTierLevels: undefined,
     tournamentType: "fun_match",
-    officialBilling: null,
-    registrationFeeIdr: undefined,
+    officialBilling,
+    registrationFeeIdr,
     partnerTenant: true,
     scoringType: body.scoringType ?? "points",
     pointsPerMatch: body.pointsPerMatch ?? 21,

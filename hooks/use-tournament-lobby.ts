@@ -34,6 +34,7 @@ export type LobbyPayload = {
 };
 
 import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 function lobbyKey(sportSlug: string, slug: string) {
   return tournamentQueryKeys.lobby(sportSlug, slug);
@@ -67,8 +68,8 @@ export function useTournamentLobby(sportSlug: string, slug: string, enabled = tr
     enabled,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (data?.activeMatches?.length || data?.activeMatch) return 5000;
-      return 15000;
+      if (data?.activeMatches?.length || data?.activeMatch) return softDevPollMs(5000);
+      return softDevPollMs(15000);
     },
   });
 }

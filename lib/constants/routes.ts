@@ -42,6 +42,9 @@ export const dashboardRoutes = {
   partnerTournaments: "/dashboard/partner/tournaments",
   partnerTournamentsNew: "/dashboard/partner/tournaments/new",
   partnerTournamentEdit: (id: string) => `/dashboard/partner/tournaments/${id}/edit`,
+  partnerPayments: "/dashboard/partner/payments",
+  partnerPaymentReceipt: (paymentId: string) =>
+    `/dashboard/partner/payments/receipt/${paymentId}`,
   partnerLeagues: "/dashboard/partner/leagues",
   partnerLeaguesNew: "/dashboard/partner/leagues/new",
   partnerLeague: (id: string) => `/dashboard/partner/leagues/${id}`,
@@ -61,6 +64,14 @@ export const partnerPublicRoutes = {
     `/${partnerSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
   tournamentInvite: (partnerSlug: string, slug: string) =>
     `/${partnerSlug}/tournaments/${slug}/invite`,
+  tournamentRegister: (partnerSlug: string, slug: string) =>
+    `/${partnerSlug}/tournaments/${slug}/register`,
+  tournamentRegisterPay: (partnerSlug: string, slug: string, token: string) =>
+    `/${partnerSlug}/tournaments/${slug}/register/pay/${encodeURIComponent(token)}`,
+  tournamentRegisterSuccess: (partnerSlug: string, slug: string, token: string) =>
+    `/${partnerSlug}/tournaments/${slug}/register/success?token=${encodeURIComponent(token)}`,
+  tournamentRegisterReceipt: (partnerSlug: string, slug: string, token: string) =>
+    `/${partnerSlug}/tournaments/${slug}/register/receipt?token=${encodeURIComponent(token)}`,
   leagues: (partnerSlug: string) => `/${partnerSlug}/leagues`,
   league: (partnerSlug: string, slug: string) => `/${partnerSlug}/leagues/${slug}`,
   /** Public Database Eligibility — partner-scoped player history (not Gud Game). */

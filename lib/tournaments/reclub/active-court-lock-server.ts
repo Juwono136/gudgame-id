@@ -10,10 +10,19 @@ import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 async function loadTeamMemberIds(teamIds: string[]): Promise<string[]> {
   if (!teamIds.length) return [];
   const rows = await getDb()
-    .select({ userId: tournamentTeamMembers.userId })
+    .select({
+      userId: tournamentTeamMembers.userId,
+      partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
+    })
     .from(tournamentTeamMembers)
     .where(inArray(tournamentTeamMembers.teamId, teamIds));
-  return [...new Set(rows.map((r) => r.userId))];
+  return [
+    ...new Set(
+      rows
+        .map((r) => r.userId ?? r.partnerPlayerId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
 }
 
 export async function assertAmericanoPlayersAvailableForCourt(

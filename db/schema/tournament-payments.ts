@@ -1,4 +1,5 @@
 import {
+  check,
   foreignKey,
   index,
   integer,
@@ -8,7 +9,9 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth";
+import { partnerTournamentRegistrations } from "./partner-players";
 import { tournamentRegistrations } from "./tournament-registration";
 import { tournaments } from "./tournaments";
 import { uuidFk, uuidPrimaryKey } from "./uuid";
@@ -29,10 +32,13 @@ export const tournamentPayments = pgTable(
     tournamentId: uuidFk("tournament_id")
       .notNull()
       .references(() => tournaments.id, { onDelete: "restrict" }),
-    registrationId: uuidFk("registration_id").notNull(),
-    payerUserId: text("payer_user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "restrict" }),
+    /** Gud Game official registration (nullable when partner guest payment). */
+    registrationId: uuidFk("registration_id"),
+    /** Partner guest registration (nullable when Gud Game payment). */
+    partnerRegistrationId: uuidFk("partner_registration_id"),
+    payerUserId: text("payer_user_id").references(() => user.id, {
+      onDelete: "restrict",
+    }),
     xenditInvoiceId: varchar("xendit_invoice_id", { length: 120 }),
     xenditExternalId: varchar("xendit_external_id", { length: 120 }),
     amountIdr: integer("amount_idr").notNull(),
@@ -60,10 +66,23 @@ export const tournamentPayments = pgTable(
       columns: [table.registrationId],
       foreignColumns: [tournamentRegistrations.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "tnmt_payments_partner_reg_fk",
+      columns: [table.partnerRegistrationId],
+      foreignColumns: [partnerTournamentRegistrations.id],
+    }).onDelete("restrict"),
     index("tournament_payments_tournament_idx").on(table.tournamentId),
     index("tournament_payments_registration_idx").on(table.registrationId),
+    index("tournament_payments_partner_reg_idx").on(table.partnerRegistrationId),
     index("tournament_payments_xendit_invoice_idx").on(table.xenditInvoiceId),
     index("tournament_payments_payer_idx").on(table.payerUserId),
+    check(
+      "tournament_payments_reg_xor_partner",
+      sql`(
+        ("registration_id" IS NOT NULL AND "partner_registration_id" IS NULL)
+        OR ("registration_id" IS NULL AND "partner_registration_id" IS NOT NULL)
+      )`,
+    ),
   ],
 );
 

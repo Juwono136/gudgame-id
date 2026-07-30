@@ -92,6 +92,13 @@
       "when": 1782800000000,
       "tag": "0016_partner_leagues",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782900000000,
+      "tag": "0017_partner_guest_registration",
+      "breakpoints": true
     }
   ]
 }

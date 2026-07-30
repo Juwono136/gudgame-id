@@ -10,6 +10,7 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { HostTournamentWorkspace } from "@/lib/tournaments/workspace/service";
 import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 export function useManageTournamentWorkspace(tournamentId: string) {
   return useQuery({
@@ -27,7 +28,7 @@ export function useManageTournamentWorkspace(tournamentId: string) {
       return json.data.workspace;
     },
     enabled: Boolean(tournamentId),
-    refetchInterval: 10_000,
+    refetchInterval: softDevPollMs(10_000),
   });
 }
 

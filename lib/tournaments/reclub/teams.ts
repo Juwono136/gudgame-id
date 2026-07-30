@@ -3,6 +3,7 @@ import "server-only";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import {
   tournamentRegistrations,
   tournamentTeamMembers,
@@ -19,6 +20,7 @@ import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type LobbyMemberView = {
+  /** userId for Gud Game members, partnerPlayerId for partner guest members. */
   userId: string;
   displayName: string;
   image: string | null;
@@ -48,13 +50,16 @@ export async function listLobbyTeamsDetailed(tournamentId: string): Promise<Lobb
     .select({
       teamId: tournamentTeamMembers.teamId,
       userId: tournamentTeamMembers.userId,
+      partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
       slotIndex: tournamentTeamMembers.slotIndex,
       role: tournamentTeamMembers.role,
-      displayName: user.name,
+      userName: user.name,
+      partnerFullName: partnerPlayers.fullName,
       image: user.image,
     })
     .from(tournamentTeamMembers)
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .where(inArray(tournamentTeamMembers.teamId, teamIds));
 
   return teams.map((team) => {
@@ -64,13 +69,15 @@ export async function listLobbyTeamsDetailed(tournamentId: string): Promise<Lobb
       name: team.name,
       captainUserId: team.captainUserId,
       memberCount: teamMembers.length,
-      members: teamMembers.map((m) => ({
-        userId: m.userId,
-        displayName: m.displayName,
-        image: m.image,
-        slotIndex: m.slotIndex,
-        role: m.role,
-      })),
+      members: teamMembers
+        .filter((m) => m.userId != null || m.partnerPlayerId != null)
+        .map((m) => ({
+          userId: (m.userId ?? m.partnerPlayerId)!,
+          displayName: m.userId ? (m.userName ?? "Player") : (m.partnerFullName ?? "Guest"),
+          image: m.image,
+          slotIndex: m.slotIndex,
+          role: m.role,
+        })),
     };
   });
 }

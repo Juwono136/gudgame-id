@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
-import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -185,8 +184,7 @@ export default function PartnerSettingsPage() {
   };
 
   return (
-    <PageShell showGridBackground={false}>
-      <div className="relative mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="relative mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="relative mx-auto max-w-xl space-y-6">
         <PartnerPageHeader
           backHref={dashboardRoutes.partner}
@@ -194,8 +192,7 @@ export default function PartnerSettingsPage() {
           title="Branding & landing"
           description={
             <>
-              Customize your white-label site at /{slug || "…"}. Logo, route, colors, and landing
-              copy stay on your partner app — Gud Game branding is untouched.
+              Customize your public site at /{slug || "…"}. Logo, route, colors, and landing copy.
             </>
           }
         />
@@ -363,7 +360,7 @@ export default function PartnerSettingsPage() {
                     id="partner-about"
                     value={about}
                     onChange={(e) => setAbout(e.target.value)}
-                    placeholder="Welcome visitors to your white-label site…"
+                    placeholder="Welcome visitors to your site…"
                     rows={4}
                     maxLength={2000}
                     className="border-cp-border bg-cp-bg-input"
@@ -431,7 +428,6 @@ export default function PartnerSettingsPage() {
           </div>
         )}
       </div>
-      </div>
-    </PageShell>
+    </div>
   );
 }

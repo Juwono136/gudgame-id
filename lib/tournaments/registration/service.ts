@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { sports } from "@/db/schema/sports";
@@ -68,7 +68,7 @@ export type TournamentLobbyTeam = {
   id: string; name: string;
   captainUserId: string | null;
   memberCount: number;
-  members: { userId: string; slotIndex: number; role: string }[];
+  members: { userId: string | null; slotIndex: number; role: string }[];
 };
 
 export type TournamentRegistrationSummary = {
@@ -96,7 +96,9 @@ export async function getRegistrationSummary(
 
   if (tournamentType === "fun_match") {
     const [playerRow] = await db
-      .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
+      .select({
+        count: sql<number>`count(distinct coalesce(${tournamentTeamMembers.userId}, ${tournamentTeamMembers.partnerPlayerId}::text))::int`,
+      })
       .from(tournamentTeamMembers)
       .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
       .where(eq(tournamentTeams.tournamentId, tournamentId));
@@ -367,7 +369,7 @@ export type OfficialRegistrationInput = {
 };
 
 export type RegistrationTeamMemberView = {
-  userId: string;
+  userId: string | null;
   displayName: string;
   role: string;
   slotIndex: number;
@@ -1080,12 +1082,18 @@ export async function updateOfficialRegistration(
   };
 }
 
+/** Accepts either a Gud Game registrationId or a partner guest partnerRegistrationId. */
 export async function confirmPaymentByRegistrationId(registrationId: string): Promise<void> {
   const db = getDb();
   const [payment] = await db
     .select()
     .from(tournamentPayments)
-    .where(eq(tournamentPayments.registrationId, registrationId))
+    .where(
+      or(
+        eq(tournamentPayments.registrationId, registrationId),
+        eq(tournamentPayments.partnerRegistrationId, registrationId),
+      ),
+    )
     .limit(1);
 
   if (!payment || payment.status === "paid") return;
@@ -1099,27 +1107,39 @@ async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSele
     .set({ status: "paid", paidAt: new Date() })
     .where(eq(tournamentPayments.id, payment.id));
 
+  // Partner guest registration — never touches tournamentRegistrations or Gud Game notifications.
+  if (payment.partnerRegistrationId) {
+    const { confirmPartnerRegistration } = await import(
+      "@/lib/partners/registration/service"
+    );
+    await confirmPartnerRegistration(payment.partnerRegistrationId);
+    return;
+  }
+
+  if (!payment.registrationId) return;
+  const registrationId = payment.registrationId;
+
   await db
     .update(tournamentRegistrations)
     .set({ status: "confirmed" })
-    .where(eq(tournamentRegistrations.id, payment.registrationId));
+    .where(eq(tournamentRegistrations.id, registrationId));
 
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? process.env.BETTER_AUTH_URL ?? "";
   if (appOrigin) {
     const { sendRegistrationConfirmedEmails } = await import(
       "@/lib/tournaments/registration/notify-confirmed"
     );
-    void sendRegistrationConfirmedEmails(payment.registrationId, appOrigin.replace(/\/$/, ""));
+    void sendRegistrationConfirmedEmails(registrationId, appOrigin.replace(/\/$/, ""));
   }
 
-  void notifyHostPaymentReceived(payment.registrationId);
+  void notifyHostPaymentReceived(registrationId);
 
-  const detail = await getRegistrationDetail(payment.registrationId);
-  if (detail) {
+  const detail = await getRegistrationDetail(registrationId);
+  if (detail && payment.payerUserId) {
     const origin = appOrigin.replace(/\/$/, "");
     const { dashboardRoutes } = await import("@/lib/constants/routes");
     void notifyPlayerRegistrationConfirmed(
-      payment.registrationId,
+      registrationId,
       payment.payerUserId,
       detail.tournamentName,
       `${origin}${dashboardRoutes.paymentReceipt(payment.id)}`,
@@ -1152,6 +1172,27 @@ export async function failPaymentByInvoiceId(
     .limit(1);
 
   if (!payment || payment.status === "paid") return;
+
+  if (payment.partnerRegistrationId) {
+    const { expirePartnerRegistrationIfOverdue } = await import(
+      "@/lib/partners/registration/service"
+    );
+    if (reason === "expired") {
+      await expirePartnerRegistrationIfOverdue(payment.partnerRegistrationId);
+      await db
+        .update(tournamentPayments)
+        .set({ status: "expired" })
+        .where(eq(tournamentPayments.id, payment.id));
+      return;
+    }
+    await db
+      .update(tournamentPayments)
+      .set({ status: "failed" })
+      .where(eq(tournamentPayments.id, payment.id));
+    return;
+  }
+
+  if (!payment.registrationId) return;
 
   const { markPaymentAttemptFailed, expireRegistrationIfOverdue } = await import(
     "@/lib/tournaments/registration/payment-expiry"

@@ -51,12 +51,21 @@ export async function POST(request: Request) {
     const now = new Date();
     const ends = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
+    const officialBilling =
+      body.officialBilling === "paid" || body.officialBilling === "free"
+        ? body.officialBilling
+        : "free";
+    const registrationFeeIdr =
+      officialBilling === "paid"
+        ? Number(body.registrationFeeIdr) || undefined
+        : 0;
+
     const parsed = tournamentUpsertSchema.safeParse({
       ...body,
       allowedTierLevels: undefined,
       tournamentType: "fun_match",
-      officialBilling: null,
-      registrationFeeIdr: undefined,
+      officialBilling,
+      registrationFeeIdr,
       partnerTenant: true,
       startsAt: body.startsAt || now.toISOString(),
       endsAt: body.endsAt || ends.toISOString(),

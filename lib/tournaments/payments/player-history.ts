@@ -14,7 +14,7 @@ import { partners } from "@/db/schema/partners";
 
 export type PlayerPaymentHistoryItem = {
   id: string;
-  registrationId: string;
+  registrationId: string | null;
   tournamentId: string;
   tournamentName: string;
   sportSlug: string;

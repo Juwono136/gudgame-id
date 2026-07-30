@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { UserRegistrationStatus } from "@/lib/tournaments/registration/service";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 export function useRegistrationStatus(sportSlug: string, slug: string, enabled = true) {
   return useQuery({
@@ -25,9 +26,9 @@ export function useRegistrationStatus(sportSlug: string, slug: string, enabled =
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status === "pending_payment" || status === "awaiting_confirmation") {
-        return 3000;
+        return softDevPollMs(3000);
       }
-      return 15000;
+      return softDevPollMs(15000);
     },
   });
 }

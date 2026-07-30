@@ -20,11 +20,12 @@ export function BillingTypeSelect({
   className,
   required = false,
   error,
-}: BillingTypeSelectProps) {
+  label = "Registration billing",
+}: BillingTypeSelectProps & { label?: string }) {
   return (
     <div className={cn("space-y-2", className)}>
       <Label>
-        Registration billing
+        {label}
         {required ? <RequiredMark /> : null}
       </Label>
       <div

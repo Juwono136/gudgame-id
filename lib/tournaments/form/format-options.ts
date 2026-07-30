@@ -36,13 +36,13 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
   },
   double_stage: {
     value: "double_stage",
-    label: "Double Stage",
+    label: "Group stage + knockout",
     shortLabel: "Double Stage",
     description:
-      "Group stage round-robin followed by single elimination knockout for qualifiers.",
+      "Round-robin pools, then a knockout bracket for qualifiers — FIP-style field structure.",
     bullets: [
-      "Teams play round-robin within groups",
-      "Top teams advance to knockout bracket",
+      "Configurable pairs per pool and advancement (1st / 1st+2nd)",
+      "Best runner-up slots to fill knockout brackets",
       "Automatic standings, seeding, and bracket generation",
     ],
   },
@@ -51,10 +51,11 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
 /** Formats enabled for a sport (defaults to both; extend via sport admin config later). */
 export function getAllowedFormatsForSport(
   sportSlug: string,
-  options?: { officialOnly?: boolean },
+  options?: { officialOnly?: boolean; partnerTenant?: boolean },
 ): TournamentFormat[] {
   const defaults = getSportTournamentDefaults(sportSlug);
-  if (options?.officialOnly) {
+  // Official + partner white-label both support group→knockout (double_stage).
+  if (options?.officialOnly || options?.partnerTenant) {
     return ["double_stage", "single_elimination", "americano"];
   }
   if (defaults.defaultFormat === "americano") {

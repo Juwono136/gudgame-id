@@ -11,6 +11,7 @@ import type {
   OfficialTournamentStaffRole,
 } from "@/lib/tournaments/settings";
 import { tournamentQueryKeys, invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 /** Serialize live bracket score updates per match (multi-court safe). */
 const bracketScoreQueues = new Map<string, Promise<unknown>>();
@@ -63,10 +64,12 @@ export function useTournamentBracket(
     refetchInterval: (query) => {
       const data = query.state.data;
       const matches = data?.matches ?? [];
-      if (matches.some((m) => m.status === "in_progress")) return 5000;
-      if (data?.seedingFinalized === false) return 6000;
-      if (matches.some((m) => m.status === "pending" || m.status === "bye")) return 10000;
-      return 20000;
+      if (matches.some((m) => m.status === "in_progress")) return softDevPollMs(5000);
+      if (data?.seedingFinalized === false) return softDevPollMs(6000);
+      if (matches.some((m) => m.status === "pending" || m.status === "bye")) {
+        return softDevPollMs(10000);
+      }
+      return softDevPollMs(20000);
     },
   });
 }

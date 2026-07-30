@@ -19,7 +19,7 @@ type RegistrationConfirmClientProps = {
   tournament: TournamentDetail;
   registrationId: string;
   teamName: string;
-  teamMembers: { userId: string; displayName: string; role: string }[];
+  teamMembers: { userId: string | null; displayName: string; role: string }[];
   /** Override hub URL (partner white-label). Defaults to Gud Game sport route. */
   hubHref?: string;
 };

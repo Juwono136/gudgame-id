@@ -3,6 +3,7 @@ import "server-only";
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import {
   tournamentTeamMembers,
@@ -19,7 +20,10 @@ import { toOffset } from "@/lib/pagination/constants";
 
 export type PartnerEligibilityRecord = {
   playerName: string;
+  /** Gud Game member — null when this row is a partner guest player. */
   userId: string | null;
+  /** Partner guest player — null when this row is a Gud Game user. */
+  partnerPlayerId: string | null;
   tournamentId: string;
   tournamentName: string;
   categoryLabel: string | null;
@@ -88,12 +92,15 @@ export async function searchPartnerPlayerEligibility(
 
   const db = getDb();
 
+  const playerNameSql = sql<string>`coalesce(${user.name}, ${partnerPlayers.fullName})`;
+
   const memberConditions = [
     eq(tournaments.partnerId, partnerId),
     ...(q
       ? [
           or(
             ilike(user.name, `%${q}%`),
+            ilike(partnerPlayers.fullName, `%${q}%`),
             ilike(tournaments.name, `%${q}%`),
             ilike(tournaments.categoryLabel, `%${q}%`),
           )!,
@@ -101,12 +108,13 @@ export async function searchPartnerPlayerEligibility(
       : []),
   ];
 
-  // Cap hydrate set so partner clubs with huge history stay responsive.
-  const hydrateCap = 2000;
+  // Cap hydrate set so partner clubs with huge history stay responsive / harder to abuse.
+  const hydrateCap = 500;
   const rows = await db
     .select({
       userId: tournamentTeamMembers.userId,
-      playerName: user.name,
+      partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
+      playerName: playerNameSql,
       teamId: tournamentTeams.id,
       tournamentId: tournaments.id,
       tournamentName: tournaments.name,
@@ -118,7 +126,8 @@ export async function searchPartnerPlayerEligibility(
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(tournaments, eq(tournamentTeams.tournamentId, tournaments.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .where(and(...memberConditions))
     .orderBy(desc(tournaments.startsAt), desc(tournaments.createdAt))
     .limit(hydrateCap);
@@ -135,16 +144,20 @@ export async function searchPartnerPlayerEligibility(
     .select({
       teamId: tournamentTeamMembers.teamId,
       userId: tournamentTeamMembers.userId,
-      name: user.name,
+      partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
+      name: playerNameSql,
     })
     .from(tournamentTeamMembers)
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .where(inArray(tournamentTeamMembers.teamId, teamIds));
 
-  const matesByTeam = new Map<string, { userId: string; name: string }[]>();
+  const matesByTeam = new Map<string, { playerId: string; name: string }[]>();
   for (const m of mates) {
+    const playerId = m.userId ?? m.partnerPlayerId;
+    if (!playerId) continue;
     const list = matesByTeam.get(m.teamId) ?? [];
-    list.push({ userId: m.userId, name: m.name });
+    list.push({ playerId, name: m.name });
     matesByTeam.set(m.teamId, list);
   }
 
@@ -187,12 +200,14 @@ export async function searchPartnerPlayerEligibility(
   const allRecords: PartnerEligibilityRecord[] = [];
 
   for (const row of rows) {
-    const dedupeKey = `${row.userId}:${row.tournamentId}`;
+    const playerId = row.userId ?? row.partnerPlayerId;
+    if (!playerId) continue;
+    const dedupeKey = `${playerId}:${row.tournamentId}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
 
     const teamMates = matesByTeam.get(row.teamId) ?? [];
-    const partnerMate = teamMates.find((m) => m.userId !== row.userId);
+    const partnerMate = teamMates.find((m) => m.playerId !== playerId);
     const teamKey = `${row.tournamentId}:${row.teamId}`;
     let farthest = "Registered / group stage";
     if (wonFinalByTeam.has(teamKey)) {
@@ -208,6 +223,7 @@ export async function searchPartnerPlayerEligibility(
     allRecords.push({
       playerName: row.playerName,
       userId: row.userId,
+      partnerPlayerId: row.partnerPlayerId,
       tournamentId: row.tournamentId,
       tournamentName: row.tournamentName,
       categoryLabel: row.categoryLabel,
@@ -236,7 +252,7 @@ export async function countPartnerEligibilityPlayers(partnerId: string): Promise
   const db = getDb();
   const [row] = await db
     .select({
-      count: sql<number>`count(distinct ${tournamentTeamMembers.userId})`,
+      count: sql<number>`count(distinct coalesce(${tournamentTeamMembers.userId}, ${tournamentTeamMembers.partnerPlayerId}::text))`,
     })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))

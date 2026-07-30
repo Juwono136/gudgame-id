@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 import { PartnerTournamentWizard } from "@/components/partners/partner-tournament-wizard";
-import { PageShell } from "@/components/layout/page-shell";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import { requirePartnerWorkspace } from "@/lib/partners/session";
@@ -40,14 +39,12 @@ export default async function PartnerEditTournamentPage({ params }: PageProps) {
   }
 
   return (
-    <PageShell showGridBackground={false}>
-      <PartnerTournamentWizard
-        partnerSlug={workspace.partner.slug}
-        sportSlug={tournament.sportSlug || "padel"}
-        mode="edit"
-        initial={tournament}
-        tournamentId={tournamentId}
-      />
-    </PageShell>
+    <PartnerTournamentWizard
+      partnerSlug={workspace.partner.slug}
+      sportSlug={tournament.sportSlug || "padel"}
+      mode="edit"
+      initial={tournament}
+      tournamentId={tournamentId}
+    />
   );
 }

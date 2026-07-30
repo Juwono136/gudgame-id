@@ -43,7 +43,7 @@ export type HostTournamentWorkspace = {
     amountIdr: number | null;
     confirmedAt: string | null;
     paymentDueAt: string | null;
-    members: { userId: string; displayName: string; role: string }[];
+    members: { userId: string | null; displayName: string; role: string }[];
   }[];
   revenue: {
     totalCollectedIdr: number;

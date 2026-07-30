@@ -1,3 +1,4 @@
+import { guardApiRequest } from "@/lib/api/guard-request";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { normalizePartnerSlug } from "@/lib/partners/constants";
@@ -16,6 +17,12 @@ export async function GET(
   { params }: { params: Promise<{ partnerSlug: string }> },
 ) {
   try {
+    await guardApiRequest(request, {
+      tier: "general",
+      skipOriginCheck: true,
+      keySuffix: "partner-tournaments",
+    });
+
     const { partnerSlug: raw } = await params;
     const slug = normalizePartnerSlug(raw);
     const partner = await getActivePartnerBySlug(slug);

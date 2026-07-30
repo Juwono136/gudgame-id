@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { tournamentQueryKeys, invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 export type TournamentCourtView = {
   id: string;
@@ -30,7 +31,7 @@ export function useTournamentCourts(sportSlug: string, slug: string, enabled = t
       }
       return json.data.courts;
     },
-    refetchInterval: 8000,
+    refetchInterval: softDevPollMs(8000),
   });
 }
 

@@ -3,6 +3,7 @@ import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import { tournamentTeamMembers } from "@/db/schema/tournament-registration";
 import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboard";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
@@ -210,14 +211,17 @@ export async function buildTournamentLivePayload(
           .select({
             teamId: tournamentTeamMembers.teamId,
             userId: tournamentTeamMembers.userId,
+            partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
             role: tournamentTeamMembers.role,
             slotIndex: tournamentTeamMembers.slotIndex,
             name: user.name,
             image: user.image,
             nickname: user.nickname,
+            partnerFullName: partnerPlayers.fullName,
           })
           .from(tournamentTeamMembers)
-          .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+          .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+          .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
           .where(inArray(tournamentTeamMembers.teamId, teamIds))
       : [];
 
@@ -227,8 +231,8 @@ export async function buildTournamentLivePayload(
     members: members
       .filter((m) => m.teamId === team.id)
       .map((m) => ({
-        userId: m.userId,
-        name: m.nickname ?? m.name,
+        userId: (m.userId ?? m.partnerPlayerId)!,
+        name: m.userId ? (m.nickname ?? m.name) : (m.partnerFullName ?? "Guest"),
         image: m.image,
         role: m.role,
         slotIndex: m.slotIndex,

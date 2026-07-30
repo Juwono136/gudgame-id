@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerLeaguesDirectory } from "@/components/partners/partner-leagues-directory";
-import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import { partnerPageClass } from "@/lib/partners/layout";
@@ -20,25 +19,23 @@ export default async function PartnerLeaguesPage() {
   const partnerSlug = workspace.partner.slug;
 
   return (
-    <PageShell showGridBackground={false}>
-      <div className={partnerPageClass("space-y-5 py-8")}>
-        <PartnerPageHeader
-          backHref={dashboardRoutes.partner}
-          backLabel="Partner dashboard"
-          title="Leagues"
-          description="Partner-only season mode: add teams, enter match scores manually, and keep rolling standings on your site — no live tablet or venue TV."
-          actions={
-            <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
-              <Link href={dashboardRoutes.partnerLeaguesNew}>
-                <Plus className="mr-2 h-4 w-4" />
-                New league
-              </Link>
-            </Button>
-          }
-        />
+    <div className={partnerPageClass("space-y-5 py-8")}>
+      <PartnerPageHeader
+        backHref={dashboardRoutes.partner}
+        backLabel="Partner dashboard"
+        title="Leagues"
+        description="Season-long competitions with manual score entry and rolling standings on your site."
+        actions={
+          <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+            <Link href={dashboardRoutes.partnerLeaguesNew}>
+              <Plus className="mr-2 h-4 w-4" />
+              New league
+            </Link>
+          </Button>
+        }
+      />
 
-        <PartnerLeaguesDirectory mode="dashboard" partnerSlug={partnerSlug} />
-      </div>
-    </PageShell>
+      <PartnerLeaguesDirectory mode="dashboard" partnerSlug={partnerSlug} />
+    </div>
   );
 }

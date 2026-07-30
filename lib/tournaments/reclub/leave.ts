@@ -139,7 +139,13 @@ export async function leaveReclubTournament(
   }
 
   if (team.captainUserId === userId) {
-    const nextCaptain = remaining[0]!;
+    const nextCaptain = remaining.find((m) => m.userId);
+    if (!nextCaptain?.userId) {
+      throw new AppError("Cannot transfer captaincy — no remaining Gud Game members", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
     await db
       .update(tournamentTeams)
       .set({ captainUserId: nextCaptain.userId })

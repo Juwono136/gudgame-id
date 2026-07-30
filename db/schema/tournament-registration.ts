@@ -1,4 +1,5 @@
 import {
+  check,
   index,
   integer,
   pgTable,
@@ -7,7 +8,9 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth";
+import { partnerPlayers } from "./partner-players";
 import { tournaments } from "./tournaments";
 import { uuidFk, uuidPrimaryKey } from "./uuid";
 
@@ -47,7 +50,7 @@ export const tournamentTeams = pgTable(
   ],
 );
 
-/** Player assigned to a team slot */
+/** Player assigned to a team slot (Gud Game user XOR partner guest player). */
 export const tournamentTeamMembers = pgTable(
   "tournament_team_members",
   {
@@ -55,9 +58,10 @@ export const tournamentTeamMembers = pgTable(
     teamId: uuidFk("team_id")
       .notNull()
       .references(() => tournamentTeams.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    partnerPlayerId: uuidFk("partner_player_id").references(() => partnerPlayers.id, {
+      onDelete: "cascade",
+    }),
     slotIndex: integer("slot_index").default(0).notNull(),
     role: varchar("role", { length: 20 }).default("member").notNull(),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
@@ -65,7 +69,19 @@ export const tournamentTeamMembers = pgTable(
   (table) => [
     index("tournament_team_members_team_idx").on(table.teamId),
     uniqueIndex("tournament_team_members_user_team_uidx").on(table.teamId, table.userId),
+    uniqueIndex("tournament_team_members_partner_player_team_uidx").on(
+      table.teamId,
+      table.partnerPlayerId,
+    ),
     uniqueIndex("tournament_team_members_slot_uidx").on(table.teamId, table.slotIndex),
+    index("tournament_team_members_partner_player_idx").on(table.partnerPlayerId),
+    check(
+      "tournament_team_members_user_xor_partner",
+      sql`(
+        ("user_id" IS NOT NULL AND "partner_player_id" IS NULL)
+        OR ("user_id" IS NULL AND "partner_player_id" IS NOT NULL)
+      )`,
+    ),
   ],
 );
 

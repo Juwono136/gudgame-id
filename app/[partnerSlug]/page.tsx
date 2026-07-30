@@ -4,13 +4,13 @@ import { ArrowRight, CalendarDays, Trophy, Users } from "lucide-react";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
 import { PartnerTournamentRow } from "@/components/partners/partner-tournament-row";
 import { Button } from "@/components/ui/button";
+import { partnerPublicRoutes } from "@/lib/constants/routes";
+import { countPartnerLeagues } from "@/lib/partners/leagues";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import {
   countPartnerTournaments,
   listPartnerTournamentTeasers,
 } from "@/lib/partners/tournaments";
-import { countPartnerLeagues } from "@/lib/partners/leagues";
-import { partnerPublicRoutes } from "@/lib/constants/routes";
 
 type PageProps = { params: Promise<{ partnerSlug: string }> };
 
@@ -20,91 +20,109 @@ export default async function PartnerLandingPage({ params }: PageProps) {
   if (!partner) notFound();
 
   const [live, tournamentTotal, leagueTotal, liveCount] = await Promise.all([
-      listPartnerTournamentTeasers(partner.id, { limit: 6, status: "active" }),
-      countPartnerTournaments(partner.id, "all", { excludeDrafts: true }),
-      countPartnerLeagues(partner.id, "public"),
-      countPartnerTournaments(partner.id, "active"),
-    ]);
+    listPartnerTournamentTeasers(partner.id, { limit: 6, status: "active" }),
+    countPartnerTournaments(partner.id, "all", { excludeDrafts: true }),
+    countPartnerLeagues(partner.id, "public"),
+    countPartnerTournaments(partner.id, "active"),
+  ]);
   const primary = partner.branding.primaryColor ?? "#0d9488";
   const heroTitle = partner.branding.heroTitle?.trim() || partner.displayName;
   const tagline =
     partner.branding.tagline?.trim() ||
-    `Premium events by ${partner.displayName} — your club hub, separate from Gud Game rankings.`;
+    `Events and standings from ${partner.displayName}.`;
   const about = partner.branding.about?.trim();
   const { contactEmail, contactWhatsapp, contactWebsite } = partner.branding;
 
+  const stats = [
+    { icon: CalendarDays, label: "Tournaments", shortLabel: "Events", value: tournamentTotal },
+    { icon: Trophy, label: "Live / upcoming", shortLabel: "Active", value: liveCount },
+    { icon: Users, label: "Leagues", shortLabel: "Leagues", value: leagueTotal },
+  ];
+
+  const ctaClass =
+    "h-11 w-full justify-center sm:h-10 sm:w-auto sm:justify-start";
+
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-6 sm:pt-12 lg:px-8">
-      <section className="relative overflow-hidden rounded-[1.75rem] border border-cp-border/80 bg-cp-card/70 shadow-lg shadow-black/5 dark:shadow-black/30">
+    <div className="mx-auto w-full min-w-0 max-w-7xl px-3 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-10 lg:px-8">
+      <section className="relative overflow-hidden rounded-2xl border border-cp-border/80 bg-cp-card/85 shadow-sm sm:rounded-[1.75rem]">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            background: `linear-gradient(125deg, ${primary}22 0%, transparent 42%, ${primary}10 100%)`,
+            background: `linear-gradient(145deg, ${primary}22 0%, transparent 52%, ${primary}0a 100%)`,
           }}
           aria-hidden
         />
-        <div
-          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full opacity-40 blur-3xl"
-          style={{ background: primary }}
-          aria-hidden
-        />
 
-        <div className="relative grid gap-8 px-5 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-          <div className="space-y-6">
-            <div className="flex items-center gap-4">
+        <div className="relative space-y-6 px-4 py-7 sm:space-y-8 sm:px-10 sm:py-11">
+          <div className="space-y-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               {partner.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={partner.logoUrl}
                   alt=""
-                  className="h-16 w-16 rounded-2xl object-cover shadow-lg ring-2 ring-white/50 dark:ring-white/10 sm:h-20 sm:w-20"
+                  className="h-14 w-14 shrink-0 rounded-2xl object-cover shadow-md ring-1 ring-black/5 dark:ring-white/10 sm:h-[4.5rem] sm:w-[4.5rem]"
                 />
               ) : (
                 <span
-                  className="flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold text-white shadow-lg sm:h-20 sm:w-20 sm:text-3xl"
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-bold text-white shadow-md sm:h-[4.5rem] sm:w-[4.5rem] sm:text-3xl"
                   style={{ background: primary }}
                 >
                   {partner.displayName.slice(0, 1).toUpperCase()}
                 </span>
               )}
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cp-muted">
-                  Partner club
-                </p>
-                <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                <h1 className="break-words text-2xl font-bold tracking-tight text-foreground sm:text-4xl">
                   {heroTitle}
                 </h1>
+                <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-cp-muted sm:text-base">
+                  {tagline}
+                </p>
               </div>
             </div>
 
-            <p className="max-w-xl text-sm leading-relaxed text-cp-muted sm:text-base">
-              {tagline}
-            </p>
             {about ? (
               <p className="max-w-2xl whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
                 {about}
               </p>
             ) : null}
 
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="lg" className="bg-cp-primary hover:bg-cp-primary-light">
+            <div className="grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap">
+              <Button asChild size="lg" className={`bg-cp-primary hover:bg-cp-primary-light ${ctaClass}`}>
                 <Link href={partnerPublicRoutes.tournaments(partner.slug)}>
-                  Browse tournaments
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <CalendarDays className="mr-2 h-4 w-4 shrink-0" />
+                  Tournaments
+                  <ArrowRight className="ml-2 h-4 w-4 shrink-0 opacity-80" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-cp-border bg-cp-card/60">
-                <Link href={partnerPublicRoutes.leagues(partner.slug)}>View leagues</Link>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className={`border-cp-border bg-background/70 ${ctaClass}`}
+              >
+                <Link href={partnerPublicRoutes.leagues(partner.slug)}>
+                  <Trophy className="mr-2 h-4 w-4 shrink-0" />
+                  Leagues
+                </Link>
               </Button>
-              <Button asChild size="lg" variant="ghost">
-                <Link href={partnerPublicRoutes.players(partner.slug)}>Player history</Link>
+              <Button
+                asChild
+                size="lg"
+                variant="ghost"
+                className={`text-cp-muted hover:text-foreground ${ctaClass}`}
+              >
+                <Link href={partnerPublicRoutes.players(partner.slug)}>
+                  <Users className="mr-2 h-4 w-4 shrink-0" />
+                  Players
+                </Link>
               </Button>
             </div>
 
             {(contactEmail || contactWhatsapp || contactWebsite) && (
               <ul className="flex flex-wrap gap-x-4 gap-y-1 border-t border-cp-border/60 pt-4 text-xs text-cp-muted sm:text-sm">
                 {contactEmail ? (
-                  <li>
+                  <li className="min-w-0 break-all">
                     <a
                       href={`mailto:${contactEmail}`}
                       className="font-medium text-cp-primary hover:underline"
@@ -134,34 +152,23 @@ export default async function PartnerLandingPage({ params }: PageProps) {
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            {[
-              {
-                icon: CalendarDays,
-                label: "Events",
-                value: String(tournamentTotal),
-              },
-              {
-                icon: Trophy,
-                label: "Live / upcoming",
-                value: String(liveCount),
-              },
-              {
-                icon: Users,
-                label: "Leagues",
-                value: String(leagueTotal),
-              },
-            ].map((stat) => (
+          <div className="grid grid-cols-3 gap-1.5 border-t border-cp-border/60 pt-5 sm:gap-3 sm:pt-6">
+            {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-2xl border border-cp-border/70 bg-background/50 px-3 py-4 text-center backdrop-blur-sm sm:px-4"
+                className="min-w-0 rounded-xl border border-cp-border/70 bg-background/60 px-1.5 py-3 text-center backdrop-blur-sm sm:rounded-2xl sm:px-4 sm:py-5"
               >
-                <stat.icon className="mx-auto h-4 w-4 text-cp-primary" />
-                <p className="mt-2 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                <stat.icon
+                  className="mx-auto h-3.5 w-3.5 sm:h-5 sm:w-5"
+                  style={{ color: primary }}
+                  aria-hidden
+                />
+                <p className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-foreground sm:mt-2 sm:text-3xl">
                   {stat.value}
                 </p>
-                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-cp-muted sm:text-[11px]">
-                  {stat.label}
+                <p className="mt-0.5 text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-cp-muted sm:mt-1 sm:text-[11px] sm:tracking-[0.1em]">
+                  <span className="sm:hidden">{stat.shortLabel}</span>
+                  <span className="hidden sm:inline">{stat.label}</span>
                 </p>
               </div>
             ))}
@@ -169,32 +176,28 @@ export default async function PartnerLandingPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section className="mt-12 sm:mt-14">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground sm:text-xl">
-              Upcoming & live
-            </h2>
-            <p className="mt-1 text-xs text-cp-muted sm:text-sm">
-              Events on this site stay off Gud Game career rankings.
-            </p>
+      <section className="mt-8 min-w-0 sm:mt-12">
+        <div className="mb-3 flex items-end justify-between gap-3 sm:mb-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-foreground sm:text-xl">Schedule</h2>
+            <p className="mt-1 text-xs text-cp-muted sm:text-sm">Live and upcoming tournaments</p>
           </div>
           <Link
             href={partnerPublicRoutes.tournaments(partner.slug)}
-            className="text-xs font-medium text-cp-primary hover:underline sm:text-sm"
+            className="shrink-0 text-xs font-medium text-cp-primary hover:underline sm:text-sm"
           >
             View all
           </Link>
         </div>
         {live.length === 0 ? (
-          <div className="overflow-hidden rounded-2xl border border-dashed border-cp-border bg-cp-card/40">
+          <div className="overflow-hidden rounded-2xl border border-dashed border-cp-border bg-cp-card/50">
             <PartnerEmptyState
-              title="No upcoming events yet"
-              description="Check back soon — new tournaments will show up here."
+              title="No events yet"
+              description="Published tournaments will appear here."
             />
           </div>
         ) : (
-          <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card/80 shadow-sm backdrop-blur-sm">
+          <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card/90 shadow-sm">
             {live.map((t) => (
               <PartnerTournamentRow
                 key={t.id}

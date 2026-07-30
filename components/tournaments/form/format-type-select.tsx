@@ -22,7 +22,10 @@ type FormatTypeSelectProps = {
   sportSlug?: string;
   disabled?: boolean;
   className?: string;
+  /** Gud Game Official — includes group stage + knockout. */
   officialOnly?: boolean;
+  /** Partner white-label — same format set as Official (no skill tiers). */
+  partnerTenant?: boolean;
   required?: boolean;
   error?: string | null;
 };
@@ -34,17 +37,18 @@ export function FormatTypeSelect({
   disabled,
   className,
   officialOnly,
+  partnerTenant,
   required = false,
   error,
 }: FormatTypeSelectProps) {
-  const allowed = getAllowedFormatsForSport(sportSlug, { officialOnly });
+  const allowed = getAllowedFormatsForSport(sportSlug, { officialOnly, partnerTenant });
 
   const gridClass =
     allowed.length <= 1
-      ? "mx-auto grid w-full max-w-xl grid-cols-1 gap-3"
+      ? "grid w-full grid-cols-1 gap-3"
       : allowed.length === 2
-        ? "mx-auto grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2"
-        : "grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3";
+        ? "grid w-full grid-cols-1 gap-4 sm:grid-cols-2"
+        : "grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -53,8 +57,9 @@ export function FormatTypeSelect({
         {required ? <RequiredMark /> : null}
       </Label>
       <p className="text-xs leading-relaxed text-cp-muted">
-        Choose how players compete. Options depend on the sport — some sports favor rotation
-        formats, others use knockout brackets.
+        {partnerTenant || officialOnly
+          ? "Choose knockout, group stage + knockout, or Americano. Pool rules stay editable after you pick a format."
+          : "Choose how players compete. Options depend on the sport — some sports favor rotation formats, others use knockout brackets."}
       </p>
       <div
         className={cn(gridClass, error && "rounded-2xl p-1 ring-1 ring-red-500/50")}
@@ -77,8 +82,7 @@ export function FormatTypeSelect({
               disabled={disabled}
               onClick={() => onChange(formatKey)}
               className={cn(
-                "relative flex h-full min-h-[11rem] flex-col rounded-2xl border p-4 text-left transition-all sm:min-h-[12rem] sm:p-5",
-                allowed.length === 2 && "w-full",
+                "relative flex h-full min-h-[12rem] flex-col rounded-2xl border p-4 text-left transition-all sm:min-h-[13rem] sm:p-5",
                 selected
                   ? "border-cp-primary bg-cp-primary/10 ring-1 ring-cp-primary/40"
                   : "border-cp-border bg-cp-elevated/40 hover:border-cp-primary/30 hover:bg-cp-elevated/70",

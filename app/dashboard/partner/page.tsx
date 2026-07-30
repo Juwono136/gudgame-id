@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, CalendarDays, ExternalLink, Settings, Trophy, Users } from "lucide-react";
+import {
+  CalendarDays,
+  ExternalLink,
+  Receipt,
+  Settings,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerTournamentRow } from "@/components/partners/partner-tournament-row";
-import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
 import {
@@ -20,7 +26,7 @@ import {
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Partner Dashboard",
+  title: "Partner Console",
 };
 
 export default async function PartnerDashboardPage() {
@@ -43,102 +49,135 @@ export default async function PartnerDashboardPage() {
     ]);
   const publicUrl = partnerPublicRoutes.home(partner.slug);
 
+  const actionBtn =
+    "h-10 w-full justify-center sm:h-9 sm:w-auto sm:justify-start";
+
   return (
-    <PageShell showGridBackground={false}>
-      <div className={partnerPageClass("space-y-6 py-8")}>
-        <PartnerPageHeader
-          eyebrow="Partner workspace"
-          title={
-            <span className="flex items-center gap-2">
-              <Building2 className="h-7 w-7 shrink-0 text-cp-primary" />
-              <span className="truncate">{partner.displayName}</span>
-            </span>
-          }
-          description={
-            <>
-              White-label site at{" "}
-              <Link href={publicUrl} className="font-medium text-cp-primary hover:underline">
-                /{partner.slug}
-              </Link>
-              . Use <span className="font-medium text-foreground">tournaments</span> for
-              event-day brackets &amp; live scoring, and{" "}
-              <span className="font-medium text-foreground">leagues</span> for season-long
-              standings with manual scores — both stay off Gud Game rankings.
-            </>
-          }
-          actions={
-            <>
-              <Button asChild variant="outline" className="border-cp-border">
-                <Link href={publicUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View site
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="border-cp-border">
-                <Link href={dashboardRoutes.partnerSettings}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Branding
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="border-cp-border">
-                <Link href={partnerPublicRoutes.players(partner.slug)} target="_blank" rel="noopener noreferrer">
-                  <Users className="mr-2 h-4 w-4" />
-                  Player history
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="border-cp-border">
-                <Link href={dashboardRoutes.partnerLeaguesNew}>
-                  <Trophy className="mr-2 h-4 w-4" />
-                  New league
-                </Link>
-              </Button>
-              <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
-                <Link href={dashboardRoutes.partnerTournamentsNew}>
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  New tournament
-                </Link>
-              </Button>
-            </>
-          }
-        />
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "Tournaments", value: tournamentTotal },
-            { label: "Leagues", value: leagueTotal },
-            { label: "Live", value: liveCount },
-            { label: "Upcoming", value: upcomingCount },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-2xl border border-cp-border bg-cp-card px-4 py-3.5"
+    <div className={partnerPageClass("min-w-0 space-y-6 py-6 sm:space-y-8 sm:py-10")}>
+      <PartnerPageHeader
+        eyebrow="Partner console"
+        title={partner.displayName}
+        description={
+          <>
+            Site:{" "}
+            <Link href={publicUrl} className="font-medium text-cp-primary hover:underline">
+              /{partner.slug}
+            </Link>
+          </>
+        }
+        actionsPlacement="below"
+        actions={
+          <>
+            <Button
+              asChild
+              className={`col-span-2 bg-cp-primary hover:bg-cp-primary-light sm:col-span-1 ${actionBtn}`}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-cp-muted">
-                {stat.label}
-              </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{stat.value}</p>
-            </div>
-          ))}
-        </div>
+              <Link href={dashboardRoutes.partnerTournamentsNew}>
+                <CalendarDays className="mr-2 h-4 w-4 shrink-0" />
+                New tournament
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className={`border-cp-border bg-cp-card/70 ${actionBtn}`}
+            >
+              <Link href={dashboardRoutes.partnerLeaguesNew}>
+                <Trophy className="mr-2 h-4 w-4 shrink-0" />
+                New league
+              </Link>
+            </Button>
+            <span
+              className="mx-0.5 hidden h-6 w-px self-center bg-cp-border sm:inline-block"
+              aria-hidden
+            />
+            <Button
+              asChild
+              variant="outline"
+              className={`border-cp-border bg-cp-card/70 ${actionBtn}`}
+            >
+              <Link href={dashboardRoutes.partnerPayments}>
+                <Receipt className="mr-2 h-4 w-4 shrink-0" />
+                Payments
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className={`border-cp-border bg-cp-card/70 ${actionBtn}`}
+            >
+              <Link href={dashboardRoutes.partnerSettings}>
+                <Settings className="mr-2 h-4 w-4 shrink-0" />
+                Branding
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className={`border-cp-border bg-cp-card/70 ${actionBtn}`}
+            >
+              <Link
+                href={partnerPublicRoutes.players(partner.slug)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Users className="mr-2 h-4 w-4 shrink-0" />
+                Players
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className={`text-cp-muted hover:text-foreground sm:col-auto ${actionBtn}`}
+            >
+              <Link href={publicUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4 shrink-0" />
+                Open site
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        <section className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-cp-border px-4 py-3 sm:px-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        {[
+          { label: "Tournaments", value: tournamentTotal, href: dashboardRoutes.partnerTournaments },
+          { label: "Leagues", value: leagueTotal, href: dashboardRoutes.partnerLeagues },
+          { label: "Live now", value: liveCount, href: dashboardRoutes.partnerTournaments },
+          { label: "Upcoming", value: upcomingCount, href: dashboardRoutes.partnerTournaments },
+        ].map((stat) => (
+          <Link
+            key={stat.label}
+            href={stat.href}
+            className="group min-w-0 rounded-2xl border border-cp-border bg-cp-card/80 px-3 py-3.5 transition-colors hover:border-cp-primary/35 hover:bg-cp-elevated/40 sm:px-4 sm:py-4"
+          >
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-cp-muted sm:text-[11px]">
+              {stat.label}
+            </p>
+            <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-foreground sm:mt-2 sm:text-3xl">
+              {stat.value}
+            </p>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-2">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-cp-border bg-cp-card/90 shadow-sm">
+          <div className="flex items-start justify-between gap-3 border-b border-cp-border px-4 py-3.5 sm:items-center sm:px-5">
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-foreground">Tournaments</h2>
-              <p className="mt-0.5 text-xs text-cp-muted">
-                One-day / weekend events — pools, knockout, live tablet scoring, TV display.
-              </p>
+              <p className="mt-0.5 text-xs text-cp-muted">Brackets and live scoring</p>
             </div>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="shrink-0 px-2 sm:px-3">
               <Link href={dashboardRoutes.partnerTournaments}>View all</Link>
             </Button>
           </div>
           {tournaments.length === 0 ? (
             <PartnerEmptyState
               title="No tournaments yet"
-              description="Create a knockout or group-stage event with live scoring on your white-label site only."
+              description="Create an event to open registration and scoring."
               action={
-                <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+                <Button asChild className="w-full bg-cp-primary hover:bg-cp-primary-light sm:w-auto">
                   <Link href={dashboardRoutes.partnerTournamentsNew}>Create tournament</Link>
                 </Button>
               }
@@ -156,24 +195,22 @@ export default async function PartnerDashboardPage() {
           )}
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-cp-border px-4 py-3 sm:px-5">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-cp-border bg-cp-card/90 shadow-sm">
+          <div className="flex items-start justify-between gap-3 border-b border-cp-border px-4 py-3.5 sm:items-center sm:px-5">
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-foreground">Leagues</h2>
-              <p className="mt-0.5 text-xs text-cp-muted">
-                Ongoing seasons — manual score entry, rolling standings, no live TV scoreboard.
-              </p>
+              <p className="mt-0.5 text-xs text-cp-muted">Season standings</p>
             </div>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="shrink-0 px-2 sm:px-3">
               <Link href={dashboardRoutes.partnerLeagues}>View all</Link>
             </Button>
           </div>
           {leagues.length === 0 ? (
             <PartnerEmptyState
               title="No leagues yet"
-              description="Partner-only feature: run a multi-week league with teams and standings updated as you enter scores."
+              description="Add a season when you need ongoing standings."
               action={
-                <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+                <Button asChild className="w-full bg-cp-primary hover:bg-cp-primary-light sm:w-auto">
                   <Link href={dashboardRoutes.partnerLeaguesNew}>Create league</Link>
                 </Button>
               }
@@ -192,7 +229,7 @@ export default async function PartnerDashboardPage() {
                         {league.teamCount} teams · {league.matchCount} matches
                       </p>
                     </div>
-                    <span className="shrink-0 text-xs font-medium text-cp-primary">Manage</span>
+                    <span className="shrink-0 text-xs font-medium text-cp-primary">Open</span>
                   </Link>
                 </li>
               ))}
@@ -200,6 +237,6 @@ export default async function PartnerDashboardPage() {
           )}
         </section>
       </div>
-    </PageShell>
+    </div>
   );
 }

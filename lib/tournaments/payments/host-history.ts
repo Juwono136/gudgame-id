@@ -10,7 +10,7 @@ import { user } from "@/db/schema/auth";
 
 export type HostPaymentRecord = {
   paymentId: string;
-  registrationId: string;
+  registrationId: string | null;
   tournamentId: string;
   tournamentName: string;
   sportSlug: string;

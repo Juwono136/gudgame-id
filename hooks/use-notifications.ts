@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { NotificationId, NotificationItem } from "@/lib/notifications/types";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 export function useUnreadNotificationCount(enabled = true) {
   return useQuery({
@@ -20,7 +21,7 @@ export function useUnreadNotificationCount(enabled = true) {
       return json.data.count;
     },
     enabled,
-    refetchInterval: 30000,
+    refetchInterval: softDevPollMs(30000),
   });
 }
 

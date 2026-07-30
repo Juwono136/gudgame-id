@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers, partnerTournamentRegistrations } from "@/db/schema/partner-players";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournamentRegistrations, tournamentTeams } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
@@ -11,10 +12,15 @@ import { sports } from "@/db/schema/sports";
 import { siteConfig } from "@/lib/config";
 import { isUuid } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
+import { getPrimaryPartnerForUser } from "@/lib/partners/service";
 import type { AppRole } from "@/lib/roles/constants";
-import { canAccessAdminConsole, canAccessHostDashboard } from "@/lib/roles/route-access";
+import {
+  canAccessAdminConsole,
+  canAccessHostDashboard,
+  canAccessPartnerDashboard,
+} from "@/lib/roles/route-access";
 
-export type PaymentInvoiceViewerRole = "player" | "host" | "admin";
+export type PaymentInvoiceViewerRole = "player" | "host" | "admin" | "partner" | "guest";
 
 export type PaymentInvoiceLineItem = {
   label: string;
@@ -59,30 +65,49 @@ export type PaymentInvoiceDocument = {
   };
 };
 
-function resolveViewerRole(
-  payerUserId: string,
-  hostUserId: string | null,
-  userId: string,
-  roles: AppRole[],
-): PaymentInvoiceViewerRole | null {
-  if (payerUserId === userId) return "player";
-  if (hostUserId === userId && canAccessHostDashboard(roles)) return "host";
-  if (canAccessAdminConsole(roles)) return "admin";
-  return null;
-}
-
 const hostUser = alias(user, "invoice_host_user");
+/** Captain of a partner guest registration — stands in for the payer when there's no Gud Game user. */
+const captainPlayer = alias(partnerPlayers, "invoice_captain_player");
 
 function formatPaymentMethod(raw: string | null): string | null {
   if (!raw) return null;
   return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export async function getPaymentInvoiceDocument(
-  paymentId: string,
-  userId: string,
-  roles: AppRole[],
-): Promise<PaymentInvoiceDocument> {
+type InvoiceRow = {
+  paymentId: string;
+  registrationId: string | null;
+  partnerRegistrationId: string | null;
+  status: string;
+  amountIdr: number;
+  platformFeeIdr: number;
+  hostPayoutIdr: number;
+  processingFeeIdr: number;
+  xenditExternalId: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
+  metadata: unknown;
+  payerUserId: string | null;
+  payerName: string | null;
+  payerEmail: string | null;
+  teamName: string | null;
+  partnerTeamName: string | null;
+  captainName: string | null;
+  captainEmail: string | null;
+  tournamentId: string;
+  tournamentName: string;
+  tournamentType: string;
+  tournamentSlug: string;
+  tournamentPartnerId: string | null;
+  sportSlug: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  hostUserId: string | null;
+  hostName: string | null;
+  hostEmail: string | null;
+};
+
+async function fetchInvoiceRow(paymentId: string): Promise<InvoiceRow | null> {
   if (!isUuid(paymentId)) {
     throw new AppError("Invalid payment id", { code: "VALIDATION_ERROR", statusCode: 400 });
   }
@@ -91,6 +116,7 @@ export async function getPaymentInvoiceDocument(
     .select({
       paymentId: tournamentPayments.id,
       registrationId: tournamentPayments.registrationId,
+      partnerRegistrationId: tournamentPayments.partnerRegistrationId,
       status: tournamentPayments.status,
       amountIdr: tournamentPayments.amountIdr,
       platformFeeIdr: tournamentPayments.platformFeeIdr,
@@ -104,10 +130,14 @@ export async function getPaymentInvoiceDocument(
       payerName: user.name,
       payerEmail: user.email,
       teamName: tournamentTeams.name,
+      partnerTeamName: partnerTournamentRegistrations.teamName,
+      captainName: captainPlayer.fullName,
+      captainEmail: captainPlayer.email,
       tournamentId: tournaments.id,
       tournamentName: tournaments.name,
       tournamentType: tournaments.tournamentType,
       tournamentSlug: tournaments.slug,
+      tournamentPartnerId: tournaments.partnerId,
       sportSlug: sports.slug,
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
@@ -118,28 +148,31 @@ export async function getPaymentInvoiceDocument(
     .from(tournamentPayments)
     .innerJoin(tournaments, eq(tournamentPayments.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
-    .innerJoin(user, eq(tournamentPayments.payerUserId, user.id))
+    .leftJoin(user, eq(tournamentPayments.payerUserId, user.id))
     .leftJoin(
       tournamentRegistrations,
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
     )
     .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
+    .leftJoin(
+      partnerTournamentRegistrations,
+      eq(tournamentPayments.partnerRegistrationId, partnerTournamentRegistrations.id),
+    )
+    .leftJoin(
+      captainPlayer,
+      eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
+    )
     .leftJoin(hostUser, eq(tournaments.createdBy, hostUser.id))
     .where(eq(tournamentPayments.id, paymentId))
     .limit(1);
 
-  if (!row) {
-    throw new AppError("Payment not found", { code: "NOT_FOUND", statusCode: 404 });
-  }
+  return row ?? null;
+}
 
-  const viewerRole = resolveViewerRole(row.payerUserId, row.hostUserId, userId, roles);
-  if (!viewerRole) {
-    throw new AppError("You do not have access to this invoice", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
-  }
-
+function buildInvoiceDocument(
+  row: InvoiceRow,
+  viewerRole: PaymentInvoiceViewerRole,
+): PaymentInvoiceDocument {
   if (row.status !== "paid") {
     throw new AppError("Invoice is available only for completed payments", {
       code: "NOT_FOUND",
@@ -155,10 +188,7 @@ export async function getPaymentInvoiceDocument(
   }
 
   const meta = (row.metadata ?? {}) as Record<string, unknown>;
-  const registrationFeeIdr = Math.max(
-    0,
-    row.amountIdr - row.processingFeeIdr,
-  );
+  const registrationFeeIdr = Math.max(0, row.amountIdr - row.processingFeeIdr);
 
   const lineItems: PaymentInvoiceLineItem[] = [
     { label: "Tournament registration fee", amountIdr: registrationFeeIdr },
@@ -174,7 +204,7 @@ export async function getPaymentInvoiceDocument(
   return {
     invoiceNumber,
     paymentId: row.paymentId,
-    registrationId: row.registrationId,
+    registrationId: row.registrationId ?? row.partnerRegistrationId ?? "",
     status: "paid",
     paidAt: row.paidAt.toISOString(),
     issuedAt: row.paidAt.toISOString(),
@@ -183,10 +213,10 @@ export async function getPaymentInvoiceDocument(
     ),
     viewerRole,
     payer: {
-      name: row.payerName?.trim() || "Player",
-      email: row.payerEmail,
+      name: row.payerName?.trim() || row.captainName?.trim() || "Player",
+      email: row.payerEmail ?? row.captainEmail ?? "",
     },
-    teamName: row.teamName,
+    teamName: row.teamName ?? row.partnerTeamName ?? null,
     tournament: {
       id: row.tournamentId,
       name: row.tournamentName,
@@ -211,4 +241,70 @@ export async function getPaymentInvoiceDocument(
       description: siteConfig.description,
     },
   };
+}
+
+async function resolveViewerRole(
+  row: InvoiceRow,
+  userId: string,
+  roles: AppRole[],
+): Promise<PaymentInvoiceViewerRole | null> {
+  if (row.payerUserId && row.payerUserId === userId) return "player";
+  if (row.hostUserId === userId && canAccessHostDashboard(roles)) return "host";
+  if (row.tournamentPartnerId && canAccessPartnerDashboard(roles)) {
+    const partner = await getPrimaryPartnerForUser(userId);
+    if (partner && partner.id === row.tournamentPartnerId) return "partner";
+  }
+  if (canAccessAdminConsole(roles)) return "admin";
+  return null;
+}
+
+/** Dashboard access (player, host, partner, admin) — resolves the viewer's relationship to the payment. */
+export async function getPaymentInvoiceDocument(
+  paymentId: string,
+  userId: string,
+  roles: AppRole[],
+): Promise<PaymentInvoiceDocument> {
+  const row = await fetchInvoiceRow(paymentId);
+  if (!row) {
+    throw new AppError("Payment not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const viewerRole = await resolveViewerRole(row, userId, roles);
+  if (!viewerRole) {
+    throw new AppError("You do not have access to this invoice", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
+
+  return buildInvoiceDocument(row, viewerRole);
+}
+
+/** Partner dashboard receipt page — ownership is scoped to the partner's tenant, not a specific user. */
+export async function getPartnerPaymentInvoiceDocument(
+  paymentId: string,
+  partnerId: string,
+): Promise<PaymentInvoiceDocument> {
+  const row = await fetchInvoiceRow(paymentId);
+  if (!row || row.tournamentPartnerId !== partnerId) {
+    throw new AppError("Payment not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  return buildInvoiceDocument(row, "partner");
+}
+
+/**
+ * Guest (no Gud Game login) receipt access — ownership is proven by an already-verified
+ * partner registration access token, matched against the payment's `partnerRegistrationId`.
+ */
+export async function getGuestPaymentInvoiceDocument(
+  paymentId: string,
+  partnerRegistrationId: string,
+): Promise<PaymentInvoiceDocument> {
+  const row = await fetchInvoiceRow(paymentId);
+  if (!row || row.partnerRegistrationId !== partnerRegistrationId) {
+    throw new AppError("Payment not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  return buildInvoiceDocument(row, "guest");
 }

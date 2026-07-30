@@ -197,19 +197,65 @@ export const tournamentUpsertSchema = z
     }
 
     if (data.tournamentType === "fun_match") {
-      if (data.officialBilling) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Fun Match tournaments do not use official billing.",
-          path: ["officialBilling"],
-        });
-      }
-      if (data.registrationFeeIdr && data.registrationFeeIdr > 0) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Fun Match tournaments must be free (no registration fee).",
-          path: ["registrationFeeIdr"],
-        });
+      // Partner tenants reuse fun_match engines but may charge guest entry fees.
+      if (data.partnerTenant) {
+        if (data.officialBilling === "paid") {
+          if (!data.registrationFeeIdr || data.registrationFeeIdr <= 0) {
+            ctx.addIssue({
+              code: "custom",
+              message: "Paid partner tournaments require an entry fee (IDR).",
+              path: ["registrationFeeIdr"],
+            });
+          }
+        }
+        if (data.officialBilling === "free") {
+          if (data.registrationFeeIdr && data.registrationFeeIdr > 0) {
+            ctx.addIssue({
+              code: "custom",
+              message: "Free partner tournaments cannot have an entry fee.",
+              path: ["registrationFeeIdr"],
+            });
+          }
+        }
+        if (!data.registrationClosesAt?.trim()) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Registration deadline is required for partner tournaments.",
+            path: ["registrationClosesAt"],
+          });
+        } else if (data.endsAt?.trim()) {
+          const end = new Date(data.endsAt).getTime();
+          const closes = new Date(data.registrationClosesAt).getTime();
+          if (!Number.isNaN(end) && !Number.isNaN(closes) && closes > end) {
+            ctx.addIssue({
+              code: "custom",
+              message: "Registration must close on or before the tournament end.",
+              path: ["registrationClosesAt"],
+            });
+          }
+        }
+        if (!data.venue?.trim()) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Venue is required for partner tournaments.",
+            path: ["venue"],
+          });
+        }
+      } else {
+        if (data.officialBilling) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Fun Match tournaments do not use official billing.",
+            path: ["officialBilling"],
+          });
+        }
+        if (data.registrationFeeIdr && data.registrationFeeIdr > 0) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Fun Match tournaments must be free (no registration fee).",
+            path: ["registrationFeeIdr"],
+          });
+        }
       }
       if (!data.startsAt?.trim()) {
         ctx.addIssue({

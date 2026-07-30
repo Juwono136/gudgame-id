@@ -8,7 +8,11 @@ import {
   computeTournamentStatus,
   syncTournamentStatusFromSchedule,
 } from "@/lib/tournaments/status-sync";
-import type { TournamentListItem } from "@/lib/tournaments/service";
+import {
+  getPartnerTournamentBySlug,
+  type TournamentDetail,
+  type TournamentListItem,
+} from "@/lib/tournaments/service";
 import {
   toPartnerPagedResult,
   type PartnerPagedResult,
@@ -201,6 +205,20 @@ export async function listPartnerTournamentTeasers(
     sortDir: "asc",
   });
   return result.items;
+}
+
+/**
+ * Public-facing tournament detail lookup by slug only (no sportSlug segment in the URL).
+ * Mirrors the lookup used by the partner tournament detail page.
+ */
+export async function getPartnerTournamentDetailBySlug(
+  partnerId: string,
+  slug: string,
+): Promise<TournamentDetail | null> {
+  const listed = await listPartnerTournaments(partnerId);
+  const match = listed.find((t) => t.slug === slug);
+  if (!match) return null;
+  return getPartnerTournamentBySlug(partnerId, match.sportSlug, slug);
 }
 
 export async function countPartnerTournaments(

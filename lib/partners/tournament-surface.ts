@@ -1,25 +1,18 @@
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 /**
- * Partner white-label events are community fun matches only.
- * Coerce any leftover official / billing fields so shared manage/public
- * shells never surface Official paid/free UI on partner surfaces.
+ * Partner white-label events keep fun_match format/scoring engines.
+ * Billing (paid/free entry) is allowed for guest registration — only coerce type.
  */
 export function toPartnerFunMatchTournament(
   tournament: TournamentDetail,
 ): TournamentDetail {
-  if (
-    tournament.tournamentType === "fun_match" &&
-    tournament.officialBilling == null &&
-    (tournament.registrationFeeIdr == null || tournament.registrationFeeIdr === 0)
-  ) {
+  if (tournament.tournamentType === "fun_match") {
     return tournament;
   }
 
   return {
     ...tournament,
     tournamentType: "fun_match",
-    officialBilling: null,
-    registrationFeeIdr: null,
   };
 }

@@ -23,7 +23,10 @@ export function DashboardLayoutClient({ children }: DashboardLayoutClientProps) 
 
   const roles = sessionCtx?.roles ?? [];
   const variant = resolveDashboardMobileNavVariant(pathname, roles);
-  const showMobileNav = sessionCtx?.authenticated === true && roles.length > 0;
+  const onPartnerConsole = pathname?.startsWith("/dashboard/partner") ?? false;
+  // Partner console has its own chrome — skip Gud Game mobile tab bar.
+  const showMobileNav =
+    !onPartnerConsole && sessionCtx?.authenticated === true && roles.length > 0;
 
   useEffect(() => {
     if (!showMobileNav) {

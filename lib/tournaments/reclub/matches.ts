@@ -13,6 +13,8 @@ import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-gu
 import { getMaxRounds, getTournamentRoundDurationMinutes, getTournamentScoringType } from "@/lib/tournaments/settings";
 import { computeTimerEndsAt } from "@/lib/tournaments/scoring/engine";
 import { syncOfficialMatchToPlayerHistory, syncReclubMatchToPlayerHistory } from "@/lib/tournaments/stats/sync";
+import { syncPartnerMatchResult } from "@/lib/partners/stats/sync";
+import { resolveTeamMembersByTeamIds } from "@/lib/tournaments/members/resolve-team-members";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import type { AmericanoMatchPairing } from "@/lib/tournaments/americano/types";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
@@ -69,14 +71,9 @@ export async function getActiveReclubMatches(tournamentId: string): Promise<Recl
 }
 
 async function getTeamPlayerNames(teamId: string): Promise<string[]> {
-  const rows = await getDb()
-    .select({ name: user.name })
-    .from(tournamentTeamMembers)
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
-    .where(eq(tournamentTeamMembers.teamId, teamId))
-    .orderBy(tournamentTeamMembers.slotIndex);
-
-  return rows.map((r) => r.name).filter(Boolean);
+  const membersByTeam = await resolveTeamMembersByTeamIds([teamId]);
+  const members = membersByTeam.get(teamId) ?? [];
+  return members.map((m) => m.displayName).filter(Boolean);
 }
 
 async function getPlayerNamesByIds(userIds: string[]): Promise<string[]> {
@@ -422,6 +419,20 @@ export async function completeReclubRound(
     });
   }
 
+  if (tournament.partnerId) {
+    await syncPartnerMatchResult({
+      tournament,
+      teamAId: updated.teamAId,
+      teamBId: updated.teamBId,
+      teamAName: updated.teamAName,
+      teamBName: updated.teamBName,
+      scoreA: updated.scoreA ?? 0,
+      scoreB: updated.scoreB ?? 0,
+      round: `Round ${updated.roundNumber}`,
+      playedAt: updated.endedAt ?? undefined,
+    });
+  }
+
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   return mapReclubMatchRow(updated);
@@ -439,5 +450,5 @@ async function getMatchParticipantUserIds(
     .from(tournamentTeamMembers)
     .where(inArray(tournamentTeamMembers.teamId, teamIds));
 
-  return [...new Set(rows.map((r) => r.userId))];
+  return [...new Set(rows.map((r) => r.userId).filter((id): id is string => id != null))];
 }

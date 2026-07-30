@@ -64,6 +64,7 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
   );
 
   const handlePay = (row: PaymentTransactionRow) => {
+    if (!row.registrationId) return;
     const checkout = registrationCheckoutUrl(
       row.sportSlug,
       row.tournamentSlug,

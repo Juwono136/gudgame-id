@@ -11,7 +11,7 @@ type RegistrationRow = {
   amountIdr: number | null;
   confirmedAt: string | null;
   paymentDueAt: string | null;
-  members: { userId: string; displayName: string; role: string }[];
+  members: { userId: string | null; displayName: string; role: string }[];
 };
 
 function formatIdr(amount: number) {

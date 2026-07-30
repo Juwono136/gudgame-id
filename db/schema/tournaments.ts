@@ -5,8 +5,10 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth";
 import { sports } from "./sports";
 import { partners } from "./partners";
@@ -101,6 +103,13 @@ export const tournaments = pgTable(
       table.officialBilling,
       table.status,
     ),
+    // Partial uniques from 0014 — must stay in schema or db:push tries to DROP them every run
+    uniqueIndex("tournaments_gud_sport_slug_uidx")
+      .on(table.sportId, table.slug)
+      .where(sql`${table.partnerId} is null`),
+    uniqueIndex("tournaments_partner_sport_slug_uidx")
+      .on(table.partnerId, table.sportId, table.slug)
+      .where(sql`${table.partnerId} is not null`),
   ],
 );
 

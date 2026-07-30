@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, count, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import {
   tournamentRegistrations,
   tournamentTeamMembers,
@@ -57,7 +58,9 @@ export type TournamentParticipantsResult = {
   search: string;
 };
 
-const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`;
+const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name}, ${partnerPlayers.fullName})`;
+/** userId for Gud Game members, partnerPlayerId for partner guest members. */
+const playerIdSql = sql<string>`coalesce(${tournamentTeamMembers.userId}, ${tournamentTeamMembers.partnerPlayerId}::text)`;
 
 function mapRow(
   row: {
@@ -138,7 +141,8 @@ async function countReclubParticipants(
     })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .where(where);
 
   return {
@@ -163,6 +167,7 @@ async function countOfficialParticipants(
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .innerJoin(
       tournamentRegistrations,
       and(
@@ -199,7 +204,8 @@ async function listReclubParticipants(
     })
     .from(tournamentTeams)
     .innerJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .where(reclubBaseWhere(tournamentId, searchFilter))
     .groupBy(tournamentTeams.id, tournamentTeams.name)
     .orderBy(asc(tournamentTeams.name))
@@ -211,7 +217,7 @@ async function listReclubParticipants(
 
   const rows = await db
     .select({
-      userId: tournamentTeamMembers.userId,
+      userId: playerIdSql,
       displayName: displayNameSql,
       image: user.image,
       gender: user.gender,
@@ -227,7 +233,8 @@ async function listReclubParticipants(
     })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .leftJoin(wikiEntities, publishedPlayerProfileJoin(sportId))
     .where(and(reclubBaseWhere(tournamentId, searchFilter), inArray(tournamentTeams.id, teamIds)))
     .orderBy(asc(tournamentTeams.name), asc(tournamentTeamMembers.slotIndex))
@@ -254,6 +261,7 @@ async function listOfficialParticipants(
     .from(tournamentTeams)
     .innerJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .innerJoin(
       tournamentRegistrations,
       and(
@@ -277,7 +285,7 @@ async function listOfficialParticipants(
 
   const rows = await db
     .select({
-      userId: tournamentTeamMembers.userId,
+      userId: playerIdSql,
       displayName: displayNameSql,
       image: user.image,
       gender: user.gender,
@@ -296,6 +304,7 @@ async function listOfficialParticipants(
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .leftJoin(wikiEntities, publishedPlayerProfileJoin(sportId))
     .innerJoin(
       tournamentRegistrations,

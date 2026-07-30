@@ -69,7 +69,7 @@ export async function removeTournamentParticipant(
   const activity = await getTeamCompetitiveActivity(
     tournament.id,
     membership.teamId,
-    teammates.map((t) => t.userId),
+    teammates.map((t) => t.userId).filter((id): id is string => Boolean(id)),
   );
 
   // If the squad already competed, removing a member would orphan match/career data.
@@ -169,7 +169,9 @@ export async function removeTournamentTeam(
     });
   }
 
-  const memberUserIds = members.map((m) => m.userId);
+  const memberUserIds = members
+    .map((m) => m.userId)
+    .filter((id): id is string => Boolean(id));
   await assertTeamCanBeHardRemoved(tournament.id, team.id, memberUserIds);
 
   await db.delete(tournamentTeamMembers).where(eq(tournamentTeamMembers.teamId, team.id));

@@ -14,6 +14,7 @@ import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 import type { DoubleStageOverview } from "@/lib/tournaments/double-stage/service";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 
 export type ManageScoringPayload = {
   mode: "rounds" | "bracket" | "groups";
@@ -74,7 +75,7 @@ export function useTournamentManageScoring(
         data.activeReclubMatches.length > 0 ||
         data.activeBracketMatches.length > 0 ||
         (data.activeGroupMatches?.length ?? 0) > 0;
-      return hasLive ? 5000 : 15000;
+      return hasLive ? softDevPollMs(5000) : softDevPollMs(15000);
     },
     staleTime: 0,
     refetchOnMount: "always",

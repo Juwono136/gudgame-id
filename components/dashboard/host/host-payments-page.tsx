@@ -72,6 +72,7 @@ export function HostPaymentsPage({ roles }: HostPaymentsPageProps) {
   );
 
   const handlePay = (row: PaymentTransactionRow) => {
+    if (!row.registrationId) return;
     router.push(
       registrationCheckoutUrl(
         row.sportSlug,

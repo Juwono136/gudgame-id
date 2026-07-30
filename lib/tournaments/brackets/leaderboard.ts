@@ -125,10 +125,11 @@ export async function buildTournamentLeaderboard(
   return entries.map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
+/** Gud Game member userIds only — partner guest slots (userId null) are excluded. */
 export async function getTeamMemberUserIds(teamId: string): Promise<string[]> {
   const rows = await getDb()
     .select({ userId: tournamentTeamMembers.userId })
     .from(tournamentTeamMembers)
     .where(eq(tournamentTeamMembers.teamId, teamId));
-  return rows.map((r) => r.userId);
+  return rows.map((r) => r.userId).filter((id): id is string => id != null);
 }

@@ -16,6 +16,7 @@ export * from "./schema/roles";
 export * from "./schema/admin-invite";
 export * from "./schema/partners";
 export * from "./schema/partner-leagues";
+export * from "./schema/partner-players";
 export * from "./schema/wiki";
 export * from "./schema/player-competition";
 export * from "./schema/tournaments";

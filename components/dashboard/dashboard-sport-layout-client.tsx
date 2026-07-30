@@ -19,6 +19,7 @@ export function DashboardSportLayoutClient({
   const pathname = usePathname();
   const hideRoleSwitcher =
     pathname?.startsWith(dashboardRoutes.completeProfile) ||
+    pathname?.startsWith(dashboardRoutes.partner) ||
     !canShowHostWorkspaceSwitcher(roles);
   const variant: "player" | "host" = pathname?.startsWith("/dashboard/host") ? "host" : "player";
 

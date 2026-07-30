@@ -277,19 +277,25 @@ export async function getLockedTeamIdsForRemoval(
     .where(inArray(tournamentTeamMembers.teamId, unique));
 
   if (memberRows.length > 0) {
-    const userIds = [...new Set(memberRows.map((m) => m.userId))];
-    const careerUsers = await db
-      .select({ userId: playerMatches.userId })
-      .from(playerMatches)
-      .where(
-        and(
-          eq(playerMatches.tournamentId, tournamentId),
-          inArray(playerMatches.userId, userIds),
-        ),
-      );
-    const careerUserSet = new Set(careerUsers.map((r) => r.userId));
-    for (const member of memberRows) {
-      if (careerUserSet.has(member.userId)) locked.add(member.teamId);
+    const userIds = [
+      ...new Set(
+        memberRows.map((m) => m.userId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (userIds.length > 0) {
+      const careerUsers = await db
+        .select({ userId: playerMatches.userId })
+        .from(playerMatches)
+        .where(
+          and(
+            eq(playerMatches.tournamentId, tournamentId),
+            inArray(playerMatches.userId, userIds),
+          ),
+        );
+      const careerUserSet = new Set(careerUsers.map((r) => r.userId));
+      for (const member of memberRows) {
+        if (member.userId && careerUserSet.has(member.userId)) locked.add(member.teamId);
+      }
     }
   }
 
