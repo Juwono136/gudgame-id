@@ -10,6 +10,7 @@ import {
 } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { sports } from "@/db/schema/sports";
+import { partners } from "@/db/schema/partners";
 
 export type PlayerPaymentHistoryItem = {
   id: string;
@@ -19,6 +20,7 @@ export type PlayerPaymentHistoryItem = {
   sportSlug: string;
   sportName: string;
   tournamentSlug: string;
+  partnerSlug: string | null;
   amountIdr: number;
   platformFeeIdr: number;
   hostPayoutIdr: number;
@@ -35,6 +37,7 @@ export type PlayerRegistrationItem = {
   sportSlug: string;
   sportName: string;
   tournamentSlug: string;
+  partnerSlug: string | null;
   tournamentType: string;
   status: string;
   startsAt: string | null;
@@ -97,6 +100,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
       sportSlug: sports.slug,
       sportName: sports.name,
       tournamentSlug: tournaments.slug,
+      partnerSlug: partners.slug,
       amountIdr: tournamentPayments.amountIdr,
       platformFeeIdr: tournamentPayments.platformFeeIdr,
       hostPayoutIdr: tournamentPayments.hostPayoutIdr,
@@ -108,6 +112,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
     .from(tournamentPayments)
     .innerJoin(tournaments, eq(tournamentPayments.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
     .where(eq(tournamentPayments.payerUserId, userId))
     .orderBy(desc(tournamentPayments.createdAt));
 
@@ -119,6 +124,7 @@ export async function listPlayerPayments(userId: string): Promise<PlayerPaymentH
     sportSlug: r.sportSlug,
     sportName: r.sportName,
     tournamentSlug: r.tournamentSlug,
+    partnerSlug: r.partnerSlug ?? null,
     amountIdr: r.amountIdr,
     platformFeeIdr: r.platformFeeIdr,
     hostPayoutIdr: r.hostPayoutIdr,
@@ -137,6 +143,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     sportSlug: sports.slug,
     sportName: sports.name,
     tournamentSlug: tournaments.slug,
+    partnerSlug: partners.slug,
     tournamentType: tournaments.tournamentType,
     status: tournamentRegistrations.status,
     startsAt: tournaments.startsAt,
@@ -151,6 +158,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     sportSlug: string;
     sportName: string;
     tournamentSlug: string;
+    partnerSlug: string | null;
     tournamentType: string;
     status: string;
     startsAt: Date | null;
@@ -163,6 +171,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     sportSlug: r.sportSlug,
     sportName: r.sportName,
     tournamentSlug: r.tournamentSlug,
+    partnerSlug: r.partnerSlug ?? null,
     tournamentType: r.tournamentType,
     status: r.status,
     startsAt: r.startsAt?.toISOString() ?? null,
@@ -175,6 +184,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     .from(tournamentRegistrations)
     .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
     .leftJoin(
       tournamentPayments,
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
@@ -188,6 +198,7 @@ export async function listPlayerRegistrations(userId: string): Promise<PlayerReg
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(tournaments, eq(tournamentTeams.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
     .innerJoin(
       tournamentRegistrations,
       and(

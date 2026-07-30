@@ -32,6 +32,8 @@ type OfficialPointLogTimelineProps = {
   className?: string;
   emptyMessage?: string;
   maxVisible?: number;
+  /** Manage mode: show undos and absolute sets from the audit trail. */
+  includeAudit?: boolean;
 };
 
 export function OfficialPointLogTimeline({
@@ -40,10 +42,14 @@ export function OfficialPointLogTimeline({
   className,
   emptyMessage = "Point-by-point log will appear when scoring staff records live points.",
   maxVisible = DEFAULT_VISIBLE_EVENTS,
+  includeAudit = false,
 }: OfficialPointLogTimelineProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const rows = useMemo(() => buildPointLogRows(events), [events]);
+  const rows = useMemo(
+    () => buildPointLogRows(events, { includeAudit }),
+    [events, includeAudit],
+  );
 
   if (!rows.length) {
     return (

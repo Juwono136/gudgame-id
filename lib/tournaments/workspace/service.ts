@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import {
@@ -57,7 +57,7 @@ export async function listHostTournaments(
   sportId?: string,
 ): Promise<TournamentListItem[]> {
   const db = getDb();
-  const conditions = [eq(tournaments.createdBy, userId)];
+  const conditions = [eq(tournaments.createdBy, userId), isNull(tournaments.partnerId)];
   if (sportId) conditions.push(eq(tournaments.sportId, sportId));
 
   const rows = await db

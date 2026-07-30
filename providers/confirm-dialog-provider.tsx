@@ -88,9 +88,11 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
           if (!open && !isLoading) close(false);
         }}
       >
-        <AlertDialogContent className="max-w-[min(100%,28rem)]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{state?.title}</AlertDialogTitle>
+        <AlertDialogContent className="max-w-[min(100%-2rem,28rem)] gap-5 rounded-2xl border-cp-border bg-cp-card p-5 shadow-xl sm:p-6">
+          <AlertDialogHeader className="space-y-2 text-left">
+            <AlertDialogTitle className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+              {state?.title}
+            </AlertDialogTitle>
             {state?.description ? (
               <AlertDialogDescription className="text-sm leading-relaxed text-cp-muted">
                 {state.description}
@@ -102,13 +104,13 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
             )}
           </AlertDialogHeader>
 
-          <AlertDialogFooter>
+          <AlertDialogFooter className="gap-2 sm:gap-3">
             <AlertDialogCancel asChild>
               <Button
                 type="button"
                 variant="outline"
                 disabled={isLoading}
-                className="h-10 w-full rounded-lg border-cp-border bg-cp-elevated/50 text-foreground hover:bg-cp-elevated sm:w-auto"
+                className="h-11 w-full rounded-xl border-cp-border bg-cp-elevated/50 text-foreground hover:bg-cp-elevated sm:h-10 sm:w-auto"
                 onClick={() => close(false)}
               >
                 {state?.cancelLabel ?? "Cancel"}
@@ -119,7 +121,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                 type="button"
                 disabled={isLoading}
                 className={cn(
-                  "btn-interactive h-10 w-full rounded-lg font-semibold sm:w-auto",
+                  "btn-interactive h-11 w-full rounded-xl font-semibold sm:h-10 sm:w-auto",
                   isDestructive
                     ? "bg-[#ff6b6b] text-primary-foreground hover:bg-[#e85555]"
                     : "bg-cp-primary text-primary-foreground hover:bg-[#00a67a]",

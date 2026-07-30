@@ -23,6 +23,8 @@ type OfficialPublicBracketTabProps = {
   tournamentStatus: string;
   userTeamId?: string | null;
   historyOnly?: boolean;
+  /** Override manage base URL (e.g. partner white-label manage path). */
+  manageHrefBase?: string | null;
 };
 
 function displayTeamName(name: string | null): string | null {
@@ -90,6 +92,7 @@ export function OfficialPublicBracketTab({
   tournamentStatus,
   userTeamId = null,
   historyOnly = false,
+  manageHrefBase = null,
 }: OfficialPublicBracketTabProps) {
   const { data, isLoading } = useTournamentBracket(sportSlug, slug);
   const matches = data?.matches ?? [];
@@ -126,8 +129,10 @@ export function OfficialPublicBracketTab({
     return ids.length ? ids : userTeamId ? [userTeamId] : [];
   }, [snapshotMatch, userTeamId]);
 
-  const manageScoringUrl = `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=scoring`;
-  const manageBracketUrl = `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=bracket`;
+  const manageBase =
+    manageHrefBase ?? publicSportRoutes.tournamentManage(sportSlug, slug);
+  const manageScoringUrl = `${manageBase}?section=scoring`;
+  const manageBracketUrl = `${manageBase}?section=bracket`;
   const canManage = participant.canUseHostControls;
   const isLive = tournamentStatus === "live";
 

@@ -31,6 +31,10 @@ type TournamentSessionChromeProps = {
   onManageClick?: () => void;
   showCreateActions?: boolean;
   canCreateOfficial?: boolean;
+  /** Override sport-route defaults (required for partner white-label manage/display). */
+  publicUrl?: string;
+  displayUrl?: string;
+  manageUrl?: string;
   className?: string;
 };
 
@@ -49,12 +53,16 @@ export function TournamentSessionChrome({
   onManageClick,
   showCreateActions = false,
   canCreateOfficial = false,
+  publicUrl: publicUrlProp,
+  displayUrl: displayUrlProp,
+  manageUrl: manageUrlProp,
   className,
 }: TournamentSessionChromeProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const tournamentUrl = publicSportRoutes.tournament(sportSlug, slug);
-  const displayUrl = publicSportRoutes.tournamentDisplay(sportSlug, slug);
+  const tournamentUrl = publicUrlProp ?? publicSportRoutes.tournament(sportSlug, slug);
+  const displayUrl = displayUrlProp ?? publicSportRoutes.tournamentDisplay(sportSlug, slug);
+  const manageUrl = manageUrlProp ?? publicSportRoutes.tournamentManage(sportSlug, slug);
   const displayActive = pathname.endsWith("/display");
 
   const handleDisplay = () => {
@@ -71,7 +79,7 @@ export function TournamentSessionChrome({
       return;
     }
     if (manageActive) return;
-    router.push(publicSportRoutes.tournamentManage(sportSlug, slug));
+    router.push(manageUrl);
   };
 
   return (

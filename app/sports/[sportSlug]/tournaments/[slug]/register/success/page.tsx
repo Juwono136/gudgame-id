@@ -15,7 +15,7 @@ export default async function RegistrationSuccessPage({ params, searchParams }: 
   const { sportSlug, slug } = await params;
   const { registrationId } = await searchParams;
   const tournament = await getTournamentBySlug(sportSlug, slug);
-  if (!tournament) notFound();
+  if (!tournament || tournament.partnerId) notFound();
 
   if (!registrationId?.trim() || !isUuid(registrationId.trim())) {
     redirect(`/sports/${sportSlug}/tournaments/${slug}`);

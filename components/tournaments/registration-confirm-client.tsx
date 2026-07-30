@@ -20,6 +20,8 @@ type RegistrationConfirmClientProps = {
   registrationId: string;
   teamName: string;
   teamMembers: { userId: string; displayName: string; role: string }[];
+  /** Override hub URL (partner white-label). Defaults to Gud Game sport route. */
+  hubHref?: string;
 };
 
 export function RegistrationConfirmClient({
@@ -27,13 +29,15 @@ export function RegistrationConfirmClient({
   registrationId,
   teamName,
   teamMembers,
+  hubHref: hubHrefProp,
 }: RegistrationConfirmClientProps) {
   const router = useRouter();
   const { confirm } = useConfirmDialog();
   const { cancelRegistration, isPending: cancelling } = useCancelRegistration();
   const [submitting, setSubmitting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const hubHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+  const hubHref =
+    hubHrefProp ?? publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
 
   const confirmParticipation = async () => {
     const ok = await confirm({

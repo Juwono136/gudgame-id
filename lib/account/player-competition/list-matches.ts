@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { playerMatches, type MatchResultType } from "@/db/schema/player-competition";
 import { sports } from "@/db/schema/sports";
@@ -65,7 +65,7 @@ function matchSortColumn(sortBy: PlayerMatchesListQuery["sortBy"]) {
 
 function buildMatchConditions(userId: string, query: PlayerMatchesListQuery) {
   const { search, result, type, year, sportSlug } = query;
-  const conditions = [eq(playerMatches.userId, userId)];
+  const conditions = [eq(playerMatches.userId, userId), isNull(playerMatches.partnerId)];
 
   if (search?.trim()) {
     const term = `%${search.trim()}%`;

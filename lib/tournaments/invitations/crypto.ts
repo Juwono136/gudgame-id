@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { partnerPublicRoutes, publicSportRoutes } from "@/lib/constants/routes";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -32,8 +32,12 @@ export function buildInviteUrl(input: {
   slug: string;
   token: string;
   kind: "access" | "player";
+  /** When set, invite lands on partner white-label accept page (not /sports/…). */
+  partnerSlug?: string | null;
 }): string {
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
-  const path = publicSportRoutes.tournamentInvite(input.sportSlug, input.slug);
+  const path = input.partnerSlug
+    ? partnerPublicRoutes.tournamentInvite(input.partnerSlug, input.slug)
+    : publicSportRoutes.tournamentInvite(input.sportSlug, input.slug);
   return `${base}${path}?token=${encodeURIComponent(input.token)}&kind=${input.kind}`;
 }

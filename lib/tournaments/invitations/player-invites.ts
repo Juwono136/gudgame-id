@@ -11,6 +11,7 @@ import {
   isInvitePastExpiry,
 } from "@/lib/tournaments/invitations/lifecycle";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 
 export type PlayerInviteView = {
   id: string;
@@ -69,6 +70,8 @@ export async function createPlayerInvite(input: {
     return row;
   });
 
+  const partnerSlug = await resolvePartnerSlugForTournament(input.tournament.partnerId);
+
   return {
     id: created.id,
     teamId: created.teamId,
@@ -79,6 +82,7 @@ export async function createPlayerInvite(input: {
       slug: input.tournament.slug,
       token: created.inviteToken,
       kind: "player",
+      partnerSlug,
     }),
     inviteCode: created.inviteCode ?? undefined,
   };
@@ -106,8 +110,9 @@ export async function redeemPlayerInvite(input: {
 }
 
 export async function listPlayerInvites(
-  tournament: Pick<TournamentDetail, "id" | "sportSlug" | "slug">,
+  tournament: Pick<TournamentDetail, "id" | "sportSlug" | "slug" | "partnerId">,
 ): Promise<PlayerInviteView[]> {
+  const partnerSlug = await resolvePartnerSlugForTournament(tournament.partnerId);
   const rows = await getDb()
     .select({
       id: tournamentPlayerInvites.id,
@@ -142,6 +147,7 @@ export async function listPlayerInvites(
               slug: tournament.slug,
               token: row.inviteToken,
               kind: "player",
+              partnerSlug,
             })
           : "",
       inviteCode:

@@ -68,9 +68,13 @@ export const tournamentUpsertSchema = z
       .default(21),
     matchScoreMode: z.enum(["points", "games"]).optional(),
     raceToGames: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(6)]).optional(),
-    gameDecider: z.enum(["golden_point", "advantage"]).optional(),
+    raceToGamesGroup: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(6)]).optional(),
+    raceToGamesKnockout: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(6)]).optional(),
+    gameDecider: z.enum(["golden_point", "star_point", "advantage"]).optional(),
+    matchFormat: z.enum(["race_to_games", "classic_sets"]).optional(),
     courtCount: z.coerce.number().int().min(1).max(12).default(1),
     roundDurationMinutes: z.coerce.number().int().min(1).max(120).optional(),
+    suddenDeathExtensionMinutes: z.coerce.number().int().min(1).max(30).optional(),
     maxTeamsPerGroup: z.coerce.number().int().min(2).max(8).optional(),
     teamsAdvancePerGroup: z.coerce.number().int().min(1).max(4).optional(),
     allowDraw: z.boolean().optional(),
@@ -78,6 +82,15 @@ export const tournamentUpsertSchema = z
     drawPoints: z.coerce.number().min(0).max(10).optional(),
     lossPoints: z.coerce.number().min(0).max(10).optional(),
     thirdPlaceEnabled: z.boolean().optional(),
+    /** Cross-pool best runner-ups to fill knockout slots (partner / FIP-style). */
+    bestRunnerUpSlots: z.coerce.number().int().min(0).max(16).optional(),
+    /** live = tablet rally scoring; paper = batch/final entry by organizer. */
+    scoreEntryMode: z.enum(["live", "paper"]).optional(),
+    /**
+     * Set by partner API only — allows double_stage on fun_match partner tenants.
+     * Never accept from untrusted Gud Game host create without partnerId.
+     */
+    partnerTenant: z.boolean().optional(),
     allowedTierLevels: z
       .array(z.enum(PLAYER_TIER_LEVELS))
       .max(1, "Official tournaments use exactly one skill tier")
@@ -93,10 +106,14 @@ export const tournamentUpsertSchema = z
       });
     }
 
-    if (data.format === "double_stage" && data.tournamentType !== "official") {
+    if (
+      data.format === "double_stage" &&
+      data.tournamentType !== "official" &&
+      !data.partnerTenant
+    ) {
       ctx.addIssue({
         code: "custom",
-        message: "Double Stage is only available for official tournaments.",
+        message: "Double Stage is only available for official or partner tournaments.",
         path: ["format"],
       });
     }
@@ -161,18 +178,21 @@ export const tournamentUpsertSchema = z
           });
         }
       }
-      if (!data.allowedTierLevels?.length) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Select the tournament skill tier (Bronze–International / National).",
-          path: ["allowedTierLevels"],
-        });
-      } else if (data.allowedTierLevels.length !== 1) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Official tournaments must use exactly one skill tier.",
-          path: ["allowedTierLevels"],
-        });
+      // Partner white-label events do not use Gud Game skill tiers.
+      if (!data.partnerTenant) {
+        if (!data.allowedTierLevels?.length) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Select the tournament skill tier (Bronze–International / National).",
+            path: ["allowedTierLevels"],
+          });
+        } else if (data.allowedTierLevels.length !== 1) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Official tournaments must use exactly one skill tier.",
+            path: ["allowedTierLevels"],
+          });
+        }
       }
     }
 

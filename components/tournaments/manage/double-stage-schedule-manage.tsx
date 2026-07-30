@@ -14,13 +14,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
-import type { ScheduleMatchRow } from "@/lib/tournaments/double-stage/schedule-view";
+import {
+  MATCH_CALL_STATUSES,
+  parseCallStatus,
+  type ScheduleMatchRow,
+} from "@/lib/tournaments/double-stage/schedule-view";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getTournamentMatchScoreMode } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
 
 type DoubleStageScheduleManageProps = {
   tournament: TournamentDetail;
@@ -47,6 +63,8 @@ export function DoubleStageScheduleManage({
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<ScheduleMatchRow | null>(null);
   const [draft, setDraft] = useState("");
+  const [playOrderDraft, setPlayOrderDraft] = useState("");
+  const [callStatusDraft, setCallStatusDraft] = useState<string>("queued");
 
   const rows = useMemo((): ScheduleMatchRow[] => {
     const groupRows: ScheduleMatchRow[] = groups.flatMap((g) =>
@@ -60,6 +78,9 @@ export function DoubleStageScheduleManage({
         scoreB: m.scoreB,
         status: m.status,
         scheduledAt: m.scheduledAt,
+        courtId: m.courtId,
+        playOrder: m.playOrder,
+        callStatus: parseCallStatus(m.callStatus),
       })),
     );
 
@@ -76,6 +97,9 @@ export function DoubleStageScheduleManage({
       scoreB: m.scoreB,
       status: m.status,
       scheduledAt: m.scheduledAt,
+      courtId: m.courtId,
+      playOrder: m.playOrder,
+      callStatus: parseCallStatus(m.callStatus),
     }));
 
     return [...groupRows, ...bracketRows];
@@ -84,19 +108,28 @@ export function DoubleStageScheduleManage({
   const openEditor = useCallback((match: ScheduleMatchRow) => {
     setEditing(match);
     setDraft(toLocalInputValue(match.scheduledAt));
+    setPlayOrderDraft(match.playOrder != null ? String(match.playOrder) : "");
+    setCallStatusDraft(match.callStatus ?? "queued");
   }, []);
 
   const save = async () => {
     if (!editing) return;
     setSaving(true);
     try {
-      const scheduledAt = draft.trim()
-        ? new Date(draft).toISOString()
-        : null;
+      const scheduledAt = draft.trim() ? new Date(draft).toISOString() : null;
       if (draft.trim() && Number.isNaN(new Date(draft).getTime())) {
         toast.error("Enter a valid date and time");
         return;
       }
+      const playOrder =
+        playOrderDraft.trim() === ""
+          ? null
+          : Number.parseInt(playOrderDraft, 10);
+      if (playOrderDraft.trim() && (Number.isNaN(playOrder!) || playOrder! < 0)) {
+        toast.error("Play order must be a non-negative number");
+        return;
+      }
+
       const res = await fetch(
         `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/manage/schedule`,
         {
@@ -106,6 +139,8 @@ export function DoubleStageScheduleManage({
             kind: editing.kind,
             matchId: editing.id,
             scheduledAt,
+            playOrder,
+            callStatus: callStatusDraft,
           }),
         },
       );
@@ -113,7 +148,7 @@ export function DoubleStageScheduleManage({
       if (!res.ok) {
         throw new Error(json.error?.message ?? "Failed to save schedule");
       }
-      toast.success(scheduledAt ? "Kickoff time saved" : "Schedule cleared");
+      toast.success("Order of Play updated");
       setEditing(null);
       onUpdated?.();
     } catch (e) {
@@ -129,37 +164,73 @@ export function DoubleStageScheduleManage({
         matches={rows}
         gamesScoreMode={gamesScoreMode}
         onEditSchedule={openEditor}
-        emptyMessage="Fixtures appear after groups are generated. Set kickoff times here — they show on the public Matches tab."
+        defaultView="orderOfPlay"
+        emptyMessage="Fixtures appear after groups are generated. Set play order and call status here — they show on the public Matches tab."
       />
 
       <Dialog open={Boolean(editing)} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Set match time</DialogTitle>
+            <DialogTitle>Order of Play</DialogTitle>
             <DialogDescription>
               {editing
                 ? `${editing.teamAName ?? "TBD"} vs ${editing.teamBName ?? "TBD"} · ${editing.stageLabel}`
                 : null}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="kickoff">Kickoff (local time)</Label>
-            <Input
-              id="kickoff"
-              type="datetime-local"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              className="border-cp-border bg-cp-elevated"
-            />
-            <p className="text-xs text-cp-muted">
-              Shown on the public tournament Matches tab.
-            </p>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="play-order">Play order</Label>
+              <Input
+                id="play-order"
+                type="number"
+                min={0}
+                value={playOrderDraft}
+                onChange={(e) => setPlayOrderDraft(e.target.value)}
+                placeholder="e.g. 1"
+                className="border-cp-border bg-cp-elevated"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Call status</Label>
+              <Select value={callStatusDraft} onValueChange={setCallStatusDraft}>
+                <SelectTrigger className={cpSelectTriggerClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  {MATCH_CALL_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s} className={cpSelectItemClass}>
+                      {s === "on_court"
+                        ? "On court"
+                        : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="kickoff">Kickoff (local time)</Label>
+              <Input
+                id="kickoff"
+                type="datetime-local"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="border-cp-border bg-cp-elevated"
+              />
+              <p className="text-xs text-cp-muted">
+                Optional kickoff time for the public Matches tab.
+              </p>
+            </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
-              onClick={() => setDraft("")}
+              onClick={() => {
+                setDraft("");
+                setPlayOrderDraft("");
+                setCallStatusDraft("queued");
+              }}
               disabled={saving}
             >
               Clear

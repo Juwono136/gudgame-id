@@ -1,6 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
+import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 import { revealAccessInviteCredentials } from "@/lib/tournaments/invitations/access-grants";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
@@ -36,11 +37,13 @@ export async function POST(
       });
     }
 
+    const partnerSlug = await resolvePartnerSlugForTournament(tournament.partnerId);
     const credentials = await revealAccessInviteCredentials({
       tournamentId: tournament.id,
       inviteId: parsed.data.inviteId,
       sportSlug: tournament.sportSlug,
       slug: tournament.slug,
+      partnerSlug,
     });
 
     return jsonSuccess({ credentials });

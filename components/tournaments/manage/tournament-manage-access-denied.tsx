@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { ArrowLeft, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, resolveTournamentSurfaceUrls } from "@/lib/constants/routes";
 
 type TournamentManageAccessDeniedProps = {
   sportSlug: string;
   slug: string;
   tournamentName: string;
   reason: "revoked" | "forbidden";
+  partnerId?: string | null;
+  partnerSlug?: string | null;
 };
 
 export function TournamentManageAccessDenied({
@@ -17,14 +19,21 @@ export function TournamentManageAccessDenied({
   slug,
   tournamentName,
   reason,
+  partnerId = null,
+  partnerSlug = null,
 }: TournamentManageAccessDeniedProps) {
-  const tournamentUrl = publicSportRoutes.tournament(sportSlug, slug);
+  const { publicUrl: tournamentUrl } = resolveTournamentSurfaceUrls({
+    sportSlug,
+    slug,
+    partnerId,
+    partnerSlug,
+  });
   const title =
     reason === "revoked" ? "Staff access removed" : "Manage access unavailable";
   const description =
     reason === "revoked"
       ? `Your staff invite for “${tournamentName}” was revoked by the organizer. You no longer have access to the manage workspace.`
-      : `Only the tournament organizer or invited staff can open the manage workspace for “${tournamentName}”.`;
+      : `Only the tournament organizer, partner organization members, or invited staff can open the manage workspace for “${tournamentName}”.`;
 
   return (
     <div className="mx-auto flex min-h-[min(70dvh,40rem)] max-w-lg flex-col items-center justify-center px-4 py-12 text-center sm:py-16">

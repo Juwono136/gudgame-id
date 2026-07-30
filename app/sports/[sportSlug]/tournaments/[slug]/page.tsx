@@ -25,7 +25,8 @@ export default async function TournamentDetailPage({ params, searchParams }: Pag
   if (!sport || sport.visibility !== "live") notFound();
 
   const tournament = await getTournamentBySlug(sportSlug, slug);
-  if (!tournament || tournament.status === "draft") notFound();
+  // Partner white-label events are not shown on Gud Game sport routes.
+  if (!tournament || tournament.status === "draft" || tournament.partnerId) notFound();
 
   return (
     <PageShell>

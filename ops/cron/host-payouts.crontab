@@ -1,6 +1,10 @@
-# Scheduled host bank payouts — Asia/Jakarta 08:00 daily
-# Managed by payout-cron service in docker-compose.yml (VPS deploy, not Vercel).
+# Cron jobs for Gud Game app (Docker sidecar)
+# Managed by payout-cron service in docker-compose.yml
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
+# Host bank payouts — Asia/Jakarta 08:00 daily
 0 8 * * * sh /cron/run-host-payouts.sh >> /var/log/host-payouts.log 2>&1
+
+# Timed match hard-stop finalize — every minute
+* * * * * sh /cron/run-timed-matches.sh >> /var/log/timed-matches.log 2>&1

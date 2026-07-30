@@ -108,6 +108,8 @@ export const tournamentGroupMatches = pgTable(
       onDelete: "set null",
     }),
     timerEndsAt: timestamp("timer_ends_at"),
+    playOrder: integer("play_order"),
+    callStatus: varchar("call_status", { length: 20 }).default("queued"),
     metadata: jsonb("metadata").default({}).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -115,5 +117,6 @@ export const tournamentGroupMatches = pgTable(
     index("tournament_group_matches_tournament_idx").on(table.tournamentId),
     index("tournament_group_matches_group_idx").on(table.groupId),
     index("tournament_group_matches_court_idx").on(table.tournamentId, table.courtId),
+    index("tournament_group_matches_play_order_idx").on(table.tournamentId, table.playOrder),
   ],
 );

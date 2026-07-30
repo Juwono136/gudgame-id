@@ -33,7 +33,7 @@ export default async function TournamentManagePage({ params }: PageProps) {
   if (!sport || sport.visibility !== "live") notFound();
 
   const tournament = await getTournamentBySlug(sportSlug, slug);
-  if (!tournament || tournament.status === "draft") notFound();
+  if (!tournament || tournament.status === "draft" || tournament.partnerId) notFound();
 
   const session = await getServerSession();
   if (!session?.user?.id) {

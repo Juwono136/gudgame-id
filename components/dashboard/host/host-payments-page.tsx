@@ -11,6 +11,7 @@ import { PaymentTransactionsLedger } from "@/components/payments/payment-transac
 import { dashboardRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PaymentTransactionRow } from "@/lib/tournaments/payments/transaction-types";
+import { registrationCheckoutUrl } from "@/lib/tournaments/registration/urls";
 
 const HOST_PAYMENTS_TABS = [
   {
@@ -72,7 +73,12 @@ export function HostPaymentsPage({ roles }: HostPaymentsPageProps) {
 
   const handlePay = (row: PaymentTransactionRow) => {
     router.push(
-      `/sports/${row.sportSlug}/tournaments/${row.tournamentSlug}/register/checkout?registrationId=${row.registrationId}`,
+      registrationCheckoutUrl(
+        row.sportSlug,
+        row.tournamentSlug,
+        row.registrationId,
+        row.partnerSlug,
+      ),
     );
   };
 

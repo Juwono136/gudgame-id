@@ -86,6 +86,7 @@ async function loadHostPaymentContext(registrationId: string): Promise<HostPayme
       tournamentId: tournaments.id,
       tournamentName: tournaments.name,
       sportName: sports.name,
+      partnerId: tournaments.partnerId,
       hostUserId: tournaments.createdBy,
       paymentId: tournamentPayments.id,
       paymentStatus: tournamentPayments.status,
@@ -142,12 +143,19 @@ async function loadHostPaymentContext(registrationId: string): Promise<HostPayme
     .limit(1);
 
   const origin = appBaseUrl();
+  const isPartner = Boolean(row.partnerId);
+  const ledgerPath = isPartner
+    ? `${dashboardRoutes.partnerTournaments}?registrationId=${registrationId}`
+    : `${dashboardRoutes.hostPayments}?registrationId=${registrationId}`;
+  const workspacePath = isPartner
+    ? dashboardRoutes.partnerTournaments
+    : dashboardRoutes.hostTournament(row.tournamentId);
 
   return {
     registrationId,
     tournamentId: row.tournamentId,
     hostUserId: row.hostUserId,
-    hostName: displayName(hostRow ?? { fullNameKtp: null, name: null }, "Host"),
+    hostName: displayName(hostRow ?? { fullNameKtp: null, name: null }, isPartner ? "Partner" : "Host"),
     hostEmail: hostRow?.email ?? null,
     playerUserId: row.registeredByUserId,
     playerName: displayName(playerRow ?? { fullNameKtp: null, name: null }, "Player"),
@@ -162,8 +170,8 @@ async function loadHostPaymentContext(registrationId: string): Promise<HostPayme
     invoiceNumber: resolveInvoiceNumber(row.paymentId, row.xenditExternalId),
     paidAtFormatted: formatPaidAt(row.paidAt),
     receiptUrl: `${origin}${dashboardRoutes.paymentReceipt(row.paymentId)}`,
-    ledgerUrl: `${origin}${dashboardRoutes.hostPayments}?registrationId=${registrationId}`,
-    tournamentWorkspaceUrl: `${origin}${dashboardRoutes.hostTournament(row.tournamentId)}`,
+    ledgerUrl: `${origin}${ledgerPath}`,
+    tournamentWorkspaceUrl: `${origin}${workspacePath}`,
   };
 }
 

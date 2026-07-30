@@ -35,7 +35,9 @@ export default async function TournamentRegisterConfirmPage({
   if (!sport || sport.visibility !== "live") notFound();
 
   const tournament = await getTournamentBySlug(sportSlug, slug);
-  if (!tournament || tournament.tournamentType !== "official") notFound();
+  if (!tournament || tournament.tournamentType !== "official" || tournament.partnerId) {
+    notFound();
+  }
 
   const status = await getUserRegistrationStatus(tournament.id, session.user.id);
   if (status.registrationId !== registrationId) notFound();

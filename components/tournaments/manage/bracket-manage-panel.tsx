@@ -40,7 +40,7 @@ import {
 } from "@/lib/tournaments/settings";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { resolveTournamentSurfaceUrls } from "@/lib/constants/routes";
 import {
   cpSelectContentClass,
   cpSelectItemClass,
@@ -67,6 +67,7 @@ async function runBracketMutation(action: () => Promise<unknown>) {
 type BracketManagePanelProps = {
   tournament: TournamentDetail;
   participant: TournamentParticipantContext;
+  partnerSlug?: string | null;
   onOpenLiveScoring?: () => void;
   /** Double-stage: navigate to Groups to regenerate knockout after reset. */
   onOpenGroups?: () => void;
@@ -75,6 +76,7 @@ type BracketManagePanelProps = {
 export function BracketManagePanel({
   tournament,
   participant,
+  partnerSlug = null,
   onOpenLiveScoring,
   onOpenGroups,
 }: BracketManagePanelProps) {
@@ -82,6 +84,12 @@ export function BracketManagePanel({
   const isOfficial = isOfficialType(tournament.tournamentType);
   const isDoubleStage = tournament.format === "double_stage";
   const courtCount = getTournamentCourtCount(tournament);
+  const surfaceUrls = resolveTournamentSurfaceUrls({
+    sportSlug: tournament.sportSlug,
+    slug: tournament.slug,
+    partnerId: tournament.partnerId,
+    partnerSlug,
+  });
   const { data, isLoading, refetch } = useTournamentBracket(tournament.sportSlug, tournament.slug);
   const { data: workspace } = useTournamentManageScoring(tournament.sportSlug, tournament.slug);
   const generate = useGeneratePublicBracket(tournament.sportSlug, tournament.slug);
@@ -141,7 +149,7 @@ export function BracketManagePanel({
     !isDoubleStage &&
     seedableTeams.length >= 2 &&
     tournament.format !== "americano";
-  const liveScoringHref = `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=scoring`;
+  const liveScoringHref = `${surfaceUrls.manageUrl}?section=scoring`;
 
   const teamsForPicker = useMemo(() => {
     if (!seedSlot) return unplacedTeams;
@@ -306,7 +314,7 @@ export function BracketManagePanel({
             </p>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href={publicSportRoutes.tournament(tournament.sportSlug, tournament.slug)}>
+            <Link href={surfaceUrls.publicUrl}>
               View public page
             </Link>
           </Button>
@@ -539,6 +547,7 @@ export function BracketManagePanel({
               seedingFinalized={seedingFinalized}
               accentVariant={isOfficial ? "official" : "fun"}
               onOpenLiveScoring={onOpenLiveScoring}
+              manageScoringHref={`${surfaceUrls.manageUrl}?section=scoring`}
             />
           ) : null}
         </>

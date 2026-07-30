@@ -91,6 +91,13 @@ export type TournamentLivePayload = {
     rotationLayouts?: string[];
     showUpcoming?: boolean;
     showHighlights?: boolean;
+    brandTheme?: {
+      primaryColor?: string;
+      accentColor?: string;
+      backgroundStyle?: "gradient" | "solid" | "dark_court";
+      showPartnerLogo?: boolean;
+      scoreboardStyle?: "classic" | "bold" | "minimal";
+    };
   };
   matchHistory: Array<{
     id: string;

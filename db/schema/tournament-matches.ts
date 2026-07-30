@@ -95,6 +95,8 @@ export const tournamentBracketMatches = pgTable(
       onDelete: "set null",
     }),
     timerEndsAt: timestamp("timer_ends_at"),
+    playOrder: integer("play_order"),
+    callStatus: varchar("call_status", { length: 20 }).default("queued"),
     metadata: jsonb("metadata").default({}).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -116,5 +118,9 @@ export const tournamentBracketMatches = pgTable(
       table.matchNumber,
     ),
     index("tournament_bracket_matches_court_idx").on(table.tournamentId, table.courtId),
+    index("tournament_bracket_matches_play_order_idx").on(
+      table.tournamentId,
+      table.playOrder,
+    ),
   ],
 );

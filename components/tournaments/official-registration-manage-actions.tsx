@@ -23,6 +23,8 @@ type OfficialRegistrationManageActionsProps = {
   onEditTeam?: () => void;
   onCancelled?: () => void;
   redirectOnCancel?: string;
+  /** Partner white-label slug — keeps confirm/checkout on partner surface. */
+  partnerSlug?: string | null;
 };
 
 export function OfficialRegistrationManageActions({
@@ -36,13 +38,14 @@ export function OfficialRegistrationManageActions({
   onEditTeam,
   onCancelled,
   redirectOnCancel,
+  partnerSlug,
 }: OfficialRegistrationManageActionsProps) {
   const { cancelRegistration, isPending } = useCancelRegistration();
 
   if (!isActiveRegistrationStatus(registrationStatus)) return null;
 
-  const confirmHref = registrationConfirmUrl(sportSlug, slug, registrationId);
-  const checkoutHref = registrationCheckoutUrl(sportSlug, slug, registrationId);
+  const confirmHref = registrationConfirmUrl(sportSlug, slug, registrationId, partnerSlug);
+  const checkoutHref = registrationCheckoutUrl(sportSlug, slug, registrationId, partnerSlug);
   const isAwaiting = registrationStatus === "awaiting_confirmation";
   const isPendingPayment = registrationStatus === "pending_payment";
 

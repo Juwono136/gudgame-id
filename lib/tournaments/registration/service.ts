@@ -11,7 +11,9 @@ import {
 } from "@/db/schema/tournament-registration";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournaments } from "@/db/schema/tournaments";
+import { partners } from "@/db/schema/partners";
 import { AppError } from "@/lib/errors";
+import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 import { isXenditConfigured } from "@/lib/payments/xendit";
 import { createRegistrationInvoiceWithSplit } from "@/lib/payments/xenplatform/registration-invoice";
 import type { XenditPaymentMethod } from "@/lib/payments/xendit/invoices";
@@ -42,7 +44,24 @@ import {
   notifyPlayerRegistrationConfirmed,
   notifyTeamMemberInvitations,
 } from "@/lib/tournaments/registration/notify-flow";
+import {
+  registrationCheckoutUrl,
+  registrationSuccessUrl,
+} from "@/lib/tournaments/registration/urls";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+
+async function registrationPathTournament(
+  tournament: TournamentDetail,
+): Promise<
+  TournamentDetail & { partnerSlug: string | null }
+> {
+  if (!tournament.partnerId) {
+    return { ...tournament, partnerSlug: tournament.partnerSlug ?? null };
+  }
+  if (tournament.partnerSlug) return tournament;
+  const partnerSlug = await resolvePartnerSlugForTournament(tournament.partnerId);
+  return { ...tournament, partnerSlug };
+}
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 
 export type TournamentLobbyTeam = {
@@ -457,10 +476,13 @@ export async function getUserRegistrationStatus(
       paymentDueAt: tournamentRegistrations.paymentDueAt,
       sportSlug: sports.slug,
       tournamentSlug: tournaments.slug,
+      partnerId: tournaments.partnerId,
+      partnerSlug: partners.slug,
     })
     .from(tournamentRegistrations)
     .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
     .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
     .leftJoin(
       tournamentPayments,
@@ -503,6 +525,8 @@ export async function getUserRegistrationStatus(
   const tournamentPath = {
     sportSlug: row.sportSlug,
     slug: row.tournamentSlug,
+    partnerId: row.partnerId,
+    partnerSlug: row.partnerSlug,
   };
   const teamMembers = await getRegistrationTeamMembers(row.teamId);
 
@@ -544,6 +568,8 @@ export async function getRegistrationDetail(registrationId: string) {
       categoryLabel: tournaments.categoryLabel,
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
+      partnerId: tournaments.partnerId,
+      partnerSlug: partners.slug,
       paymentStatus: tournamentPayments.status,
       paymentId: tournamentPayments.id,
       invoiceUrl: tournamentPayments.invoiceUrl,
@@ -560,6 +586,7 @@ export async function getRegistrationDetail(registrationId: string) {
     .from(tournamentRegistrations)
     .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
     .leftJoin(tournamentTeams, eq(tournamentRegistrations.teamId, tournamentTeams.id))
     .leftJoin(
       tournamentPayments,
@@ -601,6 +628,19 @@ export async function issueRegistrationInvoice(
   const split = calculateOfficialPaymentSplit(fee, settings);
   const externalId = `tnd-${tournament.id}-reg-${registrationId}`;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const partnerSlug = await resolvePartnerSlugForTournament(tournament.partnerId);
+  const successPath = registrationSuccessUrl(
+    tournament.sportSlug,
+    tournament.slug,
+    registrationId,
+    partnerSlug,
+  );
+  const failurePath = `${registrationCheckoutUrl(
+    tournament.sportSlug,
+    tournament.slug,
+    registrationId,
+    partnerSlug,
+  )}&failed=1`;
 
   const { invoice, splitRuleId, hostPayoutStatus } = await createRegistrationInvoiceWithSplit(
     {
@@ -608,8 +648,8 @@ export async function issueRegistrationInvoice(
       amount: split.totalChargeIdr,
       payerEmail,
       description: `${tournament.name} — team registration`,
-      successRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register/success?registrationId=${registrationId}`,
-      failureRedirectUrl: `${appUrl}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}/register/checkout?registrationId=${registrationId}&failed=1`,
+      successRedirectUrl: `${appUrl}${successPath}`,
+      failureRedirectUrl: `${appUrl}${failurePath}`,
       paymentMethods: options?.paymentMethods,
       shouldSendEmail: false,
       items: [
@@ -777,18 +817,20 @@ export async function startOfficialRegistration(
     });
   }
   if (existing.status === "awaiting_confirmation" && existing.registrationId) {
+    const path = await registrationPathTournament(tournament);
     return {
       registrationId: existing.registrationId,
       status: "awaiting_confirmation",
-      confirmUrl: existing.confirmUrl ?? confirmUrl(tournament, existing.registrationId),
+      confirmUrl: existing.confirmUrl ?? confirmUrl(path, existing.registrationId),
     };
   }
   if (existing.status === "pending_payment" && existing.registrationId) {
+    const path = await registrationPathTournament(tournament);
     if (existing.invoiceUrl) {
       return {
         registrationId: existing.registrationId,
         status: "pending_payment",
-        checkoutUrl: existing.checkoutUrl ?? checkoutUrl(tournament, existing.registrationId),
+        checkoutUrl: existing.checkoutUrl ?? checkoutUrl(path, existing.registrationId),
         invoiceUrl: existing.invoiceUrl,
         amountIdr: existing.amountIdr ?? undefined,
       };
@@ -802,7 +844,7 @@ export async function startOfficialRegistration(
     return {
       registrationId: resumed.registrationId,
       status: "pending_payment",
-      checkoutUrl: checkoutUrl(tournament, resumed.registrationId),
+      checkoutUrl: checkoutUrl(path, resumed.registrationId),
       paymentId: resumed.paymentId,
       invoiceUrl: resumed.invoiceUrl,
       amountIdr: resumed.amountIdr,
@@ -870,12 +912,13 @@ export async function startOfficialRegistration(
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     if (message.includes("tournament_teams_name_uidx") || message.includes("unique")) {
+      const path = await registrationPathTournament(tournament);
       const retry = await getUserRegistrationStatus(tournament.id, payerUserId);
       if (retry.status === "awaiting_confirmation" && retry.registrationId) {
         return {
           registrationId: retry.registrationId,
           status: "awaiting_confirmation",
-          confirmUrl: confirmUrl(tournament, retry.registrationId),
+          confirmUrl: confirmUrl(path, retry.registrationId),
         };
       }
       if (retry.status === "pending_payment" && retry.registrationId) {
@@ -888,7 +931,7 @@ export async function startOfficialRegistration(
         return {
           registrationId: resumed.registrationId,
           status: "pending_payment",
-          checkoutUrl: checkoutUrl(tournament, resumed.registrationId),
+          checkoutUrl: checkoutUrl(path, resumed.registrationId),
           paymentId: resumed.paymentId,
           invoiceUrl: resumed.invoiceUrl,
           amountIdr: resumed.amountIdr,
@@ -902,15 +945,17 @@ export async function startOfficialRegistration(
     throw cause;
   }
 
+  const path = await registrationPathTournament(tournament);
+
   void notifyAwaitingConfirmation(
-    tournament,
+    path,
     registration.id,
     payerUserId,
     input.teamName.trim(),
   );
 
   void notifyTeamMemberInvitations(
-    tournament,
+    path,
     registration.id,
     payerUserId,
     input.teamName.trim(),
@@ -920,7 +965,7 @@ export async function startOfficialRegistration(
   return {
     registrationId: registration.id,
     status: "awaiting_confirmation",
-    confirmUrl: confirmUrl(tournament, registration.id),
+    confirmUrl: confirmUrl(path, registration.id),
   };
 }
 
@@ -1031,7 +1076,7 @@ export async function updateOfficialRegistration(
 
   return {
     registrationId,
-    confirmUrl: confirmUrl(tournament, registrationId),
+    confirmUrl: confirmUrl(await registrationPathTournament(tournament), registrationId),
   };
 }
 

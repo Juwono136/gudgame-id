@@ -13,6 +13,7 @@ import { sports } from "./sports";
 import { tournaments } from "./tournaments";
 import { uuidFk } from "./uuid";
 import { wikiEntities } from "./wiki";
+import { partners } from "./partners";
 
 export const MATCH_RESULT_TYPES = ["win", "loss"] as const;
 export type MatchResultType = (typeof MATCH_RESULT_TYPES)[number];
@@ -35,6 +36,10 @@ export const playerMatches = pgTable(
     tournamentId: uuidFk("tournament_id").references(() => tournaments.id, {
       onDelete: "set null",
     }),
+    /** NULL = Gud Game career; set = partner-scoped history (not shown on Gud Game) */
+    partnerId: uuidFk("partner_id").references(() => partners.id, {
+      onDelete: "cascade",
+    }),
     isOfficial: boolean("is_official").default(true).notNull(),
     statsTier: varchar("stats_tier", { length: 20 }),
     tournamentName: varchar("tournament_name", { length: 200 }).notNull(),
@@ -50,6 +55,7 @@ export const playerMatches = pgTable(
     index("player_matches_played_at_idx").on(table.playedAt),
     index("player_matches_tournament_idx").on(table.tournamentName),
     index("player_matches_stats_tier_idx").on(table.statsTier),
+    index("player_matches_partner_idx").on(table.partnerId),
   ],
 );
 
@@ -68,6 +74,9 @@ export const playerTournamentResults = pgTable(
     tournamentId: uuidFk("tournament_id").references(() => tournaments.id, {
       onDelete: "set null",
     }),
+    partnerId: uuidFk("partner_id").references(() => partners.id, {
+      onDelete: "cascade",
+    }),
     isOfficial: boolean("is_official").default(true).notNull(),
     statsTier: varchar("stats_tier", { length: 20 }),
     year: integer("year").notNull(),
@@ -83,5 +92,6 @@ export const playerTournamentResults = pgTable(
     index("player_tournament_results_year_idx").on(table.year),
     index("player_tournament_results_tournament_idx").on(table.tournamentName),
     index("player_tournament_results_stats_tier_idx").on(table.statsTier),
+    index("player_tournament_results_partner_idx").on(table.partnerId),
   ],
 );

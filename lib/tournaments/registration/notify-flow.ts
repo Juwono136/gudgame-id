@@ -13,6 +13,7 @@ import {
 } from "@/lib/notifications/tournament-label";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getRegistrationDetail } from "@/lib/tournaments/registration/service";
+import { registrationCheckoutUrl } from "@/lib/tournaments/registration/urls";
 
 const log = logger.child({ module: "registration-notify" });
 
@@ -26,15 +27,35 @@ function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
-export function tournamentPublicUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">): string {
+export function tournamentPublicUrl(
+  tournament: Pick<TournamentDetail, "sportSlug" | "slug"> & {
+    partnerId?: string | null;
+    partnerSlug?: string | null;
+  },
+): string {
+  if (tournament.partnerId && tournament.partnerSlug) {
+    return `${appBaseUrl()}/${tournament.partnerSlug}/tournaments/${tournament.slug}`;
+  }
   return `${appBaseUrl()}/sports/${tournament.sportSlug}/tournaments/${tournament.slug}`;
 }
 
-export function confirmUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">, registrationId: string): string {
+export function confirmUrl(
+  tournament: Pick<TournamentDetail, "sportSlug" | "slug"> & {
+    partnerId?: string | null;
+    partnerSlug?: string | null;
+  },
+  registrationId: string,
+): string {
   return `${tournamentPublicUrl(tournament)}/register/confirm?registrationId=${registrationId}`;
 }
 
-export function checkoutUrl(tournament: Pick<TournamentDetail, "sportSlug" | "slug">, registrationId: string): string {
+export function checkoutUrl(
+  tournament: Pick<TournamentDetail, "sportSlug" | "slug"> & {
+    partnerId?: string | null;
+    partnerSlug?: string | null;
+  },
+  registrationId: string,
+): string {
   return `${tournamentPublicUrl(tournament)}/register/checkout?registrationId=${registrationId}`;
 }
 
@@ -69,7 +90,12 @@ export async function notifyAwaitingConfirmation(
     ),
     body: `[${tournament.sportName}] Team "${teamName}" joined successfully. Confirm participation in the app within ${PAYMENT_WINDOW_HOURS}h to unlock payment.`,
     actionUrl,
-    metadata: tournamentNotificationMetadata(tournament, { registrationId, teamName }),
+    metadata: tournamentNotificationMetadata(tournament, {
+      registrationId,
+      teamName,
+      tournamentSlug: tournament.slug,
+      ...(tournament.partnerSlug ? { partnerSlug: tournament.partnerSlug } : {}),
+    }),
   });
 
   if (email) {
@@ -94,6 +120,9 @@ export async function notifyAwaitingConfirmation(
   }
 
   if (tournament.createdBy && tournament.createdBy !== payerUserId) {
+    const hostActionPath = tournament.partnerId
+      ? `/dashboard/partner/tournaments?tournamentId=${tournament.id}`
+      : `/dashboard/host/tournaments/${tournament.id}`;
     await createNotification({
       userId: tournament.createdBy,
       type: "tournament_host_player_confirmed",
@@ -103,8 +132,12 @@ export async function notifyAwaitingConfirmation(
         "New registration",
       ),
       body: `${displayName} registered team "${teamName}" for ${tournament.sportName}. Awaiting in-app confirmation.`,
-      actionUrl: `${appBaseUrl()}/dashboard/host/tournaments/${tournament.id}`,
-      metadata: tournamentNotificationMetadata(tournament, { registrationId }),
+      actionUrl: `${appBaseUrl()}${hostActionPath}`,
+      metadata: tournamentNotificationMetadata(tournament, {
+        registrationId,
+        tournamentSlug: tournament.slug,
+        ...(tournament.partnerSlug ? { partnerSlug: tournament.partnerSlug } : {}),
+      }),
     });
   }
 }
@@ -134,7 +167,12 @@ export async function notifyPaymentReminder(
     ),
     body: `[${tournament.sportName}] Team "${teamName}" is confirmed. Pay ${fee} to secure your slot.`,
     actionUrl,
-    metadata: tournamentNotificationMetadata(tournament, { registrationId, amountIdr }),
+    metadata: tournamentNotificationMetadata(tournament, {
+      registrationId,
+      amountIdr,
+      tournamentSlug: tournament.slug,
+      ...(tournament.partnerSlug ? { partnerSlug: tournament.partnerSlug } : {}),
+    }),
   });
 
   if (email) {
@@ -169,6 +207,9 @@ export async function notifyHostPlayerConfirmedParticipation(
   if (!tournament.createdBy || tournament.createdBy === playerUserId) return;
 
   const { displayName } = await loadUserDisplay(playerUserId);
+  const paymentsPath = tournament.partnerId
+    ? `/dashboard/partner/tournaments?tournamentId=${tournament.id}`
+    : `/dashboard/host/payments?tournamentId=${tournament.id}`;
   await createNotification({
     userId: tournament.createdBy,
     type: "tournament_host_player_confirmed",
@@ -178,8 +219,12 @@ export async function notifyHostPlayerConfirmedParticipation(
       "Player confirmed",
     ),
     body: `${displayName} confirmed team "${teamName}" for ${tournament.sportName} and can now complete payment.`,
-    actionUrl: `${appBaseUrl()}/dashboard/host/payments?tournamentId=${tournament.id}`,
-    metadata: tournamentNotificationMetadata(tournament, { registrationId }),
+    actionUrl: `${appBaseUrl()}${paymentsPath}`,
+    metadata: tournamentNotificationMetadata(tournament, {
+      registrationId,
+      partnerSlug: tournament.partnerSlug ?? undefined,
+      tournamentSlug: tournament.slug,
+    }),
   });
 }
 
@@ -208,7 +253,13 @@ export async function notifyPaymentFailed(registrationId: string): Promise<void>
   const detail = await getRegistrationDetail(registrationId);
   if (!detail) return;
 
-  const actionUrl = `${appBaseUrl()}/sports/${detail.sportSlug}/tournaments/${detail.tournamentSlug}/register/checkout?registrationId=${registrationId}`;
+  const checkoutPath = registrationCheckoutUrl(
+    detail.sportSlug,
+    detail.tournamentSlug,
+    registrationId,
+    detail.partnerSlug,
+  );
+  const actionUrl = `${appBaseUrl()}${checkoutPath}`;
 
   await createNotification({
     userId: detail.registeredByUserId,
@@ -226,6 +277,8 @@ export async function notifyPaymentFailed(registrationId: string): Promise<void>
       sportSlug: detail.sportSlug,
       sportName: detail.sportName,
       tournamentId: detail.tournamentId,
+      tournamentSlug: detail.tournamentSlug,
+      ...(detail.partnerSlug ? { partnerSlug: detail.partnerSlug } : {}),
     },
   });
 }
@@ -234,7 +287,12 @@ export async function notifyPaymentExpired(registrationId: string): Promise<void
   const detail = await getRegistrationDetail(registrationId);
   if (!detail) return;
 
-  const actionUrl = `${appBaseUrl()}/sports/${detail.sportSlug}/tournaments/${detail.tournamentSlug}`;
+  const actionUrl = tournamentPublicUrl({
+    sportSlug: detail.sportSlug,
+    slug: detail.tournamentSlug,
+    partnerId: detail.partnerId,
+    partnerSlug: detail.partnerSlug,
+  });
   const reason = "The payment deadline passed and your reserved slot was released.";
 
   await createNotification({
@@ -252,6 +310,8 @@ export async function notifyPaymentExpired(registrationId: string): Promise<void
       sportSlug: detail.sportSlug,
       sportName: detail.sportName,
       tournamentId: detail.tournamentId,
+      tournamentSlug: detail.tournamentSlug,
+      ...(detail.partnerSlug ? { partnerSlug: detail.partnerSlug } : {}),
     },
   });
 

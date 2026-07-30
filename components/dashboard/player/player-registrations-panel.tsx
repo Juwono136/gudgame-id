@@ -8,16 +8,23 @@ import { Button } from "@/components/ui/button";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { usePlayerRegistrations } from "@/hooks/use-player-payments";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { partnerPublicRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import {
   DEFAULT_PAGE_SIZE,
   toTotalPages,
 } from "@/lib/pagination/constants";
 import type { PlayerRegistrationItem } from "@/lib/tournaments/payments/player-history";
+import { registrationCheckoutUrl } from "@/lib/tournaments/registration/urls";
 import { getPublicTournamentTypeLabel } from "@/lib/tournaments/ui/labels";
 import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
 import { SportDisciplineLabel } from "@/components/shared/sport-discipline-label";
 import { cn } from "@/lib/utils";
+
+function playerTournamentHref(item: PlayerRegistrationItem): string {
+  return item.partnerSlug
+    ? partnerPublicRoutes.tournament(item.partnerSlug, item.tournamentSlug)
+    : publicSportRoutes.tournament(item.sportSlug, item.tournamentSlug);
+}
 
 const REG_FILTERS = ["all", "upcoming", "live", "completed"] as const;
 type RegFilter = (typeof REG_FILTERS)[number];
@@ -79,14 +86,19 @@ function RegistrationCard({ item }: { item: PlayerRegistrationItem }) {
 
       <div className="mt-4 flex flex-col gap-2 sm:items-start">
         <Button asChild size="sm" variant="outline" className="h-9 border-cp-border">
-          <Link href={publicSportRoutes.tournament(item.sportSlug, item.tournamentSlug)}>
+          <Link href={playerTournamentHref(item)}>
             View tournament
           </Link>
         </Button>
         {needsPayment ? (
           <Button asChild size="sm" className="h-9 bg-cp-primary">
             <Link
-              href={`/sports/${item.sportSlug}/tournaments/${item.tournamentSlug}/register/checkout?registrationId=${item.registrationId}`}
+              href={registrationCheckoutUrl(
+                item.sportSlug,
+                item.tournamentSlug,
+                item.registrationId,
+                item.partnerSlug,
+              )}
             >
               Complete payment
             </Link>

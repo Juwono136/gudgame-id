@@ -327,6 +327,23 @@ export async function createAdminUser(
 
   await setUserRoles(userId, input.roles, assignedBy);
 
+  if (input.roles.includes("partner")) {
+    const slug =
+      (input as { partnerSlug?: string }).partnerSlug?.trim() ||
+      `partner-${userId.slice(0, 8).toLowerCase()}`;
+    const displayName =
+      (input as { partnerDisplayName?: string }).partnerDisplayName?.trim() ||
+      input.fullNameKtp;
+    await (
+      await import("@/lib/partners/service")
+    ).createPartnerWithOwner({
+      slug,
+      displayName,
+      ownerUserId: userId,
+      createdBy: assignedBy,
+    });
+  }
+
   const created = await getAdminUserById(userId);
   if (!created) {
     throw new AppError("User created but could not be loaded", {
@@ -518,7 +535,12 @@ export async function getAdminUserStats(): Promise<{
 
 export async function updateAdminUserStaff(
   id: string,
-  input: { roles: AppRole[]; isActive: boolean },
+  input: {
+    roles: AppRole[];
+    isActive: boolean;
+    partnerSlug?: string;
+    partnerDisplayName?: string;
+  },
   assignedBy: string,
   options?: { allowSelfDeactivate?: boolean },
 ): Promise<AdminUserListItem> {
@@ -534,6 +556,29 @@ export async function updateAdminUserStaff(
   }
 
   await setUserRoles(id, input.roles, assignedBy);
+
+  if (input.roles.includes("partner")) {
+    const existing = await (
+      await import("@/lib/partners/service")
+    ).getPrimaryPartnerForUser(id);
+    if (!existing) {
+      const slug =
+        input.partnerSlug?.trim() ||
+        `partner-${id.slice(0, 8).toLowerCase()}`;
+      const displayName =
+        input.partnerDisplayName?.trim() ||
+        (await getAdminUserById(id))?.name ||
+        "Partner";
+      await (
+        await import("@/lib/partners/service")
+      ).createPartnerWithOwner({
+        slug,
+        displayName,
+        ownerUserId: id,
+        createdBy: assignedBy,
+      });
+    }
+  }
 
   const db = getDb();
   await db

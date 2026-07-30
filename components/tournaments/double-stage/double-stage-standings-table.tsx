@@ -9,10 +9,10 @@ type DoubleStageStandingsTableProps = {
   showQualification?: boolean;
   compact?: boolean;
   /**
-   * When match score is race-to-N games, show aggregate games won–lost
-   * (e.g. 12–6) instead of a raw +/- point difference.
+   * diff = +/- points; games = race-to-N games W–L; sets = classic ITF/FIP sets W–L
+   * (games column also shown when sets + gamesFor available).
    */
-  scoreDisplay?: "diff" | "games";
+  scoreDisplay?: "diff" | "games" | "sets";
   /** Per-group legends are omitted by default — use {@link DoubleStageStandingsLegend} once above. */
   showLegend?: boolean;
 };
@@ -20,20 +20,26 @@ type DoubleStageStandingsTableProps = {
 export type StandingsLegendItem = { key: string; label: string };
 
 export function getDoubleStageStandingsLegend(
-  scoreDisplay: "diff" | "games" = "diff",
+  scoreDisplay: "diff" | "games" | "sets" = "diff",
 ): StandingsLegendItem[] {
   const showGames = scoreDisplay === "games";
+  const showSets = scoreDisplay === "sets";
   return [
     { key: "G", label: "Matches played in the group" },
     { key: "W", label: "Match wins" },
     { key: "L", label: "Match losses" },
-    showGames
-      ? {
-          key: "S",
-          label:
-            "Total games won–lost across all matches (Race to N applies per match only)",
-        }
-      : { key: "S", label: "Score difference (points for − against)" },
+    showSets
+      ? { key: "SET", label: "Sets won–lost (ITF/FIP classic)" }
+      : showGames
+        ? {
+            key: "S",
+            label:
+              "Total games won–lost across all matches (Race to N applies per match only)",
+          }
+        : { key: "S", label: "Score difference (points for − against)" },
+    ...(showSets
+      ? [{ key: "GM", label: "Games won–lost across all sets" }]
+      : []),
     { key: "PTS", label: "Standings points" },
   ];
 }
@@ -42,7 +48,7 @@ export function DoubleStageStandingsLegend({
   scoreDisplay = "diff",
   className,
 }: {
-  scoreDisplay?: "diff" | "games";
+  scoreDisplay?: "diff" | "games" | "sets";
   className?: string;
 }) {
   const legend = getDoubleStageStandingsLegend(scoreDisplay);
@@ -77,14 +83,23 @@ export function DoubleStageStandingsTable({
   showLegend = false,
 }: DoubleStageStandingsTableProps) {
   const showGames = scoreDisplay === "games";
-  const scoreTitle = showGames
-    ? "Total games won – lost (sum of all matches)"
-    : "Skor (score difference)";
+  const showSets = scoreDisplay === "sets";
+  const scoreTitle = showSets
+    ? "Sets won – lost"
+    : showGames
+      ? "Total games won – lost (sum of all matches)"
+      : "Skor (score difference)";
 
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-lg border border-cp-border">
-        <table className={cn("w-full min-w-[22rem] table-fixed text-sm", compact && "text-xs")}>
+        <table
+          className={cn(
+            "w-full table-fixed text-sm",
+            showSets ? "min-w-[26rem]" : "min-w-[22rem]",
+            compact && "text-xs",
+          )}
+        >
           <colgroup>
             <col className="w-8" />
             <col />
@@ -92,6 +107,7 @@ export function DoubleStageStandingsTable({
             <col className="w-9" />
             <col className="w-9" />
             <col className="w-[3.25rem]" />
+            {showSets ? <col className="w-[3.25rem]" /> : null}
             <col className="w-11" />
           </colgroup>
           <thead>
@@ -110,8 +126,13 @@ export function DoubleStageStandingsTable({
                 L
               </th>
               <th className={thStat} title={scoreTitle}>
-                S
+                {showSets ? "SET" : "S"}
               </th>
+              {showSets ? (
+                <th className={thStat} title="Games won – lost">
+                  GM
+                </th>
+              ) : null}
               <th className={thStat} title="Standings points">
                 PTS
               </th>
@@ -157,17 +178,24 @@ export function DoubleStageStandingsTable({
                 <td className={tdStat}>{row.wins}</td>
                 <td className={tdStat}>{row.losses}</td>
                 <td className={cn(tdStat, "text-[11px] sm:text-sm")}>
-                  {showGames ? `${row.scoreFor}–${row.scoreAgainst}` : row.scoreDiff}
+                  {showSets
+                    ? `${row.setsFor}–${row.setsAgainst}`
+                    : showGames
+                      ? `${row.scoreFor}–${row.scoreAgainst}`
+                      : row.scoreDiff}
                 </td>
+                {showSets ? (
+                  <td className={cn(tdStat, "text-[11px] sm:text-sm")}>
+                    {row.gamesFor}–{row.gamesAgainst}
+                  </td>
+                ) : null}
                 <td className={cn(tdStat, "font-semibold")}>{row.points}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {showLegend ? (
-        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="flex-col sm:flex-row" />
-      ) : null}
+      {showLegend ? <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} /> : null}
     </div>
   );
 }

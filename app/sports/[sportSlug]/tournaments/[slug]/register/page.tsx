@@ -23,7 +23,9 @@ export default async function TournamentRegisterPage({ params }: PageProps) {
   if (!sport || sport.visibility !== "live") notFound();
 
   const tournament = await getTournamentBySlug(sportSlug, slug);
-  if (!tournament || tournament.tournamentType !== "official") notFound();
+  if (!tournament || tournament.tournamentType !== "official" || tournament.partnerId) {
+    notFound();
+  }
 
   return (
     <PageShell>

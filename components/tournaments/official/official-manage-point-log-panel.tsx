@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ListOrdered } from "lucide-react";
 import {
   OfficialPointLogTimeline,
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 type LoggedMatch = {
   id: string;
+  kind: "bracket" | "reclub";
   label: string;
   sublabel: string;
   events: MatchScoreEvent[];
@@ -38,43 +39,78 @@ type OfficialManagePointLogPanelProps = {
   bracketMatches: BracketMatchView[];
   reclubMatches: ReclubMatchView[];
   categoryLabel?: string | null;
+  sportSlug?: string;
+  tournamentSlug?: string;
 };
 
 export function OfficialManagePointLogPanel({
   bracketMatches,
   reclubMatches,
   categoryLabel,
+  sportSlug,
+  tournamentSlug,
 }: OfficialManagePointLogPanelProps) {
+  const [auditByMatch, setAuditByMatch] = useState<Record<string, MatchScoreEvent[]>>({});
+
+  useEffect(() => {
+    if (!sportSlug || !tournamentSlug) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/tournaments/${sportSlug}/${tournamentSlug}/manage/score-revisions`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          success?: boolean;
+          data?: { eventsByMatchId?: Record<string, MatchScoreEvent[]> };
+        };
+        if (!cancelled && json.data?.eventsByMatchId) {
+          setAuditByMatch(json.data.eventsByMatchId);
+        }
+      } catch {
+        /* non-blocking */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sportSlug, tournamentSlug, bracketMatches, reclubMatches]);
+
   const loggedMatches = useMemo((): LoggedMatch[] => {
     const rows: LoggedMatch[] = [];
     for (const m of bracketMatches) {
-      const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
+      const merged = [...(m.scoreEvents ?? []), ...(auditByMatch[m.id] ?? [])];
+      const displayCount = buildPointLogRows(merged, { includeAudit: true }).length;
       if (!displayCount) continue;
       rows.push({
         id: m.id,
+        kind: "bracket",
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         sublabel: `Bracket — Round ${m.roundNumber}, Match ${m.matchNumber}`,
-        events: m.scoreEvents ?? [],
+        events: merged,
         context: buildMatchContext(m),
       });
     }
     for (const m of reclubMatches) {
-      const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
+      const merged = [...(m.scoreEvents ?? []), ...(auditByMatch[m.id] ?? [])];
+      const displayCount = buildPointLogRows(merged, { includeAudit: true }).length;
       if (!displayCount) continue;
       rows.push({
         id: m.id,
+        kind: "reclub",
         label: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         sublabel: m.roundLabel ?? `Round ${m.roundNumber}`,
-        events: m.scoreEvents ?? [],
+        events: merged,
         context: buildMatchContext(m),
       });
     }
     return rows.sort((a, b) => {
-      const aLast = buildPointLogRows(a.events).at(-1)?.event.at ?? "";
-      const bLast = buildPointLogRows(b.events).at(-1)?.event.at ?? "";
+      const aLast = buildPointLogRows(a.events, { includeAudit: true }).at(-1)?.event.at ?? "";
+      const bLast = buildPointLogRows(b.events, { includeAudit: true }).at(-1)?.event.at ?? "";
       return bLast.localeCompare(aLast);
     });
-  }, [bracketMatches, reclubMatches]);
+  }, [bracketMatches, reclubMatches, auditByMatch]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = loggedMatches.find((m) => m.id === selectedId) ?? loggedMatches[0] ?? null;
@@ -85,20 +121,20 @@ export function OfficialManagePointLogPanel({
         <ListOrdered className="h-4 w-4 text-cp-primary" />
         Official point log
       </h3>
-        <p className="mt-1 text-sm text-cp-muted">
-          Points scored with player, team, time, and resulting score
-          {categoryLabel ? (
-            <>
-              {" "}
-              <span className="text-foreground/80">({categoryLabel})</span>
-            </>
-          ) : null}
-          . Score reductions are not listed.
-        </p>
+      <p className="mt-1 text-sm text-cp-muted">
+        Points scored with player, team, time, and resulting score
+        {categoryLabel ? (
+          <>
+            {" "}
+            <span className="text-foreground/80">({categoryLabel})</span>
+          </>
+        ) : null}
+        . Undos and corrections appear from the durable audit trail.
+      </p>
 
       {loggedMatches.length === 0 ? (
         <div className="mt-4">
-          <OfficialPointLogTimeline events={[]} />
+          <OfficialPointLogTimeline events={[]} includeAudit />
         </div>
       ) : (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
@@ -118,7 +154,7 @@ export function OfficialManagePointLogPanel({
                   <span className="font-medium text-foreground">{m.label}</span>
                   <span className="mt-0.5 block text-xs text-cp-muted">{m.sublabel}</span>
                   <span className="mt-0.5 block text-[11px] tabular-nums text-cp-muted">
-                    {buildPointLogRows(m.events).length} scoring events
+                    {buildPointLogRows(m.events, { includeAudit: true }).length} events
                   </span>
                 </button>
               </li>
@@ -127,6 +163,7 @@ export function OfficialManagePointLogPanel({
           <OfficialPointLogTimeline
             events={selected?.events ?? []}
             matchContext={selected?.context}
+            includeAudit
           />
         </div>
       )}

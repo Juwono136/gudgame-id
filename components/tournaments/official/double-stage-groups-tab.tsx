@@ -10,7 +10,7 @@ import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import { getTournamentMatchScoreMode } from "@/lib/tournaments/settings";
+import { getTournamentMatchScoreMode, isClassicSetsFormat } from "@/lib/tournaments/settings";
 
 type DoubleStageGroupsTabProps = {
   tournament: TournamentDetail;
@@ -21,8 +21,11 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
   const doubleStage = live?.doubleStage;
   const groups = (doubleStage?.groups ?? []) as GroupOverview[];
   const cfg = getDoubleStageConfigSummary(tournament);
-  const scoreDisplay =
-    getTournamentMatchScoreMode(tournament) === "games" ? "games" : "diff";
+  const scoreDisplay = isClassicSetsFormat(tournament)
+    ? "sets"
+    : getTournamentMatchScoreMode(tournament) === "games"
+      ? "games"
+      : "diff";
 
   if (!groups.length) {
     return (
@@ -95,7 +98,11 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
                             <span className="font-mono tabular-nums text-foreground">
                               {m.scoreA}–{m.scoreB}
                             </span>
-                            {scoreDisplay === "games" ? (
+                            {scoreDisplay === "sets" ? (
+                              <span className="text-[10px] uppercase tracking-wide text-cp-muted">
+                                Sets
+                              </span>
+                            ) : scoreDisplay === "games" ? (
                               <span className="text-[10px] uppercase tracking-wide text-cp-muted">
                                 Games
                               </span>

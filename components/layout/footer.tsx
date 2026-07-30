@@ -27,6 +27,20 @@ export default function Footer() {
               The leading community knowledge platform for court sports — players,
               tournaments, gear, and live data.
             </p>
+            <div className="max-w-xs space-y-1 text-xs leading-relaxed text-cp-text-dim">
+              <p className="font-medium text-cp-muted">PT Aplikasi Wong Kito Galo</p>
+              <p>
+                <a
+                  href="mailto:help@gudgame.id"
+                  className="transition-colors hover:text-foreground"
+                >
+                  help@gudgame.id
+                </a>
+              </p>
+              <p>
+                Jl. Limo Raya No. 7, Limo, Kota Depok - Jawa Barat, 16515.
+              </p>
+            </div>
           </div>
 
           <div>

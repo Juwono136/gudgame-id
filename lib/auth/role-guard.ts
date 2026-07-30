@@ -13,6 +13,7 @@ import type { AppRole } from "@/lib/roles/constants";
 import {
   canAccessAccountSettings,
   canAccessHostDashboard,
+  canAccessPartnerDashboard,
   canAccessPlayerDashboard,
   getAccessDeniedRedirect,
   getDefaultDashboardUrl,
@@ -81,11 +82,25 @@ export async function requireHostDashboardAccess(): Promise<RoleGuardContext> {
   return ctx;
 }
 
+export async function requirePartnerDashboardAccess(): Promise<RoleGuardContext> {
+  const ctx = await loadRoleGuardContext();
+  if (!canAccessPartnerDashboard(ctx.roles)) deny(ctx.roles);
+  return ctx;
+}
+
 /** API routes — JSON errors instead of login redirects. */
 export async function requireApiHostDashboardAccess(): Promise<RoleGuardContext> {
   const ctx = await requireApiRoleGuardContext();
   if (!canAccessHostDashboard(ctx.roles)) {
     throw new AppError("Host access required", { code: "FORBIDDEN", statusCode: 403 });
+  }
+  return ctx;
+}
+
+export async function requireApiPartnerDashboardAccess(): Promise<RoleGuardContext> {
+  const ctx = await requireApiRoleGuardContext();
+  if (!canAccessPartnerDashboard(ctx.roles)) {
+    throw new AppError("Partner access required", { code: "FORBIDDEN", statusCode: 403 });
   }
   return ctx;
 }

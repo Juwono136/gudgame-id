@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Pencil, Play, RefreshCw, Trophy, Users } from "lucide-react";
+import { Loader2, Pencil, Play, RefreshCw, Scale, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
+import { ScoreOverrideDialog } from "@/components/tournaments/manage/score-override-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -151,6 +152,9 @@ function BracketCourtCard({
   friendlyCompletePending,
   scoringType,
   roundDuration,
+  sportSlug,
+  tournamentSlug,
+  onOverrideSuccess,
 }: {
   court: TournamentCourtView;
   liveMatch: BracketMatchView | null;
@@ -206,6 +210,9 @@ function BracketCourtCard({
   friendlyCompletePending: boolean;
   scoringType: string;
   roundDuration: number;
+  sportSlug: string;
+  tournamentSlug: string;
+  onOverrideSuccess?: () => void;
 }) {
   const elapsed = useLiveTimer(liveMatch?.startedAt ?? null, Boolean(liveMatch));
   const friendlyElapsed = useLiveTimer(
@@ -216,6 +223,7 @@ function BracketCourtCard({
   const isTied = Boolean(liveMatch && scores && scores.a === scores.b && scores.a > 0);
   const selectedMatch = startableMatches.find((m) => m.id === pickMatchId) ?? null;
   const selectedNeedsRematch = selectedMatch?.status === "completed";
+  const [overrideOpen, setOverrideOpen] = useState(false);
   const [localFriendlyA, setLocalFriendlyA] = useState(friendlyLiveMatch?.scoreA ?? 0);
   const [localFriendlyB, setLocalFriendlyB] = useState(friendlyLiveMatch?.scoreB ?? 0);
   const friendlyScoreSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -508,6 +516,18 @@ function BracketCourtCard({
             {selectedNeedsRematch ? "Play again on court" : "Start on court"}
           </Button>
 
+          {selectedNeedsRematch && selectedMatch && canScore ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-cp-border"
+              onClick={() => setOverrideOpen(true)}
+            >
+              <Scale className="mr-2 h-4 w-4" />
+              Override completed score
+            </Button>
+          ) : null}
+
           {showFriendly ? (
             <div className="mt-1 space-y-2 border-t border-cp-border pt-3">
               <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
@@ -583,6 +603,22 @@ function BracketCourtCard({
           ) : null}
         </div>
       )}
+
+      {selectedMatch ? (
+        <ScoreOverrideDialog
+          open={overrideOpen}
+          onOpenChange={setOverrideOpen}
+          sportSlug={sportSlug}
+          tournamentSlug={tournamentSlug}
+          kind="bracket"
+          matchId={selectedMatch.id}
+          teamAName={selectedMatch.teamAName}
+          teamBName={selectedMatch.teamBName}
+          initialScoreA={selectedMatch.scoreA ?? 0}
+          initialScoreB={selectedMatch.scoreB ?? 0}
+          onSuccess={onOverrideSuccess}
+        />
+      ) : null}
     </article>
   );
 }
@@ -899,6 +935,12 @@ export function BracketCourtScoringGrid({
             friendlyCompletePending={friendlyCompletePending}
             scoringType={scoringType}
             roundDuration={roundDuration}
+            sportSlug={sportSlug}
+            tournamentSlug={slug}
+            onOverrideSuccess={() => {
+              void finalizeScore.reset();
+              void rematchMatch.reset();
+            }}
             onReplayTie={() => liveMatch && void handleReplayTie(liveMatch)}
             replayingTie={rematchMatch.isPending}
             activeMatches={activeMatches}

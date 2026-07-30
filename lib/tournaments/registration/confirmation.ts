@@ -14,6 +14,7 @@ import {
   notifyPaymentReminder,
   notifyRegistrationCancelled,
 } from "@/lib/tournaments/registration/notify-flow";
+import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 import {
   assertUserEligibleForTournamentTier,
 } from "@/lib/tournaments/tier-eligibility";
@@ -21,6 +22,15 @@ import {
   issueRegistrationInvoice,
   rollbackDraftRegistration,
 } from "@/lib/tournaments/registration/service";
+
+async function pathForUrls(tournament: TournamentDetail) {
+  if (!tournament.partnerId) return tournament;
+  if (tournament.partnerSlug) return tournament;
+  return {
+    ...tournament,
+    partnerSlug: await resolvePartnerSlugForTournament(tournament.partnerId),
+  };
+}
 
 export async function confirmParticipation(
   tournament: TournamentDetail,
@@ -60,7 +70,8 @@ export async function confirmParticipation(
   }
 
   if (registration.status === "pending_payment") {
-    const url = checkoutUrl(tournament, registrationId);
+    const path = await pathForUrls(tournament);
+    const url = checkoutUrl(path, registrationId);
     const fee = tournament.registrationFeeIdr ?? 0;
     return { registrationId, checkoutUrl: url, amountIdr: fee, status: "pending_payment" };
   }
@@ -138,12 +149,13 @@ export async function confirmParticipation(
       fee,
     );
 
-    void notifyPaymentReminder(tournament, registrationId, userId, teamName, amountIdr);
-    void notifyHostPlayerConfirmedParticipation(tournament, registrationId, userId, teamName);
+    const path = await pathForUrls(tournament);
+    void notifyPaymentReminder(path, registrationId, userId, teamName, amountIdr);
+    void notifyHostPlayerConfirmedParticipation(path, registrationId, userId, teamName);
 
     return {
       registrationId,
-      checkoutUrl: checkoutUrl(tournament, registrationId),
+      checkoutUrl: checkoutUrl(path, registrationId),
       amountIdr,
       status: "pending_payment",
     };

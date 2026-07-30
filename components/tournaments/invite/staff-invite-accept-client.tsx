@@ -26,6 +26,12 @@ type StaffInviteAcceptClientProps = {
   slug: string;
   tournamentId: string;
   tournamentName: string;
+  /** Partner white-label (or custom) surface URLs — defaults to Gud Game sport routes. */
+  surfaceUrls?: {
+    publicUrl: string;
+    manageUrl: string;
+    inviteUrl: string;
+  };
 };
 
 export function StaffInviteAcceptClient({
@@ -33,6 +39,7 @@ export function StaffInviteAcceptClient({
   slug,
   tournamentId,
   tournamentName,
+  surfaceUrls,
 }: StaffInviteAcceptClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,9 +55,9 @@ export function StaffInviteAcceptClient({
   const [codePreview, setCodePreview] = useState<InvitePreviewView | null>(null);
   const [codePreviewError, setCodePreviewError] = useState<string | null>(null);
 
-  const tournamentUrl = publicSportRoutes.tournament(sportSlug, slug);
-  const manageUrl = publicSportRoutes.tournamentManage(sportSlug, slug);
-  const invitePageUrl = publicSportRoutes.tournamentInvite(sportSlug, slug);
+  const tournamentUrl = surfaceUrls?.publicUrl ?? publicSportRoutes.tournament(sportSlug, slug);
+  const manageUrl = surfaceUrls?.manageUrl ?? publicSportRoutes.tournamentManage(sportSlug, slug);
+  const invitePageUrl = surfaceUrls?.inviteUrl ?? publicSportRoutes.tournamentInvite(sportSlug, slug);
   const callbackUrl = token
     ? `${invitePageUrl}?token=${encodeURIComponent(token)}&kind=access`
     : `${invitePageUrl}?kind=access`;

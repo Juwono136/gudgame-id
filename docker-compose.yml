@@ -99,9 +99,8 @@ services:
         max-size: "20m"
         max-file: "5"
 
-  # Sidecar: daily host bank payout job (Docker/VPS — replaces Vercel Cron).
-  # Schedule: 08:00 Asia/Jakarta — see ops/cron/host-payouts.crontab
-  # Pattern: external scheduler → HTTP /api/cron/host-payouts (CRON_SECRET). Standard for VPS/Docker.
+  # Sidecar: scheduled jobs (host payouts + timed match finalize).
+  # See ops/cron/host-payouts.crontab — HTTP /api/cron/* with CRON_SECRET.
   payout-cron:
     build:
       context: ./ops/cron

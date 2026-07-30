@@ -1,7 +1,7 @@
 # Panduan Turnamen Gud Game
 
 > **Dokumen hidup.** Perbarui file ini setiap kali ada perubahan, penambahan, atau rombak fitur seputar turnamen (format match, scoring, form create/edit, aturan lifecycle, dsb.).  
-> Terakhir diselaraskan dengan aplikasi: **2026-07-21**.  
+> Terakhir diselaraskan dengan aplikasi: **2026-07-29**.  
 > Rule agen: `.cursor/rules/tournament-docs.mdc` — sync otomatis saat file turnamen terkait diubah.
 
 Dokumen ini menjelaskan:
@@ -70,6 +70,20 @@ Sesi komunitas / rekreasi. **Tidak** memengaruhi ranking official.
 
 Fun Match biasanya dibuat lewat wizard Fun Match / Reclub (UI terpisah dari wizard Official).
 
+### 1.3 Partner white-label (`partnerTenant`)
+
+Partner organizations create events on their own site (`/{partnerSlug}`). Stats stay **off Gud Game career rankings**.
+
+| Aspek | Community (`fun_match`) | Official (`official`) |
+| --- | --- | --- |
+| UI label | Community | Official |
+| Billing | Tidak dipakai | Paid / Free (`BillingTypeSelect`) |
+| Registration fee | Tidak ada | Wajib jika Paid (IDR) |
+| Skill / tournament tier | **Tidak ada** — `partnerTenant` melewati validasi tier | Sama |
+| Format | Double Stage / Elimination / Americano (wizard partner) | Sama |
+
+Wizard: `components/partners/partner-tournament-wizard.tsx`. Payload mengirim `tournamentType`, `officialBilling`, `registrationFeeIdr` (+ `partnerTenant: true` di API).
+
 ---
 
 ## 2. Format pertandingan (match format)
@@ -97,6 +111,7 @@ Ketersediaan format bergantung pada jenis turnamen dan (sebagian) sport defaults
 | --- | --- | --- |
 | Max teams per group | `doubleStage.maxTeamsPerGroup` | Batas ukuran grup (2–8) |
 | Teams advancing per group | `doubleStage.teamsAdvancePerGroup` | Berapa tim lolos per grup (≤ max/group) |
+| Best runner-up slots | `doubleStage.bestRunnerUpSlots` | Slot ekstra knockout dari runner-up terbaik lintas grup (0 = off) |
 | Allow draw results | `standingsScoring.allowDraw` | Izinkan skor imbang di group |
 | Include 3rd place match | `doubleStage.thirdPlaceEnabled` | Bracket juara 3 |
 | Match score format | `matchScoreMode` | `games` (Race to N) atau `points` (flat) |
@@ -110,6 +125,7 @@ Ketersediaan format bergantung pada jenis turnamen dan (sebagian) sport defaults
 - Skor live di court; finalize menulis hasil ke history & standings.
 - Draw hanya jika `allowDraw` aktif; jika tidak, skor imbang ditolak saat finalize.
 - Qualifikasi (Qualified / Eliminated) baru bermakna setelah **semua** fixture grup di seluruh turnamen selesai (bukan per-grup di tengah jalan), dan hanya jika sudah ada hasil yang benar-benar dimainkan. Badge tidak muncul sebelum turnamen / group stage dimulai.
+- Setelah top N per grup, opsional **best runner-up**: tim peringkat `teamsAdvance+1` dari tiap grup diurutkan lintas pool dengan tie-breaker yang sama; `bestRunnerUpSlots` terbaik ikut **qualified**.
 - Setelah semua match group selesai → knockout bracket **di-generate otomatis** dari tim yang lolos saja (tombol Generate di Groups tetap ada sebagai retry). Generic “generate bracket” untuk semua tim **dilarang** pada format double stage.
 - **Match schedule**: host mengatur kickoff (`scheduledAt`) di manage → Groups (FIFA-style schedule board). Jadwal yang sama tampil di halaman publik tab **Matches**.
 - Reset bracket knockout: menghapus pohon bracket, mengembalikan `phase` ke `group`, membersihkan seed knockout — **tidak** membuka lagi semua tim ke elimination; regenerate harus lewat advance/auto dari qualified teams.
@@ -290,7 +306,9 @@ Kolom umum:
 | Game atau +/- | Games won–lost (mode games) atau selisih skor (mode points) |
 | PTS | Poin klasemen grup (default tetap 3 / 1 / 0 — bukan input form) |
 
-Tie-breaker (default): points → wins → scoreDiff → scoreFor → head-to-head → manual.
+Tie-breaker default (points/goals sports): points → wins → scoreDiff → scoreFor → head-to-head → manual.
+
+Tie-breaker padel / tennis (games/sets, ITF-ish): points → wins → matchesPlayed → head-to-head → setWinPct (wins/played) → gameWinPct (scoreFor/(scoreFor+scoreAgainst)) → manual.
 
 ---
 
@@ -400,6 +418,7 @@ Saat mengubah fitur turnamen, update bagian terkait di file ini:
 - Capabilities: `lib/tournaments/format-capabilities.ts`
 - Wizard Official: `components/admin/tournaments/tournament-create-wizard.tsx`
 - Wizard Fun Match: `components/tournaments/reclub/reclub-tournament-wizard.tsx`
+- Wizard Partner: `components/partners/partner-tournament-wizard.tsx`
 - Double Stage service: `lib/tournaments/double-stage/`
 - Match schedule: `lib/tournaments/double-stage/schedule.ts`, `components/tournaments/double-stage/match-schedule-board.tsx`
 - Bracket reset (double stage): `lib/tournaments/brackets/reset.ts`

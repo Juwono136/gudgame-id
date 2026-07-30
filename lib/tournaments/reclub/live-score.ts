@@ -13,6 +13,12 @@ import {
 } from "@/lib/tournaments/reclub/score-events";
 import { buildMatchScoreEvent } from "@/lib/tournaments/scoring/build-score-event";
 import { mapReclubMatchRow } from "@/lib/tournaments/reclub/match-mapper";
+import { recordMatchScoreRevision } from "@/lib/tournaments/scoring/score-revisions";
+import {
+  assertTimedScoreAllowed,
+  buildSuddenDeathEndsAt,
+  hasSuddenDeathExtended,
+} from "@/lib/tournaments/scoring/timed-hard-stop";
 import {
   getTournamentDeuceConfig,
   getTournamentPointsPerMatch,
@@ -66,6 +72,22 @@ export async function updateReclubLiveScore(
   const rules = buildScoringRules(tournament);
   let scoreA = Math.max(0, existing.scoreA ?? 0);
   let scoreB = Math.max(0, existing.scoreB ?? 0);
+  const scoreABefore = scoreA;
+  const scoreBBefore = scoreB;
+  let nextTimerEndsAt = existing.timerEndsAt ?? null;
+  let metaExtra: Record<string, unknown> = {};
+
+  const timedGate = assertTimedScoreAllowed(tournament, {
+    timerEndsAt: existing.timerEndsAt,
+    scoreA,
+    scoreB,
+    action: input.action,
+    suddenDeathExtended: hasSuddenDeathExtended(existing.metadata),
+  });
+  if (timedGate.blocked && timedGate.reason === "expired_tied_extend") {
+    nextTimerEndsAt = buildSuddenDeathEndsAt(tournament);
+    metaExtra = { suddenDeathExtended: true };
+  }
 
   if (input.action === "increment" && input.side) {
     const next = engineApplyDelta(scoreA, scoreB, input.side, 1, rules);
@@ -100,17 +122,41 @@ export async function updateReclubLiveScore(
     scorerUserId: input.scorerUserId,
   });
   const metadata =
-    input.action === "decrement" ? prevMeta : appendScoreEvent(prevMeta, event);
+    input.action === "decrement"
+      ? { ...prevMeta, ...metaExtra }
+      : { ...appendScoreEvent(prevMeta, event), ...metaExtra };
 
   const [updated] = await db
     .update(tournamentReclubMatches)
-    .set({ scoreA, scoreB, metadata, recordedByUserId: userId })
+    .set({
+      scoreA,
+      scoreB,
+      metadata,
+      recordedByUserId: userId,
+      ...(nextTimerEndsAt && nextTimerEndsAt !== existing.timerEndsAt
+        ? { timerEndsAt: nextTimerEndsAt }
+        : {}),
+    })
     .where(eq(tournamentReclubMatches.id, matchId))
     .returning();
 
   if (!updated) {
     throw new AppError("Could not update score", { code: "DATABASE_ERROR", statusCode: 500 });
   }
+
+  await recordMatchScoreRevision({
+    tournamentId: tournament.id,
+    matchKind: "reclub",
+    matchId,
+    action: input.action ?? "set",
+    scoreABefore,
+    scoreBBefore,
+    scoreAAfter: scoreA,
+    scoreBAfter: scoreB,
+    side: input.side,
+    actorUserId: userId,
+    actorName: userName,
+  });
 
   return mapReclubMatchRow(updated);
 }

@@ -2,10 +2,18 @@ import {
   RACE_TO_GAMES_OPTIONS,
   MATCH_SCORE_MODES,
   DEFAULT_GAME_RULES_BY_UNIT,
+  normalizeGameDecider,
   type MatchScoreMode,
   type RaceToGames,
   type MatchGameRules,
 } from "@/lib/tournaments/scoring/game-mode";
+import {
+  MATCH_FORMATS,
+  classicDefaultsForSport,
+  parseClassicSetRules,
+  type ClassicSetRules,
+  type MatchFormat,
+} from "@/lib/tournaments/scoring/classic-sets";
 import { isUuid } from "@/lib/domain/uuid";
 import {
   normalizeAllowedTierLevels,
@@ -48,6 +56,15 @@ export type TournamentDisplayLayout =
   | "leaderboard"
   | "rotation";
 
+export type TournamentDisplayBrandTheme = {
+  primaryColor?: string;
+  accentColor?: string;
+  /** Visual atmosphere for TV / scoreboard shells. */
+  backgroundStyle?: "gradient" | "solid" | "dark_court";
+  showPartnerLogo?: boolean;
+  scoreboardStyle?: "classic" | "bold" | "minimal";
+};
+
 export type TournamentDisplayConfig = {
   layout: TournamentDisplayLayout;
   courtIds?: string[];
@@ -57,6 +74,8 @@ export type TournamentDisplayConfig = {
   rotationLayouts?: TournamentDisplayLayout[];
   showUpcoming?: boolean;
   showHighlights?: boolean;
+  /** Per-event hospitality branding (TV / website / scoreboard). */
+  brandTheme?: TournamentDisplayBrandTheme;
 };
 
 export type TournamentSettings = TournamentRuleSections & {
@@ -75,14 +94,30 @@ export type TournamentSettings = TournamentRuleSections & {
   matchScoreMode?: MatchScoreMode;
   /** Target games to win a match when matchScoreMode = "games" (typically 4 or 6). */
   raceToGames?: RaceToGames;
+  /** Double-stage: race-to for group matches (falls back to raceToGames). */
+  raceToGamesGroup?: RaceToGames;
+  /** Double-stage: race-to for knockout matches (falls back to raceToGames). */
+  raceToGamesKnockout?: RaceToGames;
   /**
    * Intra-game decider when both sides reach game point.
-   * golden_point = next point wins (common in padel); advantage = win by 2.
+   * golden_point = No-Ad (first deuce decides);
+   * star_point = FIP Star Point (third deuce decides);
+   * advantage = win by 2.
    */
-  gameDecider?: "golden_point" | "advantage";
+  gameDecider?: "golden_point" | "star_point" | "advantage";
+  /**
+   * race_to_games = shortened first-to-N (community).
+   * classic_sets = ITF/FIP sets (6 games, TB-7, padel STB-10).
+   */
+  matchFormat?: MatchFormat;
+  classicSetRules?: ClassicSetRules;
   courtCount?: number;
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
+  /** Extra minutes once when a timed match is tied at the hard stop. */
+  suddenDeathExtensionMinutes?: number;
+  /** live = rally tablet scoring; paper = organizer batch/final entry. */
+  scoreEntryMode?: "live" | "paper";
   displayConfig?: TournamentDisplayConfig;
   officialStaff?: OfficialTournamentStaffMember[];
   bracketSeedMode?: "random" | "manual";
@@ -98,7 +133,9 @@ export const TOURNAMENT_POINTS_PER_MATCH_OPTIONS = [
   11, 15, 21, 25, 30, 35, 40,
 ] as const;
 export const TOURNAMENT_COURT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12] as const;
-export const TOURNAMENT_ROUND_DURATION_OPTIONS = [5, 10, 15, 20, 25, 30] as const;
+export const TOURNAMENT_ROUND_DURATION_OPTIONS = [
+  5, 10, 15, 20, 25, 30, 45, 60,
+] as const;
 
 export const DEFAULT_SUDDEN_DEATH_EXTENSION_MINUTES = 3;
 
@@ -164,7 +201,35 @@ function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
     rotationLayouts: rotationLayouts?.length ? rotationLayouts : undefined,
     showUpcoming: typeof v.showUpcoming === "boolean" ? v.showUpcoming : undefined,
     showHighlights: typeof v.showHighlights === "boolean" ? v.showHighlights : undefined,
+    brandTheme: parseDisplayBrandTheme(v.brandTheme),
   };
+}
+
+function parseDisplayBrandTheme(raw: unknown): TournamentDisplayBrandTheme | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const colorOk = (c: unknown) =>
+    typeof c === "string" && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c.trim());
+  const bg =
+    o.backgroundStyle === "gradient" ||
+    o.backgroundStyle === "solid" ||
+    o.backgroundStyle === "dark_court"
+      ? o.backgroundStyle
+      : undefined;
+  const scoreboard =
+    o.scoreboardStyle === "classic" ||
+    o.scoreboardStyle === "bold" ||
+    o.scoreboardStyle === "minimal"
+      ? o.scoreboardStyle
+      : undefined;
+  const theme: TournamentDisplayBrandTheme = {
+    ...(colorOk(o.primaryColor) ? { primaryColor: (o.primaryColor as string).trim() } : {}),
+    ...(colorOk(o.accentColor) ? { accentColor: (o.accentColor as string).trim() } : {}),
+    ...(bg ? { backgroundStyle: bg } : {}),
+    ...(typeof o.showPartnerLogo === "boolean" ? { showPartnerLogo: o.showPartnerLogo } : {}),
+    ...(scoreboard ? { scoreboardStyle: scoreboard } : {}),
+  };
+  return Object.keys(theme).length ? theme : undefined;
 }
 
 export function getTournamentFormatLabel(format: string | null | undefined): string {
@@ -242,6 +307,8 @@ export function parseTournamentSettings(
   const officialStaff = raw.officialStaff;
   const deuceConfig = raw.deuceConfig;
   const roundDurationMinutes = raw.roundDurationMinutes;
+  const suddenDeathExtensionMinutes = raw.suddenDeathExtensionMinutes;
+  const scoreEntryMode = raw.scoreEntryMode;
   const displayConfig = raw.displayConfig;
   const bracketSeedMode = raw.bracketSeedMode;
   const bracketSeedingFinalized = raw.bracketSeedingFinalized;
@@ -249,7 +316,11 @@ export function parseTournamentSettings(
   const standingsScoring = raw.standingsScoring;
   const matchScoreMode = raw.matchScoreMode;
   const raceToGames = raw.raceToGames;
+  const raceToGamesGroup = raw.raceToGamesGroup;
+  const raceToGamesKnockout = raw.raceToGamesKnockout;
   const gameDecider = raw.gameDecider;
+  const matchFormat = raw.matchFormat;
+  const classicSetRulesRaw = raw.classicSetRules;
   const allowedTierLevels = raw.allowedTierLevels;
 
   const parsedPoints =
@@ -261,6 +332,11 @@ export function parseTournamentSettings(
     typeof raceToGames === "number" &&
     RACE_TO_GAMES_OPTIONS.includes(raceToGames as RaceToGames)
       ? (raceToGames as RaceToGames)
+      : undefined;
+
+  const parseRaceOpt = (v: unknown): RaceToGames | undefined =>
+    typeof v === "number" && RACE_TO_GAMES_OPTIONS.includes(v as RaceToGames)
+      ? (v as RaceToGames)
       : undefined;
 
   const parsedGearIds = Array.isArray(gearEntityIds)
@@ -295,9 +371,20 @@ export function parseTournamentSettings(
         ? (matchScoreMode as MatchScoreMode)
         : undefined,
     raceToGames: parsedRaceTo,
-    gameDecider:
-      gameDecider === "golden_point" || gameDecider === "advantage"
-        ? gameDecider
+    raceToGamesGroup: parseRaceOpt(raceToGamesGroup),
+    raceToGamesKnockout: parseRaceOpt(raceToGamesKnockout),
+    gameDecider: normalizeGameDecider(
+      typeof gameDecider === "string" ? gameDecider : undefined,
+    ),
+    matchFormat:
+      typeof matchFormat === "string" &&
+      MATCH_FORMATS.includes(matchFormat as MatchFormat)
+        ? (matchFormat as MatchFormat)
+        : undefined,
+    classicSetRules: parseClassicSetRules(classicSetRulesRaw) ?? undefined,
+    scoreEntryMode:
+      scoreEntryMode === "live" || scoreEntryMode === "paper"
+        ? scoreEntryMode
         : undefined,
     courtCount:
       typeof courtCount === "number" && Number.isFinite(courtCount) && courtCount > 0
@@ -309,6 +396,12 @@ export function parseTournamentSettings(
       Number.isFinite(roundDurationMinutes) &&
       roundDurationMinutes > 0
         ? Math.floor(roundDurationMinutes)
+        : undefined,
+    suddenDeathExtensionMinutes:
+      typeof suddenDeathExtensionMinutes === "number" &&
+      Number.isFinite(suddenDeathExtensionMinutes) &&
+      suddenDeathExtensionMinutes > 0
+        ? Math.floor(suddenDeathExtensionMinutes)
         : undefined,
     displayConfig: parseDisplayConfig(displayConfig),
     officialStaff: parseOfficialTournamentStaff(officialStaff),
@@ -430,7 +523,25 @@ export function getTournamentRaceToGames(tournament: TournamentDetail): RaceToGa
   return DEFAULT_GAME_RULES_BY_UNIT.games.raceToGames;
 }
 
-export function getTournamentGameRules(tournament: TournamentDetail): MatchGameRules {
+export type TournamentRaceStage = "group" | "knockout" | "default";
+
+/** Resolve race-to-N for a match stage (double-stage group vs knockout). */
+export function getTournamentRaceToGamesForStage(
+  tournament: TournamentDetail,
+  stage: TournamentRaceStage = "default",
+): RaceToGames {
+  const settings = parseTournamentSettings(tournament.settings);
+  if (stage === "group" && settings.raceToGamesGroup) return settings.raceToGamesGroup;
+  if (stage === "knockout" && settings.raceToGamesKnockout) {
+    return settings.raceToGamesKnockout;
+  }
+  return getTournamentRaceToGames(tournament);
+}
+
+export function getTournamentGameRules(
+  tournament: TournamentDetail,
+  stage: TournamentRaceStage = "default",
+): MatchGameRules {
   const settings = parseTournamentSettings(tournament.settings);
   const unit = settings.standingsScoring?.scoreUnit
     ?? getDefaultStandingsScoringForSport(tournament.sportSlug).scoreUnit;
@@ -438,7 +549,7 @@ export function getTournamentGameRules(tournament: TournamentDetail): MatchGameR
     unit === "sets" ? DEFAULT_GAME_RULES_BY_UNIT.sets : DEFAULT_GAME_RULES_BY_UNIT.games;
   return {
     ...base,
-    raceToGames: getTournamentRaceToGames(tournament),
+    raceToGames: getTournamentRaceToGamesForStage(tournament, stage),
     // Sequential 0→40 (+1 per point). Never use tennis 15/30/40 jumps for operators.
     pointsToWinGame: base.pointsToWinGame,
     pointStyle: "simple",
@@ -458,6 +569,38 @@ export function getTournamentDeuceConfig(tournament: TournamentDetail): Tourname
 
 export function getTournamentRoundDurationMinutes(tournament: TournamentDetail): number {
   return parseTournamentSettings(tournament.settings).roundDurationMinutes ?? 15;
+}
+
+export function getTournamentSuddenDeathExtensionMinutes(
+  tournament: TournamentDetail,
+): number {
+  const settings = parseTournamentSettings(tournament.settings);
+  return (
+    settings.suddenDeathExtensionMinutes ?? DEFAULT_SUDDEN_DEATH_EXTENSION_MINUTES
+  );
+}
+
+export function getTournamentScoreEntryMode(
+  tournament: TournamentDetail,
+): "live" | "paper" {
+  return parseTournamentSettings(tournament.settings).scoreEntryMode ?? "live";
+}
+
+export function getTournamentMatchFormat(
+  tournament: TournamentDetail,
+): MatchFormat {
+  return parseTournamentSettings(tournament.settings).matchFormat ?? "race_to_games";
+}
+
+export function getTournamentClassicSetRules(
+  tournament: TournamentDetail,
+): ClassicSetRules {
+  const settings = parseTournamentSettings(tournament.settings);
+  return settings.classicSetRules ?? classicDefaultsForSport(tournament.sportSlug);
+}
+
+export function isClassicSetsFormat(tournament: TournamentDetail): boolean {
+  return getTournamentMatchFormat(tournament) === "classic_sets";
 }
 
 export function getBracketSeedMode(
@@ -507,10 +650,16 @@ export type TournamentSettingsInput = {
   pointsPerMatch?: number;
   matchScoreMode?: MatchScoreMode;
   raceToGames?: RaceToGames;
-  gameDecider?: "golden_point" | "advantage";
+  raceToGamesGroup?: RaceToGames;
+  raceToGamesKnockout?: RaceToGames;
+  gameDecider?: "golden_point" | "star_point" | "advantage";
+  matchFormat?: MatchFormat;
+  classicSetRules?: ClassicSetRules;
   courtCount?: number;
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
+  suddenDeathExtensionMinutes?: number;
+  scoreEntryMode?: "live" | "paper";
   displayConfig?: TournamentDisplayConfig;
   doubleStage?: DoubleStageSettings;
   standingsScoring?: StandingsScoringConfig;
@@ -529,10 +678,17 @@ export type TournamentSettingsUpsertFields = {
   pointsPerMatch?: number;
   matchScoreMode?: MatchScoreMode;
   raceToGames?: RaceToGames;
-  gameDecider?: "golden_point" | "advantage";
+  raceToGamesGroup?: RaceToGames;
+  raceToGamesKnockout?: RaceToGames;
+  gameDecider?: "golden_point" | "star_point" | "advantage";
+  matchFormat?: MatchFormat;
+  classicSetRules?: ClassicSetRules;
   courtCount?: number;
   deuceConfig?: TournamentDeuceConfig;
   roundDurationMinutes?: number;
+  suddenDeathExtensionMinutes?: number;
+  scoreEntryMode?: "live" | "paper";
+  bestRunnerUpSlots?: number;
   displayConfig?: TournamentDisplayConfig;
   doubleStage?: DoubleStageSettings;
   standingsScoring?: StandingsScoringConfig;
@@ -552,7 +708,13 @@ export function buildFormatSpecificSettingsFromUpsert(
   sportSlug: string,
 ): Pick<
   TournamentSettingsInput,
-  "doubleStage" | "standingsScoring" | "matchScoreMode" | "raceToGames" | "gameDecider"
+  | "doubleStage"
+  | "standingsScoring"
+  | "matchScoreMode"
+  | "raceToGames"
+  | "gameDecider"
+  | "matchFormat"
+  | "classicSetRules"
 > {
   if (input.format !== "double_stage") return {};
 
@@ -575,6 +737,7 @@ export function buildFormatSpecificSettingsFromUpsert(
       maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
       teamsAdvancePerGroup:
         input.teamsAdvancePerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
+      bestRunnerUpSlots: input.bestRunnerUpSlots ?? 0,
       thirdPlaceEnabled: input.thirdPlaceEnabled ?? false,
     },
     standingsScoring: {
@@ -591,6 +754,10 @@ export function buildFormatSpecificSettingsFromUpsert(
       (sportDefaults.scoreUnit === "sets"
         ? DEFAULT_GAME_RULES_BY_UNIT.sets.gameDecider
         : DEFAULT_GAME_RULES_BY_UNIT.games.gameDecider),
+    matchFormat: input.matchFormat,
+    classicSetRules:
+      input.classicSetRules ??
+      (input.matchFormat === "classic_sets" ? classicDefaultsForSport(sportSlug) : undefined),
   };
 }
 
@@ -611,10 +778,16 @@ export function settingsInputFromUpsert(
     pointsPerMatch: input.pointsPerMatch,
     matchScoreMode: input.matchScoreMode ?? formatSpecific.matchScoreMode,
     raceToGames: input.raceToGames ?? formatSpecific.raceToGames,
+    raceToGamesGroup: input.raceToGamesGroup,
+    raceToGamesKnockout: input.raceToGamesKnockout,
     gameDecider: input.gameDecider ?? formatSpecific.gameDecider,
+    matchFormat: input.matchFormat ?? formatSpecific.matchFormat,
+    classicSetRules: input.classicSetRules ?? formatSpecific.classicSetRules,
     courtCount: input.courtCount,
     deuceConfig: input.deuceConfig,
     roundDurationMinutes: input.roundDurationMinutes,
+    suddenDeathExtensionMinutes: input.suddenDeathExtensionMinutes,
+    scoreEntryMode: input.scoreEntryMode,
     displayConfig: input.displayConfig,
     doubleStage: input.doubleStage ?? formatSpecific.doubleStage,
     standingsScoring: input.standingsScoring ?? formatSpecific.standingsScoring,
@@ -688,10 +861,48 @@ export function buildTournamentSettings(
     delete next.raceToGames;
   }
 
-  if (input.gameDecider === "golden_point" || input.gameDecider === "advantage") {
-    next.gameDecider = input.gameDecider;
-  } else if ("gameDecider" in input) {
-    delete next.gameDecider;
+  if (
+    input.raceToGamesGroup != null &&
+    RACE_TO_GAMES_OPTIONS.includes(input.raceToGamesGroup as RaceToGames)
+  ) {
+    next.raceToGamesGroup = input.raceToGamesGroup;
+  } else if ("raceToGamesGroup" in input) {
+    delete next.raceToGamesGroup;
+  }
+
+  if (
+    input.raceToGamesKnockout != null &&
+    RACE_TO_GAMES_OPTIONS.includes(input.raceToGamesKnockout as RaceToGames)
+  ) {
+    next.raceToGamesKnockout = input.raceToGamesKnockout;
+  } else if ("raceToGamesKnockout" in input) {
+    delete next.raceToGamesKnockout;
+  }
+
+  {
+    const normalized = normalizeGameDecider(
+      typeof input.gameDecider === "string" ? input.gameDecider : undefined,
+    );
+    if (normalized) {
+      next.gameDecider = normalized;
+    } else if ("gameDecider" in input) {
+      delete next.gameDecider;
+    }
+  }
+
+  if (
+    input.matchFormat === "classic_sets" ||
+    input.matchFormat === "race_to_games"
+  ) {
+    next.matchFormat = input.matchFormat;
+  } else if ("matchFormat" in input) {
+    delete next.matchFormat;
+  }
+
+  if (input.classicSetRules) {
+    next.classicSetRules = input.classicSetRules;
+  } else if ("classicSetRules" in input) {
+    delete next.classicSetRules;
   }
 
   if (input.courtCount != null && input.courtCount > 0) {
@@ -710,6 +921,21 @@ export function buildTournamentSettings(
     next.roundDurationMinutes = Math.floor(input.roundDurationMinutes);
   } else if ("roundDurationMinutes" in input) {
     delete next.roundDurationMinutes;
+  }
+
+  if (
+    input.suddenDeathExtensionMinutes != null &&
+    input.suddenDeathExtensionMinutes > 0
+  ) {
+    next.suddenDeathExtensionMinutes = Math.floor(input.suddenDeathExtensionMinutes);
+  } else if ("suddenDeathExtensionMinutes" in input) {
+    delete next.suddenDeathExtensionMinutes;
+  }
+
+  if (input.scoreEntryMode === "live" || input.scoreEntryMode === "paper") {
+    next.scoreEntryMode = input.scoreEntryMode;
+  } else if ("scoreEntryMode" in input) {
+    delete next.scoreEntryMode;
   }
 
   if (input.displayConfig) {

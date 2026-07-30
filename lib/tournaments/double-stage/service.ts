@@ -23,6 +23,7 @@ import {
 } from "@/lib/tournaments/double-stage/knockout-bridge";
 import {
   allGroupMatchesCompleted,
+  applyBestRunnerUpQualification,
   computeGroupStandings,
 } from "@/lib/tournaments/double-stage/standings";
 import { assertCourtAvailable, listTournamentCourts } from "@/lib/tournaments/courts/service";
@@ -52,6 +53,12 @@ import {
   parseReclubMatchMetadata,
 } from "@/lib/tournaments/reclub/score-events";
 import { buildMatchScoreEvent } from "@/lib/tournaments/scoring/build-score-event";
+import { recordMatchScoreRevision } from "@/lib/tournaments/scoring/score-revisions";
+import {
+  assertTimedScoreAllowed,
+  buildSuddenDeathEndsAt,
+  hasSuddenDeathExtended,
+} from "@/lib/tournaments/scoring/timed-hard-stop";
 import type { MatchScoreEvent } from "@/lib/tournaments/scoring/match-score-events";
 import {
   applyGamePointDelta,
@@ -63,13 +70,23 @@ import {
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
 import {
+  applyClassicSetPointDelta,
+  classicStatsFromMatchMeta,
+  isClassicMatchComplete,
+  startNextClassicAfterWin,
+  sumClassicGames,
+} from "@/lib/tournaments/scoring/classic-sets";
+import {
+  getTournamentClassicSetRules,
   getTournamentDeuceConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
+  getTournamentScoreEntryMode,
   getTournamentPointsPerMatch,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   getTournamentSkillTier,
+  isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
 import { matchPointsForTournamentTier } from "@/lib/player/tier";
 
@@ -106,6 +123,8 @@ export type GroupMatchView = {
   startedAt: string | null;
   completedAt: string | null;
   courtId: string | null;
+  playOrder: number | null;
+  callStatus: string | null;
   scoreEvents: MatchScoreEvent[];
   /** Present when tournament uses matchScoreMode = "games". */
   gameState?: MatchGameState | null;
@@ -123,8 +142,12 @@ export type GroupStandingView = {
   scoreAgainst: number;
   scoreDiff: number;
   points: number;
+  setsFor: number;
+  setsAgainst: number;
+  gamesFor: number;
+  gamesAgainst: number;
   rank: number;
-  qualificationStatus: string;
+  qualificationStatus: "pending" | "qualified" | "eliminated";
   needsManualResolution?: boolean;
 };
 
@@ -278,6 +301,7 @@ export async function initializeDoubleStageGroups(
         teamAName: f.teamA.name,
         teamBName: f.teamB.name,
         status: "pending",
+        playOrder: f.round != null ? f.round * 100 + (mi % 2) + 1 : mi + 1,
       });
       matchCount++;
     }
@@ -443,6 +467,10 @@ async function replaceGroupStructure(
           teamAName: fixture.teamA.name,
           teamBName: fixture.teamB.name,
           status: "pending",
+          playOrder:
+            fixture.round != null
+              ? fixture.round * 100 + (matchIndex % 2) + 1
+              : matchIndex + 1,
         });
         matchCount++;
       }
@@ -613,13 +641,30 @@ export async function buildDoubleStageOverview(
     const gMatches = matches.filter((m) => m.groupId === g.id);
     const completedMatches = gMatches
       .filter((m) => m.teamAId && m.teamBId)
-      .map((m) => ({
-        teamAId: m.teamAId!,
-        teamBId: m.teamBId!,
-        scoreA: m.scoreA ?? 0,
-        scoreB: m.scoreB ?? 0,
-        status: m.status,
-      }));
+      .map((m) => {
+        const rawMeta =
+          m.metadata && typeof m.metadata === "object"
+            ? (m.metadata as Record<string, unknown>)
+            : undefined;
+        const classic = isClassicSetsFormat(tournament)
+          ? classicStatsFromMatchMeta(rawMeta, m.scoreA ?? 0, m.scoreB ?? 0)
+          : null;
+        return {
+          teamAId: m.teamAId!,
+          teamBId: m.teamBId!,
+          scoreA: m.scoreA ?? 0,
+          scoreB: m.scoreB ?? 0,
+          status: m.status,
+          ...(classic
+            ? {
+                setsA: classic.setsA,
+                setsB: classic.setsB,
+                gamesA: classic.gamesA,
+                gamesB: classic.gamesB,
+              }
+            : {}),
+        };
+      });
     // Lock Qualified/Eliminated only when EVERY group has finished — not per-group early.
     const standings = computeGroupStandings(
       gTeams,
@@ -640,6 +685,15 @@ export async function buildDoubleStageOverview(
       matches: gMatches.map((m) => mapGroupMatchView(m, teamPlayerMap)),
     };
   });
+
+  if (allDone && (dsSettings.bestRunnerUpSlots ?? 0) > 0) {
+    applyBestRunnerUpQualification(
+      groupOverviews,
+      dsSettings.teamsAdvancePerGroup,
+      dsSettings.bestRunnerUpSlots ?? 0,
+      scoringConfig,
+    );
+  }
 
   const qualifiedCount = groupOverviews.reduce(
     (sum, g) => sum + g.standings.filter((s) => s.qualificationStatus === "qualified").length,
@@ -809,6 +863,23 @@ export async function updateGroupStageLiveScore(
     }
 
     const prevMeta = parseReclubMatchMetadata(match.metadata);
+    const scoreABefore = Math.max(0, match.scoreA ?? 0);
+    const scoreBBefore = Math.max(0, match.scoreB ?? 0);
+    let nextTimerEndsAt = match.timerEndsAt ?? null;
+    let metaExtra: Record<string, unknown> = {};
+
+    const timedGate = assertTimedScoreAllowed(tournament, {
+      timerEndsAt: match.timerEndsAt,
+      scoreA: scoreABefore,
+      scoreB: scoreBBefore,
+      action: input.scoreAction,
+      suddenDeathExtended: hasSuddenDeathExtended(match.metadata),
+    });
+    if (timedGate.blocked && timedGate.reason === "expired_tied_extend") {
+      nextTimerEndsAt = buildSuddenDeathEndsAt(tournament);
+      metaExtra = { suddenDeathExtended: true };
+    }
+
     let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
     const reconciled = reconcileMatchGamesScores(match.scoreA, match.scoreB, nextGameState);
     let scoreA = reconciled.scoreA;
@@ -822,21 +893,42 @@ export async function updateGroupStageLiveScore(
 
     if (scoreAction === "next_game") {
       if (!useGamesMode) {
-        throw new AppError("next_game is only valid for race-to-N games scoring", {
+        throw new AppError("next_game is only valid for games scoring", {
           code: "VALIDATION_ERROR",
           statusCode: 422,
         });
       }
-      const started = startNextGameAfterWin(nextGameState);
-      if (!started) {
-        throw new AppError("No completed game is waiting to advance", {
-          code: "VALIDATION_ERROR",
-          statusCode: 422,
-        });
+      if (isClassicSetsFormat(tournament)) {
+        const setRules = getTournamentClassicSetRules(tournament);
+        const advanced = startNextClassicAfterWin(
+          scoreA,
+          scoreB,
+          nextGameState,
+          setRules,
+        );
+        if (!advanced) {
+          throw new AppError("No completed game is waiting to advance", {
+            code: "VALIDATION_ERROR",
+            statusCode: 422,
+          });
+        }
+        scoreA = advanced.setsA;
+        scoreB = advanced.setsB;
+        nextGameState = advanced.gameState;
+        eventScoreA = 0;
+        eventScoreB = 0;
+      } else {
+        const started = startNextGameAfterWin(nextGameState);
+        if (!started) {
+          throw new AppError("No completed game is waiting to advance", {
+            code: "VALIDATION_ERROR",
+            statusCode: 422,
+          });
+        }
+        nextGameState = started;
+        eventScoreA = 0;
+        eventScoreB = 0;
       }
-      nextGameState = started;
-      eventScoreA = 0;
-      eventScoreB = 0;
     } else if (scoreAction === "increment" || scoreAction === "decrement") {
       if (!side) {
         throw new AppError("Missing scoring side for live point update", {
@@ -846,8 +938,43 @@ export async function updateGroupStageLiveScore(
       }
       const delta = scoreAction === "decrement" ? (-1 as const) : (1 as const);
 
-      if (useGamesMode) {
-        const gameRules = getTournamentGameRules(tournament);
+      if (useGamesMode && isClassicSetsFormat(tournament)) {
+        const gameRules = getTournamentGameRules(tournament, "group");
+        const setRules = getTournamentClassicSetRules(tournament);
+        const applied = applyClassicSetPointDelta(
+          scoreA,
+          scoreB,
+          nextGameState,
+          side,
+          delta,
+          gameRules,
+          setRules,
+        );
+        if (!applied) {
+          throw new AppError(
+            delta > 0
+              ? nextGameState.pendingGameWinner
+                ? "Game finished — tap “Next game” to continue, or undo the last point"
+                : "Cannot award point — game, set, or match may already be complete"
+              : "Cannot undo — no points available",
+            { code: "VALIDATION_ERROR", statusCode: 422 },
+          );
+        }
+        scoreA = applied.setsA;
+        scoreB = applied.setsB;
+        nextGameState = applied.gameState;
+        eventScoreA =
+          applied.gameState.phase === "set_tiebreak" ||
+          applied.gameState.phase === "super_tiebreak"
+            ? (applied.gameState.tbPointsA ?? 0)
+            : applied.gameState.currentPointsA;
+        eventScoreB =
+          applied.gameState.phase === "set_tiebreak" ||
+          applied.gameState.phase === "super_tiebreak"
+            ? (applied.gameState.tbPointsB ?? 0)
+            : applied.gameState.currentPointsB;
+      } else if (useGamesMode) {
+        const gameRules = getTournamentGameRules(tournament, "group");
         const applied = applyGamePointDelta(
           scoreA,
           scoreB,
@@ -902,7 +1029,7 @@ export async function updateGroupStageLiveScore(
           statusCode: 422,
         });
       }
-      const gameRules = getTournamentGameRules(tournament);
+      const gameRules = getTournamentGameRules(tournament, "group");
       const target =
         typeof input.targetPoints === "number"
           ? input.targetPoints
@@ -962,12 +1089,29 @@ export async function updateGroupStageLiveScore(
       scorerName: input.scorerName,
       scorerUserId: input.scorerUserId,
     });
-    // Point log is scoring-only — do not persist score reductions.
+    // Point log is scoring-only — do not persist score reductions in JSONB.
     const withEvent =
       scoreAction === "decrement" ? prevMeta : appendScoreEvent(prevMeta, event);
+    const classicExtras = isClassicSetsFormat(tournament)
+      ? (() => {
+          const totals = sumClassicGames(
+            nextGameState.setScores,
+            nextGameState.gamesInSetA ?? 0,
+            nextGameState.gamesInSetB ?? 0,
+          );
+          return {
+            setsForA: scoreA,
+            setsForB: scoreB,
+            gamesForA: totals.gamesForA,
+            gamesForB: totals.gamesForB,
+          };
+        })()
+      : {};
     const metadata = {
       ...withEvent,
+      ...metaExtra,
       ...(useGamesMode ? { gameState: nextGameState } : {}),
+      ...classicExtras,
     };
 
     const [row] = await tx
@@ -977,17 +1121,46 @@ export async function updateGroupStageLiveScore(
         scoreB,
         metadata,
         recordedByUserId: userId,
+        ...(nextTimerEndsAt && nextTimerEndsAt !== match.timerEndsAt
+          ? { timerEndsAt: nextTimerEndsAt }
+          : {}),
       })
       .where(eq(tournamentGroupMatches.id, matchId))
       .returning();
 
-    return row!;
+    return {
+      row: row!,
+      revision: {
+        action: scoreAction ?? "set",
+        scoreABefore,
+        scoreBBefore,
+        scoreAAfter: scoreA,
+        scoreBAfter: scoreB,
+        side,
+        gameState: useGamesMode ? nextGameState : undefined,
+      } as const,
+    };
+  });
+
+  await recordMatchScoreRevision({
+    tournamentId: tournament.id,
+    matchKind: "group",
+    matchId,
+    action: updated.revision.action,
+    scoreABefore: updated.revision.scoreABefore,
+    scoreBBefore: updated.revision.scoreBBefore,
+    scoreAAfter: updated.revision.scoreAAfter,
+    scoreBAfter: updated.revision.scoreBAfter,
+    side: updated.revision.side,
+    gameState: updated.revision.gameState,
+    actorUserId: userId,
+    actorName: userName,
   });
 
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
 
   const teamPlayerMap = await loadGroupTeamPlayerMap(tournament.id);
-  return mapGroupMatchView(updated, teamPlayerMap);
+  return mapGroupMatchView(updated.row, teamPlayerMap);
 }
 
 export async function recordGroupStageScore(
@@ -1037,13 +1210,32 @@ export async function recordGroupStageScore(
   }
 
   if (getTournamentMatchScoreMode(tournament) === "games") {
-    const gameRules = getTournamentGameRules(tournament);
-    const race = isRaceToGamesMatchComplete(scores.scoreA, scores.scoreB, gameRules);
-    if (!race.complete) {
-      throw new AppError(
-        `Match is not complete — first team to ${gameRules.raceToGames} games wins.`,
-        { code: "VALIDATION_ERROR", statusCode: 422 },
-      );
+    const paperMode = getTournamentScoreEntryMode(tournament) === "paper";
+    if (!paperMode) {
+      if (isClassicSetsFormat(tournament)) {
+        const setRules = getTournamentClassicSetRules(tournament);
+        const classic = isClassicMatchComplete(
+          scores.scoreA,
+          scores.scoreB,
+          setRules,
+        );
+        if (!classic.complete) {
+          const need = Math.ceil(setRules.bestOfSets / 2);
+          throw new AppError(
+            `Match is not complete — first to ${need} sets wins (best of ${setRules.bestOfSets}).`,
+            { code: "VALIDATION_ERROR", statusCode: 422 },
+          );
+        }
+      } else {
+        const gameRules = getTournamentGameRules(tournament, "group");
+        const race = isRaceToGamesMatchComplete(scores.scoreA, scores.scoreB, gameRules);
+        if (!race.complete) {
+          throw new AppError(
+            `Match is not complete — first team to ${gameRules.raceToGames} games wins.`,
+            { code: "VALIDATION_ERROR", statusCode: 422 },
+          );
+        }
+      }
     }
   }
 
@@ -1052,7 +1244,7 @@ export async function recordGroupStageScore(
   else if (scores.scoreB > scores.scoreA) winnerTeamId = match.teamBId;
 
   const prevMeta = parseReclubMatchMetadata(match.metadata);
-  const metadata =
+  const baseMeta =
     prevMeta.scoreEvents?.length
       ? prevMeta
       : appendScoreEvent(prevMeta, {
@@ -1063,6 +1255,23 @@ export async function recordGroupStageScore(
           scoreB: scores.scoreB,
           action: "set",
         });
+  const classicFinalize = isClassicSetsFormat(tournament)
+    ? (() => {
+        const gs = baseMeta.gameState;
+        const totals = sumClassicGames(
+          gs?.setScores,
+          gs?.gamesInSetA ?? 0,
+          gs?.gamesInSetB ?? 0,
+        );
+        return {
+          setsForA: scores.scoreA,
+          setsForB: scores.scoreB,
+          gamesForA: totals.gamesForA,
+          gamesForB: totals.gamesForB,
+        };
+      })()
+    : {};
+  const metadata = { ...baseMeta, ...classicFinalize };
 
   const [updated] = await db
     .update(tournamentGroupMatches)
@@ -1081,6 +1290,20 @@ export async function recordGroupStageScore(
     .returning();
 
   await syncGroupQualificationStatus(tournament);
+
+  await recordMatchScoreRevision({
+    tournamentId: tournament.id,
+    matchKind: "group",
+    matchId,
+    action: "complete",
+    scoreABefore: match.scoreA ?? 0,
+    scoreBBefore: match.scoreB ?? 0,
+    scoreAAfter: scores.scoreA,
+    scoreBAfter: scores.scoreB,
+    actorUserId: userId,
+    actorName: userName,
+    reason: "Paper / batch final score",
+  });
 
   // Auto-generate knockout when the last group fixture is finalized.
   try {
@@ -1154,6 +1377,8 @@ function mapGroupMatchView(
     startedAt: m.startedAt?.toISOString() ?? null,
     completedAt: m.completedAt?.toISOString() ?? null,
     courtId: m.courtId,
+    playOrder: m.playOrder ?? null,
+    callStatus: m.callStatus ?? "queued",
     scoreEvents: meta.scoreEvents ?? [],
     gameState,
   };
@@ -1187,7 +1412,11 @@ export async function advanceDoubleStageToElimination(
   const overview = await buildDoubleStageOverview(tournament);
   const dsSettings = overview.settings;
 
-  const qualified = buildQualifiedTeamsFromStandings(overview.groups);
+  const qualified = buildQualifiedTeamsFromStandings(overview.groups, {
+    teamsAdvancePerGroup: dsSettings.teamsAdvancePerGroup,
+    bestRunnerUpSlots: dsSettings.bestRunnerUpSlots ?? 0,
+    scoringConfig: getStandingsConfig(tournament),
+  });
   if (qualified.length < 2) {
     throw new AppError("Need at least 2 qualified teams for knockout.", {
       code: "VALIDATION_ERROR",

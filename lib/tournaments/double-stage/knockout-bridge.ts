@@ -18,6 +18,9 @@ import { eq } from "drizzle-orm";
 import { AppError } from "@/lib/errors";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
+export { buildQualifiedTeamsFromStandings } from "@/lib/tournaments/double-stage/qualification";
+export type { BuildQualifiedOptions } from "@/lib/tournaments/double-stage/qualification";
+
 export async function provisionKnockoutBracket(
   tournament: TournamentDetail,
   seeded: SeededTeam[],
@@ -207,43 +210,6 @@ export async function provisionKnockoutBracket(
     .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
 
   return { matchCount: total.length };
-}
-
-export function buildQualifiedTeamsFromStandings(
-  groups: {
-    id: string;
-    name: string;
-    standings: {
-      teamId: string;
-      teamName: string;
-      rank: number;
-      points: number;
-      wins: number;
-      scoreDiff: number;
-      scoreFor: number;
-      qualificationStatus: string;
-    }[];
-  }[],
-): QualifiedTeam[] {
-  const qualified: QualifiedTeam[] = [];
-  for (const g of groups) {
-    for (const row of g.standings) {
-      if (row.qualificationStatus === "qualified") {
-        qualified.push({
-          teamId: row.teamId,
-          teamName: row.teamName,
-          groupId: g.id,
-          groupName: g.name,
-          groupRank: row.rank,
-          points: row.points,
-          wins: row.wins,
-          scoreDiff: row.scoreDiff,
-          scoreFor: row.scoreFor,
-        });
-      }
-    }
-  }
-  return qualified;
 }
 
 export function seedQualifiedTeams(qualified: QualifiedTeam[]): SeededTeam[] {

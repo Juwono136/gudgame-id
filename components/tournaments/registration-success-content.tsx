@@ -41,18 +41,21 @@ type RegistrationSuccessContentProps = {
   registrationId: string;
   sportSlug: string;
   slug: string;
+  /** Override hub URL (partner white-label). Defaults to Gud Game sport route. */
+  hubHref?: string;
 };
 
 export function RegistrationSuccessContent({
   registrationId,
   sportSlug,
   slug,
+  hubHref: hubHrefProp,
 }: RegistrationSuccessContentProps) {
   const [detail, setDetail] = useState<RegistrationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [pollCount, setPollCount] = useState(0);
 
-  const hubHref = `${publicSportRoutes.tournament(sportSlug, slug)}?registered=1`;
+  const hubHref = `${hubHrefProp ?? publicSportRoutes.tournament(sportSlug, slug)}?registered=1`;
 
   useEffect(() => {
     let cancelled = false;

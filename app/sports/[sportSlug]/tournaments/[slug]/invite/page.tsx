@@ -14,7 +14,8 @@ export const metadata = {
 export default async function TournamentInvitePage({ params }: PageProps) {
   const { sportSlug, slug } = await params;
   const tournament = await getTournamentBySlug(sportSlug, slug);
-  if (!tournament) notFound();
+  // Partner invites are accepted on /{partnerSlug}/tournaments/{slug}/invite.
+  if (!tournament || tournament.partnerId) notFound();
 
   return (
     <PageShell>

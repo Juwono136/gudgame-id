@@ -7,12 +7,26 @@ import { z } from "zod";
 
 export const runtime = "nodejs";
 
+const hexColor = z
+  .string()
+  .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+  .optional();
+
 const bodySchema = z.object({
   layout: z.enum(["single", "multi_court", "bracket", "leaderboard", "rotation"]),
   autoRotate: z.boolean().optional(),
   rotationIntervalSec: z.number().int().min(5).max(120).optional(),
   rotationLayouts: z
     .array(z.enum(["single", "multi_court", "bracket", "leaderboard", "rotation"]))
+    .optional(),
+  brandTheme: z
+    .object({
+      primaryColor: hexColor,
+      accentColor: hexColor,
+      backgroundStyle: z.enum(["gradient", "solid", "dark_court"]).optional(),
+      showPartnerLogo: z.boolean().optional(),
+      scoreboardStyle: z.enum(["classic", "bold", "minimal"]).optional(),
+    })
     .optional(),
 });
 

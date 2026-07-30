@@ -10,10 +10,12 @@ import {
   isTournamentOwner,
 } from "@/lib/tournaments/permissions";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { isUserPartnerMember } from "@/lib/partners/membership";
 
 export type TournamentManageAccess = {
   grantRole: string | null;
   isOwner: boolean;
+  isPartnerMember: boolean;
   canAccessManagePage: boolean;
   canManageBracket: boolean;
   canManageScoring: boolean;
@@ -26,17 +28,21 @@ export async function resolveTournamentManageAccess(
 ): Promise<TournamentManageAccess> {
   const grantRole = await getActiveAccessGrantRole(tournament.id, userId);
   const isOwner = isTournamentOwner(tournament.createdBy, userId);
-  const canAccessManagePage = canAccessTournamentManagePage(
-    tournament.createdBy,
-    userId,
-    grantRole,
-  );
-  const canManageBracket = canManageBracketSetup(roles, tournament, userId, grantRole);
-  const canManageScoring = canManageLiveScoring(roles, tournament, userId, grantRole);
+  const isPartnerMember = tournament.partnerId
+    ? await isUserPartnerMember(userId, tournament.partnerId)
+    : false;
+  const canAccessManagePage =
+    canAccessTournamentManagePage(tournament.createdBy, userId, grantRole) ||
+    isPartnerMember;
+  const canManageBracket =
+    canManageBracketSetup(roles, tournament, userId, grantRole) || isPartnerMember;
+  const canManageScoring =
+    canManageLiveScoring(roles, tournament, userId, grantRole) || isPartnerMember;
 
   return {
     grantRole,
     isOwner,
+    isPartnerMember,
     canAccessManagePage,
     canManageBracket,
     canManageScoring,

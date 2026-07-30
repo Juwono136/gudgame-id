@@ -2,7 +2,7 @@
  * Application roles — extend this list when adding new role types.
  * `viewer` is anonymous-only and never stored in user_role_assignments.
  */
-export const APP_ROLES = ["player", "host", "super_admin"] as const;
+export const APP_ROLES = ["player", "host", "partner", "super_admin"] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
@@ -18,12 +18,14 @@ export const USER_MANAGEMENT_ROLES: AppRole[] = ["super_admin"];
 export const ROLE_LABELS: Record<AppRole, string> = {
   player: "Player",
   host: "Host",
+  partner: "Partner",
   super_admin: "Super Admin",
 };
 
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   player: "Community member with profile, clubs, and tournaments",
   host: "Can edit wiki content; articles require moderation",
+  partner: "White-label partner — manage their own branded tournaments",
   super_admin: "Full platform control, user management, and moderation",
 };
 
@@ -31,6 +33,7 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
 export const LEGACY_ROLE_MAP: Record<string, AppRole> = {
   player: "player",
   host: "host",
+  partner: "partner",
   contributor: "host",
   editor: "host",
   admin: "super_admin",
@@ -73,7 +76,8 @@ export function getDbRoleFilterValues(role: AppRole): string[] {
 const ROLE_PRIORITY: Record<AppRole, number> = {
   player: 0,
   host: 1,
-  super_admin: 2,
+  partner: 2,
+  super_admin: 3,
 };
 
 export function pickPrimaryRole(roles: AppRole[]): AppRole {
@@ -84,4 +88,9 @@ export function pickPrimaryRole(roles: AppRole[]): AppRole {
 }
 
 /** Display order for role pickers and filters */
-export const ROLE_DISPLAY_ORDER: AppRole[] = ["super_admin", "host", "player"];
+export const ROLE_DISPLAY_ORDER: AppRole[] = [
+  "super_admin",
+  "partner",
+  "host",
+  "player",
+];

@@ -7,9 +7,10 @@ import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-worksp
 import { PlayerRegistrationsPanel } from "@/components/dashboard/player/player-registrations-panel";
 import { WorkspaceTabs } from "@/components/dashboard/workspace-tabs";
 import { PaymentTransactionsLedger } from "@/components/payments/payment-transactions-ledger";
-import { dashboardRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, partnerPublicRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PaymentTransactionRow } from "@/lib/tournaments/payments/transaction-types";
+import { registrationCheckoutUrl } from "@/lib/tournaments/registration/urls";
 
 const PLAYER_PAYMENTS_TABS = [
   {
@@ -63,9 +64,13 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
   );
 
   const handlePay = (row: PaymentTransactionRow) => {
-    router.push(
-      `/sports/${row.sportSlug}/tournaments/${row.tournamentSlug}/register/checkout?registrationId=${row.registrationId}`,
+    const checkout = registrationCheckoutUrl(
+      row.sportSlug,
+      row.tournamentSlug,
+      row.registrationId,
+      row.partnerSlug,
     );
+    router.push(checkout);
   };
 
   return (
@@ -92,6 +97,11 @@ export function PlayerPaymentsPage({ roles }: PlayerPaymentsPageProps) {
             scope="player"
             embedded
             onPayPending={handlePay}
+            getTournamentHref={(row) =>
+              row.partnerSlug
+                ? partnerPublicRoutes.tournament(row.partnerSlug, row.tournamentSlug)
+                : publicSportRoutes.tournament(row.sportSlug, row.tournamentSlug)
+            }
           />
         ) : null}
         {activeTab === "registrations" ? <PlayerRegistrationsPanel /> : null}

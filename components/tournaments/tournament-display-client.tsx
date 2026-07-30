@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayIdleScoreboard } from "@/components/tournaments/display/display-idle-scoreboard";
+import { DisplayOrderOfPlayStrip } from "@/components/tournaments/display/display-order-of-play-strip";
 import { DisplaySessionLeaderboard } from "@/components/tournaments/display/display-session-leaderboard";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
 import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
@@ -26,11 +27,19 @@ import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import type { MatchGameState } from "@/lib/tournaments/scoring/game-mode";
 import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
+import {
+  parseCallStatus,
+  type ScheduleMatchRow,
+} from "@/lib/tournaments/double-stage/schedule-view";
+import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 
 type TournamentDisplayClientProps = {
   sportSlug: string;
   slug: string;
   backHref?: string;
+  /** Partner white-label logo for TV hospitality branding. */
+  partnerLogoUrl?: string | null;
+  partnerName?: string | null;
 };
 
 type LiveMatchView = {
@@ -154,6 +163,8 @@ export function TournamentDisplayClient({
   sportSlug,
   slug,
   backHref,
+  partnerLogoUrl = null,
+  partnerName = null,
 }: TournamentDisplayClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -324,6 +335,107 @@ export function TournamentDisplayClient({
 
   const isOfficial = isOfficialType(data?.tournament.tournamentType);
 
+  const orderOfPlayRows = useMemo((): ScheduleMatchRow[] => {
+    if (!data) return [];
+    const courts = data.courts ?? [];
+    const courtNameFor = (courtId: string | null | undefined) => {
+      if (!courtId) return null;
+      const label = resolveCourtLabel(courtId, courts);
+      return label === "Court —" ? null : label;
+    };
+
+    const fromLive = ((data.matches ?? []) as LiveMatchView[]).map((m) => ({
+      id: m.id,
+      kind: (m.type === "group" ? "group" : "bracket") as "group" | "bracket",
+      stageLabel:
+        m.type === "group"
+          ? "Group"
+          : `R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` · M${m.matchNumber}` : ""}`,
+      teamAName: m.teamAName ?? null,
+      teamBName: m.teamBName ?? null,
+      scoreA: m.scoreA ?? null,
+      scoreB: m.scoreB ?? null,
+      status: m.status ?? "pending",
+      scheduledAt: null,
+      courtId: m.courtId ?? null,
+      courtName: courtNameFor(m.courtId),
+      playOrder: null,
+      callStatus: parseCallStatus(null),
+    }));
+
+    type DsGroup = {
+      name?: string;
+      matches?: Array<{
+        id: string;
+        teamAName: string | null;
+        teamBName: string | null;
+        scoreA: number | null;
+        scoreB: number | null;
+        status: string;
+        scheduledAt?: string | null;
+        courtId?: string | null;
+        playOrder?: number | null;
+        callStatus?: string | null;
+      }>;
+    };
+    const groups = (data.doubleStage?.groups ?? []) as DsGroup[];
+    const fromGroups: ScheduleMatchRow[] = groups.flatMap((g) =>
+      (g.matches ?? []).map((m) => ({
+        id: m.id,
+        kind: "group" as const,
+        stageLabel: `Group · ${g.name ?? ""}`,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        status: m.status,
+        scheduledAt: m.scheduledAt ?? null,
+        courtId: m.courtId ?? null,
+        courtName: courtNameFor(m.courtId),
+        playOrder: m.playOrder ?? null,
+        callStatus: parseCallStatus(m.callStatus),
+      })),
+    );
+
+    const bracketMatches = (data.bracket?.matches as LiveMatchView[]) ?? [];
+    const totalRounds = bracketMatches.length
+      ? Math.max(...bracketMatches.map((m) => m.roundNumber ?? 1), 1)
+      : 1;
+    const fromBracket: ScheduleMatchRow[] = bracketMatches.map((m) => ({
+      id: m.id,
+      kind: "bracket" as const,
+      stageLabel: getBracketRoundLabel(m.roundNumber ?? 1, totalRounds),
+      teamAName: m.teamAName ?? null,
+      teamBName: m.teamBName ?? null,
+      scoreA: m.scoreA ?? null,
+      scoreB: m.scoreB ?? null,
+      status: m.status ?? "pending",
+      scheduledAt: null,
+      courtId: m.courtId ?? null,
+      courtName: courtNameFor(m.courtId),
+      playOrder: null,
+      callStatus: parseCallStatus(null),
+    }));
+
+    // Prefer structured group+bracket rows when double-stage payload exists.
+    if (fromGroups.length || fromBracket.length) {
+      const seen = new Set<string>();
+      const merged: ScheduleMatchRow[] = [];
+      for (const row of [...fromGroups, ...fromBracket]) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        merged.push(row);
+      }
+      return merged;
+    }
+    return fromLive;
+  }, [data]);
+
+  const oopStrip =
+    orderOfPlayRows.length > 0 ? (
+      <DisplayOrderOfPlayStrip matches={orderOfPlayRows} />
+    ) : null;
+
   const displayControls = (
     <div className="fixed bottom-4 right-4 flex gap-2 opacity-90 transition-opacity hover:opacity-100">
       <DisplayVenueButton type="button" size="sm" onClick={() => void refetch()}>
@@ -355,11 +467,32 @@ export function TournamentDisplayClient({
           Retry
         </DisplayVenueButton>
         <DisplayVenueButton asChild variant="ghost">
-          <Link href={tournamentUrl}>Back to tournament</Link>
+          <Link href={exitHref}>Back to tournament</Link>
         </DisplayVenueButton>
       </DisplayVenueShell>
     );
   }
+
+  const brandTheme = data.displayConfig?.brandTheme ?? null;
+  const showLogo = brandTheme?.showPartnerLogo !== false && Boolean(partnerLogoUrl);
+  const brandBadge =
+    showLogo || partnerName ? (
+      <div className="pointer-events-none absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6">
+        {showLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={partnerLogoUrl!}
+            alt=""
+            className="h-10 w-10 rounded-xl object-cover shadow-lg ring-2 ring-white/20 sm:h-12 sm:w-12"
+          />
+        ) : null}
+        {partnerName ? (
+          <span className="hidden rounded-lg bg-black/35 px-2.5 py-1 text-xs font-semibold tracking-wide text-white/90 backdrop-blur-sm sm:inline">
+            {partnerName}
+          </span>
+        ) : null}
+      </div>
+    ) : null;
 
   const slideKey = `${effectiveLayout}-${rotationIndex}`;
 
@@ -553,7 +686,12 @@ export function TournamentDisplayClient({
 
   if (shellContent) {
     return (
-      <DisplayVenueShell lockViewport={effectiveLayout === "multi_court"}>
+      <DisplayVenueShell
+        lockViewport={effectiveLayout === "multi_court"}
+        brandTheme={brandTheme}
+      >
+        {brandBadge}
+        {oopStrip}
         {shellContent}
       </DisplayVenueShell>
     );
@@ -561,7 +699,9 @@ export function TournamentDisplayClient({
 
   if (!featuredMatch?.teamAName || !featuredMatch?.teamBName) {
     return (
-      <DisplayVenueShell>
+      <DisplayVenueShell brandTheme={brandTheme}>
+        {brandBadge}
+        {oopStrip}
         <DisplayIdleScoreboard
           tournamentName={data.tournament.name}
           message={
@@ -590,7 +730,9 @@ export function TournamentDisplayClient({
   );
 
   return (
-    <DisplayVenueShell>
+    <DisplayVenueShell brandTheme={brandTheme}>
+      {brandBadge}
+      {oopStrip}
       <div ref={containerRef} className="relative animate-in fade-in duration-700" key={slideKey}>
         {isLiveNow ? (
           <div className="pointer-events-none absolute left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-500/40 bg-red-950/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-red-200">

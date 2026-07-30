@@ -3,6 +3,9 @@ export const TIE_BREAKER_OPTIONS = [
   "wins",
   "scoreDiff",
   "scoreFor",
+  "matchesPlayed",
+  "setWinPct",
+  "gameWinPct",
   "headToHead",
   "manual",
 ] as const;
@@ -22,6 +25,7 @@ export type StandingsScoringConfig = {
   knockoutAllowDraw: boolean;
 };
 
+/** Default for points/goals sports. */
 export const DEFAULT_TIE_BREAKERS: TieBreakerKey[] = [
   "points",
   "wins",
@@ -30,6 +34,23 @@ export const DEFAULT_TIE_BREAKERS: TieBreakerKey[] = [
   "headToHead",
   "manual",
 ];
+
+/**
+ * ITF / FIP round-robin standings (padel & tennis):
+ * wins → matchesPlayed → headToHead (2 only) → setWinPct → gameWinPct → manual
+ * Multi-way ties re-enter H2H when a later % key reduces the subset to 2.
+ */
+export const GAMES_SPORT_TIE_BREAKERS: TieBreakerKey[] = [
+  "wins",
+  "matchesPlayed",
+  "headToHead",
+  "setWinPct",
+  "gameWinPct",
+  "manual",
+];
+
+/** @deprecated alias — same as GAMES_SPORT_TIE_BREAKERS */
+export const ITF_ROUND_ROBIN_TIE_BREAKERS = GAMES_SPORT_TIE_BREAKERS;
 
 export const DEFAULT_STANDINGS_SCORING: StandingsScoringConfig = {
   allowDraw: false,
@@ -42,8 +63,22 @@ export const DEFAULT_STANDINGS_SCORING: StandingsScoringConfig = {
 };
 
 const SPORT_STANDINGS_OVERRIDES: Record<string, Partial<StandingsScoringConfig>> = {
-  padel: { allowDraw: false, scoreUnit: "games" },
-  tennis: { allowDraw: false, scoreUnit: "sets" },
+  padel: {
+    allowDraw: false,
+    scoreUnit: "games",
+    winPoints: 1,
+    drawPoints: 0,
+    lossPoints: 0,
+    tieBreakers: GAMES_SPORT_TIE_BREAKERS,
+  },
+  tennis: {
+    allowDraw: false,
+    scoreUnit: "sets",
+    winPoints: 1,
+    drawPoints: 0,
+    lossPoints: 0,
+    tieBreakers: GAMES_SPORT_TIE_BREAKERS,
+  },
   badminton: { allowDraw: false, scoreUnit: "points" },
   futsal: { allowDraw: true, scoreUnit: "goals" },
   football: { allowDraw: true, scoreUnit: "goals" },
@@ -102,6 +137,8 @@ export type DoubleStageSettings = {
   phase: DoubleStagePhase;
   maxTeamsPerGroup: number;
   teamsAdvancePerGroup: number;
+  /** Extra KO slots filled by best runners-up across all pools (0 = off). */
+  bestRunnerUpSlots?: number;
   groupsLockedAt?: string;
   knockoutReadyAt?: string;
   knockoutGeneratedAt?: string;
@@ -112,6 +149,7 @@ export const DEFAULT_DOUBLE_STAGE_SETTINGS: DoubleStageSettings = {
   phase: "group",
   maxTeamsPerGroup: 4,
   teamsAdvancePerGroup: 2,
+  bestRunnerUpSlots: 0,
   thirdPlaceEnabled: false,
 };
 
@@ -129,6 +167,10 @@ export function parseDoubleStageSettings(raw: unknown): DoubleStageSettings {
       typeof v.teamsAdvancePerGroup === "number" && v.teamsAdvancePerGroup >= 1
         ? Math.floor(v.teamsAdvancePerGroup)
         : DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
+    bestRunnerUpSlots:
+      typeof v.bestRunnerUpSlots === "number" && v.bestRunnerUpSlots >= 0
+        ? Math.floor(v.bestRunnerUpSlots)
+        : 0,
     groupsLockedAt:
       typeof v.groupsLockedAt === "string" && v.groupsLockedAt.trim()
         ? v.groupsLockedAt

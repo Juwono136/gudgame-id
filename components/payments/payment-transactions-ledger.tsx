@@ -19,7 +19,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { formatIdrDisplay } from "@/lib/format/currency";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { partnerPublicRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { PaymentTransactionRow, TransactionQueryResult } from "@/lib/tournaments/payments/transaction-types";
 import { PaymentInvoiceDialog } from "@/components/payments/payment-invoice-dialog";
 import {
@@ -35,11 +35,13 @@ const STATUS_STYLES = paymentStatusBadgeClass;
 
 type PaymentTransactionsLedgerProps = {
   apiPath: string;
-  scope: "admin" | "host" | "player";
+  scope: "admin" | "host" | "player" | "partner";
   showHostColumn?: boolean;
   showPlatformFees?: boolean;
   showSportColumn?: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
+  /** Override the default public sport tournament link (e.g. partner white-label URLs). */
+  getTournamentHref?: (row: PaymentTransactionRow) => string;
   pageSize?: number;
   embedded?: boolean;
 };
@@ -85,11 +87,13 @@ function TransactionRowActions({
   scope,
   onPayPending,
   onViewReceipt,
+  getTournamentHref,
 }: {
   row: PaymentTransactionRow;
   scope: PaymentTransactionsLedgerProps["scope"];
   onPayPending?: (row: PaymentTransactionRow) => void;
   onViewReceipt?: (row: PaymentTransactionRow) => void;
+  getTournamentHref?: (row: PaymentTransactionRow) => string;
 }) {
   if (row.status === "pending" && scope === "player" && onPayPending) {
     return (
@@ -99,6 +103,12 @@ function TransactionRowActions({
       </Button>
     );
   }
+
+  const tournamentHref =
+    getTournamentHref?.(row) ??
+    (row.partnerSlug
+      ? partnerPublicRoutes.tournament(row.partnerSlug, row.tournamentSlug)
+      : publicSportRoutes.tournament(row.sportSlug, row.tournamentSlug));
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -115,7 +125,7 @@ function TransactionRowActions({
         </Button>
       ) : null}
       <Button asChild variant="ghost" size="sm" className="h-9 w-full sm:w-auto">
-        <Link href={publicSportRoutes.tournament(row.sportSlug, row.tournamentSlug)}>View</Link>
+        <Link href={tournamentHref}>View</Link>
       </Button>
     </div>
   );
@@ -129,6 +139,7 @@ function TransactionLedgerCard({
   showSportColumn,
   onPayPending,
   onViewReceipt,
+  getTournamentHref,
 }: {
   row: PaymentTransactionRow;
   scope: PaymentTransactionsLedgerProps["scope"];
@@ -137,16 +148,18 @@ function TransactionLedgerCard({
   showSportColumn: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
   onViewReceipt?: (row: PaymentTransactionRow) => void;
+  getTournamentHref?: (row: PaymentTransactionRow) => string;
 }) {
   const dateStr = new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(row.createdAt));
 
-  const shareLabel = showPlatformFees ? "Platform fee" : scope === "host" ? "Your share" : null;
+  const showEarningsShare = scope === "host" || scope === "partner";
+  const shareLabel = showPlatformFees ? "Platform fee" : showEarningsShare ? "Your share" : null;
   const shareValue = showPlatformFees
     ? formatIdrDisplay(row.platformFeeIdr)
-    : scope === "host"
+    : showEarningsShare
       ? formatIdrDisplay(row.hostPayoutIdr)
       : null;
 
@@ -211,7 +224,7 @@ function TransactionLedgerCard({
               <dd
                 className={cn(
                   "mt-0.5 text-sm font-semibold",
-                  scope === "host" ? "text-emerald-400" : "text-cp-muted",
+                  showEarningsShare ? "text-emerald-400" : "text-cp-muted",
                 )}
               >
                 {shareValue}
@@ -234,6 +247,7 @@ function TransactionLedgerCard({
             scope={scope}
             onPayPending={onPayPending}
             onViewReceipt={onViewReceipt}
+            getTournamentHref={getTournamentHref}
           />
         </div>
       </div>
@@ -248,9 +262,11 @@ export function PaymentTransactionsLedger({
   showPlatformFees = false,
   showSportColumn,
   onPayPending,
+  getTournamentHref,
   pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
   embedded = false,
 }: PaymentTransactionsLedgerProps) {
+  const showEarningsShare = scope === "host" || scope === "partner";
   const displaySportColumn = showSportColumn ?? scope !== "admin";
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -408,6 +424,7 @@ export function PaymentTransactionsLedger({
                   showSportColumn={displaySportColumn}
                   onPayPending={onPayPending}
                   onViewReceipt={handleViewReceipt}
+                  getTournamentHref={getTournamentHref}
                 />
               ))}
             </ul>
@@ -428,7 +445,7 @@ export function PaymentTransactionsLedger({
                     <th className="px-4 py-3 font-semibold">Amount</th>
                     {showPlatformFees ? (
                       <th className="px-4 py-3 font-semibold">Platform</th>
-                    ) : scope === "host" ? (
+                    ) : showEarningsShare ? (
                       <th className="px-4 py-3 font-semibold">Your share</th>
                     ) : null}
                     <th className="px-4 py-3 font-semibold">Status</th>
@@ -465,7 +482,7 @@ export function PaymentTransactionsLedger({
                         <td className="px-4 py-3 text-cp-muted">
                           {formatIdrDisplay(row.platformFeeIdr)}
                         </td>
-                      ) : scope === "host" ? (
+                      ) : showEarningsShare ? (
                         <td className="px-4 py-3 text-emerald-400">
                           {formatIdrDisplay(row.hostPayoutIdr)}
                         </td>
@@ -491,6 +508,7 @@ export function PaymentTransactionsLedger({
                           scope={scope}
                           onPayPending={onPayPending}
                           onViewReceipt={handleViewReceipt}
+                          getTournamentHref={getTournamentHref}
                         />
                       </td>
                     </tr>

@@ -19,16 +19,19 @@ import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import {
   getTournamentDisplayConfig,
+  type TournamentDisplayBrandTheme,
   type TournamentDisplayLayout,
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { partnerPublicRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import {
   cpSelectContentClass,
   cpSelectItemClass,
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
+
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 const LAYOUTS: { value: TournamentDisplayLayout; label: string; description: string }[] = [
   {
@@ -62,6 +65,8 @@ const ROTATION_OPTIONS: TournamentDisplayLayout[] = [
 
 type DisplayControlPanelProps = {
   tournament: TournamentDetail;
+  /** When set (partner white-label), display URLs use partnerPublicRoutes. */
+  partnerSlug?: string | null;
   onSaved?: () => void | Promise<void>;
 };
 
@@ -75,31 +80,57 @@ function resolveDisplayPanelState(tournament: TournamentDetail) {
     saved.layout === "rotation" || autoRotate
       ? saved.rotationLayouts?.[0] ?? fallbackLayout
       : saved.layout;
+  const brand = saved.brandTheme ?? {};
   return {
     layout,
     autoRotate,
     intervalSec: String(saved.rotationIntervalSec ?? 15),
+    primaryColor: brand.primaryColor ?? "#0d9488",
+    accentColor: brand.accentColor ?? "#14b8a6",
+    backgroundStyle: brand.backgroundStyle ?? "gradient",
+    scoreboardStyle: brand.scoreboardStyle ?? "classic",
+    showPartnerLogo: brand.showPartnerLogo ?? true,
   };
 }
 
-export function DisplayControlPanel({ tournament, onSaved }: DisplayControlPanelProps) {
+export function DisplayControlPanel({
+  tournament,
+  partnerSlug = null,
+  onSaved,
+}: DisplayControlPanelProps) {
   const { confirm } = useConfirmDialog();
   const initial = resolveDisplayPanelState(tournament);
   const [layout, setLayout] = useState<TournamentDisplayLayout>(initial.layout);
   const [autoRotate, setAutoRotate] = useState(initial.autoRotate);
   const [intervalSec, setIntervalSec] = useState(initial.intervalSec);
+  const [primaryColor, setPrimaryColor] = useState(initial.primaryColor);
+  const [accentColor, setAccentColor] = useState(initial.accentColor);
+  const [backgroundStyle, setBackgroundStyle] = useState<
+    NonNullable<TournamentDisplayBrandTheme["backgroundStyle"]>
+  >(initial.backgroundStyle);
+  const [scoreboardStyle, setScoreboardStyle] = useState<
+    NonNullable<TournamentDisplayBrandTheme["scoreboardStyle"]>
+  >(initial.scoreboardStyle);
+  const [showPartnerLogo, setShowPartnerLogo] = useState(initial.showPartnerLogo);
   const save = useUpdateTournamentDisplayConfig(tournament.sportSlug, tournament.slug);
   const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
   const courts = liveData?.courts ?? [];
+  const isPartnerEvent = Boolean(tournament.partnerId);
 
-  const displayPath = publicSportRoutes.tournamentDisplay(tournament.sportSlug, tournament.slug);
+  const usePartnerDisplay = Boolean(tournament.partnerId && partnerSlug);
+  const displayPath = usePartnerDisplay
+    ? partnerPublicRoutes.tournamentDisplay(partnerSlug!, tournament.slug)
+    : publicSportRoutes.tournamentDisplay(tournament.sportSlug, tournament.slug);
 
   const copyCourtDisplayUrl = async (courtId: string, courtName: string) => {
-    const url = `${window.location.origin}${publicSportRoutes.tournamentDisplayCourt(
-      tournament.sportSlug,
-      tournament.slug,
-      courtId,
-    )}`;
+    const path = usePartnerDisplay
+      ? partnerPublicRoutes.tournamentDisplayCourt(partnerSlug!, tournament.slug, courtId)
+      : publicSportRoutes.tournamentDisplayCourt(
+          tournament.sportSlug,
+          tournament.slug,
+          courtId,
+        );
+    const url = `${window.location.origin}${path}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success(`Copied ${courtName} display URL`);
@@ -113,10 +144,23 @@ export function DisplayControlPanel({ tournament, onSaved }: DisplayControlPanel
     setLayout(next.layout);
     setAutoRotate(next.autoRotate);
     setIntervalSec(next.intervalSec);
+    setPrimaryColor(next.primaryColor);
+    setAccentColor(next.accentColor);
+    setBackgroundStyle(next.backgroundStyle);
+    setScoreboardStyle(next.scoreboardStyle);
+    setShowPartnerLogo(next.showPartnerLogo);
   }, [tournament]);
 
   const handleSave = async () => {
     const sec = Math.min(120, Math.max(5, parseInt(intervalSec, 10) || 15));
+    if (isPartnerEvent) {
+      const primary = primaryColor.trim();
+      const accent = accentColor.trim();
+      if (!HEX_COLOR_RE.test(primary) || !HEX_COLOR_RE.test(accent)) {
+        toast.error("Brand colors must be hex values like #0d9488");
+        return;
+      }
+    }
     const ok = await confirm({
       title: "Save display settings?",
       description: autoRotate
@@ -125,12 +169,22 @@ export function DisplayControlPanel({ tournament, onSaved }: DisplayControlPanel
       confirmLabel: "Save",
     });
     if (!ok) return;
+    const brandTheme: TournamentDisplayBrandTheme | undefined = isPartnerEvent
+      ? {
+          primaryColor: primaryColor.trim(),
+          accentColor: accentColor.trim(),
+          backgroundStyle,
+          scoreboardStyle,
+          showPartnerLogo,
+        }
+      : undefined;
     save.mutate(
       {
         layout: autoRotate ? "rotation" : layout,
         autoRotate,
         rotationIntervalSec: sec,
         rotationLayouts: autoRotate ? ROTATION_OPTIONS : undefined,
+        ...(brandTheme ? { brandTheme } : {}),
       },
       {
         onSuccess: () => {
@@ -225,6 +279,131 @@ export function DisplayControlPanel({ tournament, onSaved }: DisplayControlPanel
             </div>
           ) : null}
         </div>
+
+        {isPartnerEvent ? (
+          <div className="mt-6 space-y-4 rounded-xl border border-cp-border/70 bg-cp-elevated/20 p-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Event brand theme</p>
+              <p className="mt-1 text-xs text-cp-muted">
+                Customize TV, website scoreboard, and venue graphics for this event — not a
+                generic template for every tournament.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="brand-primary">Primary color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="brand-primary"
+                    type="color"
+                    value={primaryColor.length === 7 ? primaryColor : "#0d9488"}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="h-10 w-14 cursor-pointer border-cp-border bg-cp-elevated/50 p-1"
+                  />
+                  <Input
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    placeholder="#0d9488"
+                    className="border-cp-border bg-cp-elevated/50 font-mono text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="brand-accent">Accent color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="brand-accent"
+                    type="color"
+                    value={accentColor.length === 7 ? accentColor : "#14b8a6"}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    className="h-10 w-14 cursor-pointer border-cp-border bg-cp-elevated/50 p-1"
+                  />
+                  <Input
+                    value={accentColor}
+                    onChange={(e) => setAccentColor(e.target.value)}
+                    placeholder="#14b8a6"
+                    className="border-cp-border bg-cp-elevated/50 font-mono text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Background atmosphere</Label>
+                <Select
+                  value={backgroundStyle}
+                  onValueChange={(v) =>
+                    setBackgroundStyle(v as NonNullable<TournamentDisplayBrandTheme["backgroundStyle"]>)
+                  }
+                >
+                  <SelectTrigger className={cpSelectTriggerClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className={cpSelectContentClass}>
+                    <SelectItem value="gradient" className={cpSelectItemClass}>
+                      Soft gradient
+                    </SelectItem>
+                    <SelectItem value="dark_court" className={cpSelectItemClass}>
+                      Dark court grid
+                    </SelectItem>
+                    <SelectItem value="solid" className={cpSelectItemClass}>
+                      Solid night
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Scoreboard style</Label>
+                <Select
+                  value={scoreboardStyle}
+                  onValueChange={(v) =>
+                    setScoreboardStyle(v as NonNullable<TournamentDisplayBrandTheme["scoreboardStyle"]>)
+                  }
+                >
+                  <SelectTrigger className={cpSelectTriggerClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className={cpSelectContentClass}>
+                    <SelectItem value="classic" className={cpSelectItemClass}>
+                      Classic
+                    </SelectItem>
+                    <SelectItem value="bold" className={cpSelectItemClass}>
+                      Bold
+                    </SelectItem>
+                    <SelectItem value="minimal" className={cpSelectItemClass}>
+                      Minimal
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPartnerLogo((v) => !v)}
+              className={cn(
+                "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-colors",
+                showPartnerLogo
+                  ? "border-cp-primary/40 bg-cp-primary/10"
+                  : "border-cp-border bg-cp-card/40 hover:bg-cp-elevated/40",
+              )}
+            >
+              <span>
+                <span className="block font-medium text-foreground">Show partner logo on TV</span>
+                <span className="mt-0.5 block text-xs text-cp-muted">
+                  Keeps brand presence on venue screens when a logo is uploaded.
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+                  showPartnerLogo
+                    ? "bg-cp-primary text-white"
+                    : "bg-cp-elevated text-cp-muted",
+                )}
+              >
+                {showPartnerLogo ? "On" : "Off"}
+              </span>
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-6 flex flex-wrap gap-2">
           <Button type="button" onClick={() => void handleSave()} disabled={save.isPending}>

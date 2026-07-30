@@ -176,6 +176,8 @@ export const ManageCourtCard = memo(function ManageCourtCard({
     match?.timerEndsAt && scoringType === "timed"
       ? Math.max(0, Math.floor((new Date(match.timerEndsAt).getTime() - Date.now()) / 1000))
       : null;
+  const timedOut = scoringType === "timed" && timerRemaining === 0;
+  const scoreLocked = !canScore || timedOut;
 
   return (
     <article
@@ -238,13 +240,23 @@ export const ManageCourtCard = memo(function ManageCourtCard({
       {match ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {timerRemaining != null ? (
-            <div className="h-1 overflow-hidden rounded-full bg-cp-elevated">
-              <div
-                className="h-full bg-cp-primary transition-all duration-300"
-                style={{
-                  width: `${Math.min(100, ((roundDuration * 60 - timerRemaining) / (roundDuration * 60)) * 100)}%`,
-                }}
-              />
+            <div className="space-y-1">
+              <div className="h-1 overflow-hidden rounded-full bg-cp-elevated">
+                <div
+                  className={cn(
+                    "h-full transition-all duration-300",
+                    timedOut ? "bg-amber-500" : "bg-cp-primary",
+                  )}
+                  style={{
+                    width: `${Math.min(100, ((roundDuration * 60 - timerRemaining) / (roundDuration * 60)) * 100)}%`,
+                  }}
+                />
+              </div>
+              {timedOut ? (
+                <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  Time up — finish match or wait for sudden death extension
+                </p>
+              ) : null}
             </div>
           ) : null}
           <LiveScoreboard
@@ -266,7 +278,7 @@ export const ManageCourtCard = memo(function ManageCourtCard({
             scoreA={localScoreA}
             scoreB={localScoreB}
             maxScore={pointsPerMatch}
-            disabled={!canScore}
+            disabled={scoreLocked}
             onScoreAChange={(v) => {
               const b = localScoreRef.current.b;
               pushScore(v, b, "set", "a");

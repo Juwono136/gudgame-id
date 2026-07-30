@@ -7,11 +7,14 @@ import { AmericanoManagePairingsDialog } from "@/components/tournaments/manage/a
 import { FunMatchHostTools } from "@/components/tournaments/manage/fun-match-host-tools";
 import { OfficialManagePointLogPanel } from "@/components/tournaments/official/official-manage-point-log-panel";
 import { OfficialPlayerStandingsTable } from "@/components/tournaments/official/official-player-standings-table";
+import { MatchRecapShareCard } from "@/components/partners/match-recap-share-card";
 import { ManageScoringHistoryPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import type { MatchRecapInput } from "@/lib/partners/match-recap";
+import { getTournamentDisplayConfig } from "@/lib/tournaments/settings";
 import {
   useStartBracketMatchOnCourt,
   useSubmitBracketScore,
@@ -38,13 +41,16 @@ import type { TournamentParticipantContext } from "@/lib/tournaments/participant
 import {
   getMaxRounds,
   getScoringTypeLabel,
+  getTournamentClassicSetRules,
   getTournamentCourtCount,
   getTournamentDeuceConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentMatchScoringHint,
   getTournamentPointsPerMatch,
+  getTournamentScoreEntryMode,
   getTournamentScoringType,
+  isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
@@ -91,6 +97,7 @@ import { cn } from "@/lib/utils";
 import { parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import type { ScoringRules } from "@/lib/tournaments/scoring/engine";
 import { isRaceToGamesMatchComplete } from "@/lib/tournaments/scoring/game-mode";
+import { isClassicMatchComplete } from "@/lib/tournaments/scoring/classic-sets";
 
 type FunMatchScoringWorkspaceProps = {
   tournament: TournamentDetail;
@@ -98,6 +105,8 @@ type FunMatchScoringWorkspaceProps = {
   livePhase: string;
   /** Official tournaments reuse this workspace without reshuffle and with audit panels. */
   workspaceVariant?: "fun_match" | "official";
+  /** Partner white-label display name for post-match social recaps. */
+  partnerDisplayName?: string | null;
 };
 
 export function FunMatchScoringWorkspace({
@@ -105,6 +114,7 @@ export function FunMatchScoringWorkspace({
   participant,
   livePhase,
   workspaceVariant = "fun_match",
+  partnerDisplayName = null,
 }: FunMatchScoringWorkspaceProps) {
   const { confirm } = useConfirmDialog();
   const { data, isLoading, isError, error, refetch, isFetching } = useTournamentManageScoring(
@@ -137,6 +147,11 @@ export function FunMatchScoringWorkspace({
   const canScore = participant.canUseCourtsideScoring && livePhase === "live";
   const isOfficialWorkspace =
     workspaceVariant === "official" || isOfficialType(tournament.tournamentType);
+  const isPartnerEvent = Boolean(tournament.partnerId);
+  const showScoreAudit = isOfficialWorkspace || isPartnerEvent;
+  const partnerBrandPrimary =
+    getTournamentDisplayConfig(tournament).brandTheme?.primaryColor ?? "#0d9488";
+  const [pendingRecap, setPendingRecap] = useState<MatchRecapInput | null>(null);
   const isDoubleStageTournament = tournament.format === "double_stage";
   const accentVariant = isOfficialWorkspace ? "official" : "fun";
   const pointsPerMatch = getTournamentPointsPerMatch(tournament);
@@ -162,6 +177,14 @@ export function FunMatchScoringWorkspace({
         : null,
     [tournament],
   );
+  const classicSetRules = useMemo(
+    () =>
+      isClassicSetsFormat(tournament)
+        ? getTournamentClassicSetRules(tournament)
+        : null,
+    [tournament],
+  );
+  const scoreEntryMode = getTournamentScoreEntryMode(tournament);
 
   const [teamAByCourt, setTeamAByCourt] = useState<Record<string, string>>({});
   const [teamBByCourt, setTeamBByCourt] = useState<Record<string, string>>({});
@@ -988,7 +1011,14 @@ export function FunMatchScoringWorkspace({
         return;
       }
 
-      if (gameRules) {
+      if (classicSetRules && scoreEntryMode !== "paper") {
+        const classic = isClassicMatchComplete(scoreA, scoreB, classicSetRules);
+        if (!classic.complete) {
+          const need = Math.ceil(classicSetRules.bestOfSets / 2);
+          toast.error(`Match incomplete — first to ${need} sets wins`);
+          return;
+        }
+      } else if (gameRules && scoreEntryMode !== "paper") {
         const race = isRaceToGamesMatchComplete(scoreA, scoreB, gameRules);
         if (!race.complete) {
           toast.error(`Match incomplete — first to ${gameRules.raceToGames} games wins`);
@@ -1027,6 +1057,22 @@ export function FunMatchScoringWorkspace({
           durationSeconds: elapsed,
         });
       }
+
+      if (isPartnerEvent) {
+        setPendingRecap({
+          partnerName: partnerDisplayName?.trim() || "Partner event",
+          tournamentName: tournament.name,
+          teamAName: match.teamAName ?? "Side A",
+          teamBName: match.teamBName ?? "Side B",
+          teamAPlayers: match.teamAPlayers ?? [],
+          teamBPlayers: match.teamBPlayers ?? [],
+          scoreA,
+          scoreB,
+          roundLabel: isGroup ? "Group stage" : isBracket ? "Knockout" : "Match",
+          completedAt: new Date().toISOString(),
+        });
+      }
+
       void refetch();
     },
     [
@@ -1036,6 +1082,11 @@ export function FunMatchScoringWorkspace({
       finalizeBracketScore,
       finalizeGroupScore,
       gameRules,
+      classicSetRules,
+      scoreEntryMode,
+      isPartnerEvent,
+      partnerDisplayName,
+      tournament.name,
       refetch,
     ],
   );
@@ -1112,6 +1163,12 @@ export function FunMatchScoringWorkspace({
             </span>
             <span className="rounded-full border border-cp-primary/25 bg-cp-primary/10 px-2.5 py-0.5 text-[11px] text-cp-primary">
               Point-by-point audit log
+            </span>
+          </div>
+        ) : isPartnerEvent ? (
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-cp-primary/25 bg-cp-primary/10 px-2.5 py-0.5 text-[11px] text-cp-primary">
+              Score audit trail
             </span>
           </div>
         ) : null}
@@ -1194,6 +1251,11 @@ export function FunMatchScoringWorkspace({
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
         gameRules={gameRules}
+        classicSetRules={classicSetRules}
+        scoreEntryMode={scoreEntryMode}
+        sportSlug={tournament.sportSlug}
+        tournamentSlug={tournament.slug}
+        onOverrideSuccess={() => void refetch()}
         isCourtStarting={isCourtStarting}
         startingAll={startingAllCourts}
         maxRounds={maxRounds}
@@ -1310,14 +1372,27 @@ export function FunMatchScoringWorkspace({
             isLoading={isFetching && !sessionStats}
           />
 
-          {isOfficialWorkspace ? (
+          {showScoreAudit ? (
             <OfficialManagePointLogPanel
               bracketMatches={bracketMatches}
               reclubMatches={officialSessionReclubMatches}
               categoryLabel={tournament.categoryLabel}
+              sportSlug={tournament.sportSlug}
+              tournamentSlug={tournament.slug}
             />
           ) : null}
         </>
+      ) : null}
+
+      {pendingRecap ? (
+        <MatchRecapShareCard
+          recap={pendingRecap}
+          primaryColor={partnerBrandPrimary}
+          open
+          onOpenChange={(next) => {
+            if (!next) setPendingRecap(null);
+          }}
+        />
       ) : null}
 
       {(startRound.isPending ||

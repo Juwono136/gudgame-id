@@ -38,6 +38,33 @@ export const dashboardRoutes = {
   hostSettings: "/dashboard/host/settings",
   /** @deprecated Renamed to host — use dashboardRoutes.host */
   contributor: "/dashboard/host",
+  partner: "/dashboard/partner",
+  partnerTournaments: "/dashboard/partner/tournaments",
+  partnerTournamentsNew: "/dashboard/partner/tournaments/new",
+  partnerTournamentEdit: (id: string) => `/dashboard/partner/tournaments/${id}/edit`,
+  partnerLeagues: "/dashboard/partner/leagues",
+  partnerLeaguesNew: "/dashboard/partner/leagues/new",
+  partnerLeague: (id: string) => `/dashboard/partner/leagues/${id}`,
+  partnerSettings: "/dashboard/partner/settings",
+} as const;
+
+export const partnerPublicRoutes = {
+  home: (partnerSlug: string) => `/${partnerSlug}`,
+  tournaments: (partnerSlug: string) => `/${partnerSlug}/tournaments`,
+  tournament: (partnerSlug: string, slug: string) =>
+    `/${partnerSlug}/tournaments/${slug}`,
+  tournamentManage: (partnerSlug: string, slug: string) =>
+    `/${partnerSlug}/tournaments/${slug}/manage`,
+  tournamentDisplay: (partnerSlug: string, slug: string) =>
+    `/${partnerSlug}/tournaments/${slug}/display`,
+  tournamentDisplayCourt: (partnerSlug: string, slug: string, courtId: string) =>
+    `/${partnerSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
+  tournamentInvite: (partnerSlug: string, slug: string) =>
+    `/${partnerSlug}/tournaments/${slug}/invite`,
+  leagues: (partnerSlug: string) => `/${partnerSlug}/leagues`,
+  league: (partnerSlug: string, slug: string) => `/${partnerSlug}/leagues/${slug}`,
+  /** Public Database Eligibility — partner-scoped player history (not Gud Game). */
+  players: (partnerSlug: string) => `/${partnerSlug}/players`,
 } as const;
 
 export const adminRoutes = {
@@ -84,6 +111,38 @@ export const publicSportRoutes = {
     `/sports/${sportSlug}/tournaments/${slug}/invite`,
   rules: (sportSlug: string) => `/sports/${sportSlug}/rules`,
 } as const;
+
+/**
+ * Resolve public / manage / display URLs for a tournament.
+ * Partner-scoped events must stay on `/{partnerSlug}/…` (sport public routes 404).
+ */
+export function resolveTournamentSurfaceUrls(input: {
+  sportSlug: string;
+  slug: string;
+  partnerId?: string | null;
+  partnerSlug?: string | null;
+}): {
+  publicUrl: string;
+  manageUrl: string;
+  displayUrl: string;
+  inviteUrl: string;
+} {
+  const { sportSlug, slug, partnerId, partnerSlug } = input;
+  if (partnerId && partnerSlug) {
+    return {
+      publicUrl: partnerPublicRoutes.tournament(partnerSlug, slug),
+      manageUrl: partnerPublicRoutes.tournamentManage(partnerSlug, slug),
+      displayUrl: partnerPublicRoutes.tournamentDisplay(partnerSlug, slug),
+      inviteUrl: partnerPublicRoutes.tournamentInvite(partnerSlug, slug),
+    };
+  }
+  return {
+    publicUrl: publicSportRoutes.tournament(sportSlug, slug),
+    manageUrl: publicSportRoutes.tournamentManage(sportSlug, slug),
+    displayUrl: publicSportRoutes.tournamentDisplay(sportSlug, slug),
+    inviteUrl: publicSportRoutes.tournamentInvite(sportSlug, slug),
+  };
+}
 
 /** Legacy invite URLs from backend buildInviteUrl */
 export const legacyTournamentRoutes = {
@@ -157,6 +216,13 @@ export function isDashboardNavLinkActive(pathname: string, href: string): boolea
       pathname.startsWith(`${dashboardRoutes.host}/`) ||
       pathname === "/dashboard/contributor" ||
       pathname.startsWith("/dashboard/contributor/")
+    );
+  }
+
+  if (href === dashboardRoutes.partner) {
+    return (
+      pathname === dashboardRoutes.partner ||
+      pathname.startsWith(`${dashboardRoutes.partner}/`)
     );
   }
 

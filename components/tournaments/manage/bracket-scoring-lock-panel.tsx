@@ -26,6 +26,7 @@ type BracketScoringLockPanelProps = {
   courtCount: number;
   pointsPerMatch: number;
   hasBracket: boolean;
+  manageBracketHref?: string;
 };
 
 function formatReadyMatch(m: BracketMatchView): string {
@@ -41,8 +42,11 @@ export function BracketScoringLockPanel({
   courtCount,
   pointsPerMatch,
   hasBracket,
+  manageBracketHref,
 }: BracketScoringLockPanelProps) {
-  const bracketUrl = `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=bracket`;
+  const bracketUrl =
+    manageBracketHref ??
+    `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=bracket`;
   const editUrl = tournamentEditUrl(tournamentId, "host");
 
   const readyMatches = bracketMatches.filter(

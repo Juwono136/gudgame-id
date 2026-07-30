@@ -42,6 +42,13 @@ type GameRaceScoreboardProps = {
   className?: string;
   /** Hide internal team headers when the parent already shows teams. */
   hideTeamHeaders?: boolean;
+  /**
+   * ITF/FIP classic sets: `gamesA`/`gamesB` are sets won; games-in-set and TB
+   * come from gameState.
+   */
+  classicSets?: boolean;
+  /** Sets needed to win the match (best of 3 → 2). */
+  setsToWin?: number;
 };
 
 /**
@@ -69,21 +76,64 @@ export function GameRaceScoreboard({
   onNextGame,
   className,
   hideTeamHeaders = false,
+  classicSets = false,
+  setsToWin,
 }: GameRaceScoreboardProps) {
-  const matchComplete = Math.max(gamesA, gamesB) >= rules.raceToGames;
-  const pointsA = gameState.currentPointsA;
-  const pointsB = gameState.currentPointsB;
+  const needSets = setsToWin ?? Math.max(1, Math.ceil((rules.raceToGames || 2)));
+  const matchComplete = classicSets
+    ? Math.max(gamesA, gamesB) >= needSets
+    : Math.max(gamesA, gamesB) >= rules.raceToGames;
+  const phase = gameState.phase ?? "game";
+  const inTiebreak =
+    classicSets && (phase === "set_tiebreak" || phase === "super_tiebreak");
+  const pointsA = inTiebreak
+    ? (gameState.tbPointsA ?? 0)
+    : gameState.currentPointsA;
+  const pointsB = inTiebreak
+    ? (gameState.tbPointsB ?? 0)
+    : gameState.currentPointsB;
+  const gamesInSetA = gameState.gamesInSetA ?? 0;
+  const gamesInSetB = gameState.gamesInSetB ?? 0;
   const pendingWinner = gameState.pendingGameWinner ?? null;
   const gameHeld = Boolean(pendingWinner);
   const canInc = !disabled && !matchComplete && !gameHeld;
   const canDecA = !disabled && pointsA > 0 && (!gameHeld || pendingWinner === "a");
   const canDecB = !disabled && pointsB > 0 && (!gameHeld || pendingWinner === "b");
   const milestones =
-    rules.pointsToWinGame === 40
-      ? GAME_RALLY_MILESTONES
-      : ([rules.pointsToWinGame] as readonly number[]);
+    inTiebreak
+      ? ([] as readonly number[])
+      : rules.pointsToWinGame === 40
+        ? GAME_RALLY_MILESTONES
+        : ([rules.pointsToWinGame] as readonly number[]);
   const winnerName =
     pendingWinner === "a" ? teamAName : pendingWinner === "b" ? teamBName : null;
+
+  const headerLabel = classicSets
+    ? inTiebreak
+      ? phase === "super_tiebreak"
+        ? "Super tiebreak"
+        : "Set tiebreak"
+      : "Classic sets · ITF/FIP"
+    : `Match · ${formatRaceToGamesLabel(rules.raceToGames)}`;
+
+  const scoreUnitLabel = classicSets ? "sets" : "games won";
+  const pointsSectionLabel = inTiebreak
+    ? phase === "super_tiebreak"
+      ? "Super TB points"
+      : "Tiebreak points"
+    : "Points this game";
+  const heldLabel = classicSets
+    ? inTiebreak
+      ? "Tiebreak won"
+      : "Game won"
+    : "Game won";
+  const nextLabel = classicSets
+    ? matchComplete
+      ? null
+      : inTiebreak || (gameState.gamesInSetA === 6 && gameState.gamesInSetB === 6)
+        ? "Continue"
+        : "Next game · reset points"
+    : "Next game · reset to 0–0";
 
   const resolvedRosterA = useMemo(
     () => resolveRoster(rosterA, teamAPlayers),
@@ -123,14 +173,30 @@ export function GameRaceScoreboard({
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cp-border/80 bg-cp-elevated/40 px-3 py-2.5">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-            Match · {formatRaceToGamesLabel(rules.raceToGames)}
+            {headerLabel}
           </p>
           <p className="mt-0.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
             {gamesA}
             <span className="mx-1.5 font-normal text-cp-muted">–</span>
             {gamesB}
-            <span className="ml-2 text-xs font-medium text-cp-muted">games won</span>
+            <span className="ml-2 text-xs font-medium text-cp-muted">{scoreUnitLabel}</span>
           </p>
+          {classicSets && !inTiebreak ? (
+            <p className="mt-1 text-xs tabular-nums text-cp-muted">
+              Games this set{" "}
+              <span className="font-semibold text-foreground">
+                {gamesInSetA}–{gamesInSetB}
+              </span>
+            </p>
+          ) : null}
+          {classicSets && gameState.setScores?.length ? (
+            <p className="mt-0.5 text-[11px] tabular-nums text-cp-muted">
+              Sets:{" "}
+              {gameState.setScores
+                .map((s) => `${s.gamesA}–${s.gamesB}`)
+                .join(", ")}
+            </p>
+          ) : null}
         </div>
         <p
           className={cn(
@@ -149,7 +215,7 @@ export function GameRaceScoreboard({
             : matchComplete
               ? "Match complete"
               : gameHeld
-                ? "Game won"
+                ? heldLabel
                 : "In play"}
         </p>
       </div>
@@ -157,13 +223,21 @@ export function GameRaceScoreboard({
       <div className="rounded-2xl border border-cp-border bg-cp-elevated/25 p-3 sm:p-4">
         <div className="mb-3 flex flex-col items-center gap-1.5 sm:mb-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-primary">
-            Points this game
+            {pointsSectionLabel}
           </p>
-          <MilestoneTrack
-            pointsA={pointsA}
-            pointsB={pointsB}
-            milestones={milestones}
-          />
+          {milestones.length > 0 ? (
+            <MilestoneTrack
+              pointsA={pointsA}
+              pointsB={pointsB}
+              milestones={milestones}
+            />
+          ) : (
+            <p className="text-sm font-bold tabular-nums text-foreground">
+              {pointsA}
+              <span className="mx-1 font-normal text-cp-muted">–</span>
+              {pointsB}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3">
@@ -178,12 +252,12 @@ export function GameRaceScoreboard({
             onIncrement={() => onPointA(1, scorerOptsA)}
             onDecrement={() => onPointA(-1, scorerOptsA)}
             onSetPoints={
-              onSetPointsA
+              onSetPointsA && milestones.length > 0
                 ? (target) => onSetPointsA(target, scorerOptsA)
                 : undefined
             }
             canDecrement={canDecA}
-            canSetPoints={canInc}
+            canSetPoints={canInc && milestones.length > 0}
             hideHeader={hideTeamHeaders}
             highlight={pendingWinner === "a"}
             scoringDisabled={Boolean(disabled)}
@@ -204,12 +278,12 @@ export function GameRaceScoreboard({
             onIncrement={() => onPointB(1, scorerOptsB)}
             onDecrement={() => onPointB(-1, scorerOptsB)}
             onSetPoints={
-              onSetPointsB
+              onSetPointsB && milestones.length > 0
                 ? (target) => onSetPointsB(target, scorerOptsB)
                 : undefined
             }
             canDecrement={canDecB}
-            canSetPoints={canInc}
+            canSetPoints={canInc && milestones.length > 0}
             hideHeader={hideTeamHeaders}
             highlight={pendingWinner === "b"}
             scoringDisabled={Boolean(disabled)}
@@ -219,11 +293,13 @@ export function GameRaceScoreboard({
         {gameHeld && winnerName ? (
           <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-cp-primary/30 bg-cp-primary/5 px-3 py-3 text-center">
             <p className="text-sm font-semibold text-foreground">
-              {winnerName} won this game ({pointsA}–{pointsB})
+              {winnerName} won this {inTiebreak ? "tiebreak" : "game"} ({pointsA}–{pointsB})
             </p>
             {matchComplete ? (
               <p className="text-xs text-cp-muted">
-                Race to {rules.raceToGames} reached — finish the match when ready.
+                {classicSets
+                  ? `First to ${needSets} sets — finish the match when ready.`
+                  : `Race to ${rules.raceToGames} reached — finish the match when ready.`}
               </p>
             ) : (
               <Button
@@ -232,7 +308,7 @@ export function GameRaceScoreboard({
                 disabled={disabled || syncing || !onNextGame}
                 onClick={onNextGame}
               >
-                Next game · reset to 0–0
+                {nextLabel}
               </Button>
             )}
           </div>
@@ -240,12 +316,19 @@ export function GameRaceScoreboard({
       </div>
 
       <p className="text-center text-[11px] leading-relaxed text-cp-muted">
-        Use <span className="font-medium text-foreground">+/−</span> for 1 point, or jump with{" "}
-        <span className="font-medium text-foreground">
-          {milestones.map((m) => `+${m}`).join(" / ")}
-        </span>
+        Use <span className="font-medium text-foreground">+/−</span> for 1 point
+        {milestones.length > 0 ? (
+          <>
+            , or jump with{" "}
+            <span className="font-medium text-foreground">
+              {milestones.map((m) => `+${m}`).join(" / ")}
+            </span>
+          </>
+        ) : null}
         {" · "}
-        First to {rules.raceToGames} games wins
+        {classicSets
+          ? `First to ${needSets} sets wins`
+          : `First to ${rules.raceToGames} games wins`}
       </p>
     </div>
   );

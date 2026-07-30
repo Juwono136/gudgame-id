@@ -41,6 +41,8 @@ export const adminCreateUserSchema = z.object({
     .union([z.boolean(), z.literal("true"), z.literal("false")])
     .transform((v) => v === true || v === "true")
     .default(true),
+  partnerSlug: z.string().trim().max(80).optional().or(z.literal("")),
+  partnerDisplayName: z.string().trim().max(120).optional().or(z.literal("")),
 });
 
 export const adminUsersListQuerySchema = z.object({
@@ -74,6 +76,8 @@ export const adminUpdateUserSchema = z.object({
 export const adminEditStaffUserSchema = z.object({
   roles: z.array(roleSchema).min(1),
   isActive: z.boolean(),
+  partnerSlug: z.string().trim().max(80).optional(),
+  partnerDisplayName: z.string().trim().max(120).optional(),
 });
 
 export type AdminUsersListQuery = z.infer<typeof adminUsersListQuerySchema>;

@@ -29,6 +29,17 @@ export async function evaluateTournamentTierEligibility(
   tournament: TournamentDetail,
   userId: string,
 ): Promise<TournamentTierEligibility> {
+  if (tournament.partnerId) {
+    return {
+      restricted: false,
+      allowedTierLevels: null,
+      allowedTierLabel: null,
+      playerTierLevel: null,
+      playerTierLabel: null,
+      eligible: true,
+      message: null,
+    };
+  }
   const restricted = tournamentUsesTierRestrictions(
     tournament.tournamentType,
     tournament.officialBilling,
@@ -63,6 +74,7 @@ export async function assertUserEligibleForTournamentTier(
   userId: string,
   tournament: TournamentDetail,
 ): Promise<void> {
+  if (tournament.partnerId) return;
   if (
     !tournamentUsesTierRestrictions(tournament.tournamentType, tournament.officialBilling)
   ) {

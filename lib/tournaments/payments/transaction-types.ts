@@ -7,6 +7,8 @@ export type PaymentTransactionRow = {
   sportName: string;
   tournamentSlug: string;
   tournamentType: string;
+  /** Set when the event belongs to a white-label partner tenant. */
+  partnerSlug: string | null;
   teamName: string | null;
   payerUserId: string;
   payerName: string | null;

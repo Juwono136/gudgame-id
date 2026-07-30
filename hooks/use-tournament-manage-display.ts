@@ -4,7 +4,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
-import type { TournamentDisplayConfig, TournamentDisplayLayout } from "@/lib/tournaments/settings";
+import type {
+  TournamentDisplayBrandTheme,
+  TournamentDisplayConfig,
+  TournamentDisplayLayout,
+} from "@/lib/tournaments/settings";
 import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 export type DisplayConfigInput = {
@@ -12,6 +16,7 @@ export type DisplayConfigInput = {
   autoRotate?: boolean;
   rotationIntervalSec?: number;
   rotationLayouts?: TournamentDisplayLayout[];
+  brandTheme?: TournamentDisplayBrandTheme;
 };
 
 export function useUpdateTournamentDisplayConfig(sportSlug: string, slug: string) {

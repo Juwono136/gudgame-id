@@ -4,8 +4,8 @@ FROM alpine:3.20
 RUN apk add --no-cache curl tzdata
 
 WORKDIR /cron
-COPY run-host-payouts.sh host-payouts.crontab ./
-RUN chmod +x /cron/run-host-payouts.sh && crontab /cron/host-payouts.crontab
+COPY run-host-payouts.sh run-timed-matches.sh host-payouts.crontab ./
+RUN chmod +x /cron/run-host-payouts.sh /cron/run-timed-matches.sh && crontab /cron/host-payouts.crontab
 
 ENV TZ=Asia/Jakarta
 ENV APP_INTERNAL_URL=http://app:3000

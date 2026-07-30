@@ -28,6 +28,7 @@ export type DisplayConfigPatch = {
   autoRotate?: boolean;
   rotationIntervalSec?: number;
   rotationLayouts?: TournamentDisplayLayout[];
+  brandTheme?: TournamentDisplayConfig["brandTheme"];
 };
 
 export async function patchTournamentDisplayConfig(
@@ -42,6 +43,7 @@ export async function patchTournamentDisplayConfig(
     throw new AppError("Invalid display layout", { code: "VALIDATION_ERROR", statusCode: 422 });
   }
 
+  const previous = getTournamentDisplayConfig(tournament);
   const rotationLayouts = (patch.rotationLayouts ?? []).filter((l) => VALID_LAYOUTS.includes(l));
   const autoRotate = patch.autoRotate ?? false;
   const interval = Math.min(120, Math.max(5, patch.rotationIntervalSec ?? 15));
@@ -53,6 +55,8 @@ export async function patchTournamentDisplayConfig(
     rotationLayouts: rotationLayouts.length ? rotationLayouts : undefined,
     showUpcoming: true,
     showHighlights: true,
+    brandTheme:
+      patch.brandTheme !== undefined ? patch.brandTheme : previous.brandTheme,
   };
 
   const db = getDb();

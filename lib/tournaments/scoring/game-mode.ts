@@ -29,10 +29,37 @@ export type MatchGameRules = {
   raceToGames: RaceToGames;
   /** Points needed to win a game (default 40: through rallies at 15 / 30 / 40). */
   pointsToWinGame: number;
-  /** At deuce (both at pointsToWinGame-1): golden_point = next point wins; advantage = win by 2. */
-  gameDecider: "golden_point" | "advantage";
+  /**
+   * At deuce (both at pointsToWinGame-1):
+   * golden_point = No-Ad (sudden death on first deuce);
+   * star_point = FIP Star Point (sudden death only on the third deuce in the game);
+   * advantage = win by 2.
+   */
+  gameDecider: "golden_point" | "star_point" | "advantage";
   pointStyle: IntraGamePointStyle;
 };
+
+/** Persist decider as-is; star_point is distinct from golden_point (FIP vs No-Ad). */
+export function normalizeGameDecider(
+  value: string | null | undefined,
+): "golden_point" | "star_point" | "advantage" | undefined {
+  if (value === "advantage") return "advantage";
+  if (value === "golden_point") return "golden_point";
+  if (value === "star_point") return "star_point";
+  return undefined;
+}
+
+export function isStarPointDecider(
+  decider: MatchGameRules["gameDecider"] | null | undefined,
+): boolean {
+  return decider === "star_point";
+}
+
+export function isNoAdDecider(
+  decider: MatchGameRules["gameDecider"] | null | undefined,
+): boolean {
+  return decider === "golden_point";
+}
 
 export type CompletedGameScore = {
   pointsA: number;
@@ -48,7 +75,26 @@ export type MatchGameState = {
    * e.g. 40) until the operator confirms the next game / reset.
    */
   pendingGameWinner?: "a" | "b" | null;
+  /**
+   * How many times this game has reached deuce (both ≥ pointsToWinGame-1 and equal).
+   * Used for FIP Star Point (sudden death on the 3rd deuce).
+   */
+  deuceCount?: number;
+  /** Classic sets (ITF/FIP) — optional; ignored in race-to-N mode. */
+  phase?: "game" | "set_tiebreak" | "super_tiebreak";
+  gamesInSetA?: number;
+  gamesInSetB?: number;
+  tbPointsA?: number;
+  tbPointsB?: number;
+  setScores?: Array<{
+    gamesA: number;
+    gamesB: number;
+    viaTiebreak?: boolean;
+    viaSuperTiebreak?: boolean;
+  }>;
 };
+
+export const FIP_STAR_POINT_DEUCE_THRESHOLD = 3;
 
 export const DEFAULT_GAME_RULES_BY_UNIT: Record<
   "games" | "sets",
@@ -75,6 +121,7 @@ export function emptyMatchGameState(): MatchGameState {
     currentPointsB: 0,
     completedGames: [],
     pendingGameWinner: null,
+    deuceCount: 0,
   };
 }
 
@@ -106,7 +153,51 @@ export function parseMatchGameState(raw: unknown): MatchGameState | null {
   const pendingRaw = v.pendingGameWinner;
   const pendingGameWinner =
     pendingRaw === "a" || pendingRaw === "b" ? pendingRaw : null;
-  return { currentPointsA, currentPointsB, completedGames, pendingGameWinner };
+  const deuceCount =
+    typeof v.deuceCount === "number" && v.deuceCount >= 0
+      ? Math.floor(v.deuceCount)
+      : 0;
+
+  // Preserve optional classic-sets fields (ITF/FIP) without requiring callers to
+  // use a separate parser — otherwise phase / games-in-set / TB are lost on read.
+  const phase =
+    v.phase === "game" || v.phase === "set_tiebreak" || v.phase === "super_tiebreak"
+      ? v.phase
+      : undefined;
+  const numOrUndef = (key: string) =>
+    typeof v[key] === "number" && Number.isFinite(v[key]) && (v[key] as number) >= 0
+      ? Math.floor(v[key] as number)
+      : undefined;
+  const setScores = Array.isArray(v.setScores)
+    ? v.setScores
+        .filter(
+          (s): s is { gamesA: number; gamesB: number } =>
+            !!s &&
+            typeof s === "object" &&
+            typeof (s as { gamesA?: unknown }).gamesA === "number" &&
+            typeof (s as { gamesB?: unknown }).gamesB === "number",
+        )
+        .map((s) => ({
+          gamesA: Math.floor(s.gamesA),
+          gamesB: Math.floor(s.gamesB),
+          viaTiebreak: Boolean((s as { viaTiebreak?: unknown }).viaTiebreak),
+          viaSuperTiebreak: Boolean((s as { viaSuperTiebreak?: unknown }).viaSuperTiebreak),
+        }))
+    : undefined;
+
+  return {
+    currentPointsA,
+    currentPointsB,
+    completedGames,
+    pendingGameWinner,
+    deuceCount,
+    ...(phase ? { phase } : {}),
+    ...(numOrUndef("gamesInSetA") != null ? { gamesInSetA: numOrUndef("gamesInSetA") } : {}),
+    ...(numOrUndef("gamesInSetB") != null ? { gamesInSetB: numOrUndef("gamesInSetB") } : {}),
+    ...(numOrUndef("tbPointsA") != null ? { tbPointsA: numOrUndef("tbPointsA") } : {}),
+    ...(numOrUndef("tbPointsB") != null ? { tbPointsB: numOrUndef("tbPointsB") } : {}),
+    ...(setScores ? { setScores } : {}),
+  };
 }
 
 /** Display label for a point total (simple = raw count; tennis kept for legacy data only). */
@@ -168,6 +259,7 @@ export function isGamePointComplete(
   pointsA: number,
   pointsB: number,
   rules: MatchGameRules,
+  deuceCount = 0,
 ): GameCompletion {
   const need = rules.pointsToWinGame;
   const max = Math.max(pointsA, pointsB);
@@ -176,12 +268,25 @@ export function isGamePointComplete(
 
   if (pointsA === pointsB) return { complete: false, winner: null };
 
-  if (rules.gameDecider === "golden_point") {
-    // First to need, or sudden death once both reach need-1.
-    if (max >= need && min < need - 1) {
+  // Reached game target before opponent reached deuce threshold.
+  if (max >= need && min < need - 1) {
+    return { complete: true, winner: leader };
+  }
+
+  // Golden Point / No-Ad: first deuce → next point wins.
+  if (isNoAdDecider(rules.gameDecider)) {
+    if (min >= need - 1 && max > min) {
       return { complete: true, winner: leader };
     }
-    if (min >= need - 1 && max > min) {
+    return { complete: false, winner: null };
+  }
+
+  // FIP Star Point: advantage until the 3rd deuce, then next point wins.
+  if (isStarPointDecider(rules.gameDecider)) {
+    if (deuceCount >= FIP_STAR_POINT_DEUCE_THRESHOLD && min >= need - 1 && max > min) {
+      return { complete: true, winner: leader };
+    }
+    if (deuceCount < FIP_STAR_POINT_DEUCE_THRESHOLD && max >= need && max - min >= 2) {
       return { complete: true, winner: leader };
     }
     return { complete: false, winner: null };
@@ -242,6 +347,11 @@ export function applyGamePointDelta(
   let nextGamesA = gamesA;
   let nextGamesB = gamesB;
   let completedGames = gameState.completedGames;
+  let deuceCount = gameState.deuceCount ?? 0;
+  const need = rules.pointsToWinGame;
+
+  const wasAtDeuce =
+    pointsA === pointsB && pointsA >= need - 1 && pointsB >= need - 1;
 
   if (delta < 0) {
     if (pending) {
@@ -268,6 +378,7 @@ export function applyGamePointDelta(
           currentPointsB: pointsB,
           completedGames,
           pendingGameWinner: null,
+          deuceCount: Math.max(0, deuceCount),
         },
         gameJustWon: null,
         matchComplete: afterUndo.complete,
@@ -282,6 +393,12 @@ export function applyGamePointDelta(
       if (pointsB <= 0) return null;
       pointsB -= 1;
     }
+    const nowAtDeuce =
+      pointsA === pointsB && pointsA >= need - 1 && pointsB >= need - 1;
+    // Leaving a deuce state undoes the last deuce visit.
+    if (wasAtDeuce && !nowAtDeuce) {
+      deuceCount = Math.max(0, deuceCount - 1);
+    }
     return {
       gamesA,
       gamesB,
@@ -290,6 +407,7 @@ export function applyGamePointDelta(
         currentPointsA: pointsA,
         currentPointsB: pointsB,
         pendingGameWinner: null,
+        deuceCount,
       },
       gameJustWon: null,
       matchComplete: matchDone.complete,
@@ -300,7 +418,13 @@ export function applyGamePointDelta(
   if (side === "a") pointsA += 1;
   else pointsB += 1;
 
-  const gameDone = isGamePointComplete(pointsA, pointsB, rules);
+  const nowAtDeuce =
+    pointsA === pointsB && pointsA >= need - 1 && pointsB >= need - 1;
+  if (nowAtDeuce && !wasAtDeuce) {
+    deuceCount += 1;
+  }
+
+  const gameDone = isGamePointComplete(pointsA, pointsB, rules, deuceCount);
   if (!gameDone.complete || !gameDone.winner) {
     return {
       gamesA,
@@ -310,6 +434,7 @@ export function applyGamePointDelta(
         currentPointsA: pointsA,
         currentPointsB: pointsB,
         pendingGameWinner: null,
+        deuceCount,
       },
       gameJustWon: null,
       matchComplete: false,
@@ -330,6 +455,7 @@ export function applyGamePointDelta(
       currentPointsB: pointsB,
       completedGames: [...completedGames, { pointsA, pointsB }],
       pendingGameWinner: gameDone.winner,
+      deuceCount,
     },
     gameJustWon: gameDone.winner,
     matchComplete: nextMatch.complete,
@@ -365,7 +491,12 @@ export function applyGamePointSet(
     pointsB = target;
   }
 
-  const gameDone = isGamePointComplete(pointsA, pointsB, rules);
+  const gameDone = isGamePointComplete(
+    pointsA,
+    pointsB,
+    rules,
+    gameState.deuceCount ?? 0,
+  );
   if (!gameDone.complete || !gameDone.winner) {
     return {
       gamesA,
@@ -394,6 +525,7 @@ export function applyGamePointSet(
       currentPointsB: pointsB,
       completedGames: [...gameState.completedGames, { pointsA, pointsB }],
       pendingGameWinner: gameDone.winner,
+      deuceCount: gameState.deuceCount ?? 0,
     },
     gameJustWon: gameDone.winner,
     matchComplete: nextMatch.complete,
@@ -414,6 +546,7 @@ export function startNextGameAfterWin(
     currentPointsB: 0,
     completedGames: gameState.completedGames,
     pendingGameWinner: null,
+    deuceCount: 0,
   };
 }
 

@@ -72,7 +72,48 @@ describe("game-mode scoring", () => {
     expect(next.completedGames).toHaveLength(1);
   });
 
-  it("uses next point at 39–39 as the deciding point (no separate deuce UI)", () => {
+  it("treats golden_point as No-Ad (first deuce decides)", () => {
+    const golden = { ...padelRules, gameDecider: "golden_point" as const };
+    expect(isGamePointComplete(40, 20, golden)).toEqual({ complete: true, winner: "a" });
+    expect(isGamePointComplete(40, 39, golden)).toEqual({ complete: true, winner: "a" });
+    expect(isGamePointComplete(39, 39, golden).complete).toBe(false);
+  });
+
+  it("requires third deuce for FIP star_point before sudden death", () => {
+    const star = { ...padelRules, gameDecider: "star_point" as const };
+    // Before 3rd deuce: need win by 2 after threshold.
+    expect(isGamePointComplete(40, 39, star, 1).complete).toBe(false);
+    expect(isGamePointComplete(41, 39, star, 1)).toEqual({ complete: true, winner: "a" });
+    // On/after 3rd deuce: next point wins.
+    expect(isGamePointComplete(40, 39, star, 3)).toEqual({ complete: true, winner: "a" });
+    expect(isGamePointComplete(39, 39, star, 3).complete).toBe(false);
+  });
+
+  it("increments deuceCount when applying points under star_point", () => {
+    const star = { ...padelRules, gameDecider: "star_point" as const };
+    let state = emptyMatchGameState();
+    for (let i = 0; i < 39; i++) {
+      const a = applyGamePointDelta(0, 0, state, "a", 1, star)!;
+      state = a.gameState;
+      const b = applyGamePointDelta(0, 0, state, "b", 1, star)!;
+      state = b.gameState;
+    }
+    expect(state.currentPointsA).toBe(39);
+    expect(state.currentPointsB).toBe(39);
+    expect(state.deuceCount).toBe(1);
+    // First deuce — next point does NOT end the game under Star Point.
+    const ad = applyGamePointDelta(0, 0, state, "a", 1, star)!;
+    expect(ad.gameJustWon).toBeNull();
+    expect(ad.gameState.currentPointsA).toBe(40);
+  });
+
+  it("requires win-by-2 for advantage at deuce", () => {
+    const adv = { ...padelRules, gameDecider: "advantage" as const };
+    expect(isGamePointComplete(40, 39, adv).complete).toBe(false);
+    expect(isGamePointComplete(41, 39, adv)).toEqual({ complete: true, winner: "a" });
+  });
+
+  it("uses next point at 39–39 as the deciding point for golden_point", () => {
     const gamesA = 0;
     const gamesB = 0;
     let state = emptyMatchGameState();

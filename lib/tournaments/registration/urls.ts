@@ -4,16 +4,36 @@ export function registrationConfirmUrl(
   sportSlug: string,
   slug: string,
   registrationId: string,
+  partnerSlug?: string | null,
 ): string {
-  return `/sports/${sportSlug}/tournaments/${slug}/register/confirm?registrationId=${registrationId}`;
+  const base = partnerSlug
+    ? `/${partnerSlug}/tournaments/${slug}`
+    : `/sports/${sportSlug}/tournaments/${slug}`;
+  return `${base}/register/confirm?registrationId=${registrationId}`;
 }
 
 export function registrationCheckoutUrl(
   sportSlug: string,
   slug: string,
   registrationId: string,
+  partnerSlug?: string | null,
 ): string {
-  return `/sports/${sportSlug}/tournaments/${slug}/register/checkout?registrationId=${registrationId}`;
+  const base = partnerSlug
+    ? `/${partnerSlug}/tournaments/${slug}`
+    : `/sports/${sportSlug}/tournaments/${slug}`;
+  return `${base}/register/checkout?registrationId=${registrationId}`;
+}
+
+export function registrationSuccessUrl(
+  sportSlug: string,
+  slug: string,
+  registrationId: string,
+  partnerSlug?: string | null,
+): string {
+  const base = partnerSlug
+    ? `/${partnerSlug}/tournaments/${slug}`
+    : `/sports/${sportSlug}/tournaments/${slug}`;
+  return `${base}/register/success?registrationId=${registrationId}`;
 }
 
 export type ActiveRegistrationStatus = "awaiting_confirmation" | "pending_payment";

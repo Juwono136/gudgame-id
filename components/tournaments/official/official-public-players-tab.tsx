@@ -14,6 +14,8 @@ type OfficialPublicPlayersTabProps = {
   bracketMatches: BracketMatchView[];
   reclubMatches: ReclubMatchView[];
   teams: LobbyTeamView[];
+  /** Defaults to official; partner white-label events use fun_match. */
+  participantsVariant?: "official" | "reclub";
 };
 
 export function OfficialPublicPlayersTab({
@@ -21,6 +23,7 @@ export function OfficialPublicPlayersTab({
   bracketMatches,
   reclubMatches,
   teams,
+  participantsVariant = "official",
 }: OfficialPublicPlayersTabProps) {
   const { players, squads } = useMemo(
     () => computeOfficialPlayerStandings(bracketMatches, reclubMatches, teams),
@@ -40,19 +43,23 @@ export function OfficialPublicPlayersTab({
     return map;
   }, [squads]);
 
+  const isFunMatch = participantsVariant === "reclub";
+
   return (
     <div className="space-y-8">
       <TournamentParticipantsPanel
         sportSlug={tournament.sportSlug}
         slug={tournament.slug}
-        tournamentType="official"
-        variant="official"
-        officialBilling={tournament.officialBilling}
+        tournamentType={isFunMatch ? "fun_match" : "official"}
+        variant={participantsVariant}
+        officialBilling={isFunMatch ? null : tournament.officialBilling}
         teamScoreByTeamId={teamScoreByTeamId}
       />
 
       <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-        <h2 className="text-lg font-semibold text-foreground">Official leaderboard</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {isFunMatch ? "Player leaderboard" : "Official leaderboard"}
+        </h2>
         <p className="mt-1 text-sm text-cp-muted">
           Full standings with ranking points, point differential, and logged scoring activity.
           {tournament.categoryLabel ? (

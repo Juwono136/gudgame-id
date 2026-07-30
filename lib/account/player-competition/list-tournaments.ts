@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { playerTournamentResults } from "@/db/schema/player-competition";
 import { sports } from "@/db/schema/sports";
@@ -134,6 +134,7 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       and(
         eq(tournamentTeamMembers.userId, userId),
         eq(tournaments.tournamentType, "official"),
+        isNull(tournaments.partnerId),
       ),
     );
 
@@ -153,7 +154,11 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
     .where(
-      and(eq(tournaments.createdBy, userId), eq(tournaments.tournamentType, "official")),
+      and(
+        eq(tournaments.createdBy, userId),
+        eq(tournaments.tournamentType, "official"),
+        isNull(tournaments.partnerId),
+      ),
     );
 
   const byTournamentId = new Map<string, UnifiedTournamentRow>();
@@ -217,6 +222,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       and(
         eq(tournamentTeamMembers.userId, userId),
         funMatchTypeCondition(),
+        isNull(tournaments.partnerId),
       ),
     );
 
@@ -239,6 +245,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       and(
         eq(tournamentRegistrations.registeredByUserId, userId),
         funMatchTypeCondition(),
+        isNull(tournaments.partnerId),
         inArray(tournamentRegistrations.status, ["confirmed"]),
       ),
     );
@@ -261,6 +268,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       and(
         eq(tournaments.createdBy, userId),
         funMatchTypeCondition(),
+        isNull(tournaments.partnerId),
       ),
     );
 
@@ -286,6 +294,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       and(
         eq(playerTournamentResults.userId, userId),
         eq(playerTournamentResults.isOfficial, false),
+        isNull(playerTournamentResults.partnerId),
       ),
     );
 
@@ -406,7 +415,7 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
     })
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
-    .where(eq(tournaments.createdBy, userId))
+    .where(and(eq(tournaments.createdBy, userId), isNull(tournaments.partnerId)))
     .orderBy(desc(tournaments.updatedAt));
 
   return rows.map((row) => {
@@ -482,7 +491,10 @@ export async function listPlayerTournaments(
   const db = getDb();
   const { page, pageSize, search, year, placement, sortBy, sortDir, scope, type } = query;
 
-  const officialConditions = [eq(playerTournamentResults.userId, userId)];
+  const officialConditions = [
+    eq(playerTournamentResults.userId, userId),
+    isNull(playerTournamentResults.partnerId),
+  ];
 
   if (search?.trim()) {
     const term = `%${search.trim()}%`;

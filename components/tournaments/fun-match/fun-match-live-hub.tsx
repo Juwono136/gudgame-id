@@ -54,6 +54,11 @@ type FunMatchLiveHubProps = {
   pointsPerMatch: number;
   scoringRules?: import("@/lib/tournaments/scoring/engine").ScoringRules;
   gameRules?: import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
+  classicSetRules?: import("@/lib/tournaments/scoring/classic-sets").ClassicSetRules | null;
+  scoreEntryMode?: "live" | "paper";
+  sportSlug?: string;
+  tournamentSlug?: string;
+  onOverrideSuccess?: () => void;
   isCourtStarting?: (courtId: string) => boolean;
   startingAll?: boolean;
   maxRounds?: number | null;
@@ -97,6 +102,11 @@ export function FunMatchLiveHub({
   pointsPerMatch,
   scoringRules,
   gameRules = null,
+  classicSetRules = null,
+  scoreEntryMode = "live",
+  sportSlug,
+  tournamentSlug,
+  onOverrideSuccess,
   isCourtStarting,
   startingAll,
   maxRounds,
@@ -142,6 +152,11 @@ export function FunMatchLiveHub({
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
         gameRules={gameRules}
+        classicSetRules={classicSetRules}
+        scoreEntryMode={scoreEntryMode}
+        sportSlug={sportSlug}
+        tournamentSlug={tournamentSlug}
+        onOverrideSuccess={onOverrideSuccess}
         isCourtStarting={isCourtStarting}
         startingAll={startingAll}
         maxRounds={maxRounds}

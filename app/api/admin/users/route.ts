@@ -40,6 +40,8 @@ export async function POST(request: Request) {
       nickname: formData.get("nickname") || "",
       roles: formData.getAll("roles"),
       isActive: formData.get("isActive") ?? "true",
+      partnerSlug: formData.get("partnerSlug") || "",
+      partnerDisplayName: formData.get("partnerDisplayName") || "",
     });
 
     if (!parsed.success) {

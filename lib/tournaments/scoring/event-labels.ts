@@ -42,17 +42,27 @@ export function resolveScoreEventScorerLabel(
 }
 
 /**
- * Point-log entries shown to hosts/public: positive scoring only.
- * Decrements, next-game resets, and opaque absolute sets are hidden.
+ * Point-log entries shown to hosts/public: positive scoring only by default.
+ * Manage audit mode also surfaces undos (`decrement`) and absolute `set`.
  */
-export function isDisplayedPointLogEvent(event: MatchScoreEvent): boolean {
+export function isDisplayedPointLogEvent(
+  event: MatchScoreEvent,
+  opts?: { includeAudit?: boolean },
+): boolean {
   if (event.action === "increment") return Boolean(event.side);
   if (event.action === "set_points") return Boolean(event.side);
+  if (opts?.includeAudit) {
+    if (event.action === "decrement") return Boolean(event.side);
+    if (event.action === "set") return true;
+  }
   return false;
 }
 
-export function filterPointLogEvents(events: MatchScoreEvent[]): MatchScoreEvent[] {
-  return events.filter(isDisplayedPointLogEvent);
+export function filterPointLogEvents(
+  events: MatchScoreEvent[],
+  opts?: { includeAudit?: boolean },
+): MatchScoreEvent[] {
+  return events.filter((e) => isDisplayedPointLogEvent(e, opts));
 }
 
 /** Points credited by this event relative to the previous displayed/raw event. */
@@ -112,14 +122,17 @@ export type PointLogRow = {
 };
 
 /** Chronological positive-scoring rows for official/public point logs. */
-export function buildPointLogRows(events: MatchScoreEvent[]): PointLogRow[] {
+export function buildPointLogRows(
+  events: MatchScoreEvent[],
+  opts?: { includeAudit?: boolean },
+): PointLogRow[] {
   const chronological = [...events].sort((a, b) => a.at.localeCompare(b.at));
   const out: PointLogRow[] = [];
   for (let i = 0; i < chronological.length; i++) {
     const event = chronological[i]!;
-    if (!isDisplayedPointLogEvent(event)) continue;
+    if (!isDisplayedPointLogEvent(event, opts)) continue;
     const previous = i > 0 ? chronological[i - 1]! : null;
-    if (pointAmountForEvent(event, previous) <= 0) continue;
+    if (!opts?.includeAudit && pointAmountForEvent(event, previous) <= 0) continue;
     out.push({ event, previous });
   }
   return out;

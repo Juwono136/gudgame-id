@@ -1,10 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardCheck, LayoutDashboard, Shield } from "lucide-react";
+import { Building2, ClipboardCheck, LayoutDashboard, Shield } from "lucide-react";
 import { adminRoutes, dashboardRoutes } from "@/lib/constants/routes";
-import { canAccessHostDashboard } from "@/lib/roles/route-access";
+import {
+  canAccessHostDashboard,
+  canAccessPartnerDashboard,
+} from "@/lib/roles/route-access";
 import type { AppRole } from "@/lib/roles/constants";
 import { getRoleLabel, ROLE_DISPLAY_ORDER } from "@/lib/roles/constants";
-import { getPermissionsForRoles } from "@/lib/roles/permissions";
 
 export type RoleDashboardLink = {
   role: AppRole;
@@ -29,6 +31,13 @@ const DASHBOARD_BY_ROLE: Record<AppRole, RoleDashboardLink | null> = {
     icon: ClipboardCheck,
     description: "Edit wiki content on the public site",
   },
+  partner: {
+    role: "partner",
+    label: "Partner Dashboard",
+    href: dashboardRoutes.partner,
+    icon: Building2,
+    description: "Manage your white-label tournaments, leagues, and branding",
+  },
   super_admin: {
     role: "super_admin",
     label: "Admin Console",
@@ -46,6 +55,9 @@ export function getDashboardLinksForRoles(roles: AppRole[]): RoleDashboardLink[]
   for (const role of ROLE_DISPLAY_ORDER) {
     if (!roles.includes(role)) continue;
     if (role === "host" && !canAccessHostDashboard(roles)) {
+      continue;
+    }
+    if (role === "partner" && !canAccessPartnerDashboard(roles)) {
       continue;
     }
     const link = DASHBOARD_BY_ROLE[role];

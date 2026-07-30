@@ -15,6 +15,7 @@ export type Permission =
 const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   player: [],
   host: ["admin.content.moderate"],
+  partner: [],
   super_admin: [
     "admin.console.access",
     "admin.users.manage",

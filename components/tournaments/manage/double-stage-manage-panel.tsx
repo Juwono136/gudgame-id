@@ -37,17 +37,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import { resolveTournamentSurfaceUrls } from "@/lib/constants/routes";
 import {
   formatKickoffDateTime,
   formatKickoffTime,
 } from "@/lib/tournaments/double-stage/schedule-view";
 import type { TournamentDetail } from "@/lib/tournaments/service";
-import { getTournamentMatchScoreMode } from "@/lib/tournaments/settings";
+import { getTournamentMatchScoreMode, isClassicSetsFormat } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 
 type DoubleStageManagePanelProps = {
   tournament: TournamentDetail;
+  partnerSlug?: string | null;
   onOpenLiveScoring?: () => void;
 };
 
@@ -351,19 +352,30 @@ function FixtureList({
 
 export function DoubleStageManagePanel({
   tournament,
+  partnerSlug = null,
   onOpenLiveScoring,
 }: DoubleStageManagePanelProps) {
   const { data, refetch, isFetching } = useTournamentManageScoring(
     tournament.sportSlug,
     tournament.slug,
   );
+  const manageUrls = resolveTournamentSurfaceUrls({
+    sportSlug: tournament.sportSlug,
+    slug: tournament.slug,
+    partnerId: tournament.partnerId,
+    partnerSlug,
+  });
   const overview = data?.doubleStage;
   const bracketMatches = data?.bracketMatches ?? [];
   const [advancing, setAdvancing] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const gamesScoreMode = getTournamentMatchScoreMode(tournament) === "games";
-  const scoreDisplay = gamesScoreMode ? "games" : "diff";
+  const scoreDisplay = isClassicSetsFormat(tournament)
+    ? "sets"
+    : gamesScoreMode
+      ? "games"
+      : "diff";
   const showQualification = Boolean(overview?.allGroupMatchesCompleted);
 
   const advanceToKnockout = useCallback(async () => {
@@ -377,13 +389,13 @@ export function DoubleStageManagePanel({
       if (!res.ok) throw new Error(json.error?.message ?? "Failed to generate bracket");
       await refetch();
       toast.success("Knockout bracket generated");
-      window.location.href = `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=bracket`;
+      window.location.href = `${manageUrls.manageUrl}?section=bracket`;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to generate bracket");
     } finally {
       setAdvancing(false);
     }
-  }, [refetch, tournament.slug, tournament.sportSlug]);
+  }, [manageUrls.manageUrl, refetch, tournament.slug, tournament.sportSlug]);
 
   const syncGroups = useCallback(async () => {
     setSyncing(true);
@@ -428,7 +440,7 @@ export function DoubleStageManagePanel({
             </div>
             <Button asChild variant="outline" className="shrink-0">
               <Link
-                href={`${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=bracket`}
+                href={`${manageUrls.manageUrl}?section=bracket`}
               >
                 Open bracket
               </Link>

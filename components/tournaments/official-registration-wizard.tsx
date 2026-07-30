@@ -26,9 +26,14 @@ const STEPS = [
 
 type OfficialRegistrationWizardProps = {
   tournament: TournamentDetail;
+  /** Override hub URL (partner white-label). Defaults to Gud Game sport route. */
+  hubHref?: string;
 };
 
-export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationWizardProps) {
+export function OfficialRegistrationWizard({
+  tournament,
+  hubHref: hubHrefProp,
+}: OfficialRegistrationWizardProps) {
   const router = useRouter();
   const { confirm } = useConfirmDialog();
   const [step, setStep] = useState(0);
@@ -36,7 +41,8 @@ export function OfficialRegistrationWizard({ tournament }: OfficialRegistrationW
   const [partners, setPartners] = useState<TournamentPlayerSearchResult[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const hubHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+  const hubHref =
+    hubHrefProp ?? publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
   const isFreeOfficial = tournament.officialBilling === "free";
   const processingFeeEstimate = Math.round((tournament.registrationFeeIdr ?? 0) * 0.0125);
 

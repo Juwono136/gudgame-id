@@ -27,12 +27,25 @@ import {
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
 import {
+  applyClassicSetPointDelta,
+  startNextClassicAfterWin,
+  sumClassicGames,
+} from "@/lib/tournaments/scoring/classic-sets";
+import {
+  getTournamentClassicSetRules,
   getTournamentDeuceConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
   getTournamentScoringType,
+  isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
+import { recordMatchScoreRevision } from "@/lib/tournaments/scoring/score-revisions";
+import {
+  assertTimedScoreAllowed,
+  buildSuddenDeathEndsAt,
+  hasSuddenDeathExtended,
+} from "@/lib/tournaments/scoring/timed-hard-stop";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type BracketMatchView = {
@@ -57,6 +70,8 @@ export type BracketMatchView = {
   completedAt: string | null;
   scoreEvents: MatchScoreEvent[];
   gameState?: MatchGameState | null;
+  playOrder: number | null;
+  callStatus: string | null;
 };
 
 function buildScoringRules(tournament: TournamentDetail): ScoringRules {
@@ -97,6 +112,8 @@ async function mapBracketRowToView(
     completedAt: row.completedAt?.toISOString() ?? null,
     scoreEvents: meta.scoreEvents ?? [],
     gameState,
+    playOrder: row.playOrder ?? null,
+    callStatus: row.callStatus ?? "queued",
   };
 }
 
@@ -380,6 +397,23 @@ export async function updateBracketLiveScore(
   const rules = buildScoringRules(tournament);
   const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
   const prevMeta = parseBracketMatchMetadata(match.metadata);
+  const scoreABefore = Math.max(0, match.scoreA ?? 0);
+  const scoreBBefore = Math.max(0, match.scoreB ?? 0);
+  let nextTimerEndsAt = match.timerEndsAt ?? null;
+  let nextMetaBase: Record<string, unknown> = { ...prevMeta };
+
+  const timedGate = assertTimedScoreAllowed(tournament, {
+    timerEndsAt: match.timerEndsAt,
+    scoreA: scoreABefore,
+    scoreB: scoreBBefore,
+    action: input.action,
+    suddenDeathExtended: hasSuddenDeathExtended(match.metadata),
+  });
+  if (timedGate.blocked && timedGate.reason === "expired_tied_extend") {
+    nextTimerEndsAt = buildSuddenDeathEndsAt(tournament);
+    nextMetaBase = { ...nextMetaBase, suddenDeathExtended: true };
+  }
+
   let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
   const reconciled = reconcileMatchGamesScores(match.scoreA, match.scoreB, nextGameState);
   let scoreA = reconciled.scoreA;
@@ -394,16 +428,37 @@ export async function updateBracketLiveScore(
         statusCode: 422,
       });
     }
-    const started = startNextGameAfterWin(nextGameState);
-    if (!started) {
-      throw new AppError("No completed game is waiting to advance", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-      });
+    if (isClassicSetsFormat(tournament)) {
+      const setRules = getTournamentClassicSetRules(tournament);
+      const advanced = startNextClassicAfterWin(
+        scoreA,
+        scoreB,
+        nextGameState,
+        setRules,
+      );
+      if (!advanced) {
+        throw new AppError("No completed game is waiting to advance", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      scoreA = advanced.setsA;
+      scoreB = advanced.setsB;
+      nextGameState = advanced.gameState;
+      eventScoreA = 0;
+      eventScoreB = 0;
+    } else {
+      const started = startNextGameAfterWin(nextGameState);
+      if (!started) {
+        throw new AppError("No completed game is waiting to advance", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      nextGameState = started;
+      eventScoreA = 0;
+      eventScoreB = 0;
     }
-    nextGameState = started;
-    eventScoreA = 0;
-    eventScoreB = 0;
   } else if (input.action === "increment" || input.action === "decrement") {
     if (!input.side) {
       throw new AppError("Missing scoring side for live point update", {
@@ -412,8 +467,43 @@ export async function updateBracketLiveScore(
       });
     }
     const delta = input.action === "decrement" ? (-1 as const) : (1 as const);
-    if (useGamesMode) {
-      const gameRules = getTournamentGameRules(tournament);
+    if (useGamesMode && isClassicSetsFormat(tournament)) {
+      const gameRules = getTournamentGameRules(tournament, "knockout");
+      const setRules = getTournamentClassicSetRules(tournament);
+      const applied = applyClassicSetPointDelta(
+        scoreA,
+        scoreB,
+        nextGameState,
+        input.side,
+        delta,
+        gameRules,
+        setRules,
+      );
+      if (!applied) {
+        throw new AppError(
+          delta > 0
+            ? nextGameState.pendingGameWinner
+              ? "Game finished — tap “Next game” to continue, or undo the last point"
+              : "Cannot award point — game, set, or match may already be complete"
+            : "Cannot undo — no points available",
+          { code: "VALIDATION_ERROR", statusCode: 422 },
+        );
+      }
+      scoreA = applied.setsA;
+      scoreB = applied.setsB;
+      nextGameState = applied.gameState;
+      eventScoreA =
+        applied.gameState.phase === "set_tiebreak" ||
+        applied.gameState.phase === "super_tiebreak"
+          ? (applied.gameState.tbPointsA ?? 0)
+          : applied.gameState.currentPointsA;
+      eventScoreB =
+        applied.gameState.phase === "set_tiebreak" ||
+        applied.gameState.phase === "super_tiebreak"
+          ? (applied.gameState.tbPointsB ?? 0)
+          : applied.gameState.currentPointsB;
+    } else if (useGamesMode) {
+      const gameRules = getTournamentGameRules(tournament, "knockout");
       const applied = applyGamePointDelta(
         scoreA,
         scoreB,
@@ -468,7 +558,7 @@ export async function updateBracketLiveScore(
         statusCode: 422,
       });
     }
-    const gameRules = getTournamentGameRules(tournament);
+    const gameRules = getTournamentGameRules(tournament, "knockout");
     const target =
       typeof input.targetPoints === "number"
         ? input.targetPoints
@@ -528,17 +618,36 @@ export async function updateBracketLiveScore(
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });
+  const classicExtras = isClassicSetsFormat(tournament)
+    ? (() => {
+        const totals = sumClassicGames(
+          nextGameState.setScores,
+          nextGameState.gamesInSetA ?? 0,
+          nextGameState.gamesInSetB ?? 0,
+        );
+        return {
+          setsForA: scoreA,
+          setsForB: scoreB,
+          gamesForA: totals.gamesForA,
+          gamesForB: totals.gamesForB,
+        };
+      })()
+    : {};
   const metadata =
     input.action === "decrement"
       ? {
-          ...prevMeta,
+          ...nextMetaBase,
           ...(useGamesMode ? { gameState: nextGameState } : {}),
+          ...classicExtras,
         }
-      : appendBracketScoreEvent(
-          prevMeta,
-          event,
-          useGamesMode ? nextGameState : undefined,
-        );
+      : {
+          ...appendBracketScoreEvent(
+            nextMetaBase as typeof prevMeta,
+            event,
+            useGamesMode ? nextGameState : undefined,
+          ),
+          ...classicExtras,
+        };
 
   const [updated] = await db
     .update(tournamentBracketMatches)
@@ -548,6 +657,9 @@ export async function updateBracketLiveScore(
       status: "in_progress",
       recordedByUserId: userId,
       metadata,
+      ...(nextTimerEndsAt && nextTimerEndsAt !== match.timerEndsAt
+        ? { timerEndsAt: nextTimerEndsAt }
+        : {}),
     })
     .where(eq(tournamentBracketMatches.id, matchId))
     .returning();
@@ -555,6 +667,21 @@ export async function updateBracketLiveScore(
   if (!updated) {
     throw new AppError("Could not update score", { code: "DATABASE_ERROR", statusCode: 500 });
   }
+
+  await recordMatchScoreRevision({
+    tournamentId: tournament.id,
+    matchKind: "bracket",
+    matchId,
+    action: input.action ?? "set",
+    scoreABefore,
+    scoreBBefore,
+    scoreAAfter: scoreA,
+    scoreBAfter: scoreB,
+    side: input.side,
+    gameState: useGamesMode ? nextGameState : undefined,
+    actorUserId: userId,
+    actorName: userName,
+  });
 
   const playersByTeam = await getBracketTeamPlayers([match.teamAId, match.teamBId]);
   return mapBracketRowToView(updated, playersByTeam);

@@ -14,8 +14,11 @@ import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scorin
 import { enqueueGroupScoreUpdate } from "@/hooks/use-double-stage-group-score";
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
 import {
+  getTournamentClassicSetRules,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
+  getTournamentScoreEntryMode,
+  isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
@@ -33,7 +36,11 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
   const cfg = getDoubleStageConfigSummary(tournament);
   const maxScore = cfg.pointsPerMatch;
   const gamesMode = getTournamentMatchScoreMode(tournament) === "games";
-  const gameRules = gamesMode ? getTournamentGameRules(tournament) : null;
+  const gameRules = gamesMode ? getTournamentGameRules(tournament, "group") : null;
+  const classicSetRules = isClassicSetsFormat(tournament)
+    ? getTournamentClassicSetRules(tournament)
+    : null;
+  const scoreEntryMode = getTournamentScoreEntryMode(tournament);
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [busyMatchId, setBusyMatchId] = useState<string | null>(null);
@@ -212,9 +219,14 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
                 maxScore={maxScore}
                 busy={busyMatchId === match.id}
                 gameRules={gameRules}
+                classicSetRules={classicSetRules}
+                scoreEntryMode={scoreEntryMode}
+                sportSlug={tournament.sportSlug}
+                tournamentSlug={tournament.slug}
                 onStart={() => postScore(match.id, "start")}
                 onLivePoint={(input) => postScore(match.id, "update", input)}
                 onFinalize={(scores) => postScore(match.id, "record", scores)}
+                onOverrideSuccess={() => void refetch()}
               />
             ))}
           </CardContent>

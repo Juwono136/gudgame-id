@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { playerMatches, type StatsTier } from "@/db/schema/player-competition";
 import { sports, tournaments } from "@/db/schema";
@@ -92,7 +92,7 @@ export async function computePlayerMatchStats(
   sportId?: string | null,
 ): Promise<PlayerMatchAggregate> {
   const db = getDb();
-  const conditions = [eq(playerMatches.userId, userId)];
+  const conditions = [eq(playerMatches.userId, userId), isNull(playerMatches.partnerId)];
   if (sportId) {
     conditions.push(eq(playerMatches.sportId, sportId));
   }

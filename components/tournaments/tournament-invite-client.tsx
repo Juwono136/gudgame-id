@@ -17,6 +17,12 @@ type TournamentInviteClientProps = {
   tournamentName: string;
   tournamentType?: string;
   officialBilling?: string | null;
+  /** When set (partner white-label), back/accept redirects stay on partner URLs. */
+  surfaceUrls?: {
+    publicUrl: string;
+    manageUrl: string;
+    inviteUrl: string;
+  };
 };
 
 /**
@@ -30,6 +36,7 @@ export function TournamentInviteClient({
   tournamentName,
   tournamentType,
   officialBilling,
+  surfaceUrls,
 }: TournamentInviteClientProps) {
   const searchParams = useSearchParams();
   const kindParam = searchParams.get("kind");
@@ -38,8 +45,8 @@ export function TournamentInviteClient({
     tournamentType,
     officialBilling,
   });
-  const tournamentUrl = publicSportRoutes.tournament(sportSlug, slug);
-  const inviteBase = publicSportRoutes.tournamentInvite(sportSlug, slug);
+  const tournamentUrl = surfaceUrls?.publicUrl ?? publicSportRoutes.tournament(sportSlug, slug);
+  const inviteBase = surfaceUrls?.inviteUrl ?? publicSportRoutes.tournamentInvite(sportSlug, slug);
 
   if (kindParam === "player") {
     if (!allowPlayerInvites) {
@@ -68,6 +75,7 @@ export function TournamentInviteClient({
         slug={slug}
         tournamentId={tournamentId}
         tournamentName={tournamentName}
+        surfaceUrls={surfaceUrls}
       />
     );
   }
@@ -79,6 +87,7 @@ export function TournamentInviteClient({
         slug={slug}
         tournamentId={tournamentId}
         tournamentName={tournamentName}
+        surfaceUrls={surfaceUrls}
       />
     );
   }

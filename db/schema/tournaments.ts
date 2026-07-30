@@ -5,11 +5,11 @@ import {
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { sports } from "./sports";
+import { partners } from "./partners";
 import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 export const TOURNAMENT_STATUSES = [
@@ -78,6 +78,10 @@ export const tournaments = pgTable(
     endsAt: timestamp("ends_at"),
     coverImageUrl: text("cover_image_url"),
     coverImageStorageKey: varchar("cover_image_storage_key", { length: 512 }),
+    /** NULL = Gud Game; set = white-label partner tenant only */
+    partnerId: uuidFk("partner_id").references(() => partners.id, {
+      onDelete: "cascade",
+    }),
     /** Bracket config, registration settings — extended by tournament module */
     settings: jsonb("settings").default({}).notNull(),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
@@ -88,9 +92,9 @@ export const tournaments = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("tournaments_sport_slug_uidx").on(table.sportId, table.slug),
     index("tournaments_sport_status_idx").on(table.sportId, table.status),
     index("tournaments_starts_at_idx").on(table.startsAt),
+    index("tournaments_partner_idx").on(table.partnerId),
     index("tournaments_sport_type_billing_status_idx").on(
       table.sportId,
       table.tournamentType,

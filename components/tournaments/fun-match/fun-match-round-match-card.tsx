@@ -1,17 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Minus, Pencil, Play, Plus, Radio, Users } from "lucide-react";
+import { CheckCircle2, Minus, Pencil, Play, Plus, Radio, Scale, Users } from "lucide-react";
 import { DeuceScoreBadge } from "@/components/tournaments/fun-match/deuce-score-badge";
 import {
   GameRaceScoreBadge,
   GameRaceScoreboard,
 } from "@/components/tournaments/game-race-scoreboard";
+import { ScoreOverrideDialog } from "@/components/tournaments/manage/score-override-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   emptyMatchGameState,
   type MatchGameRules,
 } from "@/lib/tournaments/scoring/game-mode";
+import {
+  setsNeededToWinMatch,
+  type ClassicSetRules,
+} from "@/lib/tournaments/scoring/classic-sets";
 import {
   Select,
   SelectContent,
@@ -79,6 +86,13 @@ type FunMatchRoundMatchCardProps = {
   scoringRules?: ScoringRules;
   /** When set, live scoring uses race-to-N games UI instead of flat points. */
   gameRules?: MatchGameRules | null;
+  /** ITF/FIP classic sets (partner tennis/padel). */
+  classicSetRules?: ClassicSetRules | null;
+  /** paper = enter final games/points without rally-by-rally flow. */
+  scoreEntryMode?: "live" | "paper";
+  sportSlug?: string;
+  tournamentSlug?: string;
+  onOverrideSuccess?: () => void;
   onScoreChange?: (input: {
     scoreA: number;
     scoreB: number;
@@ -232,6 +246,11 @@ export function FunMatchRoundMatchCard({
   pointsPerMatch = 16,
   scoringRules,
   gameRules = null,
+  classicSetRules = null,
+  scoreEntryMode = "live",
+  sportSlug,
+  tournamentSlug,
+  onOverrideSuccess,
   onScoreChange,
   onComplete,
   onEditCourtName,
@@ -247,6 +266,8 @@ export function FunMatchRoundMatchCard({
       : "bg-emerald-500/15 text-emerald-300";
   const isLive = match?.status === "in_progress";
   const isDone = match?.status === "completed";
+  const paperMode = scoreEntryMode === "paper";
+  const [overrideOpen, setOverrideOpen] = useState(false);
   const isPlanning = !match && canManage && !readOnly;
   const useGroupPicker = isPlanning && isGroupStageMode && startableGroupMatches.length > 0;
   const useBracketPicker =
@@ -603,9 +624,62 @@ export function FunMatchRoundMatchCard({
     Boolean(teamAId && teamBId && teamAId !== teamBId);
 
   const scoreReadOnly = readOnly || !isLive;
-  const gamesLiveBoard = Boolean(gameRules && isLive && !readOnly);
+  const gamesLiveBoard = Boolean(gameRules && isLive && !readOnly && !paperMode);
+  const paperLiveBoard = Boolean(paperMode && isLive && !readOnly);
 
-  const scoreBoxes = gameRules ? (
+  const pushPaperScore = (nextA: number, nextB: number) => {
+    if (!onScoreChange || readOnly || !isLive) return;
+    dirtyRef.current = true;
+    setLocalScores({ a: nextA, b: nextB });
+    if (scoreSyncRef.current) clearTimeout(scoreSyncRef.current);
+    scoreSyncRef.current = setTimeout(() => {
+      void onScoreChange({
+        scoreA: nextA,
+        scoreB: nextB,
+        action: "set",
+      });
+    }, 120);
+  };
+
+  const scoreBoxes = paperLiveBoard ? (
+    <div className="grid w-full max-w-md gap-3 sm:grid-cols-2">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-cp-muted">
+          {leftTeamName ?? "Team A"} — {gameRules ? "games" : "points"}
+        </Label>
+        <Input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          disabled={!canManage}
+          value={scoreA}
+          onChange={(e) =>
+            pushPaperScore(Number.parseInt(e.target.value, 10) || 0, scoreB)
+          }
+          className="border-cp-border bg-cp-elevated"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-cp-muted">
+          {rightTeamName ?? "Team B"} — {gameRules ? "games" : "points"}
+        </Label>
+        <Input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          disabled={!canManage}
+          value={scoreB}
+          onChange={(e) =>
+            pushPaperScore(scoreA, Number.parseInt(e.target.value, 10) || 0)
+          }
+          className="border-cp-border bg-cp-elevated"
+        />
+      </div>
+      <p className="text-xs text-cp-muted sm:col-span-2">
+        Paper entry — type the final score, then finish the match.
+      </p>
+    </div>
+  ) : gameRules ? (
     gamesLiveBoard ? (
       <GameRaceScoreboard
         teamAName={leftTeamName ?? "Team A"}
@@ -618,6 +692,12 @@ export function FunMatchRoundMatchCard({
         gamesB={displayGamesB}
         gameState={activeGameState}
         rules={gameRules}
+        classicSets={Boolean(classicSetRules)}
+        setsToWin={
+          classicSetRules
+            ? setsNeededToWinMatch(classicSetRules.bestOfSets)
+            : undefined
+        }
         disabled={!canManage}
         syncing={gamesWritePending}
         onPointA={(delta, scorer) => adjustScore("a", delta, scorer ?? leftSingleScorer)}
@@ -715,8 +795,8 @@ export function FunMatchRoundMatchCard({
             : "border-cp-border",
       )}
     >
-      {gamesLiveBoard ? (
-        /* Games mode: full-width board owns team + player labels (avoids clipped side columns). */
+      {gamesLiveBoard || paperLiveBoard ? (
+        /* Games / paper mode: full-width board owns team + player labels. */
         <div className="min-w-0">{scoreBoxes}</div>
       ) : (
         <>
@@ -919,8 +999,50 @@ export function FunMatchRoundMatchCard({
               Finish
             </Button>
           ) : null}
+
+          {isDone &&
+          canManage &&
+          !readOnly &&
+          sportSlug &&
+          tournamentSlug &&
+          match &&
+          (match.sourceKind === "group_stage" ||
+            match.playType === "group_stage" ||
+            match.sourceKind === "bracket" ||
+            match.playType === "bracket") ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 border-cp-border"
+              onClick={() => setOverrideOpen(true)}
+            >
+              <Scale className="mr-1 h-3.5 w-3.5" />
+              Override
+            </Button>
+          ) : null}
         </div>
       </footer>
+
+      {sportSlug && tournamentSlug && match ? (
+        <ScoreOverrideDialog
+          open={overrideOpen}
+          onOpenChange={setOverrideOpen}
+          sportSlug={sportSlug}
+          tournamentSlug={tournamentSlug}
+          kind={
+            match.sourceKind === "group_stage" || match.playType === "group_stage"
+              ? "group"
+              : "bracket"
+          }
+          matchId={match.id}
+          teamAName={match.teamAName}
+          teamBName={match.teamBName}
+          initialScoreA={match.scoreA ?? 0}
+          initialScoreB={match.scoreB ?? 0}
+          onSuccess={onOverrideSuccess}
+        />
+      ) : null}
     </article>
   );
 }

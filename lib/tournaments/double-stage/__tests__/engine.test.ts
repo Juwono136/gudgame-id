@@ -52,6 +52,32 @@ describe("generateRoundRobinFixtures", () => {
     expect(generateRoundRobinFixtures(teams)).toHaveLength(6);
     expect(fixtureCountForGroupSize(4)).toBe(6);
   });
+
+  it("uses ITF day-1 order for 4 teams (L1vL2, L3vL4)", () => {
+    const teams = [
+      { id: "l1", name: "Line 1" },
+      { id: "l2", name: "Line 2" },
+      { id: "l3", name: "Line 3" },
+      { id: "l4", name: "Line 4" },
+    ];
+    const fixtures = generateRoundRobinFixtures(teams);
+    expect(fixtures.filter((f) => f.round === 1)).toEqual([
+      { teamA: teams[0], teamB: teams[1], round: 1 },
+      { teamA: teams[2], teamB: teams[3], round: 1 },
+    ]);
+    expect(fixtures.map((f) => f.round)).toEqual([1, 1, 2, 2, 3, 3]);
+  });
+});
+
+describe("fipPoolGuidance", () => {
+  it("maps small fields per FIP Promises", async () => {
+    const { fipPoolGuidance } = await import(
+      "@/lib/tournaments/double-stage/fixtures"
+    );
+    expect(fipPoolGuidance(3)).toMatchObject({ pools: 1, perPool: 3 });
+    expect(fipPoolGuidance(6)).toMatchObject({ pools: 2, perPool: 3 });
+    expect(fipPoolGuidance(32)).toMatchObject({ pools: 8, perPool: 4 });
+  });
 });
 
 describe("computeGroupStandings", () => {

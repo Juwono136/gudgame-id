@@ -1,8 +1,9 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partners } from "@/db/schema/partners";
 import { sports } from "@/db/schema/sports";
 import {
   tournaments,
@@ -77,6 +78,10 @@ export type TournamentDetail = TournamentListItem & {
   creatorName: string | null;
   creatorImage: string | null;
   settings: Record<string, unknown>;
+  /** NULL = Gud Game; set = white-label partner event */
+  partnerId: string | null;
+  /** Public partner slug when partnerId is set (for white-label URLs). */
+  partnerSlug: string | null;
 };
 
 export type TournamentsListResult = {
@@ -149,7 +154,7 @@ export async function listTournaments(
   const { page, pageSize, search, status, sortBy, sortDir } = query;
   const offset = (page - 1) * pageSize;
 
-  const conditions = [eq(tournaments.sportId, sportId)];
+  const conditions = [eq(tournaments.sportId, sportId), isNull(tournaments.partnerId)];
   if (query.createdBy) {
     conditions.push(eq(tournaments.createdBy, query.createdBy));
   }
@@ -263,6 +268,7 @@ export async function listPublicTournamentsBySport(
           and(
             eq(sports.slug, sportSlug),
             eq(sports.isActive, true),
+            isNull(tournaments.partnerId),
             or(
               eq(tournaments.status, "live"),
               eq(tournaments.status, "upcoming"),
@@ -299,7 +305,11 @@ export async function listPublicTournamentsPaginated(
   const db = getDb();
   const { page, pageSize, search, status, sortBy, sortDir, bucket, type } = query;
 
-  const conditions = [eq(sports.slug, sportSlug), eq(sports.isActive, true)];
+  const conditions = [
+    eq(sports.slug, sportSlug),
+    eq(sports.isActive, true),
+    isNull(tournaments.partnerId),
+  ];
 
   if (status !== "all" && bucket === "all") {
     conditions.push(eq(tournaments.status, status));
@@ -432,85 +442,131 @@ export async function getTournamentBySlug(
   sportSlug: string,
   slug: string,
 ): Promise<TournamentDetail | null> {
-  return withCache(
-    tournamentDetailCacheKey(sportSlug, slug),
-    async () => {
-      const [row] = await getDb()
-        .select({
-          ...tournamentListSelect,
-          description: tournaments.description,
-          rules: tournaments.rules,
-          coverImageUrl: tournaments.coverImageUrl,
-          coverImageStorageKey: tournaments.coverImageStorageKey,
-          format: tournaments.format,
-          maxTeams: tournaments.maxTeams,
-          playersPerTeam: tournaments.playersPerTeam,
-          prizePoolIdr: tournaments.prizePoolIdr,
-          registrationOpensAt: tournaments.registrationOpensAt,
-          registrationClosesAt: tournaments.registrationClosesAt,
-          createdBy: tournaments.createdBy,
-          creatorName: user.name,
-          creatorImage: user.image,
-          settings: tournaments.settings,
-        })
-        .from(tournaments)
-        .innerJoin(sports, eq(tournaments.sportId, sports.id))
-        .leftJoin(user, eq(tournaments.createdBy, user.id))
-        .where(and(eq(sports.slug, sportSlug), eq(tournaments.slug, slug)))
-        .limit(1);
-
-      if (!row) return null;
-
-      const syncedStatus = await syncTournamentStatusFromSchedule({
-        id: row.id,
-        sportSlug: row.sportSlug,
-        slug: row.slug,
-        status: row.status,
-        startsAt: row.startsAt,
-        endsAt: row.endsAt,
-      });
-
-      const { finalizeStaleActiveMatchesIfNeeded } = await import(
-        "@/lib/tournaments/lifecycle/finalize-active-matches"
-      );
-      await finalizeStaleActiveMatchesIfNeeded(row.id, syncedStatus, row.sportSlug, row.slug);
-
-      const rich = coerceTournamentRichFields({
-        summary: row.summary,
-        description: row.description,
-        rules: row.rules,
-      });
-
-      return {
-        ...mapListRow({ ...row, status: syncedStatus, summary: rich.summary }),
-        description: rich.description,
-        rules: rich.rules,
-        coverImageUrl: resolveTournamentCoverUrl(row.coverImageUrl, row.coverImageStorageKey),
-        coverImageStorageKey: row.coverImageStorageKey,
-        format: row.format,
-        maxTeams: row.maxTeams,
-        playersPerTeam: row.playersPerTeam ?? 2,
-        prizePoolIdr: row.prizePoolIdr,
-        registrationOpensAt: row.registrationOpensAt?.toISOString() ?? null,
-        registrationClosesAt: row.registrationClosesAt?.toISOString() ?? null,
-        createdBy: row.createdBy,
-        creatorName: row.creatorName ?? null,
-        creatorImage: row.creatorImage ?? null,
-        settings: (row.settings as Record<string, unknown>) ?? {},
-      };
-    },
-    { prefix: "tournaments", ttlSeconds: 60 },
-  );
+  // Gud Game tenant first. Fall back to any tenant so partner manage/live APIs
+  // (shared /api/tournaments/... paths) keep working. Gud Game listings and
+  // career surfaces must still filter isNull(partnerId) separately.
+  const gud = await getTournamentBySlugScoped(sportSlug, slug, {});
+  if (gud) return gud;
+  return getTournamentBySlugScoped(sportSlug, slug, { anyTenant: true });
 }
 
-async function ensureUniqueSlug(sportId: string, baseSlug: string, excludeId?: string) {
+export async function getPartnerTournamentBySlug(
+  partnerId: string,
+  sportSlug: string,
+  slug: string,
+): Promise<TournamentDetail | null> {
+  return getTournamentBySlugScoped(sportSlug, slug, { partnerId });
+}
+
+/** Manage/API lookup — finds Gud Game or partner tournament by sport+slug. */
+export async function getTournamentBySlugForManage(
+  sportSlug: string,
+  slug: string,
+): Promise<TournamentDetail | null> {
+  return getTournamentBySlugScoped(sportSlug, slug, { anyTenant: true });
+}
+
+async function getTournamentBySlugScoped(
+  sportSlug: string,
+  slug: string,
+  scope: { partnerId?: string; anyTenant?: boolean },
+): Promise<TournamentDetail | null> {
+  const conditions = [eq(sports.slug, sportSlug), eq(tournaments.slug, slug)];
+  if (scope.partnerId) {
+    conditions.push(eq(tournaments.partnerId, scope.partnerId));
+  } else if (!scope.anyTenant) {
+    conditions.push(isNull(tournaments.partnerId));
+  }
+
+  const [row] = await getDb()
+    .select({
+      ...tournamentListSelect,
+      description: tournaments.description,
+      rules: tournaments.rules,
+      coverImageUrl: tournaments.coverImageUrl,
+      coverImageStorageKey: tournaments.coverImageStorageKey,
+      format: tournaments.format,
+      maxTeams: tournaments.maxTeams,
+      playersPerTeam: tournaments.playersPerTeam,
+      prizePoolIdr: tournaments.prizePoolIdr,
+      registrationOpensAt: tournaments.registrationOpensAt,
+      registrationClosesAt: tournaments.registrationClosesAt,
+      createdBy: tournaments.createdBy,
+      creatorName: user.name,
+      creatorImage: user.image,
+      settings: tournaments.settings,
+      partnerId: tournaments.partnerId,
+      partnerSlug: partners.slug,
+    })
+    .from(tournaments)
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(user, eq(tournaments.createdBy, user.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
+    .where(and(...conditions))
+    .limit(1);
+
+  if (!row) return null;
+
+  const syncedStatus = await syncTournamentStatusFromSchedule({
+    id: row.id,
+    sportSlug: row.sportSlug,
+    slug: row.slug,
+    status: row.status,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+  });
+
+  const rich = coerceTournamentRichFields({
+    summary: row.summary,
+    description: row.description,
+    rules: row.rules,
+  });
+
+  return {
+    ...mapListRow({ ...row, status: syncedStatus, summary: rich.summary }),
+    description: rich.description,
+    rules: rich.rules,
+    coverImageUrl: resolveTournamentCoverUrl(row.coverImageUrl, row.coverImageStorageKey),
+    coverImageStorageKey: row.coverImageStorageKey,
+    format: row.format,
+    maxTeams: row.maxTeams,
+    playersPerTeam: row.playersPerTeam ?? 2,
+    prizePoolIdr: row.prizePoolIdr,
+    registrationOpensAt: row.registrationOpensAt?.toISOString() ?? null,
+    registrationClosesAt: row.registrationClosesAt?.toISOString() ?? null,
+    createdBy: row.createdBy,
+    creatorName: row.creatorName ?? null,
+    creatorImage: row.creatorImage ?? null,
+    settings: (row.settings as Record<string, unknown>) ?? {},
+    partnerId: row.partnerId ?? null,
+    partnerSlug: row.partnerSlug ?? null,
+  };
+}
+
+async function ensureUniqueSlug(
+  sportId: string,
+  baseSlug: string,
+  excludeId?: string,
+  partnerId?: string | null,
+) {
   let slug = baseSlug;
   let n = 0;
   while (true) {
+    const scope = partnerId
+      ? and(
+          eq(tournaments.sportId, sportId),
+          eq(tournaments.slug, slug),
+          eq(tournaments.partnerId, partnerId),
+        )
+      : and(
+          eq(tournaments.sportId, sportId),
+          eq(tournaments.slug, slug),
+          isNull(tournaments.partnerId),
+        );
     const [existing] = await getDb()
       .select({ id: tournaments.id })
       .from(tournaments)
-      .where(and(eq(tournaments.sportId, sportId), eq(tournaments.slug, slug)))
+      .where(scope)
       .limit(1);
     if (!existing || existing.id === excludeId) return slug;
     n += 1;
@@ -528,9 +584,11 @@ export async function createTournament(
   sportId: string,
   userId: string,
   input: TournamentUpsertInput,
+  options?: { partnerId?: string | null },
 ): Promise<TournamentDetail> {
+  const partnerId = options?.partnerId ?? null;
   const baseSlug = input.slug?.trim() || slugifyWikiName(input.name);
-  const slug = await ensureUniqueSlug(sportId, baseSlug);
+  const slug = await ensureUniqueSlug(sportId, baseSlug, undefined, partnerId);
   const startsAt = parseOptionalDate(input.startsAt);
   const endsAt = parseOptionalDate(input.endsAt);
   const status = resolveStatusOnWrite(input.status, startsAt, endsAt);
@@ -599,6 +657,7 @@ export async function createTournament(
         ),
       ),
       createdBy: userId,
+      partnerId,
     })
     .returning();
 
@@ -609,12 +668,13 @@ export async function createTournament(
     });
   }
 
-  const detail = await getTournamentBySlug(
-    (
-      await getDb().select({ slug: sports.slug }).from(sports).where(eq(sports.id, sportId)).limit(1)
-    )[0]!.slug,
-    created.slug,
-  );
+  const sportSlugForDetail = (
+    await getDb().select({ slug: sports.slug }).from(sports).where(eq(sports.id, sportId)).limit(1)
+  )[0]!.slug;
+
+  const detail = partnerId
+    ? await getPartnerTournamentBySlug(partnerId, sportSlugForDetail, created.slug)
+    : await getTournamentBySlug(sportSlugForDetail, created.slug);
 
   if (!detail) {
     throw new AppError("Tournament created but not found", {
@@ -681,9 +741,6 @@ export async function updateTournament(
   sportId: string,
   input: TournamentUpsertInput,
 ): Promise<TournamentDetail> {
-  const baseSlug = input.slug?.trim() || slugifyWikiName(input.name);
-  const slug = await ensureUniqueSlug(sportId, baseSlug, id);
-
   const [current] = await getDb()
     .select({
       coverImageStorageKey: tournaments.coverImageStorageKey,
@@ -693,6 +750,7 @@ export async function updateTournament(
       officialBilling: tournaments.officialBilling,
       registrationOpensAt: tournaments.registrationOpensAt,
       registrationClosesAt: tournaments.registrationClosesAt,
+      partnerId: tournaments.partnerId,
     })
     .from(tournaments)
     .where(and(eq(tournaments.id, id), eq(tournaments.sportId, sportId)))
@@ -701,6 +759,9 @@ export async function updateTournament(
   if (!current) {
     throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
   }
+
+  const baseSlug = input.slug?.trim() || slugifyWikiName(input.name);
+  const slug = await ensureUniqueSlug(sportId, baseSlug, id, current.partnerId);
 
   const nextCoverKey = input.coverImageStorageKey?.trim() || null;
   await deleteStoredObjectIfReplaced(current.coverImageStorageKey, nextCoverKey);

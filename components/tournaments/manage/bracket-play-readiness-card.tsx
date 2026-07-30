@@ -32,6 +32,8 @@ type BracketPlayReadinessCardProps = {
   seedingFinalized: boolean;
   accentVariant?: "official" | "fun";
   onOpenLiveScoring?: () => void;
+  /** Prefer partner manage URL when provided. */
+  manageScoringHref?: string;
 };
 
 export function BracketPlayReadinessCard({
@@ -45,8 +47,11 @@ export function BracketPlayReadinessCard({
   seedingFinalized,
   accentVariant = "official",
   onOpenLiveScoring,
+  manageScoringHref,
 }: BracketPlayReadinessCardProps) {
-  const liveScoringUrl = `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=scoring`;
+  const liveScoringUrl =
+    manageScoringHref ??
+    `${publicSportRoutes.tournamentManage(sportSlug, slug)}?section=scoring`;
   const editUrl = tournamentEditUrl(tournamentId, "host");
   const isOfficial = accentVariant === "official";
 

@@ -28,7 +28,11 @@ import { TournamentSessionChrome } from "@/components/tournaments/tournament-ses
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { publicSportRoutes } from "@/lib/constants/routes";
+import {
+  dashboardRoutes,
+  publicSportRoutes,
+  partnerPublicRoutes,
+} from "@/lib/constants/routes";
 import { tournamentEditUrl } from "@/lib/tournaments/edit-routes";
 import { isFunMatchType, isOfficialType, supportsPlayerInvites } from "@/lib/tournaments/core/types";
 import type { TournamentManageAccess } from "@/lib/tournaments/manage-access";
@@ -40,6 +44,27 @@ import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import { cpBadgeSuccessClass, cpBadgeWarningClass } from "@/lib/styles/surface-classes";
 import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
 import { cn } from "@/lib/utils";
+
+function manageBaseUrl(tournament: TournamentDetail, partnerSlug?: string | null): string {
+  if (tournament.partnerId && partnerSlug) {
+    return partnerPublicRoutes.tournamentManage(partnerSlug, tournament.slug);
+  }
+  return publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug);
+}
+
+function publicTournamentUrl(tournament: TournamentDetail, partnerSlug?: string | null): string {
+  if (tournament.partnerId && partnerSlug) {
+    return partnerPublicRoutes.tournament(partnerSlug, tournament.slug);
+  }
+  return publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+}
+
+function displayTournamentUrl(tournament: TournamentDetail, partnerSlug?: string | null): string {
+  if (tournament.partnerId && partnerSlug) {
+    return partnerPublicRoutes.tournamentDisplay(partnerSlug, tournament.slug);
+  }
+  return publicSportRoutes.tournamentDisplay(tournament.sportSlug, tournament.slug);
+}
 
 const SECTIONS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -95,6 +120,9 @@ type TournamentManageShellProps = {
   access: TournamentManageAccess;
   participant: TournamentParticipantContext;
   canEdit: boolean;
+  /** When set with partnerId on tournament, manage/public/display URLs stay on white-label. */
+  partnerSlug?: string | null;
+  partnerDisplayName?: string | null;
 };
 
 export function TournamentManageShell({
@@ -103,6 +131,8 @@ export function TournamentManageShell({
   access,
   participant,
   canEdit,
+  partnerSlug = null,
+  partnerDisplayName = null,
 }: TournamentManageShellProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -118,14 +148,16 @@ export function TournamentManageShell({
   const canInvitePlayers = supportsPlayerInvites(tournament);
 
   const visibleSections = useMemo(() => {
+    const canOrgAdmin = access.isOwner || access.isPartnerMember;
     return SECTIONS.filter((s) => {
       if (s.id === "groups" && !caps.showGroupsTab) return false;
       if (s.id === "bracket" && !caps.showBracketTab) return false;
-      if (s.id === "registrations" && (!isOfficial || !access.isOwner)) return false;
+      if (s.id === "registrations" && (!isOfficial || !canOrgAdmin)) return false;
       if (s.id === "players" && !isFunMatch) return false;
-      if (s.id === "invites" && !access.isOwner) return false;
+      if (s.id === "invites" && !canOrgAdmin) return false;
       if (
         !access.isOwner &&
+        !access.isPartnerMember &&
         access.grantRole === "scorekeeper" &&
         s.id === "bracket"
       ) {
@@ -133,7 +165,7 @@ export function TournamentManageShell({
       }
       return true;
     });
-  }, [access.grantRole, access.isOwner, caps, isOfficial, isFunMatch]);
+  }, [access.grantRole, access.isOwner, access.isPartnerMember, caps, isOfficial, isFunMatch]);
 
   const initialSection =
     (searchParams.get("section") as ManageSection | null) ?? "dashboard";
@@ -149,10 +181,10 @@ export function TournamentManageShell({
       if (next === section) return;
       setSectionReady(false);
       setSection(next);
-      const url = `${publicSportRoutes.tournamentManage(tournament.sportSlug, tournament.slug)}?section=${next}`;
+      const url = `${manageBaseUrl(tournament, partnerSlug)}?section=${next}`;
       router.replace(url, { scroll: false });
     },
-    [router, section, tournament.slug, tournament.sportSlug],
+    [router, section, tournament, partnerSlug],
   );
 
   useEffect(() => {
@@ -212,8 +244,13 @@ export function TournamentManageShell({
         ? "completed"
         : "not_started";
 
-  const publicUrl = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
-  const displayUrl = publicSportRoutes.tournamentDisplay(tournament.sportSlug, tournament.slug);
+  const publicUrl = publicTournamentUrl(tournament, partnerSlug);
+  const displayUrl = displayTournamentUrl(tournament, partnerSlug);
+  const editHref = canEdit
+    ? tournament.partnerId && partnerSlug
+      ? dashboardRoutes.partnerTournamentEdit(tournament.id)
+      : tournamentEditUrl(tournament.id, "host")
+    : undefined;
 
   return (
     <div className="min-h-screen bg-cp-background">
@@ -225,11 +262,14 @@ export function TournamentManageShell({
         phase={livePhase}
         canManage
         canEdit={canEdit}
-        editHref={canEdit ? tournamentEditUrl(tournament.id, "host") : undefined}
+        editHref={editHref}
         listHref={publicUrl}
         backLabel="Back to tournament"
         manageActive
         hideManageButton
+        publicUrl={publicUrl}
+        displayUrl={displayUrl}
+        manageUrl={manageBaseUrl(tournament, partnerSlug)}
       />
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row lg:px-6">
@@ -314,9 +354,9 @@ export function TournamentManageShell({
                         Groups
                       </Button>
                     ) : null}
-                    {canEdit ? (
+                    {editHref ? (
                       <Button asChild size="sm" variant="outline">
-                        <Link href={tournamentEditUrl(tournament.id, "host")}>Open editor</Link>
+                        <Link href={editHref}>Open editor</Link>
                       </Button>
                     ) : null}
                   </div>
@@ -385,6 +425,7 @@ export function TournamentManageShell({
             {section === "groups" && caps.showGroupsTab ? (
               <DoubleStageManagePanel
                 tournament={tournament}
+                partnerSlug={partnerSlug}
                 onOpenLiveScoring={() => navigateSection("scoring")}
               />
             ) : null}
@@ -403,6 +444,7 @@ export function TournamentManageShell({
                 participant={participant}
                 livePhase={livePhase}
                 workspaceVariant={isFunMatch ? "fun_match" : "official"}
+                partnerDisplayName={partnerDisplayName}
               />
             ) : null}
 
@@ -415,6 +457,7 @@ export function TournamentManageShell({
                 participant={participant}
                 livePhase={livePhase}
                 workspaceVariant="official"
+                partnerDisplayName={partnerDisplayName}
               />
             ) : null}
 
@@ -434,6 +477,7 @@ export function TournamentManageShell({
                 <BracketManagePanel
                   tournament={tournament}
                   participant={participant}
+                  partnerSlug={partnerSlug}
                   onOpenLiveScoring={() => navigateSection("scoring")}
                   onOpenGroups={() => navigateSection("groups")}
                 />
@@ -487,7 +531,7 @@ export function TournamentManageShell({
               </div>
             ) : null}
 
-            {section === "invites" && access.isOwner ? (
+            {section === "invites" && (access.isOwner || access.isPartnerMember) ? (
               <div className="space-y-5">
                 <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                   <h2 className="text-base font-semibold text-foreground">Staff access</h2>
@@ -527,6 +571,7 @@ export function TournamentManageShell({
             {section === "display" ? (
               <DisplayControlPanel
                 tournament={tournament}
+                partnerSlug={partnerSlug}
                 onSaved={() => void refetchTournament()}
               />
             ) : null}

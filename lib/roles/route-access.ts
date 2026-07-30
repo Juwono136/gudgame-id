@@ -6,7 +6,7 @@ import {
 } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 
-export type DashboardZone = "player" | "host" | "admin" | "account_settings";
+export type DashboardZone = "player" | "host" | "partner" | "admin" | "account_settings";
 
 export function canAccessPlayerDashboard(roles: AppRole[]): boolean {
   return roles.includes("player");
@@ -16,6 +16,10 @@ export function canAccessHostDashboard(roles: AppRole[]): boolean {
   // Super admins can create/manage official tournaments too, so they must be allowed
   // to access host workspace and payout settings even if they don't explicitly have host role.
   return roles.includes("host") || roles.includes("super_admin");
+}
+
+export function canAccessPartnerDashboard(roles: AppRole[]): boolean {
+  return roles.includes("partner") || roles.includes("super_admin");
 }
 
 export function canAccessAdminConsole(roles: AppRole[]): boolean {
@@ -64,6 +68,12 @@ export function getDashboardZoneForPath(pathname: string): DashboardZone | null 
     return "host";
   }
   if (
+    pathname === dashboardRoutes.partner ||
+    pathname.startsWith(`${dashboardRoutes.partner}/`)
+  ) {
+    return "partner";
+  }
+  if (
     pathname === dashboardRoutes.settings ||
     pathname.startsWith(`${dashboardRoutes.settings}/`) ||
     pathname === dashboardRoutes.completeProfile ||
@@ -88,6 +98,8 @@ export function isPathAllowedForRoles(pathname: string, roles: AppRole[]): boole
       return canAccessPlayerDashboard(roles);
     case "host":
       return canAccessHostDashboard(roles);
+    case "partner":
+      return canAccessPartnerDashboard(roles);
     case "admin":
       return canAccessAdminConsole(roles);
     case "account_settings":
@@ -105,6 +117,9 @@ export function getPostLoginLandingUrl(): string {
 /** Primary landing page for role-based dashboard routing (access control fallbacks) */
 export function getDefaultDashboardUrl(roles: AppRole[]): string {
   if (canAccessAdminConsole(roles)) return adminRoutes.home;
+  if (canAccessPartnerDashboard(roles) && roles.includes("partner")) {
+    return dashboardRoutes.partner;
+  }
   if (canAccessHostDashboard(roles)) return dashboardRoutes.host;
   if (canAccessPlayerDashboard(roles)) return dashboardRoutes.home;
   return `${authRoutes.login}?error=no_role`;

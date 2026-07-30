@@ -4,6 +4,7 @@ import { getRoleLabel, type AppRole } from "@/lib/roles/constants";
 const VARIANT_MAP: Record<AppRole, "player" | "host" | "super_admin" | "default"> = {
   player: "player",
   host: "host",
+  partner: "default",
   super_admin: "super_admin",
 };
 

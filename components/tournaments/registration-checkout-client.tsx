@@ -37,6 +37,8 @@ import { invalidateTournamentQueries } from "@/lib/tournaments/query-keys";
 type RegistrationCheckoutClientProps = {
   tournament: TournamentDetail;
   registrationId: string;
+  /** Override hub URL (partner white-label). Defaults to Gud Game sport route. */
+  hubHref?: string;
 };
 
 type CheckoutDetail = {
@@ -179,6 +181,7 @@ function OrderSummaryCard({
 export function RegistrationCheckoutClient({
   tournament,
   registrationId,
+  hubHref: hubHrefProp,
 }: RegistrationCheckoutClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -186,7 +189,8 @@ export function RegistrationCheckoutClient({
   const { confirm } = useConfirmDialog();
   const { cancelRegistration, isPending: cancelling } = useCancelRegistration();
   const failed = searchParams.get("failed") === "1";
-  const hubHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
+  const hubHref =
+    hubHrefProp ?? publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
   const registerHref = `${hubHref}/register`;
 
   const [detail, setDetail] = useState<CheckoutDetail | null>(null);

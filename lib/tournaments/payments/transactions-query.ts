@@ -8,16 +8,19 @@ import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournamentRegistrations, tournamentTeams } from "@/db/schema/tournament-registration";
 import { tournaments } from "@/db/schema/tournaments";
 import { sports } from "@/db/schema/sports";
+import { partners } from "@/db/schema/partners";
 
 import type { PaymentTransactionRow, TransactionQueryResult } from "@/lib/tournaments/payments/transaction-types";
 
 export type { PaymentTransactionRow, TransactionQueryResult };
 
-export type TransactionQueryScope = "admin" | "host" | "player";
+export type TransactionQueryScope = "admin" | "host" | "player" | "partner";
 
 export type TransactionQueryOptions = {
   scope: TransactionQueryScope;
   userId: string;
+  /** Required when scope is `"partner"`. */
+  partnerId?: string;
   limit?: number;
   offset?: number;
   search?: string;
@@ -42,6 +45,11 @@ export async function queryPaymentTransactions(
     conditions.push(eq(tournaments.createdBy, options.userId));
   } else if (options.scope === "player") {
     conditions.push(eq(tournamentPayments.payerUserId, options.userId));
+  } else if (options.scope === "partner") {
+    if (!options.partnerId) {
+      throw new Error("partnerId is required when querying partner payment transactions");
+    }
+    conditions.push(eq(tournaments.partnerId, options.partnerId));
   }
 
   if (options.status && options.status !== "all") {
@@ -85,6 +93,7 @@ export async function queryPaymentTransactions(
       sportName: sports.name,
       tournamentSlug: tournaments.slug,
       tournamentType: tournaments.tournamentType,
+      partnerSlug: partners.slug,
       teamName: tournamentTeams.name,
       payerUserId: tournamentPayments.payerUserId,
       payerName: user.name,
@@ -104,6 +113,7 @@ export async function queryPaymentTransactions(
     .from(tournamentPayments)
     .innerJoin(tournaments, eq(tournamentPayments.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partners, eq(tournaments.partnerId, partners.id))
     .leftJoin(
       tournamentRegistrations,
       eq(tournamentPayments.registrationId, tournamentRegistrations.id),
@@ -186,6 +196,7 @@ export async function queryPaymentTransactions(
       sportName: r.sportName,
       tournamentSlug: r.tournamentSlug,
       tournamentType: r.tournamentType,
+      partnerSlug: r.partnerSlug ?? null,
       teamName: r.teamName,
       payerUserId: r.payerUserId,
       payerName: r.payerName,

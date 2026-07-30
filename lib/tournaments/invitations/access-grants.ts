@@ -16,6 +16,7 @@ import {
   assertShareableInviteUsable,
 } from "@/lib/tournaments/invitations/lifecycle";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 
 export type AccessInviteView = {
   id: string;
@@ -76,6 +77,8 @@ export async function createAccessInvite(input: {
     return row;
   });
 
+  const partnerSlug = await resolvePartnerSlugForTournament(input.tournament.partnerId);
+
   return {
     id: created.id,
     role: created.role as AccessGrantRole,
@@ -91,14 +94,16 @@ export async function createAccessInvite(input: {
       slug: input.tournament.slug,
       token: created.inviteToken,
       kind: "access",
+      partnerSlug,
     }),
     inviteCode: created.inviteCode ?? undefined,
   };
 }
 
 export async function listAccessInvites(
-  tournament: Pick<TournamentDetail, "id" | "sportSlug" | "slug">,
+  tournament: Pick<TournamentDetail, "id" | "sportSlug" | "slug" | "partnerId">,
 ): Promise<AccessInviteView[]> {
+  const partnerSlug = await resolvePartnerSlugForTournament(tournament.partnerId);
   const rows = await getDb()
     .select({
       id: tournamentAccessGrants.id,
@@ -139,6 +144,7 @@ export async function listAccessInvites(
               slug: tournament.slug,
               token: row.inviteToken,
               kind: "access",
+              partnerSlug,
             })
           : "",
       inviteCode:
@@ -155,6 +161,7 @@ export async function revealAccessInviteCredentials(input: {
   inviteId: string;
   sportSlug: string;
   slug: string;
+  partnerSlug?: string | null;
 }): Promise<{ inviteUrl: string; inviteCode: string }> {
   const db = getDb();
   const [grant] = await db
@@ -188,6 +195,7 @@ export async function revealAccessInviteCredentials(input: {
       slug: input.slug,
       token: grant.inviteToken,
       kind: "access",
+      partnerSlug: input.partnerSlug,
     }),
     inviteCode: grant.inviteCode ?? "",
   };

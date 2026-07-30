@@ -74,6 +74,8 @@ const createFormSchema = z.object({
     }),
   roles: z.array(z.enum(APP_ROLES)).min(1, "Select at least one role"),
   isActive: z.boolean(),
+  partnerSlug: z.string().trim().max(80).optional(),
+  partnerDisplayName: z.string().trim().max(120).optional(),
 });
 
 type CreateFormValues = z.infer<typeof createFormSchema>;
@@ -104,6 +106,8 @@ export function CreateUserDialog({
       nickname: "",
       roles: ["player"],
       isActive: true,
+      partnerSlug: "",
+      partnerDisplayName: "",
     },
   });
 
@@ -117,6 +121,8 @@ export function CreateUserDialog({
         nickname: "",
         roles: ["player"],
         isActive: true,
+        partnerSlug: "",
+        partnerDisplayName: "",
       });
       setPhoto(null);
       setPhotoError(undefined);
@@ -166,6 +172,14 @@ export function CreateUserDialog({
     if (values.nickname?.trim()) formData.append("nickname", values.nickname.trim());
     for (const role of values.roles) formData.append("roles", role);
     formData.append("isActive", values.isActive ? "true" : "false");
+    if (values.roles.includes("partner")) {
+      if (values.partnerSlug?.trim()) {
+        formData.append("partnerSlug", values.partnerSlug.trim());
+      }
+      if (values.partnerDisplayName?.trim()) {
+        formData.append("partnerDisplayName", values.partnerDisplayName.trim());
+      }
+    }
 
     try {
       await createUser.mutateAsync(formData);
@@ -324,6 +338,37 @@ export function CreateUserDialog({
                 <p className="text-xs text-red-400">{form.formState.errors.roles.message}</p>
               ) : null}
             </div>
+
+            {form.watch("roles").includes("partner") ? (
+              <div className="grid grid-cols-1 gap-4 rounded-xl border border-cp-primary/25 bg-cp-primary/5 p-4 sm:grid-cols-2">
+                <AuthField
+                  label="Partner route slug"
+                  htmlFor="create-partner-slug"
+                  hint="Public URL: /your-slug"
+                  required
+                >
+                  <AuthInput
+                    id="create-partner-slug"
+                    placeholder="e.g. padelarea"
+                    className="border-cp-border bg-cp-bg-input text-foreground placeholder:text-cp-muted"
+                    {...form.register("partnerSlug")}
+                  />
+                </AuthField>
+                <AuthField
+                  label="Partner display name"
+                  htmlFor="create-partner-name"
+                  hint="Shown on the white-label site"
+                  required
+                >
+                  <AuthInput
+                    id="create-partner-name"
+                    placeholder="e.g. PadelArea"
+                    className="border-cp-border bg-cp-bg-input text-foreground placeholder:text-cp-muted"
+                    {...form.register("partnerDisplayName")}
+                  />
+                </AuthField>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground">Account status</Label>

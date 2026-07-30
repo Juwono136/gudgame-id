@@ -7,12 +7,14 @@ export const PROFILE_MEDIA_PREFIX = "profiles/";
 export const WIKI_MEDIA_PREFIX = "wiki/";
 export const SPORTS_MEDIA_PREFIX = "sports/";
 export const TOURNAMENTS_MEDIA_PREFIX = "tournaments/";
+export const PARTNERS_MEDIA_PREFIX = "partners/";
 
 const ALLOWED_MEDIA_PREFIXES = [
   PROFILE_MEDIA_PREFIX,
   WIKI_MEDIA_PREFIX,
   SPORTS_MEDIA_PREFIX,
   TOURNAMENTS_MEDIA_PREFIX,
+  PARTNERS_MEDIA_PREFIX,
 ] as const;
 
 export function isAllowedMediaKey(key: string): boolean {

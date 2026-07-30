@@ -372,6 +372,8 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
             bracketMatches={bracketMatches}
             reclubMatches={matches}
             categoryLabel={tournament.categoryLabel}
+            sportSlug={tournament.sportSlug}
+            tournamentSlug={tournament.slug}
           />
         ) : null}
 
@@ -477,6 +479,8 @@ export function CourtScoringGrid({ tournament, participant, livePhase }: CourtSc
           bracketMatches={bracketMatches}
           reclubMatches={matches}
           categoryLabel={tournament.categoryLabel}
+          sportSlug={tournament.sportSlug}
+          tournamentSlug={tournament.slug}
         />
       ) : null}
 

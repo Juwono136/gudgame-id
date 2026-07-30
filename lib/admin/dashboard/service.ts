@@ -119,7 +119,7 @@ export async function getAdminDashboardStats(
 
   const usersByRole = Object.entries(userStats.byRole).map(([role, roleCount]) => ({
     role,
-    label: getRoleLabel(role as "player" | "host" | "super_admin"),
+    label: getRoleLabel(role as "player" | "host" | "partner" | "super_admin"),
     count: roleCount,
   }));
 

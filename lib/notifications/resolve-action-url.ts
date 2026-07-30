@@ -33,34 +33,54 @@ export function resolveNotificationHref(
   const meta = item.metadata ?? {};
   const tournamentId = readNotificationEntityId(meta.tournamentId);
   const registrationId = readNotificationEntityId(meta.registrationId);
+  const partnerSlug =
+    typeof meta.partnerSlug === "string" && meta.partnerSlug.trim()
+      ? meta.partnerSlug.trim()
+      : null;
+  const sportSlug =
+    typeof meta.sportSlug === "string" && meta.sportSlug.trim() ? meta.sportSlug.trim() : null;
+  const tournamentSlug =
+    typeof meta.tournamentSlug === "string" && meta.tournamentSlug.trim()
+      ? meta.tournamentSlug.trim()
+      : null;
+
+  const tournamentHub =
+    partnerSlug && tournamentSlug
+      ? `/${partnerSlug}/tournaments/${tournamentSlug}`
+      : sportSlug && tournamentSlug
+        ? `/sports/${sportSlug}/tournaments/${tournamentSlug}`
+        : null;
 
   switch (item.type) {
     case "tournament_host_player_confirmed":
     case "tournament_host_player_paid":
+      if (partnerSlug) {
+        return tournamentId
+          ? `/dashboard/partner/tournaments?tournamentId=${tournamentId}`
+          : "/dashboard/partner/tournaments";
+      }
       if (tournamentId) {
         return `/dashboard/host/payments?tournamentId=${tournamentId}`;
       }
       return "/dashboard/host/payments";
     case "tournament_host_payout_disbursed":
     case "tournament_host_payout_failed":
-      return "/dashboard/host/payments";
+      return partnerSlug ? "/dashboard/partner/tournaments" : "/dashboard/host/payments";
     case "tournament_confirm_participation":
-      if (registrationId && meta.sportSlug && meta.tournamentSlug) {
-        return `/sports/${meta.sportSlug}/tournaments/${meta.tournamentSlug}/register/confirm?registrationId=${registrationId}`;
+      if (registrationId && tournamentHub) {
+        return `${tournamentHub}/register/confirm?registrationId=${registrationId}`;
       }
       return registrationId ? `/dashboard` : null;
     case "tournament_payment_reminder":
     case "tournament_registration_confirmed":
-      if (registrationId && meta.sportSlug && meta.tournamentSlug) {
-        return `/sports/${meta.sportSlug}/tournaments/${meta.tournamentSlug}/register/checkout?registrationId=${registrationId}`;
+      if (registrationId && tournamentHub) {
+        return `${tournamentHub}/register/checkout?registrationId=${registrationId}`;
       }
       return null;
     case "tournament_payment_expired":
     case "tournament_registration_cancelled":
     case "tournament_team_invite":
-      if (meta.sportSlug && meta.tournamentSlug) {
-        return `/sports/${meta.sportSlug}/tournaments/${meta.tournamentSlug}`;
-      }
+      if (tournamentHub) return tournamentHub;
       if (tournamentId) {
         return `/dashboard/host/tournaments/${tournamentId}`;
       }

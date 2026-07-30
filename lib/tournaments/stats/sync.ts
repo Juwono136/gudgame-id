@@ -60,6 +60,8 @@ export async function syncReclubMatchToPlayerHistory(input: {
 }): Promise<void> {
   const { tournament, match, participantUserIds } = input;
   if (!participantUserIds.length || !isFunMatchType(tournament.tournamentType)) return;
+  // Partner white-label events never feed Gud Game career / match history.
+  if (tournament.partnerId) return;
 
   const db = getDb();
   const tier = statsTierFor(tournament);
@@ -136,6 +138,8 @@ export async function syncOfficialMatchToPlayerHistory(input: {
   if (!participantUserIds.length || !tournament.tournamentType || tournament.tournamentType !== "official") {
     return;
   }
+  // Partner white-label events never feed Gud Game career rankings.
+  if (tournament.partnerId) return;
 
   const db = getDb();
   const tier = statsTierFor(tournament);
@@ -195,6 +199,8 @@ export async function syncReclubParticipation(input: {
 }): Promise<void> {
   const { tournament, userId, role } = input;
   if (!isFunMatchType(tournament.tournamentType)) return;
+  // Partner white-label events stay off Gud Game tournament history.
+  if (tournament.partnerId) return;
 
   const db = getDb();
   const tier = statsTierFor(tournament);
@@ -257,6 +263,8 @@ export async function syncReclubBracketResult(input: {
     placement,
   } = input;
   if (!participantUserIds.length) return;
+  // Partner white-label knockout results must not appear in Gud Game career history.
+  if (tournament.partnerId) return;
 
   const db = getDb();
   const tier = statsTierFor(tournament);
@@ -367,6 +375,7 @@ export async function syncOfficialPlacement(input: {
   wikiEntityId?: string | null;
 }): Promise<void> {
   const { tournament, userId, placement, placementRank, wikiEntityId } = input;
+  if (tournament.partnerId) return;
   const tier = statsTierFor(tournament);
   const year = tournament.startsAt
     ? new Date(tournament.startsAt).getFullYear()

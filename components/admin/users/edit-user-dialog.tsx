@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { useQueryClient } from "@tanstack/react-query";
@@ -64,11 +65,15 @@ export function EditUserDialog({
   const updateUser = useUpdateAdminUser();
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [isActive, setIsActive] = useState(true);
+  const [partnerSlug, setPartnerSlug] = useState("");
+  const [partnerDisplayName, setPartnerDisplayName] = useState("");
 
   useEffect(() => {
     if (!open || !user) return;
     setRoles(user.roles);
     setIsActive(user.isActive);
+    setPartnerSlug("");
+    setPartnerDisplayName(user.name);
   }, [open, user]);
 
   const availableRoles = APP_ROLES.filter(
@@ -107,7 +112,16 @@ export function EditUserDialog({
     try {
       await updateUser.mutateAsync({
         id: user.id,
-        data: { roles, isActive },
+        data: {
+          roles,
+          isActive,
+          ...(roles.includes("partner")
+            ? {
+                partnerSlug: partnerSlug.trim() || undefined,
+                partnerDisplayName: partnerDisplayName.trim() || undefined,
+              }
+            : {}),
+        },
       });
       toast.success("User updated");
       invalidateSessionContext(qc);
@@ -206,6 +220,39 @@ export function EditUserDialog({
                 })}
               </div>
             </div>
+
+            {roles.includes("partner") && !user.roles.includes("partner") ? (
+              <div className="grid gap-3 rounded-xl border border-cp-primary/25 bg-cp-primary/5 p-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-partner-slug" className="text-xs text-cp-muted">
+                    Partner route slug
+                  </Label>
+                  <Input
+                    id="edit-partner-slug"
+                    value={partnerSlug}
+                    onChange={(e) => setPartnerSlug(e.target.value)}
+                    placeholder="e.g. padelarea"
+                    className="border-cp-border bg-cp-bg-input"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-partner-name" className="text-xs text-cp-muted">
+                    Partner display name
+                  </Label>
+                  <Input
+                    id="edit-partner-name"
+                    value={partnerDisplayName}
+                    onChange={(e) => setPartnerDisplayName(e.target.value)}
+                    placeholder="e.g. PadelArea"
+                    className="border-cp-border bg-cp-bg-input"
+                  />
+                </div>
+                <p className="text-xs text-cp-muted sm:col-span-2">
+                  Required when first assigning the Partner role — creates their white-label
+                  site at /slug.
+                </p>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground">Account status</Label>
