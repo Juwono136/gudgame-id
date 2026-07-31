@@ -110,6 +110,8 @@ export function EditUserDialog({
     if (!ok) return;
 
     try {
+      const partnerNewlyAdded =
+        roles.includes("partner") && !user.roles.includes("partner");
       await updateUser.mutateAsync({
         id: user.id,
         data: {
@@ -123,7 +125,11 @@ export function EditUserDialog({
             : {}),
         },
       });
-      toast.success("User updated");
+      toast.success("User updated", {
+        description: partnerNewlyAdded
+          ? `Partner access email sent to ${user.email}.`
+          : undefined,
+      });
       invalidateSessionContext(qc);
       onOpenChange(false);
     } catch (err) {

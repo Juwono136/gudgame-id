@@ -117,9 +117,14 @@ export type CreatePartnerInput = {
   createdBy: string;
 };
 
-export async function createPartnerWithOwner(
-  input: CreatePartnerInput,
-): Promise<PartnerPublicView> {
+/**
+ * Validate + normalize partner slug/name before account creation so invite
+ * emails are not sent for requests that will fail at workspace provisioning.
+ */
+export async function assertPartnerCreateReady(input: {
+  slug: string;
+  displayName: string;
+}): Promise<{ slug: string; displayName: string }> {
   const slug = normalizePartnerSlug(input.slug);
   if (!isValidPartnerSlugFormat(slug)) {
     throw new AppError(
@@ -149,6 +154,18 @@ export async function createPartnerWithOwner(
     });
   }
 
+  return { slug, displayName };
+}
+
+export async function createPartnerWithOwner(
+  input: CreatePartnerInput,
+): Promise<PartnerPublicView> {
+  const { slug, displayName } = await assertPartnerCreateReady({
+    slug: input.slug,
+    displayName: input.displayName,
+  });
+
+  const db = getDb();
   const [created] = await db
     .insert(partners)
     .values({

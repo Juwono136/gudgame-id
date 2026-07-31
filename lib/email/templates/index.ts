@@ -14,6 +14,7 @@ import { renderHostPayoutDisbursedTemplate } from "./host-payout-disbursed";
 import { renderHostPayoutFailedTemplate } from "./host-payout-failed";
 import { renderPartnerRegistrationPaymentTemplate } from "./partner-registration-payment";
 import { renderPartnerRegistrationConfirmedTemplate } from "./partner-registration-confirmed";
+import { renderPartnerRoleAssignedTemplate } from "./partner-role-assigned";
 import { renderVerifyEmailTemplate } from "./verify-email";
 import { renderResetPasswordTemplate } from "./reset-password";
 import { renderPasswordChangedTemplate } from "./password-changed";
@@ -77,6 +78,10 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "partner-registration-confirmed":
       return renderPartnerRegistrationConfirmedTemplate(
         input.data as EmailTemplateDataMap["partner-registration-confirmed"],
+      );
+    case "partner-role-assigned":
+      return renderPartnerRoleAssignedTemplate(
+        input.data as EmailTemplateDataMap["partner-role-assigned"],
       );
     case "welcome":
       throw new Error("Welcome email template is not implemented yet");

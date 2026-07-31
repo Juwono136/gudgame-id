@@ -93,11 +93,14 @@ export async function POST(request: Request) {
       imageStorageKey: upload.storageKey,
     });
 
+    const partnerNote = data.roles.includes("partner")
+      ? " A Partner access email was also sent with console and public site links."
+      : "";
+
     return jsonSuccess(
       {
         ...created,
-        message:
-          "User created. They will receive an email with a confirmation link and temporary password.",
+        message: `User created. They will receive an email with a confirmation link and temporary password.${partnerNote}`,
       },
       201,
     );

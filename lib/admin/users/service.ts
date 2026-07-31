@@ -275,6 +275,19 @@ export async function createAdminUser(
     }
   }
 
+  const wantsPartner = input.roles.includes("partner");
+  let preparedPartner: { slug: string; displayName: string } | null = null;
+  if (wantsPartner) {
+    const { assertPartnerCreateReady } = await import("@/lib/partners/service");
+    // Reserve the final slug before signup so invite is never sent for a doomed provision.
+    const reservedSlug =
+      input.partnerSlug?.trim() || `partner-${randomUUID().slice(0, 8)}`;
+    preparedPartner = await assertPartnerCreateReady({
+      slug: reservedSlug,
+      displayName: input.partnerDisplayName?.trim() || input.fullNameKtp,
+    });
+  }
+
   const { generateSecureTemporaryPassword } = await import(
     "@/lib/auth/generate-password"
   );
@@ -327,20 +340,26 @@ export async function createAdminUser(
 
   await setUserRoles(userId, input.roles, assignedBy);
 
-  if (input.roles.includes("partner")) {
-    const slug =
-      (input as { partnerSlug?: string }).partnerSlug?.trim() ||
-      `partner-${userId.slice(0, 8).toLowerCase()}`;
-    const displayName =
-      (input as { partnerDisplayName?: string }).partnerDisplayName?.trim() ||
-      input.fullNameKtp;
-    await (
-      await import("@/lib/partners/service")
-    ).createPartnerWithOwner({
-      slug,
-      displayName,
+  if (wantsPartner && preparedPartner) {
+    const { createPartnerWithOwner } = await import("@/lib/partners/service");
+    const { notifyPartnerRoleAssigned } = await import(
+      "@/lib/partners/notify-partner-role"
+    );
+
+    const partner = await createPartnerWithOwner({
+      slug: preparedPartner.slug,
+      displayName: preparedPartner.displayName,
       ownerUserId: userId,
       createdBy: assignedBy,
+    });
+
+    notifyPartnerRoleAssigned({
+      email,
+      userName: input.fullNameKtp,
+      partnerSlug: partner.slug,
+      partnerDisplayName: partner.displayName,
+      isNewAccount: true,
+      emailVerified: false,
     });
   }
 
@@ -555,27 +574,65 @@ export async function updateAdminUserStaff(
     });
   }
 
+  const before = await getAdminUserById(id);
+  if (!before) {
+    throw new AppError("User not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const hadPartnerRole = before.roles.includes("partner");
+  const wantsPartner = input.roles.includes("partner");
+  const partnerRoleNewlyGranted = wantsPartner && !hadPartnerRole;
+
   await setUserRoles(id, input.roles, assignedBy);
 
-  if (input.roles.includes("partner")) {
-    const existing = await (
-      await import("@/lib/partners/service")
-    ).getPrimaryPartnerForUser(id);
-    if (!existing) {
+  if (wantsPartner) {
+    const {
+      assertPartnerCreateReady,
+      createPartnerWithOwner,
+      getPrimaryPartnerForUser,
+    } = await import("@/lib/partners/service");
+    const { notifyPartnerRoleAssigned } = await import(
+      "@/lib/partners/notify-partner-role"
+    );
+
+    const existingPartner = await getPrimaryPartnerForUser(id);
+    let partnerSlug = existingPartner?.slug;
+    let partnerDisplayName = existingPartner?.displayName;
+    let provisionedNow = false;
+
+    if (!existingPartner) {
       const slug =
-        input.partnerSlug?.trim() ||
-        `partner-${id.slice(0, 8).toLowerCase()}`;
+        input.partnerSlug?.trim() || `partner-${randomUUID().slice(0, 8)}`;
       const displayName =
         input.partnerDisplayName?.trim() ||
-        (await getAdminUserById(id))?.name ||
+        before.fullNameKtp ||
+        before.name ||
         "Partner";
-      await (
-        await import("@/lib/partners/service")
-      ).createPartnerWithOwner({
+
+      await assertPartnerCreateReady({ slug, displayName });
+      const created = await createPartnerWithOwner({
         slug,
         displayName,
         ownerUserId: id,
         createdBy: assignedBy,
+      });
+      partnerSlug = created.slug;
+      partnerDisplayName = created.displayName;
+      provisionedNow = true;
+    }
+
+    if (
+      (partnerRoleNewlyGranted || provisionedNow) &&
+      partnerSlug &&
+      partnerDisplayName
+    ) {
+      notifyPartnerRoleAssigned({
+        email: before.email,
+        userName: before.fullNameKtp || before.name,
+        partnerSlug,
+        partnerDisplayName,
+        isNewAccount: false,
+        emailVerified: before.emailVerified,
       });
     }
   }

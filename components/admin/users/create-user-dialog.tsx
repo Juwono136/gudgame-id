@@ -184,7 +184,9 @@ export function CreateUserDialog({
     try {
       await createUser.mutateAsync(formData);
       toast.success("User invited", {
-        description: `Invitation email sent to ${values.email}.`,
+        description: values.roles.includes("partner")
+          ? `Invitation and Partner access emails sent to ${values.email}.`
+          : `Invitation email sent to ${values.email}.`,
       });
       onOpenChange(false);
     } catch (err) {

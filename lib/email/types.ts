@@ -13,7 +13,8 @@ export type EmailTemplateId =
   | "host-payout-disbursed"
   | "host-payout-failed"
   | "partner-registration-payment"
-  | "partner-registration-confirmed";
+  | "partner-registration-confirmed"
+  | "partner-role-assigned";
 
 export type VerifyEmailTemplateData = {
   userName: string;
@@ -173,6 +174,20 @@ export type PartnerRegistrationConfirmedTemplateData = {
   receiptUrl: string | null;
 };
 
+export type PartnerRoleAssignedTemplateData = {
+  appName: string;
+  userName: string;
+  partnerDisplayName: string;
+  partnerSlug: string;
+  consoleUrl: string;
+  publicUrl: string;
+  loginUrl: string;
+  /** Admin-created account — invite email with temp password already sent. */
+  isNewAccount: boolean;
+  /** Existing account still needs email confirmation. */
+  needsEmailVerification: boolean;
+};
+
 export type EmailTemplateDataMap = {
   "verify-email": VerifyEmailTemplateData;
   "reset-password": ResetPasswordTemplateData;
@@ -189,6 +204,7 @@ export type EmailTemplateDataMap = {
   "host-payout-failed": HostPayoutFailedTemplateData;
   "partner-registration-payment": PartnerRegistrationPaymentTemplateData;
   "partner-registration-confirmed": PartnerRegistrationConfirmedTemplateData;
+  "partner-role-assigned": PartnerRoleAssignedTemplateData;
 };
 
 export type SendTemplatedEmailInput<T extends EmailTemplateId> = {
