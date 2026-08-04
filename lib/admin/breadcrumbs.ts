@@ -11,10 +11,6 @@ const ROUTE_CRUMBS: Record<string, AdminBreadcrumbItem[]> = {
     { label: "Dashboard", href: adminRoutes.home },
     { label: "User Management" },
   ],
-  [adminRoutes.contentApproval]: [
-    { label: "Dashboard", href: adminRoutes.home },
-    { label: "Content Approval" },
-  ],
   [adminRoutes.wikiEntities]: [
     { label: "Dashboard", href: adminRoutes.home },
     { label: "Wiki Entities" },

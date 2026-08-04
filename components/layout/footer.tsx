@@ -5,9 +5,8 @@ import { Share2, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { siteConfig } from "@/lib/config";
 
-const wikiLinks = [
+const siteLinks = [
   { href: "/about", label: "About" },
-  { href: "/community", label: "Community" },
   { href: "/terms", label: "Terms" },
 ] as const;
 
@@ -45,10 +44,10 @@ export default function Footer() {
 
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-cp-muted">
-              Wiki
+              Site
             </h4>
             <ul className="space-y-2">
-              {wikiLinks.map(({ href, label }) => (
+              {siteLinks.map(({ href, label }) => (
                 <li key={href}>
                   <Link
                     href={href}

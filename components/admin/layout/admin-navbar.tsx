@@ -1,6 +1,7 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import Link from "next/link";
+import { Home, Menu } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AdminProfileMenu } from "./admin-profile-menu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -16,7 +17,7 @@ type AdminNavbarProps = {
 export function AdminNavbar({ context, title, onMenuOpen }: AdminNavbarProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-cp-border/80 bg-cp-bg/95 backdrop-blur-md">
-      <div className="flex h-14 items-center gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
+      <div className="flex h-14 items-center gap-2 px-4 sm:h-16 sm:gap-3 sm:px-6 lg:px-8">
         <Button
           type="button"
           variant="outline"
@@ -33,6 +34,19 @@ export function AdminNavbar({ context, title, onMenuOpen }: AdminNavbarProps) {
             {title}
           </p>
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          asChild
+          className="shrink-0 border-cp-border bg-cp-card/60 font-semibold hover:border-cp-primary/40 hover:bg-cp-primary/5"
+        >
+          <Link href="/" aria-label="Go to Gud Game home page">
+            <Home className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Home</span>
+          </Link>
+        </Button>
 
         <NotificationBell />
 

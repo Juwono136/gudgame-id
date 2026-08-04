@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { HeartHandshake, Newspaper, UserRound } from "lucide-react";
+import { Home, UserRound } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -8,9 +8,8 @@ export type NavItem = {
 };
 
 export const mainNavItems: NavItem[] = [
-  { href: "/news", label: "News", icon: Newspaper },
+  { href: "/", label: "Home", icon: Home },
   { href: "/about", label: "About", icon: UserRound },
-  { href: "/community", label: "Community", icon: HeartHandshake },
 ];
 
 export { authRoutes, dashboardRoutes } from "@/lib/constants/routes";

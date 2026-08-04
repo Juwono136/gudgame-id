@@ -1,8 +1,8 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { getAdminDashboardStats } from "@/lib/admin/dashboard/service";
 import { requireAdminSession } from "@/lib/admin/session";
-import { AppError } from "@/lib/errors";
 import { adminDashboardQuerySchema } from "@/lib/validations/admin-dashboard";
+import { zodErrorToAppError } from "@/lib/validations/format-zod-error";
 
 export const runtime = "nodejs";
 
@@ -15,18 +15,14 @@ export async function GET(request: Request) {
     );
 
     if (!parsed.success) {
-      throw new AppError("Invalid query parameters", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-        context: { fieldErrors: parsed.error.flatten().fieldErrors },
-      });
+      throw zodErrorToAppError(parsed.error);
     }
 
-    const stats = await getAdminDashboardStats(
-      ctx.sportId,
-      ctx.sportSlug,
-      parsed.data.range,
-    );
+    const stats = await getAdminDashboardStats(ctx.sportId, ctx.sportSlug, {
+      range: parsed.data.range,
+      from: parsed.data.from,
+      to: parsed.data.to,
+    });
 
     return jsonSuccess(stats);
   } catch (error) {

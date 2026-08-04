@@ -1,23 +1,34 @@
 import "server-only";
 
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
-import { userRoleAssignments } from "@/db/schema/roles";
 import { wikiEntities } from "@/db/schema/wiki";
 import { getAdminUserStats } from "@/lib/admin/users/service";
 import {
-  getRangeConfig,
-  mergeSeriesCounts,
+  formatPeriodLabel,
+  mergeSeriesCountsForPeriod,
   normalizeBucketValue,
+  resolveDashboardPeriod,
+  type DashboardPeriod,
 } from "@/lib/admin/dashboard/time-buckets";
-import type { AdminDashboardRange } from "@/lib/validations/admin-dashboard";
+import type {
+  AdminDashboardQueryInput,
+  AdminDashboardRange,
+} from "@/lib/validations/admin-dashboard";
 import { getRoleLabel } from "@/lib/roles/constants";
 
 export type AdminDashboardStats = {
   sportSlug: string;
   sportId: string;
   range: AdminDashboardRange;
+  period: {
+    from: string;
+    to: string;
+    label: string;
+    bucketUnit: DashboardPeriod["bucketUnit"];
+  };
+  generatedAt: string;
   summary: {
     totalUsers: number;
     activeAccounts: number;
@@ -50,14 +61,14 @@ export type AdminDashboardStats = {
 export async function getAdminDashboardStats(
   sportId: string,
   sportSlug: string,
-  range: AdminDashboardRange,
+  query: AdminDashboardQueryInput,
 ): Promise<AdminDashboardStats> {
   const db = getDb();
-  const { start, bucketUnit } = getRangeConfig(range);
+  const period = resolveDashboardPeriod(query.range, query.from, query.to);
+  const { start, end, bucketUnit } = period;
   const userStats = await getAdminUserStats();
 
-  const wikiConditions =
-    sportId ? [eq(wikiEntities.sportId, sportId)] : [];
+  const wikiConditions = sportId ? [eq(wikiEntities.sportId, sportId)] : [];
 
   const [wikiTotalRow] = await db
     .select({ count: count() })
@@ -85,15 +96,19 @@ export async function getAdminDashboardStats(
   const [newUsersRow] = await db
     .select({ count: count() })
     .from(user)
-    .where(gte(user.createdAt, start));
+    .where(and(gte(user.createdAt, start), lte(user.createdAt, end)));
 
   const [newWikiRow] = await db
     .select({ count: count() })
     .from(wikiEntities)
     .where(
       wikiConditions.length
-        ? and(...wikiConditions, gte(wikiEntities.createdAt, start))
-        : gte(wikiEntities.createdAt, start),
+        ? and(
+            ...wikiConditions,
+            gte(wikiEntities.createdAt, start),
+            lte(wikiEntities.createdAt, end),
+          )
+        : and(gte(wikiEntities.createdAt, start), lte(wikiEntities.createdAt, end)),
     );
 
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -134,11 +149,11 @@ export async function getAdminDashboardStats(
       count: sql<number>`count(*)::int`,
     })
     .from(user)
-    .where(gte(user.createdAt, start))
+    .where(and(gte(user.createdAt, start), lte(user.createdAt, end)))
     .groupBy(userDateBucket);
 
-  const userSignups = mergeSeriesCounts(
-    range,
+  const userSignups = mergeSeriesCountsForPeriod(
+    period,
     userSignupRows.map((r) => ({
       bucket: normalizeBucketValue(r.bucket, bucketUnit),
       count: Number(r.count),
@@ -159,8 +174,12 @@ export async function getAdminDashboardStats(
     .from(wikiEntities)
     .where(
       wikiConditions.length
-        ? and(...wikiConditions, gte(wikiEntities.createdAt, start))
-        : gte(wikiEntities.createdAt, start),
+        ? and(
+            ...wikiConditions,
+            gte(wikiEntities.createdAt, start),
+            lte(wikiEntities.createdAt, end),
+          )
+        : and(gte(wikiEntities.createdAt, start), lte(wikiEntities.createdAt, end)),
     )
     .groupBy(wikiDateBucket, wikiEntities.entityType);
 
@@ -179,7 +198,7 @@ export async function getAdminDashboardStats(
     wikiActivityMap.set(key, entry);
   }
 
-  const wikiActivity = mergeSeriesCounts(range, []).map((point) => ({
+  const wikiActivity = mergeSeriesCountsForPeriod(period, []).map((point) => ({
     key: point.key,
     label: point.label,
     players: wikiActivityMap.get(point.key)?.players ?? 0,
@@ -196,7 +215,7 @@ export async function getAdminDashboardStats(
     })
     .from(user)
     .orderBy(desc(user.createdAt))
-    .limit(5);
+    .limit(8);
 
   const recentWiki = await db
     .select({
@@ -209,12 +228,19 @@ export async function getAdminDashboardStats(
     .from(wikiEntities)
     .where(wikiConditions.length ? and(...wikiConditions) : undefined)
     .orderBy(desc(wikiEntities.createdAt))
-    .limit(5);
+    .limit(8);
 
   return {
     sportSlug,
     sportId,
-    range,
+    range: period.range,
+    period: {
+      from: period.fromIso,
+      to: period.toIso,
+      label: formatPeriodLabel(period),
+      bucketUnit: period.bucketUnit,
+    },
+    generatedAt: new Date().toISOString(),
     summary: {
       totalUsers: userStats.totalStaff,
       activeAccounts: userStats.activeAccounts,

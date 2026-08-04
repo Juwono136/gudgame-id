@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardCheck, CreditCard, LayoutDashboard, Settings, Trophy, Users, BookOpen } from "lucide-react";
+import { CreditCard, LayoutDashboard, Settings, Trophy, Users, BookOpen } from "lucide-react";
 import { adminRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { Permission } from "@/lib/roles/permissions";
@@ -19,14 +19,6 @@ export const adminNavItems: AdminNavItem[] = [
     label: "Dashboard",
     href: adminRoutes.home,
     icon: LayoutDashboard,
-  },
-  {
-    label: "Content Approval",
-    href: adminRoutes.contentApproval,
-    icon: ClipboardCheck,
-    permission: "admin.content.moderate",
-    badge: "Soon",
-    disabled: true,
   },
   {
     label: "User Management",
