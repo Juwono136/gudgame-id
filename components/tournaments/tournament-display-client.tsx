@@ -117,6 +117,7 @@ function buildSubtitle(
   match: LiveMatchView,
   isOfficial: boolean,
   courtLabel?: string,
+  isPartnerEvent = false,
 ) {
   const courtPrefix = courtLabel ? `${courtLabel} · ` : "";
   if (match.type === "bracket") {
@@ -128,6 +129,10 @@ function buildSubtitle(
 
   if (match.type === "lobby_round" || match.type === "americano_round") {
     return `${courtPrefix}${tournamentName} · Live Round ${match.roundNumber ?? ""}`.trim();
+  }
+
+  if (isPartnerEvent) {
+    return `${courtPrefix}${tournamentName} · Live`;
   }
 
   return isOfficial
@@ -334,6 +339,7 @@ export function TournamentDisplayClient({
   }, [activeMatches.map((m) => m.id).join(",")]);
 
   const isOfficial = isOfficialType(data?.tournament.tournamentType);
+  const isPartnerEvent = Boolean(partnerName || partnerLogoUrl);
 
   const orderOfPlayRows = useMemo((): ScheduleMatchRow[] => {
     if (!data) return [];
@@ -540,7 +546,13 @@ export function TournamentDisplayClient({
                         scoreA={m.scoreA ?? 0}
                         scoreB={m.scoreB ?? 0}
                         gamesMode={gamesMode}
-                        subtitle={buildSubtitle(data.tournament.name, m, isOfficial, court.name)}
+                        subtitle={buildSubtitle(
+                          data.tournament.name,
+                          m,
+                          isOfficial,
+                          court.name,
+                          isPartnerEvent,
+                        )}
                       />
                     );
                   }
@@ -573,7 +585,13 @@ export function TournamentDisplayClient({
                       scoreA={m.scoreA ?? 0}
                       scoreB={m.scoreB ?? 0}
                       gamesMode={gamesMode}
-                      subtitle={buildSubtitle(data.tournament.name, m, isOfficial, courtLabel)}
+                      subtitle={buildSubtitle(
+                        data.tournament.name,
+                        m,
+                        isOfficial,
+                        courtLabel,
+                        isPartnerEvent,
+                      )}
                     />
                   );
                 })}
@@ -726,6 +744,7 @@ export function TournamentDisplayClient({
     featuredMatch,
     isOfficial,
     pinnedCourtLabel,
+    isPartnerEvent,
   );
   const isLiveNow = isMatchLiveForTournament(
     featuredMatch.status ?? "pending",

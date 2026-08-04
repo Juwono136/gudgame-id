@@ -14,13 +14,16 @@ import {
   Loader2,
   QrCode,
   Smartphone,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import { CHECKOUT_PAYMENT_METHODS } from "@/lib/tournaments/payments/checkout-methods";
 import { cn } from "@/lib/utils";
+import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 
 type RegistrationDetail = {
   registration: {
@@ -35,6 +38,7 @@ type RegistrationDetail = {
   payUrl: string;
   successUrl: string;
   tournamentUrl: string;
+  registerUrl: string;
 };
 
 type PaymentInstructions = {
@@ -70,9 +74,11 @@ export function PartnerRegistrationPayClient({
   token: string;
 }) {
   const router = useRouter();
+  const { confirm } = useConfirmDialog();
   const [detail, setDetail] = useState<RegistrationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<PaymentInstructions | null>(null);
   const [polling, setPolling] = useState(false);
@@ -168,6 +174,48 @@ export function PartnerRegistrationPayClient({
     toast.success(`${label} copied`);
   };
 
+  const handleCancelRegistration = async () => {
+    if (!detail || detail.registration.status !== "awaiting_payment") return;
+
+    const ok = await confirm({
+      title: "Cancel registration?",
+      description: detail.registration.teamName
+        ? `Team "${detail.registration.teamName}" will be removed and this payment link will stop working. You can register again if spots remain.`
+        : "Your registration will be cancelled and the slot released. You can register again if spots remain.",
+      confirmLabel: "Cancel registration",
+      cancelLabel: "Keep registration",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    setCancelling(true);
+    try {
+      const res = await fetch(basePath, { method: "DELETE" });
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { registerUrl?: string; tournamentUrl?: string };
+        error?: { message?: string };
+      } | null;
+      if (!res.ok) {
+        throw new Error(json?.error?.message ?? "Could not cancel registration");
+      }
+
+      toast.success("Registration cancelled", {
+        description: "Your slot was released. You can register again if spots remain.",
+      });
+
+      const nextUrl =
+        json?.data?.registerUrl ??
+        detail.registerUrl ??
+        detail.tournamentUrl;
+      router.push(nextUrl);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not cancel registration");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -185,27 +233,40 @@ export function PartnerRegistrationPayClient({
   }
 
   if (detail.registration.status === "expired" || detail.registration.status === "cancelled") {
+    const wasCancelled = detail.registration.status === "cancelled";
     return (
       <div className="flex flex-col items-center gap-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-8 text-center">
         <AlertCircle className="h-10 w-10 text-amber-600 dark:text-amber-400" />
         <div>
-          <p className="font-semibold text-foreground">Registration window closed</p>
+          <p className="font-semibold text-foreground">
+            {wasCancelled ? "Registration cancelled" : "Registration window closed"}
+          </p>
           <p className="mt-1 text-sm text-cp-muted">
-            The payment deadline passed and this slot was released.
+            {wasCancelled
+              ? "This payment hold was released. You can register again if spots remain."
+              : "The payment deadline passed and this slot was released."}
           </p>
         </div>
-        <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
-          <Link href={detail.tournamentUrl}>Back to tournament</Link>
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+            <Link href={detail.registerUrl || detail.tournamentUrl}>Register again</Link>
+          </Button>
+          <Button asChild variant="outline" className="border-cp-border">
+            <Link href={detail.tournamentUrl}>Back to tournament</Link>
+          </Button>
+        </div>
       </div>
     );
   }
 
   const amount = detail.payment?.amountIdr ?? detail.registration.feeIdr ?? 0;
   const deadline = formatDeadline(detail.registration.paymentDueAt);
+  const busy = processing || cancelling;
 
   return (
-    <div className="space-y-6">
+    <>
+      {cancelling ? <LoadingOverlay show label="Cancelling registration…" /> : null}
+      <div className="space-y-6">
       <div className="flex flex-col gap-3 rounded-2xl border border-cp-border bg-cp-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
@@ -231,14 +292,14 @@ export function PartnerRegistrationPayClient({
                 <button
                   key={m.id}
                   type="button"
-                  disabled={processing}
+                  disabled={busy}
                   onClick={() => void initiatePayment(m.id)}
                   className={cn(
                     "group flex min-h-[5.5rem] items-start gap-3 rounded-xl border p-4 text-left transition-all",
                     active
                       ? "border-cp-primary bg-cp-primary/10"
                       : "border-cp-border bg-cp-elevated/30 hover:border-cp-primary/40",
-                    processing && "pointer-events-none opacity-60",
+                    busy && "pointer-events-none opacity-60",
                   )}
                 >
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cp-border bg-cp-card">
@@ -337,6 +398,7 @@ export function PartnerRegistrationPayClient({
               variant="outline"
               size="sm"
               className="h-10 w-full border-cp-border sm:w-auto"
+              disabled={busy}
               onClick={() => {
                 setInstructions(null);
                 setSelectedMethod(null);
@@ -348,10 +410,33 @@ export function PartnerRegistrationPayClient({
         )}
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-cp-muted">
-        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-cp-primary" />
-        No account needed — this link is unique to your registration.
+      <div className="rounded-2xl border border-cp-border bg-cp-elevated/20 p-4 sm:p-5">
+        <p className="flex items-start gap-2 text-xs leading-relaxed text-cp-muted">
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cp-primary" />
+          No account needed — this link is unique to your registration. Cancel anytime before
+          payment to release your slot and register again.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 h-10 w-full border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+          disabled={busy}
+          onClick={() => void handleCancelRegistration()}
+        >
+          {cancelling ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Cancelling…
+            </>
+          ) : (
+            <>
+              <XCircle className="mr-2 h-4 w-4 shrink-0" />
+              Cancel registration
+            </>
+          )}
+        </Button>
       </div>
     </div>
+    </>
   );
 }

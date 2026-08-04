@@ -75,8 +75,10 @@ export const partnerPublicRoutes = {
     `/${partnerSlug}/tournaments/${slug}/register/receipt?token=${encodeURIComponent(token)}`,
   leagues: (partnerSlug: string) => `/${partnerSlug}/leagues`,
   league: (partnerSlug: string, slug: string) => `/${partnerSlug}/leagues/${slug}`,
-  /** Public Database Eligibility — partner-scoped player history (not Gud Game). */
+  /** Staff-only partner player directory (not public / not Gud Game). */
   players: (partnerSlug: string) => `/${partnerSlug}/players`,
+  player: (partnerSlug: string, playerId: string) =>
+    `/${partnerSlug}/players/${encodeURIComponent(playerId)}`,
 } as const;
 
 export const adminRoutes = {

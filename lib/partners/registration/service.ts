@@ -539,51 +539,112 @@ export async function confirmPartnerRegistration(
   log.info("Partner guest registration confirmed", { registrationId, teamId });
 }
 
-/** Partner staff declines a pending (registered) guest registration. */
-export async function declinePartnerRegistration(registrationId: string): Promise<void> {
+async function softCancelPartnerRegistration(input: {
+  registrationId: string;
+  /** Guest self-cancel from checkout may only void unpaid holds. */
+  allowedStatuses: Array<"awaiting_payment" | "registered">;
+  source: "guest" | "staff";
+}): Promise<void> {
   const db = getDb();
   const [registration] = await db
     .select()
     .from(partnerTournamentRegistrations)
-    .where(eq(partnerTournamentRegistrations.id, registrationId))
+    .where(eq(partnerTournamentRegistrations.id, input.registrationId))
     .limit(1);
 
   if (!registration) {
     throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
-  if (registration.status === "cancelled") return;
+  if (registration.status === "cancelled" || registration.status === "expired") {
+    return;
+  }
 
-  if (registration.status !== "registered" && registration.status !== "awaiting_payment") {
-    throw new AppError("Only pending registrations can be declined.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 400,
-    });
+  if (!input.allowedStatuses.includes(registration.status as "awaiting_payment" | "registered")) {
+    throw new AppError(
+      input.source === "guest"
+        ? "Only unpaid registrations can be cancelled from the payment page."
+        : "Only pending registrations can be declined.",
+      { code: "VALIDATION_ERROR", statusCode: 400 },
+    );
   }
 
   if (registration.teamId) {
-    throw new AppError("Cannot decline a registration that already has a squad.", {
+    throw new AppError("Cannot cancel a registration that already has a squad.", {
       code: "VALIDATION_ERROR",
       statusCode: 400,
     });
   }
 
-  await db
+  // Race-safe: only cancel if still in an allowed pending state.
+  const updated = await db
     .update(partnerTournamentRegistrations)
     .set({ status: "cancelled" })
-    .where(eq(partnerTournamentRegistrations.id, registrationId));
+    .where(
+      and(
+        eq(partnerTournamentRegistrations.id, input.registrationId),
+        inArray(partnerTournamentRegistrations.status, input.allowedStatuses),
+      ),
+    )
+    .returning({ id: partnerTournamentRegistrations.id });
+
+  if (!updated.length) {
+    const [fresh] = await db
+      .select({ status: partnerTournamentRegistrations.status })
+      .from(partnerTournamentRegistrations)
+      .where(eq(partnerTournamentRegistrations.id, input.registrationId))
+      .limit(1);
+    if (fresh?.status === "cancelled" || fresh?.status === "expired") return;
+    throw new AppError("Registration could not be cancelled. Please refresh and try again.", {
+      code: "CONFLICT",
+      statusCode: 409,
+    });
+  }
 
   await db
     .update(tournamentPayments)
     .set({ status: "expired" })
     .where(
       and(
-        eq(tournamentPayments.partnerRegistrationId, registrationId),
+        eq(tournamentPayments.partnerRegistrationId, input.registrationId),
         eq(tournamentPayments.status, "pending"),
       ),
     );
 
-  log.info("Partner guest registration declined", { registrationId });
+  log.info("Partner guest registration cancelled", {
+    registrationId: input.registrationId,
+    source: input.source,
+  });
+}
+
+/** Partner staff declines a pending (registered / awaiting payment) guest registration. */
+export async function declinePartnerRegistration(registrationId: string): Promise<void> {
+  await softCancelPartnerRegistration({
+    registrationId,
+    allowedStatuses: ["registered", "awaiting_payment"],
+    source: "staff",
+  });
+}
+
+/**
+ * Guest self-cancel from the payment page (token-gated).
+ * Only unpaid holds — paid / curated registrations stay with staff.
+ */
+export async function cancelPartnerGuestRegistrationByToken(token: string): Promise<{
+  registrationId: string;
+}> {
+  const detail = await getPartnerRegistrationByToken(token);
+  if (!detail) {
+    throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  await softCancelPartnerRegistration({
+    registrationId: detail.registration.id,
+    allowedStatuses: ["awaiting_payment"],
+    source: "guest",
+  });
+
+  return { registrationId: detail.registration.id };
 }
 
 export async function listPartnerTournamentRegistrationsForManage(

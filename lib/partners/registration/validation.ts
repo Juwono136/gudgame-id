@@ -12,6 +12,12 @@ function normalizeWhitespace(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
+/** Coerce missing optional fields (JSON omits `undefined` after client transforms). */
+function asOptionalString(value: unknown): string {
+  if (value == null) return "";
+  return typeof value === "string" ? value : String(value);
+}
+
 function isValidOptionalEmail(value: string): boolean {
   if (!value) return true;
   if (value.includes("..") || value.endsWith(".invalid")) return false;
@@ -44,13 +50,16 @@ export const partnerEmailSchema = z
   .refine((value) => !value.includes(".."), "Enter a valid email address")
   .refine((value) => !value.endsWith(".invalid"), "Enter a valid email address");
 
-const optionalMemberEmailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254, "Email is too long")
-  .refine(isValidOptionalEmail, "Enter a valid email address")
-  .transform((value) => (value === "" ? undefined : value));
+const optionalMemberEmailSchema = z.preprocess(
+  asOptionalString,
+  z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(254, "Email is too long")
+    .refine(isValidOptionalEmail, "Enter a valid email address")
+    .transform((value) => (value === "" ? undefined : value)),
+);
 
 const captainPhoneSchema = z
   .string()
@@ -58,14 +67,17 @@ const captainPhoneSchema = z
   .min(1, "Phone number is required")
   .refine(isValidPartnerPhone, "Enter a valid phone number (e.g. 0812xxxxxxx)");
 
-const optionalMemberPhoneSchema = z
-  .string()
-  .trim()
-  .refine(
-    (value) => value === "" || isValidPartnerPhone(value),
-    "Enter a valid phone number (e.g. 0812xxxxxxx)",
-  )
-  .transform((value) => (value === "" ? undefined : value));
+const optionalMemberPhoneSchema = z.preprocess(
+  asOptionalString,
+  z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || isValidPartnerPhone(value),
+      "Enter a valid phone number (e.g. 0812xxxxxxx)",
+    )
+    .transform((value) => (value === "" ? undefined : value)),
+);
 
 const captainSchema = z.object({
   fullName: partnerPersonNameSchema,
@@ -109,19 +121,23 @@ export function partnerGuestRegistrationSchema(playersPerTeam: number) {
                     "Team name must include letters or numbers",
                   ),
               )
-          : z
-              .string()
-              .trim()
-              .max(120)
-              .transform((value) => (value === "" ? undefined : value))
-              .optional(),
+          : z.preprocess(
+              asOptionalString,
+              z
+                .string()
+                .trim()
+                .max(120)
+                .transform((value) => (value === "" ? undefined : value)),
+            ),
       members: z.array(memberSchema).length(memberCount),
-      notes: z
-        .string()
-        .trim()
-        .max(500, "Notes must be 500 characters or fewer")
-        .transform((value) => (value === "" ? undefined : value))
-        .optional(),
+      notes: z.preprocess(
+        asOptionalString,
+        z
+          .string()
+          .trim()
+          .max(500, "Notes must be 500 characters or fewer")
+          .transform((value) => (value === "" ? undefined : value)),
+      ),
     })
     .superRefine((data, ctx) => {
       const emails = new Set<string>([data.captain.email]);

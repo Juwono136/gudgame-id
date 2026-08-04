@@ -50,9 +50,19 @@ export const partnerEligibilityListQuerySchema = z.object({
   sortDir: partnerSortDirSchema.default("desc"),
 });
 
+/** Staff-only partner player directory (W/L / win rate). */
+export const partnerPlayersListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(5).max(50).default(DEFAULT_PAGE_SIZE),
+  search: z.string().trim().max(100).optional(),
+  sortBy: z.enum(["name", "wins", "winRate", "matchesPlayed"]).default("matchesPlayed"),
+  sortDir: partnerSortDirSchema.default("desc"),
+});
+
 export type PartnerTournamentsListQuery = z.infer<typeof partnerTournamentsListQuerySchema>;
 export type PartnerLeaguesListQuery = z.infer<typeof partnerLeaguesListQuerySchema>;
 export type PartnerEligibilityListQuery = z.infer<typeof partnerEligibilityListQuerySchema>;
+export type PartnerPlayersListQuery = z.infer<typeof partnerPlayersListQuerySchema>;
 
 export type PartnerPagedResult<T> = {
   items: T[];

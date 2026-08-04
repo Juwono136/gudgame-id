@@ -9,6 +9,7 @@ import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { generateAccessToken } from "@/lib/partners/registration/tokens";
 import { partnerGuestRegistrationSchema } from "@/lib/partners/registration/validation";
 import { startPartnerGuestRegistration } from "@/lib/partners/registration/service";
+import { zodErrorToAppError } from "@/lib/validations/format-zod-error";
 
 export const runtime = "nodejs";
 
@@ -35,11 +36,7 @@ export async function POST(
     const body = await request.json();
     const parsed = partnerGuestRegistrationSchema(tournament.playersPerTeam).safeParse(body);
     if (!parsed.success) {
-      throw new AppError("Invalid registration data", {
-        code: "VALIDATION_ERROR",
-        statusCode: 422,
-        context: { issues: parsed.error.flatten() },
-      });
+      throw zodErrorToAppError(parsed.error);
     }
 
     const ip = getTrustedClientIp(request);

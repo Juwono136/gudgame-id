@@ -13,6 +13,7 @@ import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournaments } from "@/db/schema/tournaments";
 import { partners } from "@/db/schema/partners";
 import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 import { isXenditConfigured } from "@/lib/payments/xendit";
 import { createRegistrationInvoiceWithSplit } from "@/lib/payments/xenplatform/registration-invoice";
@@ -49,6 +50,8 @@ import {
   registrationSuccessUrl,
 } from "@/lib/tournaments/registration/urls";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+
+const log = logger.child({ module: "tournament-registration-payments" });
 
 async function registrationPathTournament(
   tournament: TournamentDetail,
@@ -1102,19 +1105,46 @@ export async function confirmPaymentByRegistrationId(registrationId: string): Pr
 
 async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSelect): Promise<void> {
   const db = getDb();
+
+  // Partner guest registration — never touches tournamentRegistrations or Gud Game notifications.
+  if (payment.partnerRegistrationId) {
+    const { getPartnerRegistrationById, markPartnerRegistrationPaid } = await import(
+      "@/lib/partners/registration/service"
+    );
+    const detail = await getPartnerRegistrationById(payment.partnerRegistrationId);
+    const status = detail?.registration.status;
+
+    // Guest cancelled / expired before webhook — do not revive the registration.
+    if (!detail || status === "cancelled" || status === "expired") {
+      await db
+        .update(tournamentPayments)
+        .set({ status: "expired" })
+        .where(
+          and(
+            eq(tournamentPayments.id, payment.id),
+            eq(tournamentPayments.status, "pending"),
+          ),
+        );
+      log.warn("Ignored late payment webhook for cancelled/expired partner registration", {
+        paymentId: payment.id,
+        partnerRegistrationId: payment.partnerRegistrationId,
+        registrationStatus: status ?? "missing",
+      });
+      return;
+    }
+
+    await db
+      .update(tournamentPayments)
+      .set({ status: "paid", paidAt: new Date() })
+      .where(eq(tournamentPayments.id, payment.id));
+    await markPartnerRegistrationPaid(payment.partnerRegistrationId);
+    return;
+  }
+
   await db
     .update(tournamentPayments)
     .set({ status: "paid", paidAt: new Date() })
     .where(eq(tournamentPayments.id, payment.id));
-
-  // Partner guest registration — never touches tournamentRegistrations or Gud Game notifications.
-  if (payment.partnerRegistrationId) {
-    const { markPartnerRegistrationPaid } = await import(
-      "@/lib/partners/registration/service"
-    );
-    await markPartnerRegistrationPaid(payment.partnerRegistrationId);
-    return;
-  }
 
   if (!payment.registrationId) return;
   const registrationId = payment.registrationId;

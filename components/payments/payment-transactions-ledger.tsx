@@ -137,6 +137,7 @@ function TransactionLedgerCard({
   showHostColumn,
   showPlatformFees,
   showSportColumn,
+  showTournamentType,
   onPayPending,
   onViewReceipt,
   getTournamentHref,
@@ -146,6 +147,7 @@ function TransactionLedgerCard({
   showHostColumn: boolean;
   showPlatformFees: boolean;
   showSportColumn: boolean;
+  showTournamentType: boolean;
   onPayPending?: (row: PaymentTransactionRow) => void;
   onViewReceipt?: (row: PaymentTransactionRow) => void;
   getTournamentHref?: (row: PaymentTransactionRow) => string;
@@ -162,6 +164,9 @@ function TransactionLedgerCard({
     : showEarningsShare
       ? formatIdrDisplay(row.hostPayoutIdr)
       : null;
+  const typeLabel = showTournamentType
+    ? row.tournamentType.replace(/_/g, " ")
+    : null;
 
   return (
     <li className="px-4 py-4 sm:px-5">
@@ -173,7 +178,9 @@ function TransactionLedgerCard({
               {showSportColumn ? (
                 <SportDisciplineLabel name={row.sportName} />
               ) : null}
-              <p className="text-xs capitalize text-cp-muted">{row.tournamentType}</p>
+              {typeLabel ? (
+                <p className="text-xs capitalize text-cp-muted">{typeLabel}</p>
+              ) : null}
             </div>
           </div>
           <Badge
@@ -267,7 +274,10 @@ export function PaymentTransactionsLedger({
   embedded = false,
 }: PaymentTransactionsLedgerProps) {
   const showEarningsShare = scope === "host" || scope === "partner";
-  const displaySportColumn = showSportColumn ?? scope !== "admin";
+  // Partner console is white-label — hide Gud Game sport (e.g. Padel) and engine type.
+  const displaySportColumn =
+    showSportColumn ?? (scope !== "admin" && scope !== "partner");
+  const displayTournamentType = scope !== "partner";
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(1);
@@ -422,6 +432,7 @@ export function PaymentTransactionsLedger({
                   showHostColumn={showHostColumn}
                   showPlatformFees={showPlatformFees}
                   showSportColumn={displaySportColumn}
+                  showTournamentType={displayTournamentType}
                   onPayPending={onPayPending}
                   onViewReceipt={handleViewReceipt}
                   getTournamentHref={getTournamentHref}
@@ -463,7 +474,11 @@ export function PaymentTransactionsLedger({
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-foreground">{row.tournamentName}</p>
-                        <p className="text-xs text-cp-muted capitalize">{row.tournamentType}</p>
+                        {displayTournamentType ? (
+                          <p className="text-xs text-cp-muted capitalize">
+                            {row.tournamentType.replace(/_/g, " ")}
+                          </p>
+                        ) : null}
                       </td>
                       {displaySportColumn ? (
                         <td className="px-4 py-3">

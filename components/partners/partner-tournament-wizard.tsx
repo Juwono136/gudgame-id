@@ -655,7 +655,7 @@ export function PartnerTournamentWizard({
           form.gameDecider === "golden_point"
             ? "Golden Point (No-Ad)"
             : form.gameDecider === "star_point"
-              ? "Star Point (FIP)"
+              ? "Star Point"
               : "Advantage",
       },
       {
@@ -972,7 +972,7 @@ export function PartnerTournamentWizard({
                   <TournamentWizardStepHeader
                     eyebrow="Step 2"
                     title="Tournament format"
-                    description="Pick knockout, group stage + knockout, or Americano. Pool rules follow FIP-style guidance and stay editable — they drive bracket generation when the event runs."
+                    description="Pick knockout, group stage + knockout, or Americano. Pool rules stay editable — they drive bracket generation when the event runs."
                   />
                   <FormatTypeSelect
                     value={form.format}
@@ -986,7 +986,7 @@ export function PartnerTournamentWizard({
                       <div>
                         <p className="text-sm font-semibold text-foreground">Pool configuration</p>
                         <p className="mt-1 text-xs leading-relaxed text-cp-muted">
-                          FIP guidance for ≤32 pairs: typically 8 pools of 4 (winners to knockout).
+                          Typical guidance for ≤32 pairs: 8 pools of 4 (winners to knockout).
                           Small fields: 3→1×3; 4–5→1 pool; 6→2×3. Day-1 RR order: L1vL2 &amp; L3vL4.
                         </p>
                       </div>
@@ -1003,7 +1003,7 @@ export function PartnerTournamentWizard({
                             <SelectContent className={cpSelectContentClass}>
                               {[3, 4, 5].map((n) => (
                                 <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
-                                  {n} pairs{n === 4 ? " (FIP standard)" : ""}
+                                  {n} pairs{n === 4 ? " (recommended)" : ""}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1063,7 +1063,7 @@ export function PartnerTournamentWizard({
                   <TournamentWizardStepHeader
                     eyebrow="Step 3"
                     title="Match scoring & operations"
-                    description="Choose classic ITF/FIP sets or short race-to-N. These rules apply to live scoring and standings once the tournament is running. Score entry (live tablet vs paper) is set under Manage → Display."
+                    description="Choose classic sets or short race-to-N. These rules apply to live scoring and standings once the tournament is running. Score entry (live tablet vs paper) is set under Manage → Display."
                   />
 
                   <div className="space-y-3">
@@ -1074,7 +1074,7 @@ export function PartnerTournamentWizard({
                           {
                             value: "classic_sets" as const,
                             title: "Classic sets",
-                            body: "ITF/FIP best of 3 — games to 6, TB at 6–6. Padel uses STB-10 when sets are 1–1.",
+                            body: "Best of 3 — games to 6, tiebreak at 6–6. Super tiebreak to 10 when sets are 1–1.",
                           },
                           {
                             value: "race_to_games" as const,
@@ -1159,8 +1159,8 @@ export function PartnerTournamentWizard({
                     </div>
                   ) : (
                     <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/30 px-4 py-3 text-xs leading-relaxed text-cp-muted">
-                      Classic sets use best-of-3. Standings follow ITF hierarchy (wins → matches
-                      played → H2H → set% → game%).
+                      Classic sets use best-of-3. Standings follow wins → matches played → H2H →
+                      set% → game%.
                     </div>
                   )}
 
@@ -1178,10 +1178,10 @@ export function PartnerTournamentWizard({
                           Golden Point (No-Ad) — first deuce decides
                         </SelectItem>
                         <SelectItem value="star_point" className={cpSelectItemClass}>
-                          Star Point (FIP 2026) — third deuce decides
+                          Star Point — third deuce decides
                         </SelectItem>
                         <SelectItem value="advantage" className={cpSelectItemClass}>
-                          Advantage — win by 2 (tennis-style)
+                          Advantage — win by 2
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -1262,7 +1262,7 @@ export function PartnerTournamentWizard({
                     formatLabel={formatLabel(form.format)}
                     matchFormatLabel={
                       form.matchFormat === "classic_sets"
-                        ? "Classic sets (ITF / FIP)"
+                        ? "Classic sets"
                         : "Short race-to-N games"
                     }
                     poolRows={poolRows}

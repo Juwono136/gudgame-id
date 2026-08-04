@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { PartnerPublicEligibilitySearch } from "@/components/partners/partner-public-eligibility-search";
+import { PartnerPlayersDirectory } from "@/components/partners/partner-players-directory";
 import { getServerSession } from "@/lib/auth/session";
 import { authRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
 import { partnerPageClass } from "@/lib/partners/layout";
@@ -7,6 +7,9 @@ import { isUserPartnerMember } from "@/lib/partners/membership";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 
 type PageProps = { params: Promise<{ partnerSlug: string }> };
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export default async function PartnerPlayersPage({ params }: PageProps) {
   const { partnerSlug } = await params;
@@ -34,10 +37,7 @@ export default async function PartnerPlayersPage({ params }: PageProps) {
           background: `linear-gradient(125deg, ${primary}14 0%, transparent 55%), var(--cp-card, transparent)`,
         }}
       >
-        <p className="mb-4 text-xs font-medium text-cp-muted sm:mb-5">
-          Staff-only · Partner console data for {partner.displayName}. Not shown to public visitors.
-        </p>
-        <PartnerPublicEligibilitySearch
+        <PartnerPlayersDirectory
           partnerSlug={partner.slug}
           partnerName={partner.displayName}
         />

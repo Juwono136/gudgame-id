@@ -30,6 +30,10 @@ export default async function PartnerTournamentRegisterPage({ params }: PageProp
   const tournamentHref = partnerPublicRoutes.tournament(partner.slug, tournament.slug);
   const isPaid =
     tournament.officialBilling === "paid" && (tournament.registrationFeeIdr ?? 0) > 0;
+  // Never surface Gud Game sport labels (e.g. "Padel") on partner registration.
+  const registerMeta = [tournament.categoryLabel?.trim(), tournament.venue?.trim()]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
@@ -38,7 +42,7 @@ export default async function PartnerTournamentRegisterPage({ params }: PageProp
         backLabel={tournament.name}
         eyebrow={partner.displayName}
         title="Register your team"
-        description={`${tournament.sportName}${tournament.venue ? ` · ${tournament.venue}` : ""}`}
+        description={registerMeta || undefined}
       />
 
       <div className="mt-6">

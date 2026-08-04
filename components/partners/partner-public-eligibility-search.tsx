@@ -40,6 +40,8 @@ type PartnerPublicEligibilitySearchProps = {
   partnerSlug: string;
   partnerName: string;
   className?: string;
+  /** Hide page title when nested under Players tabs. */
+  embedded?: boolean;
 };
 
 const SORT_OPTIONS = [
@@ -52,6 +54,7 @@ export function PartnerPublicEligibilitySearch({
   partnerSlug,
   partnerName,
   className,
+  embedded = false,
 }: PartnerPublicEligibilitySearchProps) {
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 400);
@@ -116,18 +119,25 @@ export function PartnerPublicEligibilitySearch({
 
   return (
     <div className={cn("space-y-5", className)}>
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-cp-primary" />
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Player history
-          </h1>
+      {!embedded ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-cp-primary" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              Player history
+            </h1>
+          </div>
+          <p className="max-w-2xl text-sm leading-relaxed text-cp-muted sm:text-base">
+            Internal lookup for {partnerName} staff — tournament, category, how far a player
+            advanced, and doubles partner.
+          </p>
         </div>
-        <p className="max-w-2xl text-sm leading-relaxed text-cp-muted sm:text-base">
-          Internal lookup for {partnerName} staff — tournament, category, how far a player
-          advanced, and doubles partner.
+      ) : (
+        <p className="text-sm text-cp-muted">
+          Per-tournament advancement lookup for curation — category, farthest round, and doubles
+          partner.
         </p>
-      </div>
+      )}
 
       <PartnerDirectoryToolbar
         search={q}

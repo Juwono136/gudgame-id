@@ -81,12 +81,25 @@ export function PartnerRegistrationForm({
   const onSubmit = async (values: PartnerGuestRegistrationInput) => {
     setSubmitting(true);
     try {
+      // Keep optional strings on the wire — JSON.stringify drops `undefined`, which
+      // breaks server z.string() fields after client-side Zod transforms.
+      const payload = {
+        captain: values.captain,
+        teamName: values.teamName ?? "",
+        members: values.members.map((m) => ({
+          fullName: m.fullName,
+          email: m.email ?? "",
+          phone: m.phone ?? "",
+        })),
+        notes: values.notes ?? "",
+      };
+
       const res = await fetch(
         `/api/partner/public/${encodeURIComponent(partnerSlug)}/tournaments/${encodeURIComponent(tournamentSlug)}/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
+          body: JSON.stringify(payload),
         },
       );
       const json = (await res.json().catch(() => null)) as {
