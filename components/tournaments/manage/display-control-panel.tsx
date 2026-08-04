@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Loader2, Monitor, Play, Save } from "lucide-react";
 import { toast } from "sonner";
+import { BrandColorField } from "@/components/tournaments/form/brand-color-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -289,43 +290,21 @@ export function DisplayControlPanel({
                 generic template for every tournament.
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="brand-primary">Primary color</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="brand-primary"
-                    type="color"
-                    value={primaryColor.length === 7 ? primaryColor : "#0d9488"}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="h-10 w-14 cursor-pointer border-cp-border bg-cp-elevated/50 p-1"
-                  />
-                  <Input
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    placeholder="#0d9488"
-                    className="border-cp-border bg-cp-elevated/50 font-mono text-sm"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="brand-accent">Accent color</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="brand-accent"
-                    type="color"
-                    value={accentColor.length === 7 ? accentColor : "#14b8a6"}
-                    onChange={(e) => setAccentColor(e.target.value)}
-                    className="h-10 w-14 cursor-pointer border-cp-border bg-cp-elevated/50 p-1"
-                  />
-                  <Input
-                    value={accentColor}
-                    onChange={(e) => setAccentColor(e.target.value)}
-                    placeholder="#14b8a6"
-                    className="border-cp-border bg-cp-elevated/50 font-mono text-sm"
-                  />
-                </div>
-              </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <BrandColorField
+                id="brand-primary"
+                label="Primary color"
+                value={primaryColor}
+                onChange={setPrimaryColor}
+                description="TV & scoreboards"
+              />
+              <BrandColorField
+                id="brand-accent"
+                label="Accent color"
+                value={accentColor}
+                onChange={setAccentColor}
+                description="Highlights"
+              />
               <div className="space-y-2">
                 <Label>Background atmosphere</Label>
                 <Select
@@ -402,6 +381,65 @@ export function DisplayControlPanel({
                 {showPartnerLogo ? "On" : "Off"}
               </span>
             </button>
+          </div>
+        ) : null}
+
+        {isPartnerEvent ? (
+          <div className="mt-5 overflow-hidden rounded-xl border border-cp-border">
+            <div className="border-b border-cp-border/70 bg-cp-elevated/30 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
+                Live preview
+              </p>
+            </div>
+            <div
+              className={cn(
+                "relative px-4 py-6 text-white",
+                scoreboardStyle === "bold" && "tracking-tight",
+                scoreboardStyle === "minimal" && "font-light",
+              )}
+              style={{
+                background:
+                  backgroundStyle === "solid"
+                    ? "#0a0f18"
+                    : backgroundStyle === "dark_court"
+                      ? "#05070c"
+                      : `radial-gradient(ellipse 120% 80% at 50% -20%, ${primaryColor}59, transparent 55%), #070b14`,
+              }}
+            >
+              <div
+                className="pointer-events-none absolute inset-0 opacity-40"
+                style={{
+                  background: `radial-gradient(ellipse 60% 50% at 100% 100%, ${accentColor}33, transparent 50%)`,
+                }}
+                aria-hidden
+              />
+              <div className="relative space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                  Venue scoreboard
+                </p>
+                <p className="text-lg font-semibold sm:text-xl">{tournament.name}</p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span
+                    className="rounded-md px-2 py-1 text-xs font-semibold text-white"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    Primary
+                  </span>
+                  <span
+                    className="rounded-md px-2 py-1 text-xs font-semibold text-white"
+                    style={{ backgroundColor: accentColor }}
+                  >
+                    Accent
+                  </span>
+                  <span className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-xs capitalize text-white/80">
+                    {backgroundStyle.replace("_", " ")} · {scoreboardStyle}
+                  </span>
+                </div>
+                <p className="pt-2 text-[11px] text-white/55">
+                  Save to push this theme to the public page and TV display within a few seconds.
+                </p>
+              </div>
+            </div>
           </div>
         ) : null}
 

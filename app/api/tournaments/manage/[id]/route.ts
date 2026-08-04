@@ -10,7 +10,7 @@ import {
   assertTournamentDeletable,
   assertTournamentEditable,
 } from "@/lib/tournaments/manage-policy";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { assertCanEditTournamentSettings } from "@/lib/tournaments/manage-access";
 import { deleteTournament, updateTournament } from "@/lib/tournaments/service";
 import { getTournamentById } from "@/lib/tournaments/workspace/service";
 import { tournamentUpsertSchema } from "@/lib/validations/tournaments";
@@ -29,9 +29,7 @@ export async function PATCH(
     if (!existing) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!canManageTournament(roles, existing.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
-    }
+    await assertCanEditTournamentSettings(existing, userId, roles);
     assertTournamentEditable(existing);
 
     const body = await request.json();
@@ -63,9 +61,7 @@ export async function DELETE(
     if (!existing) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!canManageTournament(roles, existing.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
-    }
+    await assertCanEditTournamentSettings(existing, userId, roles);
     assertTournamentDeletable(existing);
 
     const [paid] = await getDb()

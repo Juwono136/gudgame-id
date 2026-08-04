@@ -17,6 +17,8 @@ type TournamentInviteClientProps = {
   tournamentName: string;
   tournamentType?: string;
   officialBilling?: string | null;
+  /** Partner white-label events never use Gud Game player invite codes. */
+  partnerId?: string | null;
   /** When set (partner white-label), back/accept redirects stay on partner URLs. */
   surfaceUrls?: {
     publicUrl: string;
@@ -36,6 +38,7 @@ export function TournamentInviteClient({
   tournamentName,
   tournamentType,
   officialBilling,
+  partnerId = null,
   surfaceUrls,
 }: TournamentInviteClientProps) {
   const searchParams = useSearchParams();
@@ -44,6 +47,7 @@ export function TournamentInviteClient({
   const allowPlayerInvites = supportsPlayerInvites({
     tournamentType,
     officialBilling,
+    partnerId,
   });
   const tournamentUrl = surfaceUrls?.publicUrl ?? publicSportRoutes.tournament(sportSlug, slug);
   const inviteBase = surfaceUrls?.inviteUrl ?? publicSportRoutes.tournamentInvite(sportSlug, slug);

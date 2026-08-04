@@ -19,6 +19,7 @@ import {
   type PartnerTournamentsListQuery,
 } from "@/lib/partners/list-query";
 import { toOffset } from "@/lib/pagination/constants";
+import { resolveTournamentCoverUrl } from "@/lib/tournaments/resolve-cover";
 
 function buildTournamentConditions(
   partnerId: string,
@@ -73,6 +74,9 @@ function mapTournamentRow(row: {
   venue: string | null;
   categoryLabel: string | null;
   registrationFeeIdr: number | null;
+  prizePoolIdr?: number | null;
+  coverImageUrl?: string | null;
+  coverImageStorageKey?: string | null;
   startsAt: Date | null;
   endsAt: Date | null;
   updatedAt: Date;
@@ -96,6 +100,11 @@ function mapTournamentRow(row: {
     venue: row.venue,
     categoryLabel: row.categoryLabel,
     registrationFeeIdr: row.registrationFeeIdr,
+    prizePoolIdr: row.prizePoolIdr ?? null,
+    coverImageUrl: resolveTournamentCoverUrl(
+      row.coverImageUrl ?? null,
+      row.coverImageStorageKey ?? null,
+    ),
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
@@ -138,6 +147,9 @@ export async function queryPartnerTournaments(
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
       registrationFeeIdr: tournaments.registrationFeeIdr,
+      prizePoolIdr: tournaments.prizePoolIdr,
+      coverImageUrl: tournaments.coverImageUrl,
+      coverImageStorageKey: tournaments.coverImageStorageKey,
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
       updatedAt: tournaments.updatedAt,

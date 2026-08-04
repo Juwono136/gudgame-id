@@ -10,12 +10,16 @@ import {
   CompetitionListFetchingOverlay,
   CompetitionListSkeleton,
 } from "@/components/dashboard/player/competition/competition-list-loading";
+import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
 import { PartnerTournamentRow } from "@/components/partners/partner-tournament-row";
+import { TournamentDiscoveryCard } from "@/components/tournaments/tournament-discovery-card";
+import { TournamentDiscoveryPublicCard } from "@/components/tournaments/tournament-discovery-public-card";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useDirectoryViewMode } from "@/hooks/use-directory-view-mode";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
 import type { PartnerTournamentsListQuery } from "@/lib/partners/list-query";
@@ -38,7 +42,7 @@ type ListResponse = {
 };
 
 const STATUS_OPTIONS_PUBLIC = [
-  { value: "all", label: "All statuses" },
+  { value: "all", label: "All" },
   { value: "active", label: "Live & upcoming" },
   { value: "live", label: "Live" },
   { value: "upcoming", label: "Upcoming" },
@@ -70,6 +74,7 @@ export function PartnerTournamentsDirectory({
   const [sortBy, setSortBy] = useState<PartnerTournamentsListQuery["sortBy"]>("updatedAt");
   const [sortDir, setSortDir] = useState<PartnerTournamentsListQuery["sortDir"]>("desc");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useDirectoryViewMode(`partner-tournaments-${mode}`);
 
   useEffect(() => {
     setPage(1);
@@ -158,7 +163,7 @@ export function PartnerTournamentsDirectory({
       <PartnerDirectoryToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search tournaments, venue…"
+        searchPlaceholder="Search cups…"
         status={status}
         onStatusChange={(v) => setStatus(v as PartnerTournamentsListQuery["status"])}
         statusOptions={mode === "public" ? STATUS_OPTIONS_PUBLIC : STATUS_OPTIONS_DASHBOARD}
@@ -167,51 +172,61 @@ export function PartnerTournamentsDirectory({
         sortOptions={SORT_OPTIONS}
         sortDir={sortDir}
         onSortDirChange={setSortDir}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
-      <div className="relative overflow-hidden rounded-2xl border border-cp-border bg-cp-card/90 shadow-sm backdrop-blur-sm">
+      <div className="relative min-h-[12rem]">
         {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
         {isLoading ? (
-          <CompetitionListSkeleton rows={6} />
+          <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
+            <CompetitionListSkeleton rows={6} />
+          </div>
         ) : isError ? (
-          <p className="px-4 py-10 text-center text-sm text-destructive sm:px-5">
+          <p className="rounded-2xl border border-cp-border bg-cp-card px-4 py-10 text-center text-sm text-destructive sm:px-5">
             {error instanceof Error ? error.message : "Could not load tournaments"}
           </p>
         ) : empty ? (
-          <PartnerEmptyState
-            title={debouncedSearch || status !== "all" ? "No matching tournaments" : "No tournaments yet"}
-            description={
-              debouncedSearch || status !== "all"
-                ? "Try another search, status, or sort order."
-                : mode === "dashboard"
-                  ? "Set up a double-stage, knockout, or Americano event for your club."
-                  : "When this partner publishes an event, it will appear here."
-            }
-            action={
-              mode === "dashboard" && !debouncedSearch && status === "all" ? (
-                <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
-                  <Link href={dashboardRoutes.partnerTournamentsNew}>
-                    <CalendarPlus className="mr-2 h-4 w-4" />
-                    Create tournament
-                  </Link>
-                </Button>
-              ) : null
-            }
-          />
-        ) : (
-          <ul className="divide-y divide-cp-border">
-            {items.map((t) =>
-              mode === "public" ? (
+          <div className="rounded-2xl border border-cp-border bg-cp-card">
+            <PartnerEmptyState
+              title={
+                debouncedSearch || status !== "all"
+                  ? "No matching tournaments"
+                  : "No tournaments yet"
+              }
+              description={
+                debouncedSearch || status !== "all"
+                  ? "Try another search, status, or sort order."
+                  : mode === "dashboard"
+                    ? "Set up a double-stage, knockout, or Americano event for your club."
+                    : "When this partner publishes an event, it will appear here."
+              }
+              action={
+                mode === "dashboard" && !debouncedSearch && status === "all" ? (
+                  <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+                    <Link href={dashboardRoutes.partnerTournamentsNew}>
+                      <CalendarPlus className="mr-2 h-4 w-4" />
+                      Create tournament
+                    </Link>
+                  </Button>
+                ) : null
+              }
+            />
+          </div>
+        ) : viewMode === "list" ? (
+          <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
+            {items.map((t) => {
+              const publicHref = partnerPublicRoutes.tournament(partnerSlug, t.slug);
+              if (mode === "public") {
+                return (
+                  <PartnerTournamentRow key={t.id} tournament={t} href={publicHref} />
+                );
+              }
+              return (
                 <PartnerTournamentRow
                   key={t.id}
                   tournament={t}
-                  href={partnerPublicRoutes.tournament(partnerSlug, t.slug)}
-                />
-              ) : (
-                <PartnerTournamentRow
-                  key={t.id}
-                  tournament={t}
-                  publicHref={partnerPublicRoutes.tournament(partnerSlug, t.slug)}
+                  publicHref={publicHref}
                   manageHref={partnerPublicRoutes.tournamentManage(partnerSlug, t.slug)}
                   editHref={
                     t.status === "completed" || t.status === "cancelled"
@@ -223,9 +238,49 @@ export function PartnerTournamentsDirectory({
                   deleteDisabledReason="Cannot delete a live tournament. Mark it completed or cancelled first."
                   deleting={deletingId === t.id}
                 />
-              ),
-            )}
+              );
+            })}
           </ul>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
+            {items.map((t) => {
+              const publicHref = partnerPublicRoutes.tournament(partnerSlug, t.slug);
+              const registerHref = partnerPublicRoutes.tournamentRegister(partnerSlug, t.slug);
+              if (mode === "public") {
+                return (
+                  <TournamentDiscoveryPublicCard
+                    key={t.id}
+                    tournament={t}
+                    detailHref={publicHref}
+                    registerHref={registerHref}
+                  />
+                );
+              }
+
+              const canEdit = t.status !== "completed" && t.status !== "cancelled";
+              const manageHref = partnerPublicRoutes.tournamentManage(partnerSlug, t.slug);
+              return (
+                <TournamentDiscoveryCard
+                  key={t.id}
+                  tournament={t}
+                  href={manageHref}
+                  actions={
+                    <PartnerDashboardCardActions
+                      manageHref={manageHref}
+                      publicHref={publicHref}
+                      editHref={
+                        canEdit ? dashboardRoutes.partnerTournamentEdit(t.id) : undefined
+                      }
+                      onDelete={() => void handleDelete(t)}
+                      deleteDisabled={t.status === "live"}
+                      deleteDisabledReason="Cannot delete a live tournament. Mark it completed or cancelled first."
+                      deleting={deletingId === t.id}
+                    />
+                  }
+                />
+              );
+            })}
+          </div>
         )}
       </div>
 

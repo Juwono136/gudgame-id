@@ -1,7 +1,7 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { assertCanManageScoring } from "@/lib/tournaments/manage-access";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { completeReclubRound } from "@/lib/tournaments/reclub/matches";
 import { z } from "zod";
@@ -29,12 +29,7 @@ export async function POST(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Only the host can complete a round", {
-        code: "FORBIDDEN",
-        statusCode: 403,
-      });
-    }
+    await assertCanManageScoring(tournament, userId, roles);
 
     const json = await request.json();
     const parsed = bodySchema.safeParse(json);

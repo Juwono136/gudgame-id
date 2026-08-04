@@ -77,9 +77,11 @@ export function PartnerRegistrationForm({
 
       const data = json.data as { status: string; payUrl?: string; successUrl: string };
       toast.success(
-        data.status === "confirmed" ? "You're registered!" : "Team reserved — complete payment",
+        data.status === "registered"
+          ? "Registration submitted — awaiting organizer confirmation"
+          : "Team reserved — complete payment",
       );
-      router.push(data.status === "confirmed" ? data.successUrl : data.payUrl ?? data.successUrl);
+      router.push(data.status === "registered" ? data.successUrl : data.payUrl ?? data.successUrl);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Registration failed");
     } finally {

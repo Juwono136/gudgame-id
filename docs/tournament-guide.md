@@ -1,7 +1,7 @@
 # Panduan Turnamen Gud Game
 
 > **Dokumen hidup.** Perbarui file ini setiap kali ada perubahan, penambahan, atau rombak fitur seputar turnamen (format match, scoring, form create/edit, aturan lifecycle, dsb.).  
-> Terakhir diselaraskan dengan aplikasi: **2026-07-29**.  
+> Terakhir diselaraskan dengan aplikasi: **2026-08-04**.  
 > Rule agen: `.cursor/rules/tournament-docs.mdc` — sync otomatis saat file turnamen terkait diubah.
 
 Dokumen ini menjelaskan:
@@ -74,15 +74,17 @@ Fun Match biasanya dibuat lewat wizard Fun Match / Reclub (UI terpisah dari wiza
 
 Partner organizations create events on their own site (`/{partnerSlug}`). Stats stay **off Gud Game career rankings**.
 
-| Aspek | Community (`fun_match`) | Official (`official`) |
-| --- | --- | --- |
-| UI label | Community | Official |
-| Billing | Tidak dipakai | Paid / Free (`BillingTypeSelect`) |
-| Registration fee | Tidak ada | Wajib jika Paid (IDR) |
-| Skill / tournament tier | **Tidak ada** — `partnerTenant` melewati validasi tier | Sama |
-| Format | Double Stage / Elimination / Americano (wizard partner) | Sama |
+| Aspek | Partner white-label |
+| --- | --- |
+| Surface type | Disimpan sebagai `fun_match` + `partnerId` (bukan Official Gud Game) |
+| Billing | Free / Paid (`officialBilling` + `registrationFeeIdr`) untuk guest checkout |
+| Prize pool | Opsional (`prizePoolIdr`) — tampil di halaman public turnamen |
+| Skill / tournament tier | **Tidak ada** — `partnerTenant` melewati validasi tier |
+| Format | Double Stage / Elimination / Americano (wizard partner) |
+| Guest registration | Status `registered` (setelah daftar / bayar) → partner **kurasi Confirm** → `confirmed` (+ squad). Public Players hanya menampilkan yang `confirmed`. |
+| Player history (`/{slug}/players`) | **Staff partner saja** — tidak dipublish ke visitor publik |
 
-Wizard: `components/partners/partner-tournament-wizard.tsx`. Payload mengirim `tournamentType`, `officialBilling`, `registrationFeeIdr` (+ `partnerTenant: true` di API).
+Wizard: `components/partners/partner-tournament-wizard.tsx`. Payload mengirim `tournamentType`, `officialBilling`, `registrationFeeIdr`, `prizePoolIdr` opsional (+ `partnerTenant: true` di API).
 
 ---
 

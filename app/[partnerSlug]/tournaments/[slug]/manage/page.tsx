@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import { PageShell } from "@/components/layout/page-shell";
 import { TournamentManageAccessDenied } from "@/components/tournaments/manage/tournament-manage-access-denied";
 import { TournamentManageShell } from "@/components/tournaments/manage/tournament-manage-shell";
 import { getServerSession } from "@/lib/auth/session";
@@ -49,16 +48,14 @@ export default async function PartnerTournamentManagePage({ params }: PageProps)
 
   if (!access.canAccessManagePage) {
     return (
-      <PageShell>
-        <TournamentManageAccessDenied
-          sportSlug={listed.sportSlug}
-          slug={slug}
-          tournamentName={tournament.name}
-          reason="forbidden"
-          partnerId={partner.id}
-          partnerSlug={partner.slug}
-        />
-      </PageShell>
+      <TournamentManageAccessDenied
+        sportSlug={listed.sportSlug}
+        slug={slug}
+        tournamentName={tournament.name}
+        reason="forbidden"
+        partnerId={partner.id}
+        partnerSlug={partner.slug}
+      />
     );
   }
 
@@ -81,21 +78,21 @@ export default async function PartnerTournamentManagePage({ params }: PageProps)
     roles,
     tournamentCreatedBy: tournament.createdBy,
     grantRole: access.grantRole,
+    isPartnerMember: access.isPartnerMember,
   });
 
-  const canEdit = canManageTournament(roles, tournament.createdBy, userId);
+  const canEdit =
+    canManageTournament(roles, tournament.createdBy, userId) || access.isPartnerMember;
 
   return (
-    <PageShell showGridBackground={false}>
-      <TournamentManageShell
-        tournament={tournament}
-        summary={summary}
-        access={access}
-        participant={participant}
-        canEdit={canEdit}
-        partnerSlug={partner.slug}
-        partnerDisplayName={partner.displayName}
-      />
-    </PageShell>
+    <TournamentManageShell
+      tournament={tournament}
+      summary={summary}
+      access={access}
+      participant={participant}
+      canEdit={canEdit}
+      partnerSlug={partner.slug}
+      partnerDisplayName={partner.displayName}
+    />
   );
 }

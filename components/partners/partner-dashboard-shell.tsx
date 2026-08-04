@@ -60,7 +60,7 @@ export function PartnerDashboardShell({
           )}
         >
           <p className="font-medium text-foreground">{partner.displayName}</p>
-          <p>© {new Date().getFullYear()} · Gud Game</p>
+          <p>© {new Date().getFullYear()}</p>
         </div>
       </footer>
     </div>

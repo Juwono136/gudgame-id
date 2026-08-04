@@ -58,7 +58,7 @@ type TournamentFilterMenuProps = {
 
 function countActiveFilters(value: TournamentFilterState): number {
   let n = 0;
-  if (value.bucket !== "all") n++;
+  // Status (bucket) is controlled by pills outside this menu.
   if (value.type !== "all") n++;
   if (value.officialBilling !== "all") n++;
   if (value.format !== "all") n++;
@@ -115,29 +115,11 @@ export function TournamentFilterMenu({ value, onChange, className }: TournamentF
         <DialogHeader>
           <DialogTitle>Filter tournaments</DialogTitle>
           <DialogDescription>
-            Refine the list by status, type, format, and more. Changes apply when you tap Apply.
+            Refine the list by type, format, category, and sort. Status is filtered with the pills above.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          <FilterGroup label="Status">
-            <Select
-              modal={false}
-              value={draft.bucket}
-              onValueChange={(v) => patch({ bucket: v as TournamentFilterState["bucket"] })}
-            >
-              <SelectTrigger className={cn(cpSelectTriggerClass, "w-full")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className={cpSelectContentClass} position="popper">
-                <SelectItem value="all" className={cpSelectItemClass}>All</SelectItem>
-                <SelectItem value="live" className={cpSelectItemClass}>Live</SelectItem>
-                <SelectItem value="upcoming" className={cpSelectItemClass}>Upcoming</SelectItem>
-                <SelectItem value="past" className={cpSelectItemClass}>Past</SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterGroup>
-
           <FilterGroup label="Type">
             <Select
               modal={false}

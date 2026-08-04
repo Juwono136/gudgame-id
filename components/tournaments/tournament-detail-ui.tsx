@@ -14,12 +14,15 @@ type TournamentHeroBannerProps = {
   coverImageUrl?: string | null;
   variant?: "official" | "reclub";
   children: ReactNode;
+  /** Override inner content width (e.g. partner pages aligning to max-w-7xl chrome). */
+  contentClassName?: string;
 };
 
 export function TournamentHeroBanner({
   coverImageUrl,
   variant = "official",
   children,
+  contentClassName,
 }: TournamentHeroBannerProps) {
   const isReclub = variant === "reclub";
   const coverGradient = cn(
@@ -65,7 +68,12 @@ export function TournamentHeroBanner({
         )}
       </div>
 
-      <div className="relative mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+      <div
+        className={cn(
+          "relative mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8 lg:py-12",
+          contentClassName,
+        )}
+      >
         {children}
       </div>
     </div>

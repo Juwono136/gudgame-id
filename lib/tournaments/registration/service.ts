@@ -1109,10 +1109,10 @@ async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSele
 
   // Partner guest registration — never touches tournamentRegistrations or Gud Game notifications.
   if (payment.partnerRegistrationId) {
-    const { confirmPartnerRegistration } = await import(
+    const { markPartnerRegistrationPaid } = await import(
       "@/lib/partners/registration/service"
     );
-    await confirmPartnerRegistration(payment.partnerRegistrationId);
+    await markPartnerRegistrationPaid(payment.partnerRegistrationId);
     return;
   }
 

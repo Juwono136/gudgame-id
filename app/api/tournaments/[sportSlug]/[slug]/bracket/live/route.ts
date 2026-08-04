@@ -4,12 +4,8 @@ import { getServerSession } from "@/lib/auth/session";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { updateBracketLiveScore, listBracketMatches } from "@/lib/tournaments/brackets/service";
-import {
-  assertCanScoreBracketMatch,
-  buildTournamentParticipantContext,
-} from "@/lib/tournaments/participant-access";
-import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
-import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
+import { resolveManageParticipantContext } from "@/lib/tournaments/manage-access";
+import { assertCanScoreBracketMatch } from "@/lib/tournaments/participant-access";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import {
   optionalAuthUserIdSchema,
@@ -49,15 +45,7 @@ export async function PATCH(
       throw zodErrorToAppError(parsed.error);
     }
 
-    const userTeamId = await getUserTeamInTournament(tournament.id, userId);
-    const grantRole = await getActiveAccessGrantRole(tournament.id, userId);
-    const participant = buildTournamentParticipantContext({
-      userId,
-      userTeamId,
-      roles,
-      tournamentCreatedBy: tournament.createdBy,
-      grantRole,
-    });
+    const { participant } = await resolveManageParticipantContext(tournament, userId, roles);
 
     const matchId = parseEntityIdParam(parsed.data.matchId, "match id");
     const matches = await listBracketMatches(tournament.id);

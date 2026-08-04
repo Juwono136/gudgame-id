@@ -18,6 +18,10 @@ import { CurrencyInput } from "@/components/tournaments/form/currency-input";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
+import {
+  TournamentCoverUpload,
+  type TournamentCoverValue,
+} from "@/components/tournaments/form/tournament-cover-upload";
 import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerTournamentWizardReview } from "@/components/partners/partner-tournament-wizard-review";
@@ -54,6 +58,7 @@ import {
   htmlCharCount,
   stripHtmlToText,
 } from "@/lib/tournaments/form/field-limits";
+import { uploadTournamentCoverClient } from "@/lib/tournaments/upload-cover-client";
 import type { MatchFormat } from "@/lib/tournaments/scoring/classic-sets";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
@@ -168,6 +173,8 @@ type FormState = {
   roundDurationMinutes: number;
   entryBilling: "paid" | "free";
   registrationFeeIdr: string;
+  /** Optional prize pool */
+  prizePoolIdr: string;
 };
 
 function formFromInitial(initial?: TournamentDetail | null): FormState {
@@ -198,6 +205,7 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       roundDurationMinutes: 45,
       entryBilling: "free",
       registrationFeeIdr: "",
+      prizePoolIdr: "",
     };
   }
 
@@ -250,6 +258,10 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       entryBilling === "paid" && initial.registrationFeeIdr
         ? String(initial.registrationFeeIdr)
         : "",
+    prizePoolIdr:
+      initial.prizePoolIdr != null && initial.prizePoolIdr > 0
+        ? String(initial.prizePoolIdr)
+        : "",
   };
 }
 
@@ -272,6 +284,12 @@ export function PartnerTournamentWizard({
   const [maxTeamsError, setMaxTeamsError] = useState<string | null>(null);
   const [venueError, setVenueError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => formFromInitial(initial));
+  const [cover, setCover] = useState<TournamentCoverValue>(() => ({
+    previewUrl: initial?.coverImageUrl ?? null,
+    storageKey: initial?.coverImageStorageKey ?? null,
+    pendingFile: null,
+    removed: false,
+  }));
 
   const step = STEPS[stepIndex]!;
   const isLast = stepIndex === STEPS.length - 1;
@@ -427,7 +445,20 @@ export function PartnerTournamentWizard({
     setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
   };
 
-  const buildPayload = (): Record<string, unknown> => {
+  const resolveCoverStorageKey = async (): Promise<string | undefined> => {
+    if (cover.removed && !cover.pendingFile) return undefined;
+    if (cover.pendingFile) {
+      const uploaded = await uploadTournamentCoverClient(
+        cover.pendingFile,
+        sportSlug,
+        tournamentId || undefined,
+      );
+      return uploaded.storageKey;
+    }
+    return cover.storageKey?.trim() || undefined;
+  };
+
+  const buildPayload = (coverStorageKey?: string): Record<string, unknown> => {
     const startsAt = form.startsAt
       ? new Date(form.startsAt).toISOString()
       : new Date().toISOString();
@@ -447,11 +478,16 @@ export function PartnerTournamentWizard({
       officialBilling: form.entryBilling,
       registrationFeeIdr:
         form.entryBilling === "paid" ? Number(form.registrationFeeIdr) : 0,
+      prizePoolIdr:
+        form.prizePoolIdr.trim() && Number(form.prizePoolIdr) > 0
+          ? Number(form.prizePoolIdr)
+          : null,
       status: form.status,
       playersPerTeam: 2,
       maxTeams: clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32),
       venue: form.venue.trim().slice(0, TOURNAMENT_FIELD_LIMITS.venue),
       venueMapsUrl: form.venueMapsUrl.trim() || undefined,
+      coverImageStorageKey: coverStorageKey,
       startsAt,
       endsAt,
       registrationClosesAt: form.registrationClosesAt
@@ -507,7 +543,8 @@ export function PartnerTournamentWizard({
 
     setPending(true);
     try {
-      const body = buildPayload();
+      const coverKey = await resolveCoverStorageKey();
+      const body = buildPayload(coverKey);
       const res = await fetch(
         isEdit && tournamentId
           ? `/api/partner/tournaments/${tournamentId}`
@@ -531,7 +568,8 @@ export function PartnerTournamentWizard({
 
       toast.success(isEdit ? "Tournament updated" : "Tournament created");
       const slug = json.data.slug;
-      router.push(partnerPublicRoutes.tournamentManage(partnerSlug, slug));
+      // Land on the public event page (manage is available from the session chrome).
+      router.push(partnerPublicRoutes.tournament(partnerSlug, slug));
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Request failed");
@@ -689,6 +727,11 @@ export function PartnerTournamentWizard({
                     <FieldError message={descriptionError} />
                   </div>
 
+                  <TournamentCoverUpload value={cover} onChange={setCover} />
+                  <p className="-mt-1 text-xs text-cp-muted">
+                    Wide banner on the public tournament page (responsive, same as host events).
+                  </p>
+
                   <VenueAutocompleteField
                     venue={form.venue}
                     mapsUrl={form.venueMapsUrl}
@@ -829,6 +872,16 @@ export function PartnerTournamentWizard({
                         </p>
                       </div>
                     ) : null}
+                    <div className="space-y-2 border-t border-cp-border/60 pt-3">
+                      <Label>Prize pool (IDR, optional)</Label>
+                      <CurrencyInput
+                        value={form.prizePoolIdr}
+                        onChange={(v) => patch("prizePoolIdr", v)}
+                      />
+                      <p className="text-xs text-cp-muted">
+                        Shown on the public tournament page when set. Leave empty if there is no prize.
+                      </p>
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -1115,6 +1168,7 @@ export function PartnerTournamentWizard({
                     categoryLabel={form.categoryLabel}
                     venue={form.venue}
                     venueMapsUrl={form.venueMapsUrl}
+                    coverPreviewUrl={!cover.removed ? cover.previewUrl : null}
                     courtCount={String(form.courtCount)}
                     maxTeams={form.maxTeams}
                     startsAt={form.startsAt}
@@ -1122,6 +1176,7 @@ export function PartnerTournamentWizard({
                     registrationClosesAt={form.registrationClosesAt}
                     entryBilling={form.entryBilling}
                     registrationFeeIdr={form.registrationFeeIdr}
+                    prizePoolIdr={form.prizePoolIdr}
                     formatLabel={formatLabel(form.format)}
                     matchFormatLabel={
                       form.matchFormat === "classic_sets"

@@ -13,6 +13,7 @@ export type EmailTemplateId =
   | "host-payout-disbursed"
   | "host-payout-failed"
   | "partner-registration-payment"
+  | "partner-registration-pending"
   | "partner-registration-confirmed"
   | "partner-role-assigned";
 
@@ -161,6 +162,16 @@ export type PartnerRegistrationPaymentTemplateData = {
   expiresAtFormatted: string;
 };
 
+export type PartnerRegistrationPendingTemplateData = {
+  appName: string;
+  partnerName: string;
+  captainName: string;
+  tournamentName: string;
+  teamName: string;
+  roster: string[];
+  tournamentUrl: string;
+};
+
 export type PartnerRegistrationConfirmedTemplateData = {
   appName: string;
   partnerName: string;
@@ -203,6 +214,7 @@ export type EmailTemplateDataMap = {
   "host-payout-disbursed": HostPayoutDisbursedTemplateData;
   "host-payout-failed": HostPayoutFailedTemplateData;
   "partner-registration-payment": PartnerRegistrationPaymentTemplateData;
+  "partner-registration-pending": PartnerRegistrationPendingTemplateData;
   "partner-registration-confirmed": PartnerRegistrationConfirmedTemplateData;
   "partner-role-assigned": PartnerRoleAssignedTemplateData;
 };

@@ -16,6 +16,8 @@ import { uuidFk, uuidPrimaryKey } from "./uuid";
 
 export const PARTNER_REGISTRATION_STATUSES = [
   "awaiting_payment",
+  /** Submitted (and paid if required) — waiting for partner staff to curate/confirm. */
+  "registered",
   "confirmed",
   "cancelled",
   "expired",

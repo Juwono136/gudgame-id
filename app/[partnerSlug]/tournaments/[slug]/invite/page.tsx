@@ -45,6 +45,7 @@ export default async function PartnerTournamentInvitePage({ params }: PageProps)
         tournamentName={tournament.name}
         tournamentType="fun_match"
         officialBilling={null}
+        partnerId={partner.id}
         surfaceUrls={{
           publicUrl: surface.publicUrl,
           manageUrl: surface.manageUrl,

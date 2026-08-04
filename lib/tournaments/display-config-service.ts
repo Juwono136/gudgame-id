@@ -37,7 +37,14 @@ export async function patchTournamentDisplayConfig(
   roles: AppRole[],
   patch: DisplayConfigPatch,
 ): Promise<TournamentDisplayConfig> {
-  await assertTournamentManagePageAccess(tournament, userId, roles);
+  const access = await assertTournamentManagePageAccess(tournament, userId, roles);
+  // Brand / TV layout is organizer-level — scorekeepers should not rewrite venue branding.
+  if (!access.isOwner && !access.isPartnerMember) {
+    throw new AppError("Only the organizer or partner staff can change display settings.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
 
   if (!VALID_LAYOUTS.includes(patch.layout)) {
     throw new AppError("Invalid display layout", { code: "VALIDATION_ERROR", statusCode: 422 });

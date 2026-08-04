@@ -1,8 +1,9 @@
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
-import { assertHostControlsAccess, buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
-import { getUserTeamInTournament, hostMovePlayerToSquad } from "@/lib/tournaments/reclub/teams";
+import { resolveManageParticipantContext } from "@/lib/tournaments/manage-access";
+import { assertHostControlsAccess } from "@/lib/tournaments/participant-access";
+import { hostMovePlayerToSquad } from "@/lib/tournaments/reclub/teams";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
 
@@ -25,13 +26,7 @@ export async function POST(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    const userTeamId = await getUserTeamInTournament(tournament.id, userId);
-    const participant = buildTournamentParticipantContext({
-      userId,
-      userTeamId,
-      roles,
-      tournamentCreatedBy: tournament.createdBy,
-    });
+    const { participant } = await resolveManageParticipantContext(tournament, userId, roles);
     assertHostControlsAccess(participant);
 
     const parsed = bodySchema.safeParse(await request.json());

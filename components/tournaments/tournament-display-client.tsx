@@ -699,21 +699,24 @@ export function TournamentDisplayClient({
 
   if (!featuredMatch?.teamAName || !featuredMatch?.teamBName) {
     return (
-      <DisplayVenueShell brandTheme={brandTheme}>
+      <DisplayVenueShell brandTheme={brandTheme} lockViewport>
         {brandBadge}
         {oopStrip}
-        <DisplayIdleScoreboard
-          tournamentName={data.tournament.name}
-          message={
-            data.phase === "live"
-              ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
-              : (data.message ??
-                "No live match to display yet. Check back when the tournament is live.")
-          }
-          refreshing={isFetching}
-          onRefresh={() => void refetch()}
-          onBack={exitDisplay}
-        />
+        <div ref={containerRef} className="relative min-h-dvh w-full">
+          <DisplayIdleScoreboard
+            tournamentName={data.tournament.name}
+            message={
+              data.phase === "live"
+                ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
+                : (data.message ??
+                  "No live match to display yet. Check back when the tournament is live.")
+            }
+            refreshing={isFetching}
+            onRefresh={() => void refetch()}
+            onBack={exitDisplay}
+          />
+          {displayControls}
+        </div>
       </DisplayVenueShell>
     );
   }

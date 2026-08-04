@@ -34,6 +34,31 @@ type PublicMultiCourtLiveScoreProps = {
   mode?: PublicMultiCourtLiveScoreMode;
 };
 
+function PublicLiveScoreEmptyState({
+  title,
+  description,
+  tip,
+}: {
+  title: string;
+  description: string;
+  tip?: string;
+}) {
+  return (
+    <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/70 px-4 py-10 text-center sm:px-8 sm:py-14">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-cp-primary/10 text-cp-primary">
+        <Radio className="h-7 w-7" aria-hidden />
+      </div>
+      <h3 className="mt-4 text-base font-semibold text-foreground sm:text-lg">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-cp-muted">{description}</p>
+      {tip ? (
+        <p className="mx-auto mt-4 max-w-sm rounded-xl border border-cp-border/70 bg-cp-elevated/40 px-3 py-2 text-xs text-cp-muted">
+          {tip}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function filterLivePayloadByMode(
   liveData: TournamentLivePayload | undefined,
   mode: PublicMultiCourtLiveScoreMode,
@@ -207,7 +232,17 @@ export function PublicMultiCourtLiveScore({
 
   if (mode === "group_stage") {
     if (activeMatches.length === 0) {
-      return null;
+      return (
+        <PublicLiveScoreEmptyState
+          title="Waiting for live group matches"
+          description={
+            variant === "official"
+              ? "When the organizer starts group-stage matches on courts, live scores appear here automatically."
+              : "When the organizer starts pool matches from Manage → Live scoring, scores update here in real time."
+          }
+          tip="Tip: keep this tab open — it refreshes automatically while the event is live."
+        />
+      );
     }
     return (
       <PublicGroupStageLiveCourts
@@ -224,14 +259,16 @@ export function PublicMultiCourtLiveScore({
     allMatches.some((m) => m.status === "completed");
   const emptyCopy =
     variant === "official"
-      ? "Official live scores appear here when the host starts play on each court."
-      : "Match rounds appear here when the host starts play. Each court shows squad names and player lineups.";
+      ? "When the organizer starts play on each court, live scores appear here automatically."
+      : "When the organizer starts rounds from Manage → Live scoring, each court shows squad names and scores here.";
 
   if (!hasContent) {
     return (
-      <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
-        <p className="text-sm text-cp-muted">{emptyCopy}</p>
-      </section>
+      <PublicLiveScoreEmptyState
+        title="No live scores yet"
+        description={emptyCopy}
+        tip="Tip: this view stays in sync with the manage console — scores appear as soon as a match is in progress."
+      />
     );
   }
 

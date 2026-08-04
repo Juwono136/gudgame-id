@@ -10,6 +10,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import { TournamentCoverPreview } from "@/components/tournaments/form/tournament-cover-preview";
 import { TournamentReviewRichBlock } from "@/components/tournaments/form/tournament-review-rich-block";
 import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
 import { formatIdrDisplay } from "@/components/tournaments/form/currency-input";
@@ -24,6 +25,7 @@ type PartnerTournamentWizardReviewProps = {
   categoryLabel: string;
   venue: string;
   venueMapsUrl: string;
+  coverPreviewUrl?: string | null;
   courtCount: string;
   maxTeams: string;
   startsAt: string;
@@ -31,6 +33,7 @@ type PartnerTournamentWizardReviewProps = {
   registrationClosesAt: string;
   entryBilling: "paid" | "free";
   registrationFeeIdr: string;
+  prizePoolIdr?: string;
   formatLabel: string;
   matchFormatLabel: string;
   poolRows: { label: string; value: string }[];
@@ -102,6 +105,7 @@ export function PartnerTournamentWizardReview({
   categoryLabel,
   venue,
   venueMapsUrl,
+  coverPreviewUrl = null,
   courtCount,
   maxTeams,
   startsAt,
@@ -109,6 +113,7 @@ export function PartnerTournamentWizardReview({
   registrationClosesAt,
   entryBilling,
   registrationFeeIdr,
+  prizePoolIdr = "",
   formatLabel,
   matchFormatLabel,
   poolRows,
@@ -125,6 +130,10 @@ export function PartnerTournamentWizardReview({
       : feeIsPaid
         ? "Paid"
         : "Free";
+  const prizeDisplay =
+    prizePoolIdr && Number(prizePoolIdr) > 0
+      ? `Rp ${formatIdrDisplay(Number(prizePoolIdr))}`
+      : "—";
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -141,17 +150,43 @@ export function PartnerTournamentWizardReview({
         </p>
       </header>
 
-      <div className="relative overflow-hidden rounded-2xl border border-cp-border bg-gradient-to-br from-cp-primary/10 via-cp-card to-cp-elevated/40 px-4 py-5 shadow-sm sm:px-6 sm:py-6">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-cp-primary">
-          Partner white-label event
-        </p>
-        <p className="mt-1 text-xl font-bold text-foreground sm:text-2xl">{name || "Untitled event"}</p>
-        <p className="mt-1 text-sm text-cp-muted">
-          {formatLabel}
-          {categoryLabel ? ` · ${categoryLabel}` : ""}
-          {venue.trim() ? ` · ${venue.trim()}` : ""}
-        </p>
-      </div>
+      {coverPreviewUrl ? (
+        <div className="relative overflow-hidden rounded-2xl border border-cp-border shadow-sm">
+          <div className="relative aspect-[21/9] min-h-[10rem] w-full sm:min-h-[12rem]">
+            <TournamentCoverPreview src={coverPreviewUrl} fill />
+            <div className="absolute inset-0 bg-gradient-to-t from-cp-bg via-cp-bg/55 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-cp-primary">
+                Partner white-label event
+              </p>
+              <p className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
+                {name || "Untitled event"}
+              </p>
+              <p className="mt-0.5 text-sm text-cp-muted">
+                {formatLabel}
+                {categoryLabel ? ` · ${categoryLabel}` : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="relative overflow-hidden rounded-2xl border border-cp-border bg-gradient-to-br from-cp-primary/10 via-cp-card to-cp-elevated/40 px-4 py-5 shadow-sm sm:px-6 sm:py-6">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-cp-primary">
+            Partner white-label event
+          </p>
+          <p className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
+            {name || "Untitled event"}
+          </p>
+          <p className="mt-1 text-sm text-cp-muted">
+            {formatLabel}
+            {categoryLabel ? ` · ${categoryLabel}` : ""}
+            {venue.trim() ? ` · ${venue.trim()}` : ""}
+          </p>
+          <p className="mt-2 text-xs text-cp-muted">
+            No banner yet — add one on Basics for a fuller public hero.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ReviewSection title="Basics" icon={Trophy} stepIndex={0} onEditStep={onEditStep}>
@@ -161,6 +196,7 @@ export function PartnerTournamentWizardReview({
             <ReviewItem label="Max teams" value={maxTeams || "—"} />
             <ReviewItem label="Courts" value={courtCount || "—"} />
             <ReviewItem label="Entry" value={feeDisplay} />
+            <ReviewItem label="Prize pool" value={prizeDisplay} />
             <ReviewItem label="Players per team" value="2 (fixed pairs)" />
           </dl>
           <div className="mt-4">

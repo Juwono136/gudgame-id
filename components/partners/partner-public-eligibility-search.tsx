@@ -124,9 +124,9 @@ export function PartnerPublicEligibilitySearch({
           </h1>
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-cp-muted sm:text-base">
-          Factual results from {partnerName} events only — tournament, category, how far a
-          player advanced, and doubles partner. This is not a skill rating and stays separate
-          from Gud Game rankings.
+          Internal lookup for {partnerName} staff — tournament, category, how far a player
+          advanced, and doubles partner. Not a skill rating, not public, and separate from Gud
+          Game rankings.
         </p>
       </div>
 

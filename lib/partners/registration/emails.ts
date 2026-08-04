@@ -65,6 +65,41 @@ export function sendPartnerRegistrationPaymentEmail(input: PartnerPaymentEmailIn
   );
 }
 
+export type PartnerPendingEmailInput = {
+  captainEmail: string;
+  captainName: string;
+  partnerName: string;
+  partnerSlug: string;
+  tournamentName: string;
+  tournamentSlug: string;
+  teamName: string;
+  roster: string[];
+};
+
+export function sendPartnerRegistrationPendingEmail(input: PartnerPendingEmailInput): void {
+  const tournamentUrl = `${appBaseUrl()}${partnerPublicRoutes.tournament(
+    input.partnerSlug,
+    input.tournamentSlug,
+  )}`;
+
+  sendTemplatedEmailInBackground(
+    {
+      to: input.captainEmail,
+      template: "partner-registration-pending",
+      data: {
+        appName: siteConfig.name,
+        partnerName: input.partnerName,
+        captainName: input.captainName,
+        tournamentName: input.tournamentName,
+        teamName: input.teamName,
+        roster: input.roster,
+        tournamentUrl,
+      },
+    },
+    { module: "partner-registration" },
+  );
+}
+
 export type PartnerConfirmedEmailInput = {
   captainEmail: string;
   captainName: string;

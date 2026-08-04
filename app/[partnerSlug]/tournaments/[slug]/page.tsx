@@ -1,10 +1,13 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { PartnerTournamentPublicPage } from "@/components/partners/partner-tournament-public-page";
+import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { getServerSession } from "@/lib/auth/session";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { listPartnerTournaments } from "@/lib/partners/tournaments";
 import { toPartnerFunMatchTournament } from "@/lib/partners/tournament-surface";
 import { resolveTournamentManageAccess } from "@/lib/tournaments/manage-access";
+import { canManageTournament } from "@/lib/tournaments/permissions";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { getPartnerTournamentBySlug } from "@/lib/tournaments/service";
@@ -38,8 +41,10 @@ export default async function PartnerTournamentDetailPage({ params }: PageProps)
   const roles = userId ? await getUserRoleAssignments(userId) : [];
 
   let canManage = false;
+  let canEdit = false;
   let grantRole: string | null = null;
   let userTeamId: string | null = null;
+  let isPartnerMember = false;
 
   if (userId) {
     const [access, teamId] = await Promise.all([
@@ -47,8 +52,10 @@ export default async function PartnerTournamentDetailPage({ params }: PageProps)
       getUserTeamInTournament(tournament.id, userId),
     ]);
     canManage = access.canAccessManagePage;
+    canEdit = canManageTournament(roles, tournament.createdBy, userId) || access.isPartnerMember;
     grantRole = access.grantRole;
     userTeamId = teamId;
+    isPartnerMember = access.isPartnerMember;
   }
 
   const participant = buildTournamentParticipantContext({
@@ -57,15 +64,25 @@ export default async function PartnerTournamentDetailPage({ params }: PageProps)
     roles,
     tournamentCreatedBy: tournament.createdBy,
     grantRole,
+    isPartnerMember,
   });
 
   return (
-    <PartnerTournamentPublicPage
-      partnerSlug={partner.slug}
-      partnerName={partner.displayName}
-      tournament={tournament}
-      participant={participant}
-      canManage={canManage}
-    />
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-4 py-10">
+          <CompetitionListSkeleton rows={4} />
+        </div>
+      }
+    >
+      <PartnerTournamentPublicPage
+        partnerSlug={partner.slug}
+        partnerName={partner.displayName}
+        tournament={tournament}
+        participant={participant}
+        canManage={canManage}
+        canEdit={canEdit}
+      />
+    </Suspense>
   );
 }

@@ -24,6 +24,7 @@ import { ManageOfficialDashboardPanel } from "@/components/tournaments/manage/ma
 import { ScoreEntryPanel } from "@/components/tournaments/manage/score-entry-panel";
 import { TournamentAccessInvitesPanel } from "@/components/tournaments/tournament-access-invites-panel";
 import { TournamentPlayerInvitesPanel } from "@/components/tournaments/tournament-player-invites-panel";
+import { PartnerGuestRegistrationsPanel } from "@/components/partners/partner-guest-registrations-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
 import { Badge } from "@/components/ui/badge";
@@ -155,7 +156,8 @@ export function TournamentManageShell({
       ...SECTION_META,
       players: {
         title: "Players",
-        description: "Guest teams registered for this partner event.",
+        description:
+          "Curate guest registrations, then manage confirmed teams for this partner event.",
       },
       invites: {
         title: "Invites",
@@ -291,9 +293,10 @@ export function TournamentManageShell({
         publicUrl={publicUrl}
         displayUrl={displayUrl}
         manageUrl={manageBaseUrl(tournament, partnerSlug)}
+        flushTop={false}
       />
 
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row lg:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-4 sm:py-5 lg:flex-row lg:px-6">
         <nav className="lg:w-56 lg:shrink-0">
           <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-col lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
             {visibleSections.map((item) => {
@@ -457,27 +460,14 @@ export function TournamentManageShell({
               </div>
             ) : null}
 
-            {section === "scoring" &&
-            access.canManageScoring &&
-            !(caps.isDoubleStage && caps.hasGroupStage) ? (
+            {section === "scoring" && access.canManageScoring ? (
               <FunMatchScoringWorkspace
                 tournament={tournament}
                 participant={participant}
                 livePhase={livePhase}
-                workspaceVariant={isFunMatch ? "fun_match" : "official"}
-                partnerDisplayName={partnerDisplayName}
-              />
-            ) : null}
-
-            {section === "scoring" &&
-            access.canManageScoring &&
-            caps.isDoubleStage &&
-            caps.hasGroupStage ? (
-              <FunMatchScoringWorkspace
-                tournament={tournament}
-                participant={participant}
-                livePhase={livePhase}
-                workspaceVariant="official"
+                workspaceVariant={
+                  isPartnerEvent || isFunMatch ? "fun_match" : "official"
+                }
                 partnerDisplayName={partnerDisplayName}
               />
             ) : null}
@@ -506,15 +496,25 @@ export function TournamentManageShell({
             ) : null}
 
             {section === "players" && isFunMatch ? (
-              <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
-                <TournamentParticipantsPanel
-                  sportSlug={tournament.sportSlug}
-                  slug={tournament.slug}
-                  tournamentType="fun_match"
-                  variant="reclub"
-                  canRemoveTeams
-                  partnerEvent={isPartnerEvent}
-                />
+              <div className="space-y-5">
+                {isPartnerEvent ? (
+                  <PartnerGuestRegistrationsPanel
+                    sportSlug={tournament.sportSlug}
+                    slug={tournament.slug}
+                    canCurate={access.isOwner || access.isPartnerMember}
+                  />
+                ) : null}
+                <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
+                  <TournamentParticipantsPanel
+                    sportSlug={tournament.sportSlug}
+                    slug={tournament.slug}
+                    tournamentType="fun_match"
+                    variant="reclub"
+                    canRemoveTeams={access.isOwner || access.isPartnerMember}
+                    partnerEvent={isPartnerEvent}
+                    liveRefresh
+                  />
+                </div>
               </div>
             ) : null}
 
@@ -605,19 +605,24 @@ export function TournamentManageShell({
             ) : null}
 
             {section === "display" ? (
-              <div className="space-y-5">
-                {access.isOwner || access.isPartnerMember ? (
+              access.isOwner || access.isPartnerMember ? (
+                <div className="space-y-5">
                   <ScoreEntryPanel
                     tournament={tournament}
                     onSaved={() => void refetchTournament()}
                   />
-                ) : null}
-                <DisplayControlPanel
-                  tournament={tournament}
-                  partnerSlug={partnerSlug}
-                  onSaved={() => void refetchTournament()}
-                />
-              </div>
+                  <DisplayControlPanel
+                    tournament={tournament}
+                    partnerSlug={partnerSlug}
+                    onSaved={() => void refetchTournament()}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-cp-border bg-cp-card p-6 text-sm text-cp-muted">
+                  Only the organizer or partner staff can change display and score entry settings.
+                  You can still open the venue display from the header.
+                </div>
+              )
             ) : null}
             </FadeInView>
           </div>

@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { PublicTournamentsTable } from "@/components/sports/public-tournaments-table";
 import { TournamentFilterMenu } from "@/components/sports/tournament-filter-menu";
+import { TournamentDiscoveryPublicCard } from "@/components/tournaments/tournament-discovery-public-card";
 import { Input } from "@/components/ui/input";
+import { StatusFilterPills } from "@/components/ui/status-filter-pills";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
 import {
   CompetitionListFetchingOverlay,
@@ -20,6 +21,13 @@ type PublicTournamentsDirectoryProps = {
   sportSlug: string;
   sportName: string;
 };
+
+const STATUS_PILLS = [
+  { value: "all", label: "All" },
+  { value: "live", label: "Live" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "past", label: "Completed" },
+] as const;
 
 export function PublicTournamentsDirectory({
   sportSlug,
@@ -43,7 +51,7 @@ export function PublicTournamentsDirectory({
   const queryParams = useMemo(
     (): PublicTournamentsListQuery => ({
       page,
-      pageSize: 20,
+      pageSize: 12,
       search: debouncedSearch || undefined,
       bucket,
       type,
@@ -75,9 +83,9 @@ export function PublicTournamentsDirectory({
         Official paid events and free Fun Match sessions for {sportName}.
       </p>
 
-      <div className="mt-8 rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
-        <div className="border-b border-cp-border p-3 sm:p-4 lg:p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+      <div className="mt-8 space-y-4">
+        <div className="rounded-2xl border border-cp-border bg-cp-card p-3 shadow-sm sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
               <Input
@@ -86,12 +94,12 @@ export function PublicTournamentsDirectory({
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Search tournament, venue, category…"
+                placeholder="Search cups…"
                 className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9 text-foreground sm:h-11"
+                aria-label="Search tournaments"
               />
             </div>
-            <div className="relative shrink-0">
-              <TournamentFilterMenu
+            <TournamentFilterMenu
               value={{ bucket, type, officialBilling, format, category, sortBy, sortDir }}
               onChange={(next) => {
                 setBucket(next.bucket);
@@ -104,25 +112,49 @@ export function PublicTournamentsDirectory({
                 setPage(1);
               }}
             />
-            </div>
           </div>
+
+          <StatusFilterPills
+            className="mt-3"
+            value={bucket}
+            ariaLabel="Filter by tournament status"
+            options={[...STATUS_PILLS]}
+            onChange={(v) => {
+              setBucket(v as PublicTournamentsListQuery["bucket"]);
+              setPage(1);
+            }}
+          />
         </div>
 
-        <div className="relative overflow-hidden rounded-b-2xl">
+        <div className="relative min-h-[12rem]">
           {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
 
           {error ? (
-            <div className="p-10 text-center text-sm text-red-400">
+            <div className="rounded-2xl border border-cp-border bg-cp-card p-10 text-center text-sm text-red-400">
               {error instanceof Error ? error.message : "Failed to load tournaments"}
             </div>
           ) : isLoading ? (
-            <CompetitionListSkeleton />
+            <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
+              <CompetitionListSkeleton />
+            </div>
           ) : data?.items.length === 0 ? (
-            <p className="py-16 text-center text-sm text-cp-muted">
+            <p className="rounded-2xl border border-cp-border bg-cp-card py-16 text-center text-sm text-cp-muted">
               No tournaments match your filters.
             </p>
           ) : (
-            <PublicTournamentsTable sportSlug={sportSlug} items={data?.items ?? []} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+              {(data?.items ?? []).map((tournament) => (
+                <TournamentDiscoveryPublicCard
+                  key={tournament.id}
+                  tournament={tournament}
+                  detailHref={publicSportRoutes.tournament(sportSlug, tournament.slug)}
+                  registerHref={publicSportRoutes.tournamentRegister(
+                    sportSlug,
+                    tournament.slug,
+                  )}
+                />
+              ))}
+            </div>
           )}
         </div>
 

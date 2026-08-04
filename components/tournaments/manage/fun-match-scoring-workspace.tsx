@@ -153,6 +153,9 @@ export function FunMatchScoringWorkspace({
     getTournamentDisplayConfig(tournament).brandTheme?.primaryColor ?? "#0d9488";
   const [pendingRecap, setPendingRecap] = useState<MatchRecapInput | null>(null);
   const isDoubleStageTournament = tournament.format === "double_stage";
+  /** Partner double-stage needs group+knockout standings without Official billing chrome. */
+  const useDoubleStageStandings =
+    isDoubleStageTournament && (isOfficialWorkspace || isPartnerEvent);
   const accentVariant = isOfficialWorkspace ? "official" : "fun";
   const pointsPerMatch = getTournamentPointsPerMatch(tournament);
   const scoringType = getTournamentScoringType(tournament);
@@ -280,22 +283,21 @@ export function FunMatchScoringWorkspace({
   );
 
   const officialSessionReclubMatches = useMemo(() => {
-    if (isOfficialWorkspace && isDoubleStageTournament) {
+    if (useDoubleStageStandings) {
       return groupMatchesAsReclub;
     }
     if (isGroupStageMode) return groupMatchesAsReclub;
     return matches;
   }, [
     groupMatchesAsReclub,
-    isDoubleStageTournament,
     isGroupStageMode,
-    isOfficialWorkspace,
     matches,
+    useDoubleStageStandings,
   ]);
 
   const { players: officialPlayerStandings } = useMemo(
     () => {
-      if (isOfficialWorkspace && isDoubleStageTournament) {
+      if (useDoubleStageStandings) {
         const groupReclub = groupMatchesAsReclub.filter(
           (m) => m.status === "completed" || m.status === "in_progress",
         );
@@ -314,10 +316,9 @@ export function FunMatchScoringWorkspace({
       bracketMatches,
       groupMatchesAsReclub,
       isAmericanoMode,
-      isDoubleStageTournament,
-      isOfficialWorkspace,
       matches,
       teams,
+      useDoubleStageStandings,
     ],
   );
 
@@ -1334,7 +1335,7 @@ export function FunMatchScoringWorkspace({
         </div>
       ) : null}
 
-      {!isGroupStageMode || isOfficialWorkspace ? (
+      {!isGroupStageMode || isOfficialWorkspace || isPartnerEvent ? (
         <>
           <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
             <h3 className="text-base font-semibold text-foreground">
@@ -1355,7 +1356,7 @@ export function FunMatchScoringWorkspace({
               <FunMatchStatsLegend variant="americano" className="mt-3" compact />
             ) : null}
             <div className="mt-4">
-              {isOfficialWorkspace ? (
+              {isOfficialWorkspace || useDoubleStageStandings ? (
                 <OfficialPlayerStandingsTable rows={officialPlayerStandings} />
               ) : (
                 <FunMatchPlayerStandingsTable rows={playerStandings} />
@@ -1367,7 +1368,7 @@ export function FunMatchScoringWorkspace({
             sessionStats={sessionStats}
             matches={officialSessionReclubMatches}
             bracketMatches={bracketMatches}
-            variant={isOfficialWorkspace ? "official" : "reclub"}
+            variant={isOfficialWorkspace || useDoubleStageStandings ? "official" : "reclub"}
             standingsMode={isBracketMode ? "elimination" : isGroupStageMode ? "americano" : "americano"}
             isLoading={isFetching && !sessionStats}
           />

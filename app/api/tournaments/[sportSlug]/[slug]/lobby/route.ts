@@ -4,14 +4,11 @@ import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { getRegistrationSummary, listOfficialPublicRoster } from "@/lib/tournaments/registration/service";
 import { getTeamsInActiveBracketMatches } from "@/lib/tournaments/brackets/active-teams";
 import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
-import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
+import { resolveManageParticipantContext } from "@/lib/tournaments/manage-access";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
 import { getActiveReclubMatches, listReclubMatches } from "@/lib/tournaments/reclub/matches";
-import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
 import { AppError } from "@/lib/errors";
-import { canManageLiveScoring } from "@/lib/tournaments/permissions";
 import { isOfficialType, normalizeTournamentType, supportsRoundBasedPlay } from "@/lib/tournaments/core/types";
-import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 
 export const runtime = "nodejs";
@@ -41,42 +38,32 @@ export async function GET(
 
     const courts = await provisionTournamentCourts(tournament);
 
-    const [summary, teams, matches, activeMatches, userTeamId, teamsInActiveBracket, grantRole] =
+    const [summary, teams, matches, activeMatches, teamsInActiveBracket, manageCtx] =
       await Promise.all([
-      getRegistrationSummary(
-        tournament.id,
-        tournament.maxTeams,
-        tournament.registrationClosesAt
-          ? new Date(tournament.registrationClosesAt)
-          : null,
-        tournament.registrationOpensAt
-          ? new Date(tournament.registrationOpensAt)
-          : null,
-        tournament.startsAt ? new Date(tournament.startsAt) : null,
-        normalizeTournamentType(tournament.tournamentType),
-        tournament.officialBilling,
-      ),
-      isOfficialType(tournament.tournamentType)
-        ? listOfficialPublicRoster(tournament.id, tournament.officialBilling)
-        : listLobbyTeamsDetailed(tournament.id),
-      listReclubMatches(tournament.id),
-      getActiveReclubMatches(tournament.id),
-      userId ? getUserTeamInTournament(tournament.id, userId) : Promise.resolve(null),
-      getTeamsInActiveBracketMatches(tournament.id),
-      userId ? getActiveAccessGrantRole(tournament.id, userId) : Promise.resolve(null),
-    ]);
+        getRegistrationSummary(
+          tournament.id,
+          tournament.maxTeams,
+          tournament.registrationClosesAt
+            ? new Date(tournament.registrationClosesAt)
+            : null,
+          tournament.registrationOpensAt
+            ? new Date(tournament.registrationOpensAt)
+            : null,
+          tournament.startsAt ? new Date(tournament.startsAt) : null,
+          normalizeTournamentType(tournament.tournamentType),
+          tournament.officialBilling,
+        ),
+        isOfficialType(tournament.tournamentType)
+          ? listOfficialPublicRoster(tournament.id, tournament.officialBilling)
+          : listLobbyTeamsDetailed(tournament.id),
+        listReclubMatches(tournament.id),
+        getActiveReclubMatches(tournament.id),
+        getTeamsInActiveBracketMatches(tournament.id),
+        resolveManageParticipantContext(tournament, userId, roles),
+      ]);
 
-    const canManage = userId
-      ? canManageLiveScoring(roles, tournament, userId, grantRole)
-      : false;
-
-    const participant = buildTournamentParticipantContext({
-      userId,
-      userTeamId,
-      roles,
-      tournamentCreatedBy: tournament.createdBy,
-      grantRole,
-    });
+    const { userTeamId, participant, access } = manageCtx;
+    const canManage = Boolean(access?.canManageScoring);
 
     return jsonSuccess({
       userId,

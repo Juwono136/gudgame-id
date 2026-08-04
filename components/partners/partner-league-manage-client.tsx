@@ -8,8 +8,9 @@ import { toast } from "sonner";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
 import { PartnerLeagueMatchesPanel } from "@/components/partners/partner-league-matches-panel";
-import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { partnerPageWidthClass } from "@/lib/partners/layout";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -277,8 +278,7 @@ export function PartnerLeagueManageClient({
   const publicHref = partnerPublicRoutes.league(partnerSlug, league.slug);
 
   return (
-    <PageShell showGridBackground={false}>
-      <div className="relative mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className={cn("relative space-y-6 py-8", partnerPageWidthClass)}>
         {(busy || loading) && (
           <LoadingOverlay
             show
@@ -629,7 +629,6 @@ export function PartnerLeagueManageClient({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
-    </PageShell>
+    </div>
   );
 }

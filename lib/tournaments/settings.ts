@@ -767,7 +767,7 @@ export function settingsInputFromUpsert(
 ): TournamentSettingsInput {
   const formatSpecific =
     sportSlug != null ? buildFormatSpecificSettingsFromUpsert(input, sportSlug) : {};
-  return {
+  const next: TournamentSettingsInput = {
     venueMapsUrl: input.venueMapsUrl,
     eligibilityHtml: input.eligibilityRules,
     matchFormatHtml: input.matchFormatRules || input.rules,
@@ -787,12 +787,17 @@ export function settingsInputFromUpsert(
     deuceConfig: input.deuceConfig,
     roundDurationMinutes: input.roundDurationMinutes,
     suddenDeathExtensionMinutes: input.suddenDeathExtensionMinutes,
-    scoreEntryMode: input.scoreEntryMode,
-    displayConfig: input.displayConfig,
     doubleStage: input.doubleStage ?? formatSpecific.doubleStage,
     standingsScoring: input.standingsScoring ?? formatSpecific.standingsScoring,
     allowedTierLevels: input.allowedTierLevels,
   };
+  if (input.scoreEntryMode === "live" || input.scoreEntryMode === "paper") {
+    next.scoreEntryMode = input.scoreEntryMode;
+  }
+  if (input.displayConfig) {
+    next.displayConfig = input.displayConfig;
+  }
+  return next;
 }
 
 export function buildTournamentSettings(
@@ -932,16 +937,15 @@ export function buildTournamentSettings(
     delete next.suddenDeathExtensionMinutes;
   }
 
+  // Only overwrite when explicitly set — upsert payloads often include
+  // `scoreEntryMode: undefined` / `displayConfig: undefined`, which must NOT
+  // wipe Manage → Display settings (brand theme, layout, tablet mode).
   if (input.scoreEntryMode === "live" || input.scoreEntryMode === "paper") {
     next.scoreEntryMode = input.scoreEntryMode;
-  } else if ("scoreEntryMode" in input) {
-    delete next.scoreEntryMode;
   }
 
   if (input.displayConfig) {
     next.displayConfig = input.displayConfig;
-  } else if ("displayConfig" in input) {
-    delete next.displayConfig;
   }
 
   if (input.doubleStage) {

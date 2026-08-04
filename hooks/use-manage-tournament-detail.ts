@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export function useManageTournamentDetail(
@@ -30,5 +31,6 @@ export function useManageTournamentDetail(
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
+    refetchInterval: softDevPollMs(10_000),
   });
 }

@@ -117,8 +117,8 @@ export function ScoreEntryPanel({ tournament, onSaved }: ScoreEntryPanelProps) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div className="space-y-2">
+      <div className="mt-5 space-y-4">
+        <div className="space-y-2 sm:max-w-md">
           <Label htmlFor="score-entry-mode">Mode</Label>
           <Select
             value={mode}

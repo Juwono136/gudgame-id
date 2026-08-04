@@ -54,6 +54,7 @@ export function OfficialPublicPlayersTab({
         variant={participantsVariant}
         officialBilling={isFunMatch ? null : tournament.officialBilling}
         teamScoreByTeamId={teamScoreByTeamId}
+        partnerEvent={Boolean(tournament.partnerId)}
       />
 
       <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">

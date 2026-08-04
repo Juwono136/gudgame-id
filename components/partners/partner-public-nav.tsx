@@ -49,7 +49,6 @@ export function PartnerPublicNav({
     { href: partnerPublicRoutes.home(partnerSlug), label: "Home", exact: true },
     { href: partnerPublicRoutes.tournaments(partnerSlug), label: "Tournaments" },
     { href: partnerPublicRoutes.leagues(partnerSlug), label: "Leagues" },
-    { href: partnerPublicRoutes.players(partnerSlug), label: "Players" },
   ];
 
   const isActive = (href: string, exact?: boolean) => {

@@ -1,7 +1,9 @@
 import { guardApiRequest } from "@/lib/api/guard-request";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
+import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
 import { searchPartnerPlayerEligibility } from "@/lib/partners/eligibility";
+import { isUserPartnerMember } from "@/lib/partners/membership";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { normalizePartnerSlug } from "@/lib/partners/constants";
 import {
@@ -12,9 +14,8 @@ import {
 export const runtime = "nodejs";
 
 /**
- * Public Database Eligibility for a partner white-label site.
- * Searchable by anyone on the partner route — data stays partner-scoped
- * and never mixes into Gud Game career / player history.
+ * Partner staff-only player history / eligibility search.
+ * Not available to anonymous public visitors.
  */
 export async function GET(
   request: Request,
@@ -23,15 +24,23 @@ export async function GET(
   try {
     await guardApiRequest(request, {
       tier: "sensitive",
-      skipOriginCheck: true,
       keySuffix: "partner-eligibility",
     });
 
+    const { userId } = await requireApiRoleGuardContext();
     const { partnerSlug: raw } = await params;
     const slug = normalizePartnerSlug(raw);
     const partner = await getActivePartnerBySlug(slug);
     if (!partner) {
       throw new AppError("Partner not found", { code: "NOT_FOUND", statusCode: 404 });
+    }
+
+    const allowed = await isUserPartnerMember(userId, partner.id);
+    if (!allowed) {
+      throw new AppError("Only partner staff can view player history for this site.", {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      });
     }
 
     const { searchParams } = new URL(request.url);

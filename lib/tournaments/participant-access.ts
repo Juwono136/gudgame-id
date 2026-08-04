@@ -30,6 +30,11 @@ export function buildTournamentParticipantContext(input: {
   /** @deprecated Pass tournament instead */
   tournamentCreatedBy?: string | null;
   grantRole?: string | null;
+  /**
+   * Partner org member for white-label events — same runtime manage powers as owner
+   * for courtside scoring / host controls (matches resolveTournamentManageAccess).
+   */
+  isPartnerMember?: boolean;
 }): TournamentParticipantContext {
   const createdBy = input.tournament?.createdBy ?? input.tournamentCreatedBy ?? null;
   const tournamentStub = { createdBy } as import("@/lib/tournaments/service").TournamentDetail;
@@ -39,11 +44,14 @@ export function buildTournamentParticipantContext(input: {
   const isOwner = input.userId
     ? isTournamentOwner(createdBy, input.userId)
     : false;
+  const isPartnerMember = Boolean(input.isPartnerMember);
   const canAccessManagePage = input.userId
-    ? canAccessTournamentManagePage(createdBy, input.userId, input.grantRole)
+    ? canAccessTournamentManagePage(createdBy, input.userId, input.grantRole) ||
+      isPartnerMember
     : false;
   const isRuntimeManager = input.userId
-    ? canManageLiveScoring(input.roles, tournamentStub, input.userId, input.grantRole)
+    ? canManageLiveScoring(input.roles, tournamentStub, input.userId, input.grantRole) ||
+      isPartnerMember
     : false;
 
   return {
@@ -68,10 +76,13 @@ export function assertCourtsideScoringAccess(ctx: TournamentParticipantContext):
     });
   }
   if (!ctx.isRuntimeManager) {
-    throw new AppError("Only the tournament owner or invited staff can score matches", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
+    throw new AppError(
+      "Only the tournament owner, partner staff, or invited staff can score matches",
+      {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      },
+    );
   }
 }
 
@@ -83,10 +94,13 @@ export function assertHostControlsAccess(ctx: TournamentParticipantContext): voi
     });
   }
   if (!ctx.isHost) {
-    throw new AppError("Only the tournament owner or invited staff can use session controls", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
+    throw new AppError(
+      "Only the tournament owner, partner staff, or invited staff can use session controls",
+      {
+        code: "FORBIDDEN",
+        statusCode: 403,
+      },
+    );
   }
 }
 

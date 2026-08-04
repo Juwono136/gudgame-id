@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { PartnerPublicNav } from "@/components/partners/partner-public-nav";
+import { PartnerPublicChrome } from "@/components/partners/partner-public-chrome";
 import {
   isReservedPartnerSlug,
   normalizePartnerSlug,
 } from "@/lib/partners/constants";
-import { partnerPublicRoutes } from "@/lib/constants/routes";
 import {
   getActivePartnerBySlug,
   getPartnerBySlug,
@@ -36,7 +35,7 @@ export default async function PartnerPublicLayout({ children, params }: LayoutPr
               This white-label site is currently inactive.
             </p>
             <Link href="/" className="mt-5 inline-block text-sm font-medium text-cp-primary hover:underline">
-              Back to Gud Game
+              Back to home
             </Link>
           </div>
         </div>
@@ -49,80 +48,15 @@ export default async function PartnerPublicLayout({ children, params }: LayoutPr
   const accent = partner.branding.accentColor ?? "#14b8a6";
 
   return (
-    <div
-      className="relative min-h-screen min-w-0 overflow-x-clip bg-background text-foreground"
-      style={
-        {
-          ["--cp-primary" as string]: primary,
-          ["--cp-primary-light" as string]: accent,
-          ["--partner-accent" as string]: accent,
-          ["--ring" as string]: primary,
-        } as React.CSSProperties
-      }
+    <PartnerPublicChrome
+      partnerSlug={partner.slug}
+      partnerName={partner.displayName}
+      logoUrl={partner.logoUrl}
+      primaryColor={primary}
+      accentColor={accent}
     >
-      <div
-        className="pointer-events-none fixed inset-0 -z-10"
-        aria-hidden
-        style={{
-          background: `
-            radial-gradient(ellipse 90% 55% at 10% -10%, ${primary}28, transparent 55%),
-            radial-gradient(ellipse 70% 45% at 95% 5%, ${accent}22, transparent 50%),
-            radial-gradient(ellipse 50% 40% at 50% 100%, ${primary}12, transparent 60%)
-          `,
-        }}
-      />
-      <div
-        className="pointer-events-none fixed inset-0 -z-10 opacity-[0.035] dark:opacity-[0.06]"
-        aria-hidden
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
-        }}
-      />
-
-      <PartnerPublicNav
-        partnerSlug={partner.slug}
-        partnerName={partner.displayName}
-        logoUrl={partner.logoUrl}
-        primaryColor={primary}
-      />
-
-      <main className="min-h-[72vh]">{children}</main>
-
-      <footer className="mt-10 border-t border-cp-border/70 sm:mt-12">
-        <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-4 px-3 py-7 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-8 sm:text-left lg:px-8">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-foreground">{partner.displayName}</p>
-            <p className="text-xs text-cp-muted">
-              © {new Date().getFullYear()} · Platform by Gud Game
-            </p>
-          </div>
-          <nav
-            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-cp-muted sm:justify-end"
-            aria-label="Footer"
-          >
-            <Link
-              href={partnerPublicRoutes.tournaments(partner.slug)}
-              className="hover:text-foreground"
-            >
-              Tournaments
-            </Link>
-            <Link
-              href={partnerPublicRoutes.leagues(partner.slug)}
-              className="hover:text-foreground"
-            >
-              Leagues
-            </Link>
-            <Link
-              href={partnerPublicRoutes.players(partner.slug)}
-              className="hover:text-foreground"
-            >
-              Players
-            </Link>
-          </nav>
-        </div>
-      </footer>
-    </div>
+      {children}
+    </PartnerPublicChrome>
   );
 }
 

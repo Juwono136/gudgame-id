@@ -13,6 +13,7 @@ import { renderHostPaymentReceivedTemplate } from "./host-payment-received";
 import { renderHostPayoutDisbursedTemplate } from "./host-payout-disbursed";
 import { renderHostPayoutFailedTemplate } from "./host-payout-failed";
 import { renderPartnerRegistrationPaymentTemplate } from "./partner-registration-payment";
+import { renderPartnerRegistrationPendingTemplate } from "./partner-registration-pending";
 import { renderPartnerRegistrationConfirmedTemplate } from "./partner-registration-confirmed";
 import { renderPartnerRoleAssignedTemplate } from "./partner-role-assigned";
 import { renderVerifyEmailTemplate } from "./verify-email";
@@ -74,6 +75,10 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "partner-registration-payment":
       return renderPartnerRegistrationPaymentTemplate(
         input.data as EmailTemplateDataMap["partner-registration-payment"],
+      );
+    case "partner-registration-pending":
+      return renderPartnerRegistrationPendingTemplate(
+        input.data as EmailTemplateDataMap["partner-registration-pending"],
       );
     case "partner-registration-confirmed":
       return renderPartnerRegistrationConfirmedTemplate(

@@ -9,7 +9,7 @@ import {
 } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
 import { isOfficialType } from "@/lib/tournaments/core/types";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { assertCanManageRoster } from "@/lib/tournaments/manage-access";
 import {
   assertTeamCanBeHardRemoved,
   cleanupUnplayedCompetitionRecords,
@@ -24,12 +24,7 @@ export async function removeTournamentParticipant(
   roles: import("@/lib/roles/constants").AppRole[],
   targetUserId: string,
 ): Promise<void> {
-  if (!canManageTournament(roles, tournament.createdBy, actorUserId)) {
-    throw new AppError("Only the tournament host can remove participants", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
-  }
+  await assertCanManageRoster(tournament, actorUserId, roles);
 
   if (targetUserId === tournament.createdBy) {
     throw new AppError("Cannot remove the tournament host", {
@@ -131,12 +126,7 @@ export async function removeTournamentTeam(
   roles: import("@/lib/roles/constants").AppRole[],
   teamId: string,
 ): Promise<{ teamName: string; removedPlayers: number }> {
-  if (!canManageTournament(roles, tournament.createdBy, actorUserId)) {
-    throw new AppError("Only the tournament host can remove teams", {
-      code: "FORBIDDEN",
-      statusCode: 403,
-    });
-  }
+  await assertCanManageRoster(tournament, actorUserId, roles);
 
   const db = getDb();
   const [team] = await db

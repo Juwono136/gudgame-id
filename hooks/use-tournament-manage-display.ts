@@ -38,7 +38,15 @@ export function useUpdateTournamentDisplayConfig(sportSlug: string, slug: string
       }
       return json.data.displayConfig;
     },
-    onSuccess: async () => {
+    onSuccess: async (displayConfig) => {
+      // Push into live cache immediately so public/TV UIs pick up brand theme without waiting for poll.
+      qc.setQueriesData(
+        { queryKey: tournamentQueryKeys.live(sportSlug, slug) },
+        (prev: unknown) => {
+          if (!prev || typeof prev !== "object") return prev;
+          return { ...(prev as Record<string, unknown>), displayConfig };
+        },
+      );
       await qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
       void qc.invalidateQueries({ queryKey: ["tournaments", "manage-detail", sportSlug, slug] });
       toast.success("Display settings saved — venue screens update automatically");

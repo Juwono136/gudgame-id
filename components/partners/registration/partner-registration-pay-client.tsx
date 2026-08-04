@@ -94,7 +94,10 @@ export function PartnerRegistrationPayClient({
   }, [loadDetail]);
 
   useEffect(() => {
-    if (detail?.registration.status === "confirmed") {
+    if (
+      detail?.registration.status === "registered" ||
+      detail?.registration.status === "confirmed"
+    ) {
       router.replace(detail.successUrl);
     }
   }, [detail, router]);
@@ -104,10 +107,13 @@ export function PartnerRegistrationPayClient({
     const interval = setInterval(async () => {
       try {
         const data = await loadDetail();
-        if (data.registration.status === "confirmed") {
+        if (
+          data.registration.status === "registered" ||
+          data.registration.status === "confirmed"
+        ) {
           clearInterval(interval);
           setPolling(false);
-          toast.success("Payment received!");
+          toast.success("Payment received — awaiting organizer confirmation");
           router.push(data.successUrl);
         }
         if (data.registration.status === "expired" || data.registration.status === "cancelled") {

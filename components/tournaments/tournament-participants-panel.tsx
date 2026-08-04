@@ -23,6 +23,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useRemoveTournamentTeam } from "@/hooks/use-tournament-manage-display";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
+import { softDevPollMs } from "@/lib/dev/soft-poll";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
 import { MAX_SEARCH_TERM_LENGTH } from "@/lib/search/sanitize-search-term";
 import type { TournamentParticipantRow } from "@/lib/tournaments/participants/query";
@@ -50,6 +51,8 @@ type TournamentParticipantsPanelProps = {
   canRemoveTeams?: boolean;
   /** Partner white-label guest registration (not Gud Game squad lobby). */
   partnerEvent?: boolean;
+  /** Poll roster while manage workspace is open. */
+  liveRefresh?: boolean;
 };
 
 type GroupedTeamEntry = {
@@ -352,6 +355,7 @@ export function TournamentParticipantsPanel({
   teamScoreByTeamId,
   canRemoveTeams = false,
   partnerEvent = false,
+  liveRefresh = false,
 }: TournamentParticipantsPanelProps) {
   const { confirm } = useConfirmDialog();
   const [page, setPage] = useState(1);
@@ -364,6 +368,7 @@ export function TournamentParticipantsPanel({
   const { data, isLoading, isFetching, isError, error, refetch, isPlaceholderData } =
     useTournamentParticipants(sportSlug, slug, page, pageSize, {
       search: activeSearch,
+      refetchInterval: liveRefresh ? softDevPollMs(12_000) : false,
     });
   const removeTeam = useRemoveTournamentTeam(sportSlug, slug);
 
@@ -477,14 +482,16 @@ export function TournamentParticipantsPanel({
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Users className={cn("h-5 w-5 shrink-0", accent)} />
             {partnerEvent
-              ? "Registered teams"
+              ? "Confirmed teams"
               : isOfficial
                 ? "Registered teams"
                 : "Session squads"}
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-cp-muted">
             {partnerEvent
-              ? "Guest teams from your public registration form. Review rosters before play begins."
+              ? canRemoveTeams
+                ? "Only teams you confirmed after curation. Pending registrations stay above until you confirm them — they are not shown on the public Players tab."
+                : "Confirmed guest teams for this event. Pending registrations are not listed here."
               : isOfficial
                 ? isFreeOfficial
                   ? "Confirmed teams are grouped together so hosts can review each roster more clearly."

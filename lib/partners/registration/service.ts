@@ -19,6 +19,7 @@ import { logger } from "@/lib/logger";
 import {
   sendPartnerRegistrationConfirmedEmail,
   sendPartnerRegistrationPaymentEmail,
+  sendPartnerRegistrationPendingEmail,
 } from "@/lib/partners/registration/emails";
 import { issuePartnerRegistrationInvoice } from "@/lib/partners/registration/payments";
 import { buildSyntheticMemberContact, upsertPartnerPlayer } from "@/lib/partners/registration/players";
@@ -27,8 +28,11 @@ import {
   hashAccessToken,
 } from "@/lib/partners/registration/tokens";
 import type { PartnerGuestRegistrationInput } from "@/lib/partners/registration/validation";
+import type { PartnerManageRegistrationRow } from "@/lib/partners/registration/types";
 import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+
+export type { PartnerManageRegistrationRow } from "@/lib/partners/registration/types";
 
 const log = logger.child({ module: "partner-registration" });
 
@@ -40,7 +44,7 @@ export type PartnerRegistrationContext = {
 
 export type StartPartnerGuestRegistrationResult = {
   registrationId: string;
-  status: "confirmed" | "awaiting_payment";
+  status: "registered" | "awaiting_payment";
   accessToken: string;
   payUrl?: string;
   successUrl: string;
@@ -75,7 +79,10 @@ async function countReservedSpots(tournamentId: string): Promise<number> {
     .where(
       and(
         eq(partnerTournamentRegistrations.tournamentId, tournamentId),
-        eq(partnerTournamentRegistrations.status, "awaiting_payment"),
+        inArray(partnerTournamentRegistrations.status, [
+          "awaiting_payment",
+          "registered",
+        ]),
       ),
     );
 
@@ -136,7 +143,11 @@ export async function startPartnerGuestRegistration(
       and(
         eq(partnerTournamentRegistrations.tournamentId, tournament.id),
         eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
-        inArray(partnerTournamentRegistrations.status, ["awaiting_payment", "confirmed"]),
+        inArray(partnerTournamentRegistrations.status, [
+          "awaiting_payment",
+          "registered",
+          "confirmed",
+        ]),
       ),
     )
     .limit(1);
@@ -144,8 +155,10 @@ export async function startPartnerGuestRegistration(
   if (existingReg) {
     throw new AppError(
       existingReg.status === "confirmed"
-        ? "This captain is already registered for this tournament."
-        : "A pending registration already exists for this captain — check your email for the payment link.",
+        ? "This captain is already confirmed for this tournament."
+        : existingReg.status === "registered"
+          ? "This captain already has a registration awaiting organizer confirmation."
+          : "A pending registration already exists for this captain — check your email for the payment link.",
       { code: "CONFLICT", statusCode: 409 },
     );
   }
@@ -160,7 +173,7 @@ export async function startPartnerGuestRegistration(
     .values({
       tournamentId: tournament.id,
       partnerId: partner.id,
-      status: "awaiting_payment",
+      status: isFree ? "registered" : "awaiting_payment",
       teamName,
       captainPartnerPlayerId: captainPlayer.id,
       feeIdr: isFree ? null : fee,
@@ -221,10 +234,18 @@ export async function startPartnerGuestRegistration(
   )}`;
 
   if (isFree) {
-    await confirmPartnerRegistration(registration.id, { accessTokenPlain });
+    await notifyPartnerRegistrationPendingReview(registration.id, {
+      accessTokenPlain,
+      partner,
+      tournament,
+      captainEmail,
+      captainName,
+      teamName,
+      members: memberRows.map((m) => m.fullName),
+    });
     return {
       registrationId: registration.id,
-      status: "confirmed",
+      status: "registered",
       accessToken: accessTokenPlain,
       successUrl,
     };
@@ -316,7 +337,104 @@ async function createTeamWithMembers(
   });
 }
 
-/** Idempotent — safe to call again from a retried webhook. */
+/**
+ * After payment succeeds — mark as registered (pending partner curation).
+ * Does not create a roster team until staff confirms.
+ */
+export async function markPartnerRegistrationPaid(
+  registrationId: string,
+): Promise<void> {
+  const db = getDb();
+  const [registration] = await db
+    .select()
+    .from(partnerTournamentRegistrations)
+    .where(eq(partnerTournamentRegistrations.id, registrationId))
+    .limit(1);
+
+  if (!registration) {
+    throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  if (registration.status === "registered" || registration.status === "confirmed") {
+    return;
+  }
+
+  if (registration.status !== "awaiting_payment") {
+    throw new AppError("Registration cannot accept payment in its current state.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+  }
+
+  await db
+    .update(partnerTournamentRegistrations)
+    .set({ status: "registered" })
+    .where(eq(partnerTournamentRegistrations.id, registrationId));
+
+  const members = await db
+    .select()
+    .from(partnerTournamentRegistrationMembers)
+    .where(eq(partnerTournamentRegistrationMembers.registrationId, registrationId))
+    .orderBy(asc(partnerTournamentRegistrationMembers.roleOrder));
+
+  const [tournamentRow] = await db
+    .select({
+      name: tournaments.name,
+      slug: tournaments.slug,
+    })
+    .from(tournaments)
+    .where(eq(tournaments.id, registration.tournamentId))
+    .limit(1);
+
+  const [partnerRow] = await db
+    .select({ slug: partners.slug, displayName: partners.displayName })
+    .from(partners)
+    .where(eq(partners.id, registration.partnerId))
+    .limit(1);
+
+  const captainMember = members.find((m) => m.isCaptain) ?? members[0];
+  if (captainMember?.email && tournamentRow && partnerRow) {
+    sendPartnerRegistrationPendingEmail({
+      captainEmail: captainMember.email,
+      captainName: captainMember.fullName,
+      partnerName: partnerRow.displayName,
+      partnerSlug: partnerRow.slug,
+      tournamentName: tournamentRow.name,
+      tournamentSlug: tournamentRow.slug,
+      teamName: registration.teamName,
+      roster: members.map((m) => m.fullName),
+    });
+  }
+
+  log.info("Partner guest registration paid — awaiting curation", { registrationId });
+}
+
+async function notifyPartnerRegistrationPendingReview(
+  registrationId: string,
+  input: {
+    accessTokenPlain: string;
+    partner: PartnerRegistrationContext;
+    tournament: TournamentDetail;
+    captainEmail: string;
+    captainName: string;
+    teamName: string;
+    members: string[];
+  },
+): Promise<void> {
+  sendPartnerRegistrationPendingEmail({
+    captainEmail: input.captainEmail,
+    captainName: input.captainName,
+    partnerName: input.partner.displayName,
+    partnerSlug: input.partner.slug,
+    tournamentName: input.tournament.name,
+    tournamentSlug: input.tournament.slug,
+    teamName: input.teamName,
+    roster: input.members,
+  });
+  log.info("Partner guest registration submitted — awaiting curation", { registrationId });
+}
+
+/** Partner staff curation — creates the squad and makes it public. Idempotent. */
 export async function confirmPartnerRegistration(
   registrationId: string,
   options?: { accessTokenPlain?: string | null },
@@ -336,11 +454,16 @@ export async function confirmPartnerRegistration(
     return;
   }
 
-  if (registration.status !== "awaiting_payment" && registration.status !== "confirmed") {
-    throw new AppError("Registration cannot be confirmed in its current state.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 400,
-    });
+  if (registration.status !== "registered") {
+    throw new AppError(
+      registration.status === "awaiting_payment"
+        ? "Payment must be completed before this registration can be confirmed."
+        : "Registration cannot be confirmed in its current state.",
+      {
+        code: "VALIDATION_ERROR",
+        statusCode: 400,
+      },
+    );
   }
 
   const members = await db
@@ -414,6 +537,124 @@ export async function confirmPartnerRegistration(
   }
 
   log.info("Partner guest registration confirmed", { registrationId, teamId });
+}
+
+/** Partner staff declines a pending (registered) guest registration. */
+export async function declinePartnerRegistration(registrationId: string): Promise<void> {
+  const db = getDb();
+  const [registration] = await db
+    .select()
+    .from(partnerTournamentRegistrations)
+    .where(eq(partnerTournamentRegistrations.id, registrationId))
+    .limit(1);
+
+  if (!registration) {
+    throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  if (registration.status === "cancelled") return;
+
+  if (registration.status !== "registered" && registration.status !== "awaiting_payment") {
+    throw new AppError("Only pending registrations can be declined.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+  }
+
+  if (registration.teamId) {
+    throw new AppError("Cannot decline a registration that already has a squad.", {
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+  }
+
+  await db
+    .update(partnerTournamentRegistrations)
+    .set({ status: "cancelled" })
+    .where(eq(partnerTournamentRegistrations.id, registrationId));
+
+  await db
+    .update(tournamentPayments)
+    .set({ status: "expired" })
+    .where(
+      and(
+        eq(tournamentPayments.partnerRegistrationId, registrationId),
+        eq(tournamentPayments.status, "pending"),
+      ),
+    );
+
+  log.info("Partner guest registration declined", { registrationId });
+}
+
+export async function listPartnerTournamentRegistrationsForManage(
+  tournamentId: string,
+  partnerId: string,
+): Promise<PartnerManageRegistrationRow[]> {
+  const db = getDb();
+  const regs = await db
+    .select()
+    .from(partnerTournamentRegistrations)
+    .where(
+      and(
+        eq(partnerTournamentRegistrations.tournamentId, tournamentId),
+        eq(partnerTournamentRegistrations.partnerId, partnerId),
+        inArray(partnerTournamentRegistrations.status, [
+          "awaiting_payment",
+          "registered",
+          "confirmed",
+        ]),
+      ),
+    )
+    .orderBy(asc(partnerTournamentRegistrations.createdAt));
+
+  if (!regs.length) return [];
+
+  const regIds = regs.map((r) => r.id);
+  const members = await db
+    .select()
+    .from(partnerTournamentRegistrationMembers)
+    .where(inArray(partnerTournamentRegistrationMembers.registrationId, regIds))
+    .orderBy(asc(partnerTournamentRegistrationMembers.roleOrder));
+
+  const payments = await db
+    .select({
+      partnerRegistrationId: tournamentPayments.partnerRegistrationId,
+      status: tournamentPayments.status,
+    })
+    .from(tournamentPayments)
+    .where(inArray(tournamentPayments.partnerRegistrationId, regIds));
+
+  const paymentByReg = new Map(
+    payments
+      .filter((p): p is typeof p & { partnerRegistrationId: string } =>
+        Boolean(p.partnerRegistrationId),
+      )
+      .map((p) => [p.partnerRegistrationId, p.status]),
+  );
+
+  const membersByReg = new Map<string, typeof members>();
+  for (const member of members) {
+    const list = membersByReg.get(member.registrationId) ?? [];
+    list.push(member);
+    membersByReg.set(member.registrationId, list);
+  }
+
+  return regs.map((reg) => ({
+    id: reg.id,
+    status: reg.status,
+    teamName: reg.teamName,
+    feeIdr: reg.feeIdr,
+    createdAt: reg.createdAt.toISOString(),
+    confirmedAt: reg.confirmedAt?.toISOString() ?? null,
+    paymentStatus: paymentByReg.get(reg.id) ?? (reg.feeIdr == null ? "free" : null),
+    members: (membersByReg.get(reg.id) ?? []).map((m) => ({
+      fullName: m.fullName,
+      email: m.email,
+      phone: m.phone,
+      isCaptain: m.isCaptain,
+      roleOrder: m.roleOrder,
+    })),
+  }));
 }
 
 async function loadRegistrationDetail(

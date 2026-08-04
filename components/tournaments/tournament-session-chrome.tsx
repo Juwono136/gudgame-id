@@ -35,6 +35,11 @@ type TournamentSessionChromeProps = {
   publicUrl?: string;
   displayUrl?: string;
   manageUrl?: string;
+  /**
+   * Stick flush to the top of the viewport (partner manage has no Gud Game navbar).
+   * Host/official keep offset under `--site-header-height`.
+   */
+  flushTop?: boolean;
   className?: string;
 };
 
@@ -56,6 +61,7 @@ export function TournamentSessionChrome({
   publicUrl: publicUrlProp,
   displayUrl: displayUrlProp,
   manageUrl: manageUrlProp,
+  flushTop = false,
   className,
 }: TournamentSessionChromeProps) {
   const router = useRouter();
@@ -86,7 +92,7 @@ export function TournamentSessionChrome({
     <div
       className={cn(
         "sticky z-40 border-b border-cp-border bg-cp-card/95 backdrop-blur supports-[backdrop-filter]:bg-cp-card/80",
-        "top-[var(--site-header-height,3.5rem)]",
+        flushTop ? "top-0" : "top-[var(--site-header-height,3.5rem)]",
         className,
       )}
     >

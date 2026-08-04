@@ -3,12 +3,8 @@ import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
 import { submitBracketMatchScore } from "@/lib/tournaments/brackets/service";
-import {
-  assertCanScoreBracketMatch,
-  buildTournamentParticipantContext,
-} from "@/lib/tournaments/participant-access";
-import { getActiveAccessGrantRole } from "@/lib/tournaments/invitations/access-grants";
-import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
+import { resolveManageParticipantContext } from "@/lib/tournaments/manage-access";
+import { assertCanScoreBracketMatch } from "@/lib/tournaments/participant-access";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
 
@@ -38,15 +34,7 @@ export async function POST(
       throw new AppError("Invalid scores", { code: "VALIDATION_ERROR", statusCode: 422 });
     }
 
-    const userTeamId = await getUserTeamInTournament(tournament.id, userId);
-    const grantRole = await getActiveAccessGrantRole(tournament.id, userId);
-    const participant = buildTournamentParticipantContext({
-      userId,
-      userTeamId,
-      roles,
-      tournamentCreatedBy: tournament.createdBy,
-      grantRole,
-    });
+    const { participant } = await resolveManageParticipantContext(tournament, userId, roles);
 
     const matchId = parseEntityIdParam(parsed.data.matchId, "match id");
     const { listBracketMatches } = await import("@/lib/tournaments/brackets/service");

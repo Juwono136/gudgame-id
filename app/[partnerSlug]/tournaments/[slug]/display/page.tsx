@@ -8,6 +8,13 @@ type PageProps = {
   params: Promise<{ partnerSlug: string; slug: string }>;
 };
 
+export const metadata = {
+  title: "Live Display",
+};
+
+/**
+ * Full-viewport partner display — parent layout hides partner nav/footer on this route.
+ */
 export default async function PartnerTournamentDisplayPage({ params }: PageProps) {
   const { partnerSlug, slug } = await params;
   const partner = await getActivePartnerBySlug(partnerSlug);
@@ -17,12 +24,14 @@ export default async function PartnerTournamentDisplayPage({ params }: PageProps
   if (!listed) notFound();
 
   return (
-    <TournamentDisplayClient
-      sportSlug={listed.sportSlug}
-      slug={slug}
-      backHref={partnerPublicRoutes.tournament(partner.slug, slug)}
-      partnerLogoUrl={partner.logoUrl}
-      partnerName={partner.displayName}
-    />
+    <div className="fixed inset-0 z-[80] bg-black">
+      <TournamentDisplayClient
+        sportSlug={listed.sportSlug}
+        slug={slug}
+        backHref={partnerPublicRoutes.tournament(partner.slug, slug)}
+        partnerLogoUrl={partner.logoUrl}
+        partnerName={partner.displayName}
+      />
+    </div>
   );
 }
