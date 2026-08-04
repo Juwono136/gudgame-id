@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, ilike, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, isNull, sql, type SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   partnerPlayerMatches,
@@ -14,6 +14,7 @@ import {
   type PartnerPlayersListQuery,
 } from "@/lib/partners/list-query";
 import { toOffset } from "@/lib/pagination/constants";
+import { rebuildPartnerPlayerStatsFromCompletedMatches } from "@/lib/partners/stats/sync";
 
 export type PartnerPlayerListItem = {
   id: string;
@@ -127,7 +128,10 @@ export async function queryPartnerPlayers(
   query: PartnerPlayersListQuery,
 ): Promise<PartnerPagedResult<PartnerPlayerListItem>> {
   const db = getDb();
-  const conditions: SQL[] = [eq(partnerPlayers.partnerId, partnerId)];
+  const conditions: SQL[] = [
+    eq(partnerPlayers.partnerId, partnerId),
+    isNull(partnerPlayers.archivedAt),
+  ];
   const search = query.search?.trim();
   if (search) {
     conditions.push(
@@ -181,6 +185,26 @@ export async function getPartnerPlayerDetail(
   playerId: string,
 ): Promise<PartnerPlayerDetail | null> {
   const db = getDb();
+  const [exists] = await db
+    .select({ id: partnerPlayers.id })
+    .from(partnerPlayers)
+    .where(
+      and(
+        eq(partnerPlayers.id, playerId),
+        eq(partnerPlayers.partnerId, partnerId),
+        isNull(partnerPlayers.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (!exists) return null;
+
+  // Keep detail pages aligned with completed tournament fixtures (idempotent).
+  try {
+    await rebuildPartnerPlayerStatsFromCompletedMatches({ partnerId, playerId });
+  } catch {
+    // Non-fatal — still return currently stored aggregates.
+  }
+
   const [row] = await db
     .select(statsSelect())
     .from(partnerPlayers)
@@ -191,7 +215,13 @@ export async function getPartnerPlayerDetail(
         eq(partnerPlayerMatches.partnerId, partnerId),
       ),
     )
-    .where(and(eq(partnerPlayers.id, playerId), eq(partnerPlayers.partnerId, partnerId)))
+    .where(
+      and(
+        eq(partnerPlayers.id, playerId),
+        eq(partnerPlayers.partnerId, partnerId),
+        isNull(partnerPlayers.archivedAt),
+      ),
+    )
     .groupBy(
       partnerPlayers.id,
       partnerPlayers.fullName,

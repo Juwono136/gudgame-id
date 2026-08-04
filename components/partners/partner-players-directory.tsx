@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, Loader2, Trash2, TrendingUp, Users } from "lucide-react";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
 import {
   CompetitionListFetchingOverlay,
@@ -13,6 +13,9 @@ import {
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
 import { PartnerPublicEligibilitySearch } from "@/components/partners/partner-public-eligibility-search";
+import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { useArchivePartnerPlayer } from "@/hooks/use-archive-partner-player";
 import { useDebounce } from "@/hooks/use-debounce";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
@@ -73,6 +76,8 @@ export function PartnerPlayersDirectory({
     useState<PartnerPlayersListQuery["sortBy"]>("matchesPlayed");
   const [sortDir, setSortDir] =
     useState<PartnerPlayersListQuery["sortDir"]>("desc");
+  const { archivePlayer, isPending: deleting } = useArchivePartnerPlayer();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -113,7 +118,22 @@ export function PartnerPlayersDirectory({
       return json.data;
     },
     placeholderData: (prev) => prev,
+    refetchInterval: tab === "players" ? 12_000 : false,
+    refetchOnWindowFocus: true,
   });
+
+  const handleDelete = async (player: PartnerPlayerListItem) => {
+    setDeletingId(player.id);
+    try {
+      await archivePlayer({
+        partnerSlug,
+        playerId: player.id,
+        playerName: player.fullName,
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -133,11 +153,13 @@ export function PartnerPlayersDirectory({
             Players list
           </h1>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-cp-muted">
-            Internal roster for {partnerName} — profile photo, name, wins, losses, and win rate for
-            manual curation.
+            Internal roster for {partnerName} — profile photo, name, wins, losses, and win rate.
+            Stats refresh automatically from completed tournament matches.
           </p>
         </div>
       </div>
+
+      {deleting ? <LoadingOverlay show label="Removing player…" /> : null}
 
       <div
         className="inline-flex rounded-full border border-cp-border bg-cp-elevated/40 p-1"
@@ -212,32 +234,50 @@ export function PartnerPlayersDirectory({
                 <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card lg:hidden">
                   {items.map((player) => {
                     const href = partnerPublicRoutes.player(partnerSlug, player.id);
+                    const rowBusy = deleting && deletingId === player.id;
                     return (
-                      <li key={player.id}>
-                        <Link
-                          href={href}
-                          className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-cp-elevated/40"
-                        >
-                          <PlayerAvatar player={player} />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold text-foreground">
-                              {player.fullName}
-                            </p>
-                            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-cp-muted">
-                              <span className="tabular-nums text-emerald-700 dark:text-emerald-300">
-                                {player.wins}W
-                              </span>
-                              <span className="tabular-nums text-rose-700 dark:text-rose-300">
-                                {player.losses}L
-                              </span>
-                              <span className="inline-flex items-center gap-1 tabular-nums">
-                                <TrendingUp className="h-3 w-3" aria-hidden />
-                                {formatWinRate(player.winRate)}
-                              </span>
-                            </p>
-                          </div>
-                          <ArrowRight className="h-4 w-4 shrink-0 text-cp-primary" aria-hidden />
-                        </Link>
+                      <li key={player.id} className="px-4 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={href}
+                            className="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-95"
+                          >
+                            <PlayerAvatar player={player} />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-semibold text-foreground">
+                                {player.fullName}
+                              </p>
+                              <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-cp-muted">
+                                <span className="tabular-nums text-emerald-700 dark:text-emerald-300">
+                                  {player.wins}W
+                                </span>
+                                <span className="tabular-nums text-rose-700 dark:text-rose-300">
+                                  {player.losses}L
+                                </span>
+                                <span className="inline-flex items-center gap-1 tabular-nums">
+                                  <TrendingUp className="h-3 w-3" aria-hidden />
+                                  {formatWinRate(player.winRate)}
+                                </span>
+                              </p>
+                            </div>
+                            <ArrowRight className="h-4 w-4 shrink-0 text-cp-primary" aria-hidden />
+                          </Link>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            className="h-9 w-9 shrink-0 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                            disabled={deleting}
+                            aria-label={`Remove ${player.fullName}`}
+                            onClick={() => void handleDelete(player)}
+                          >
+                            {rowBusy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </li>
                     );
                   })}
@@ -252,12 +292,13 @@ export function PartnerPlayersDirectory({
                         <th className="px-4 py-3 font-semibold tabular-nums">Wins</th>
                         <th className="px-4 py-3 font-semibold tabular-nums">Losses</th>
                         <th className="px-4 py-3 font-semibold tabular-nums">Win rate</th>
-                        <th className="px-4 py-3 font-semibold"> </th>
+                        <th className="px-4 py-3 font-semibold text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cp-border">
                       {items.map((player) => {
                         const href = partnerPublicRoutes.player(partnerSlug, player.id);
+                        const rowBusy = deleting && deletingId === player.id;
                         return (
                           <tr
                             key={player.id}
@@ -289,14 +330,31 @@ export function PartnerPlayersDirectory({
                             <td className="px-4 py-3 font-semibold tabular-nums text-foreground">
                               {formatWinRate(player.winRate)}
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <Link
-                                href={href}
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-cp-primary hover:underline"
-                              >
-                                View
-                                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                              </Link>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <Link
+                                  href={href}
+                                  className="inline-flex items-center gap-1 text-xs font-semibold text-cp-primary hover:underline"
+                                >
+                                  View
+                                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                                </Link>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 border-red-500/30 px-2.5 text-xs text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                                  disabled={deleting}
+                                  onClick={() => void handleDelete(player)}
+                                >
+                                  {rowBusy ? (
+                                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                  )}
+                                  Remove
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );

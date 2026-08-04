@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Trophy } from "lucide-react";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
+import { CoverImageFallback } from "@/components/shared/cover-image-fallback";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import type { PartnerLeagueDetail, PartnerLeagueListItem } from "@/lib/partners/league-types";
 import { cn } from "@/lib/utils";
@@ -90,14 +91,7 @@ export function PartnerLeagueBanner({
                 priority
               />
             ) : (
-              <div
-                className="flex h-full w-full items-center justify-center"
-                style={{
-                  background: `linear-gradient(145deg, ${primaryColor}28, transparent 70%)`,
-                }}
-              >
-                <Trophy className="h-10 w-10 text-cp-primary" aria-hidden />
-              </div>
+              <CoverImageFallback size="card" icon={Trophy} className="rounded-2xl" />
             )}
           </div>
         </div>

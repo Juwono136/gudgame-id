@@ -98,7 +98,10 @@ export async function GET(
   }
 }
 
-/** Guest self-cancel of an unpaid registration (token-gated). Releases the slot for re-registration. */
+/**
+ * Guest self-cancel (token-gated).
+ * Unpaid paid-entry holds (`awaiting_payment`) and free entries awaiting curation (`registered`).
+ */
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ partnerSlug: string; slug: string; token: string }> },

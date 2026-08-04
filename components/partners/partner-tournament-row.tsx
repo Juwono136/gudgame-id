@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Calendar, MapPin, Ticket } from "lucide-react";
+import { ArrowRight, Calendar, MapPin, Ticket, Trophy } from "lucide-react";
 import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
+import { CoverImageFallback } from "@/components/shared/cover-image-fallback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TournamentDiscoveryCta } from "@/lib/tournaments/discovery-cta";
@@ -85,12 +86,7 @@ export function PartnerTournamentRow({
     !hideLeagueBadge && Boolean(tournament.partnerLeagueName?.trim());
 
   const thumb = (
-    <span
-      className={cn(
-        "relative block h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16",
-        !cover && "bg-gradient-to-br from-cp-primary/20 via-cp-elevated to-cp-card",
-      )}
-    >
+    <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16">
       {cover ? (
         <Image
           src={cover}
@@ -100,7 +96,9 @@ export function PartnerTournamentRow({
           sizes="64px"
           unoptimized
         />
-      ) : null}
+      ) : (
+        <CoverImageFallback size="thumb" icon={Trophy} />
+      )}
     </span>
   );
 

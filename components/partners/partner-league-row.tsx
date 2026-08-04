@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Trophy, Users } from "lucide-react";
 import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
+import { CoverImageFallback } from "@/components/shared/cover-image-fallback";
 import { Button } from "@/components/ui/button";
 import type { PartnerLeagueListItem } from "@/lib/partners/league-types";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
@@ -34,16 +35,11 @@ export function PartnerLeagueRow({
   const summary = league.summary?.trim() ? stripHtmlToText(league.summary) : null;
 
   const thumb = (
-    <span
-      className={cn(
-        "relative flex h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16",
-        !brand && "items-center justify-center bg-gradient-to-br from-cp-primary/20 via-cp-elevated to-cp-card",
-      )}
-    >
+    <span className="relative flex h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16">
       {brand ? (
         <Image src={brand} alt="" fill className="object-cover" sizes="64px" unoptimized />
       ) : (
-        <Trophy className="h-5 w-5 text-cp-primary sm:h-6 sm:w-6" aria-hidden />
+        <CoverImageFallback size="thumb" icon={Trophy} />
       )}
     </span>
   );

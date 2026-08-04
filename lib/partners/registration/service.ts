@@ -627,8 +627,11 @@ export async function declinePartnerRegistration(registrationId: string): Promis
 }
 
 /**
- * Guest self-cancel from the payment page (token-gated).
- * Only unpaid holds — paid / curated registrations stay with staff.
+ * Guest self-cancel (token-gated) from payment or success pages.
+ * Allowed:
+ * - `awaiting_payment` (paid tournaments before checkout completes)
+ * - `registered` when unpaid (free entry awaiting organizer confirmation)
+ * Paid / confirmed registrations stay with partner staff.
  */
 export async function cancelPartnerGuestRegistrationByToken(token: string): Promise<{
   registrationId: string;
@@ -638,13 +641,41 @@ export async function cancelPartnerGuestRegistrationByToken(token: string): Prom
     throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
-  await softCancelPartnerRegistration({
-    registrationId: detail.registration.id,
-    allowedStatuses: ["awaiting_payment"],
-    source: "guest",
-  });
+  const status = detail.registration.status;
+  if (status === "cancelled" || status === "expired") {
+    return { registrationId: detail.registration.id };
+  }
 
-  return { registrationId: detail.registration.id };
+  const paymentPaid = detail.payment?.status === "paid";
+
+  if (status === "awaiting_payment") {
+    await softCancelPartnerRegistration({
+      registrationId: detail.registration.id,
+      allowedStatuses: ["awaiting_payment"],
+      source: "guest",
+    });
+    return { registrationId: detail.registration.id };
+  }
+
+  if (status === "registered") {
+    if (paymentPaid) {
+      throw new AppError(
+        "This registration is already paid. Contact the organizer if you need to cancel.",
+        { code: "VALIDATION_ERROR", statusCode: 400 },
+      );
+    }
+    await softCancelPartnerRegistration({
+      registrationId: detail.registration.id,
+      allowedStatuses: ["registered"],
+      source: "guest",
+    });
+    return { registrationId: detail.registration.id };
+  }
+
+  throw new AppError(
+    "Only pending registrations can be cancelled. Confirmed teams stay with the organizer.",
+    { code: "VALIDATION_ERROR", statusCode: 400 },
+  );
 }
 
 export async function listPartnerTournamentRegistrationsForManage(

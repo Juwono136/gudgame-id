@@ -6,10 +6,14 @@ import {
   ArrowLeft,
   CalendarDays,
   Loader2,
+  Trash2,
   Trophy,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { useArchivePartnerPlayer } from "@/hooks/use-archive-partner-player";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
 import type { PartnerPlayerDetail } from "@/lib/partners/player-stats";
@@ -71,6 +75,7 @@ export function PartnerPlayerDetailClient({
   playerId,
   primaryColor,
 }: PartnerPlayerDetailClientProps) {
+  const { archivePlayer, isPending: deleting } = useArchivePartnerPlayer();
   const { data, isLoading, isError, error, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["partner-player-detail", partnerSlug, playerId],
     queryFn: async (): Promise<PartnerPlayerDetail> => {
@@ -98,18 +103,44 @@ export function PartnerPlayerDetailClient({
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div>
-        <Link
-          href={partnerPublicRoutes.players(partnerSlug)}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-cp-primary hover:text-cp-primary-light"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          Players
-        </Link>
-        <p className="mt-2 text-xs font-medium text-cp-muted">
-          Staff-only · {partnerName} · updates automatically while this page is open
-          {isFetching && !isLoading ? " · refreshing…" : ""}
-        </p>
+      {deleting ? <LoadingOverlay show label="Removing player…" /> : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <Link
+            href={partnerPublicRoutes.players(partnerSlug)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-cp-primary hover:text-cp-primary-light"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Players
+          </Link>
+          <p className="mt-2 text-xs font-medium text-cp-muted">
+            Staff-only · {partnerName} · synced from completed tournament matches
+            {isFetching && !isLoading ? " · refreshing…" : ""}
+          </p>
+        </div>
+        {player ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 shrink-0 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+            disabled={deleting}
+            onClick={() =>
+              void archivePlayer({
+                partnerSlug,
+                playerId,
+                playerName: player.fullName,
+                redirectTo: partnerPublicRoutes.players(partnerSlug),
+              })
+            }
+          >
+            {deleting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            Remove from list
+          </Button>
+        ) : null}
       </div>
 
       {isLoading && !player ? (
@@ -158,7 +189,8 @@ export function PartnerPlayerDetailClient({
                 Performance
               </h2>
               <p className="mt-0.5 text-xs text-cp-muted sm:text-sm">
-                Aggregated from completed partner matches — updates when scores are finalized.
+                Rebuilt from completed group, bracket, and Americano matches in your tournaments —
+                refreshes while this page is open.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">

@@ -38,6 +38,11 @@ export const partnerPlayers = pgTable(
     fullName: varchar("full_name", { length: 120 }).notNull(),
     email: varchar("email", { length: 255 }).notNull(),
     phone: varchar("phone", { length: 32 }).notNull(),
+    /**
+     * Soft-remove from partner Players directory. History rows stay for audit;
+     * contact fields are rewritten so the same email/phone can re-register.
+     */
+    archivedAt: timestamp("archived_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -54,6 +59,7 @@ export const partnerPlayers = pgTable(
     uniqueIndex("partner_players_partner_phone_uidx").on(table.partnerId, table.phone),
     index("partner_players_partner_idx").on(table.partnerId),
     index("partner_players_name_idx").on(table.fullName),
+    index("partner_players_archived_idx").on(table.partnerId, table.archivedAt),
   ],
 );
 

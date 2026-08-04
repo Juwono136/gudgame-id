@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { partnerPlayers, type PartnerPlayer } from "@/db/schema/partner-players";
 import { normalizePartnerPhone } from "@/lib/partners/registration/phone";
@@ -56,6 +56,7 @@ export async function upsertPartnerPlayer(
     .where(
       and(
         eq(partnerPlayers.partnerId, partnerId),
+        isNull(partnerPlayers.archivedAt),
         or(eq(partnerPlayers.email, email), eq(partnerPlayers.phone, phone)),
       ),
     )
@@ -92,6 +93,7 @@ export async function upsertPartnerPlayer(
         .where(
           and(
             eq(partnerPlayers.partnerId, partnerId),
+            isNull(partnerPlayers.archivedAt),
             or(eq(partnerPlayers.email, email), eq(partnerPlayers.phone, phone)),
           ),
         )

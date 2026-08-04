@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Trophy, Users } from "lucide-react";
+import { CoverImageFallback } from "@/components/shared/cover-image-fallback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PartnerLeagueListItem } from "@/lib/partners/league-types";
@@ -37,7 +38,7 @@ export function PartnerLeagueDiscoveryCard({
     >
       <Link
         href={href}
-        className="relative flex aspect-[16/11] items-center justify-center overflow-hidden bg-gradient-to-br from-cp-primary/20 via-cp-elevated to-cp-card"
+        className="relative flex aspect-[16/11] items-center justify-center overflow-hidden bg-cp-elevated"
       >
         {league.brandImageUrl?.trim() ? (
           <Image
@@ -49,11 +50,19 @@ export function PartnerLeagueDiscoveryCard({
             unoptimized
           />
         ) : (
-          <Trophy className="h-12 w-12 text-cp-primary/70 transition-transform duration-300 group-hover:scale-110" />
+          <CoverImageFallback size="card" icon={Trophy} />
         )}
+        <div
+          className={cn(
+            "absolute inset-0",
+            league.brandImageUrl?.trim()
+              ? "bg-gradient-to-t from-black/40 via-transparent to-transparent"
+              : "bg-gradient-to-t from-black/20 via-transparent to-transparent",
+          )}
+        />
         <Badge
           className={cn(
-            "absolute left-3 top-3 border-0 text-[10px] font-bold uppercase tracking-wider",
+            "absolute left-3 top-3 z-[1] border-0 text-[10px] font-bold uppercase tracking-wider",
             STATUS_STYLES[league.status] ?? STATUS_STYLES.completed,
           )}
         >

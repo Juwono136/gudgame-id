@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Calendar, MapPin, Ticket, Trophy, Users } from "lucide-react";
+import { CoverImageFallback } from "@/components/shared/cover-image-fallback";
 import { DiscoveryCardSummary } from "@/components/tournaments/discovery-card-summary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,9 +106,16 @@ export function TournamentDiscoveryCard({
             unoptimized
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-cp-primary/25 via-cp-elevated to-cp-card" />
+          <CoverImageFallback size="card" icon={Trophy} />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/15" />
+        <div
+          className={cn(
+            "absolute inset-0",
+            cover
+              ? "bg-gradient-to-t from-black/55 via-transparent to-black/15"
+              : "bg-gradient-to-t from-black/25 via-transparent to-transparent",
+          )}
+        />
         <Badge
           className={cn(
             "absolute left-3 top-3 border-0 text-[10px] font-bold uppercase tracking-wider",
