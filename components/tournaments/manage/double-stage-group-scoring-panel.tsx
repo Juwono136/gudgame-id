@@ -73,6 +73,9 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
         targetPoints?: number;
         scorerName?: string;
         scorerUserId?: string;
+        servingSide?: "a" | "b";
+        serverName?: string;
+        serverUserId?: string;
       },
     ) => {
       const showBusy = action !== "update";
@@ -92,6 +95,9 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
                   targetPoints: scores!.targetPoints,
                   scorerName: scores!.scorerName,
                   scorerUserId: scores!.scorerUserId,
+                  servingSide: scores!.servingSide,
+                  serverName: scores!.serverName,
+                  serverUserId: scores!.serverUserId,
                 }
               : { action: "record", matchId, scoreA: scores!.scoreA, scoreB: scores!.scoreB };
         await enqueueGroupScoreUpdate(matchId, async () => {

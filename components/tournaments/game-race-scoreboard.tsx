@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   GAME_RALLY_MILESTONES,
   formatRaceToGamesLabel,
+  serveHistoryFromCompletedGames,
   type MatchGameRules,
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
@@ -20,7 +21,7 @@ export type GameRaceRosterPlayer = {
 type GameRaceScoreboardProps = {
   teamAName: string;
   teamBName: string;
-  /** Display-only player names (legacy). Prefer rosterA/rosterB for scorer attribution. */
+  /** Display-only player names (legacy). Prefer rosterA/rosterB for server selection. */
   teamAPlayers?: string[];
   teamBPlayers?: string[];
   rosterA?: GameRaceRosterPlayer[];
@@ -32,13 +33,13 @@ type GameRaceScoreboardProps = {
   disabled?: boolean;
   /** True while a score write is in flight / queued — buttons stay clickable (queued). */
   syncing?: boolean;
-  onPointA: (delta: 1 | -1, scorer?: ScoreAdjustOptions) => void;
-  onPointB: (delta: 1 | -1, scorer?: ScoreAdjustOptions) => void;
+  onPointA: (delta: 1 | -1, server?: ScoreAdjustOptions) => void;
+  onPointB: (delta: 1 | -1, server?: ScoreAdjustOptions) => void;
   /** Jump selected side points to an absolute milestone (15 / 30 / 40). */
-  onSetPointsA?: (target: number, scorer?: ScoreAdjustOptions) => void;
-  onSetPointsB?: (target: number, scorer?: ScoreAdjustOptions) => void;
+  onSetPointsA?: (target: number, server?: ScoreAdjustOptions) => void;
+  onSetPointsB?: (target: number, server?: ScoreAdjustOptions) => void;
   /** After a game is won (points held), continue to the next game at 0–0. */
-  onNextGame?: () => void;
+  onNextGame?: (server?: ScoreAdjustOptions) => void;
   className?: string;
   /** Hide internal team headers when the parent already shows teams. */
   hideTeamHeaders?: boolean;
@@ -144,29 +145,57 @@ export function GameRaceScoreboard({
     [rosterB, teamBPlayers],
   );
 
-  const [scorerAId, setScorerAId] = useState<string | null>(
-    () => resolvedRosterA[0]?.userId ?? null,
+  const servingSide = gameState.servingSide === "b" ? "b" : "a";
+  const [serverAId, setServerAId] = useState<string | null>(
+    () => gameState.servingUserId && servingSide === "a"
+      ? gameState.servingUserId
+      : resolvedRosterA[0]?.userId ?? null,
   );
-  const [scorerBId, setScorerBId] = useState<string | null>(
-    () => resolvedRosterB[0]?.userId ?? null,
+  const [serverBId, setServerBId] = useState<string | null>(
+    () => gameState.servingUserId && servingSide === "b"
+      ? gameState.servingUserId
+      : resolvedRosterB[0]?.userId ?? null,
   );
+  const [localServingSide, setLocalServingSide] = useState<"a" | "b">(servingSide);
 
   useEffect(() => {
-    setScorerAId((prev) => {
+    setLocalServingSide(servingSide);
+  }, [servingSide, gamesA, gamesB, gameState.pendingGameWinner]);
+
+  useEffect(() => {
+    setServerAId((prev) => {
+      if (
+        servingSide === "a" &&
+        gameState.servingUserId &&
+        resolvedRosterA.some((p) => p.userId === gameState.servingUserId)
+      ) {
+        return gameState.servingUserId;
+      }
       if (prev && resolvedRosterA.some((p) => p.userId === prev)) return prev;
       return resolvedRosterA[0]?.userId ?? null;
     });
-  }, [resolvedRosterA]);
+  }, [resolvedRosterA, servingSide, gameState.servingUserId]);
 
   useEffect(() => {
-    setScorerBId((prev) => {
+    setServerBId((prev) => {
+      if (
+        servingSide === "b" &&
+        gameState.servingUserId &&
+        resolvedRosterB.some((p) => p.userId === gameState.servingUserId)
+      ) {
+        return gameState.servingUserId;
+      }
       if (prev && resolvedRosterB.some((p) => p.userId === prev)) return prev;
       return resolvedRosterB[0]?.userId ?? null;
     });
-  }, [resolvedRosterB]);
+  }, [resolvedRosterB, servingSide, gameState.servingUserId]);
 
-  const scorerOptsA = scorerOptionsFor(resolvedRosterA, scorerAId);
-  const scorerOptsB = scorerOptionsFor(resolvedRosterB, scorerBId);
+  const activeServerOpts = serverOptionsFor(
+    localServingSide === "a" ? resolvedRosterA : resolvedRosterB,
+    localServingSide === "a" ? serverAId : serverBId,
+    localServingSide,
+  );
+  const serveHistory = serveHistoryFromCompletedGames(gameState.completedGames);
 
   return (
     <div className={cn("w-full min-w-0 space-y-3", className)}>
@@ -244,16 +273,20 @@ export function GameRaceScoreboard({
           <SideScorePanel
             name={teamAName}
             roster={resolvedRosterA}
-            selectedScorerId={scorerAId}
-            onSelectScorer={setScorerAId}
+            selectedServerId={serverAId}
+            isServingSide={localServingSide === "a"}
+            onSelectServer={(userId) => {
+              setServerAId(userId);
+              setLocalServingSide("a");
+            }}
             points={pointsA}
             milestones={milestones}
             incrementDisabled={!canInc}
-            onIncrement={() => onPointA(1, scorerOptsA)}
-            onDecrement={() => onPointA(-1, scorerOptsA)}
+            onIncrement={() => onPointA(1, activeServerOpts)}
+            onDecrement={() => onPointA(-1, activeServerOpts)}
             onSetPoints={
               onSetPointsA && milestones.length > 0
-                ? (target) => onSetPointsA(target, scorerOptsA)
+                ? (target) => onSetPointsA(target, activeServerOpts)
                 : undefined
             }
             canDecrement={canDecA}
@@ -270,16 +303,20 @@ export function GameRaceScoreboard({
           <SideScorePanel
             name={teamBName}
             roster={resolvedRosterB}
-            selectedScorerId={scorerBId}
-            onSelectScorer={setScorerBId}
+            selectedServerId={serverBId}
+            isServingSide={localServingSide === "b"}
+            onSelectServer={(userId) => {
+              setServerBId(userId);
+              setLocalServingSide("b");
+            }}
             points={pointsB}
             milestones={milestones}
             incrementDisabled={!canInc}
-            onIncrement={() => onPointB(1, scorerOptsB)}
-            onDecrement={() => onPointB(-1, scorerOptsB)}
+            onIncrement={() => onPointB(1, activeServerOpts)}
+            onDecrement={() => onPointB(-1, activeServerOpts)}
             onSetPoints={
               onSetPointsB && milestones.length > 0
-                ? (target) => onSetPointsB(target, scorerOptsB)
+                ? (target) => onSetPointsB(target, activeServerOpts)
                 : undefined
             }
             canDecrement={canDecB}
@@ -306,7 +343,7 @@ export function GameRaceScoreboard({
                 type="button"
                 className="w-full max-w-xs touch-manipulation sm:w-auto"
                 disabled={disabled || syncing || !onNextGame}
-                onClick={onNextGame}
+                onClick={() => onNextGame?.(activeServerOpts)}
               >
                 {nextLabel}
               </Button>
@@ -315,8 +352,28 @@ export function GameRaceScoreboard({
         ) : null}
       </div>
 
+      {serveHistory.length > 0 ? (
+        <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+            Servers this match
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {serveHistory.map((row) => (
+              <li
+                key={`serve-${row.gameNumber}-${row.displayName}`}
+                className="rounded-full border border-cp-border/80 bg-cp-card px-2.5 py-0.5 text-[11px] text-foreground"
+              >
+                <span className="text-cp-muted">G{row.gameNumber}</span>
+                <span className="ml-1.5 font-medium">{row.displayName}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <p className="text-center text-[11px] leading-relaxed text-cp-muted">
-        Use <span className="font-medium text-foreground">+/−</span> for 1 point
+        Tap a player to set the server · serve alternates each game ·{" "}
+        <span className="font-medium text-foreground">+/−</span> for 1 point
         {milestones.length > 0 ? (
           <>
             , or jump with{" "}
@@ -349,14 +406,21 @@ function resolveRoster(
     .filter((p) => p.displayName.trim());
 }
 
-function scorerOptionsFor(
+function serverOptionsFor(
   roster: GameRaceRosterPlayer[],
   selectedId: string | null,
+  servingSide: "a" | "b",
 ): ScoreAdjustOptions | undefined {
   const selected = roster.find((p) => p.userId === selectedId) ?? roster[0];
-  if (!selected) return undefined;
+  if (!selected) {
+    return { servingSide };
+  }
   const isSynthetic = selected.userId.startsWith("name:");
   return {
+    servingSide,
+    serverName: selected.displayName,
+    serverUserId: isSynthetic ? undefined : selected.userId,
+    // Keep legacy fields populated so older audit paths still receive a name.
     scorerName: selected.displayName,
     scorerUserId: isSynthetic ? undefined : selected.userId,
   };
@@ -403,8 +467,9 @@ function MilestoneTrack({
 function SideScorePanel({
   name,
   roster,
-  selectedScorerId,
-  onSelectScorer,
+  selectedServerId,
+  isServingSide,
+  onSelectServer,
   points,
   milestones,
   incrementDisabled,
@@ -419,8 +484,9 @@ function SideScorePanel({
 }: {
   name: string;
   roster: GameRaceRosterPlayer[];
-  selectedScorerId: string | null;
-  onSelectScorer: (userId: string) => void;
+  selectedServerId: string | null;
+  isServingSide: boolean;
+  onSelectServer: (userId: string) => void;
   points: number;
   milestones: readonly number[];
   incrementDisabled?: boolean;
@@ -437,7 +503,11 @@ function SideScorePanel({
     <div
       className={cn(
         "flex min-w-0 flex-col items-center gap-2 rounded-xl border bg-cp-card/60 p-3",
-        highlight ? "border-cp-primary/50 ring-1 ring-cp-primary/25" : "border-cp-border/60",
+        highlight
+          ? "border-cp-primary/50 ring-1 ring-cp-primary/25"
+          : isServingSide
+            ? "border-cp-primary/35 ring-1 ring-cp-primary/15"
+            : "border-cp-border/60",
       )}
     >
       {!hideHeader ? (
@@ -445,28 +515,29 @@ function SideScorePanel({
           <p className="truncate text-sm font-semibold text-foreground" title={name}>
             {name}
           </p>
+          {isServingSide ? (
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-cp-primary">
+              Serving
+            </p>
+          ) : null}
           {roster.length > 0 ? (
             <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
               {roster.map((player) => {
-                const active = player.userId === selectedScorerId;
+                const active = isServingSide && player.userId === selectedServerId;
                 return (
                   <button
                     key={player.userId}
                     type="button"
-                    disabled={scoringDisabled || roster.length < 2}
-                    onClick={() => onSelectScorer(player.userId)}
+                    disabled={scoringDisabled}
+                    onClick={() => onSelectServer(player.userId)}
                     className={cn(
                       "max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
                       active
                         ? "border-cp-primary/40 bg-cp-primary/15 text-cp-primary"
                         : "border-cp-border/70 bg-cp-elevated/30 text-cp-muted hover:text-foreground",
-                      (scoringDisabled || roster.length < 2) && "cursor-default",
+                      scoringDisabled && "cursor-default",
                     )}
-                    title={
-                      roster.length > 1
-                        ? `Attribute points to ${player.displayName}`
-                        : player.displayName
-                    }
+                    title={`Set ${player.displayName} as server`}
                   >
                     {player.displayName}
                   </button>

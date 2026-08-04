@@ -38,6 +38,9 @@ const bodySchema = z.discriminatedUnion("action", [
     side: z.enum(["a", "b"]).optional(),
     scorerName: optionalScorerNameSchema,
     scorerUserId: optionalAuthUserIdSchema,
+    servingSide: z.enum(["a", "b"]).optional(),
+    serverName: optionalScorerNameSchema,
+    serverUserId: optionalAuthUserIdSchema,
     targetPoints: z.coerce.number().int().min(0).max(100).optional(),
   }),
   z.object({
@@ -112,6 +115,9 @@ export async function POST(
           side: parsed.data.side,
           scorerName: parsed.data.scorerName,
           scorerUserId: parsed.data.scorerUserId,
+          servingSide: parsed.data.servingSide,
+          serverName: parsed.data.serverName,
+          serverUserId: parsed.data.serverUserId,
           targetPoints: parsed.data.targetPoints,
         },
       );

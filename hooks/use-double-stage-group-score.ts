@@ -167,6 +167,9 @@ export type GroupLiveScoreInput = {
   targetPoints?: number;
   scorerName?: string;
   scorerUserId?: string;
+  servingSide?: "a" | "b";
+  serverName?: string;
+  serverUserId?: string;
 };
 
 export function useUpdateGroupLiveScore(sportSlug: string, slug: string) {
@@ -188,6 +191,9 @@ export function useUpdateGroupLiveScore(sportSlug: string, slug: string) {
             targetPoints: input.targetPoints,
             scorerName: input.scorerName,
             scorerUserId: input.scorerUserId,
+            servingSide: input.servingSide,
+            serverName: input.serverName,
+            serverUserId: input.serverUserId,
           });
           qc.setQueryData(
             manageScoringQueryKey(sportSlug, slug),

@@ -70,6 +70,25 @@ describe("game-mode scoring", () => {
     expect(next.currentPointsB).toBe(0);
     expect(next.pendingGameWinner).toBeNull();
     expect(next.completedGames).toHaveLength(1);
+    expect(next.servingSide).toBe("b");
+    expect(next.completedGames[0]?.serverSide).toBe("a");
+  });
+
+  it("records the server on each completed game and alternates serve", () => {
+    let state = {
+      ...emptyMatchGameState(),
+      servingSide: "b" as const,
+      servingName: "Zafa",
+      servingUserId: "u-zafa",
+    };
+    const win = applyGamePointSet(0, 0, state, "a", 40, padelRules)!;
+    expect(win.gameState.completedGames[0]).toMatchObject({
+      serverSide: "b",
+      serverName: "Zafa",
+    });
+    const next = startNextGameAfterWin(win.gameState)!;
+    expect(next.servingSide).toBe("a");
+    expect(next.servingName).toBeNull();
   });
 
   it("treats golden_point as No-Ad (first deuce decides)", () => {

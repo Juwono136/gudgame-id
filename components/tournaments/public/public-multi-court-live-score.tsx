@@ -195,13 +195,12 @@ export function PublicMultiCourtLiveScore({
     [pointsPerMatch, tournament],
   );
 
-  const gameRules = useMemo(
-    () =>
-      getTournamentMatchScoreMode(tournament) === "games"
-        ? getTournamentGameRules(tournament)
-        : null,
-    [tournament],
-  );
+  const gameRules = useMemo(() => {
+    if (getTournamentMatchScoreMode(tournament) !== "games") return null;
+    const phase = scopedLiveData?.doubleStage?.phase;
+    const stage = phase === "knockout" ? "knockout" : "group";
+    return getTournamentGameRules(tournament, stage);
+  }, [tournament, scopedLiveData?.doubleStage?.phase]);
 
   const allMatches = useMemo(
     () => getFunMatchSessionViews(scopedLiveData),

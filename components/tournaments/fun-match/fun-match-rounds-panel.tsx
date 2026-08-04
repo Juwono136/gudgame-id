@@ -49,6 +49,9 @@ type FunMatchRoundsPanelProps = {
       targetPoints?: number;
       scorerName?: string;
       scorerUserId?: string;
+      servingSide?: "a" | "b";
+      serverName?: string;
+      serverUserId?: string;
       isBracket?: boolean;
       isGroup?: boolean;
     },

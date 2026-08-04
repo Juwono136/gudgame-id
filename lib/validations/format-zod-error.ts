@@ -54,5 +54,7 @@ export function zodErrorToAppError(error: z.ZodError): AppError {
   return new AppError(formatZodValidationMessage(error), {
     code: "VALIDATION_ERROR",
     statusCode: 422,
+    // Always expose flatten() so clients can highlight fields (safe — no secrets).
+    context: { issues: error.flatten() },
   });
 }

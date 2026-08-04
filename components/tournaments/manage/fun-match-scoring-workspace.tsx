@@ -179,9 +179,12 @@ export function FunMatchScoringWorkspace({
   const gameRules = useMemo(
     () =>
       getTournamentMatchScoreMode(tournament) === "games"
-        ? getTournamentGameRules(tournament)
+        ? getTournamentGameRules(
+            tournament,
+            isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
+          )
         : null,
-    [tournament],
+    [tournament, isBracketMode, isGroupStageMode],
   );
   const classicSetRules = useMemo(
     () =>
@@ -963,6 +966,9 @@ export function FunMatchScoringWorkspace({
         targetPoints?: number;
         scorerName?: string;
         scorerUserId?: string;
+        servingSide?: "a" | "b";
+        serverName?: string;
+        serverUserId?: string;
         isBracket?: boolean;
         isGroup?: boolean;
       },
@@ -983,6 +989,9 @@ export function FunMatchScoringWorkspace({
           targetPoints: input.targetPoints,
           scorerName: input.scorerName,
           scorerUserId: input.scorerUserId,
+          servingSide: input.servingSide,
+          serverName: input.serverName,
+          serverUserId: input.serverUserId,
         });
       }
       if (useBracket) {
@@ -995,6 +1004,9 @@ export function FunMatchScoringWorkspace({
           targetPoints: input.targetPoints,
           scorerName: input.scorerName,
           scorerUserId: input.scorerUserId,
+          servingSide: input.servingSide,
+          serverName: input.serverName,
+          serverUserId: input.serverUserId,
         });
       }
       return updateScore.mutateAsync({

@@ -25,6 +25,7 @@ import {
   emptyMatchGameState,
   reconcileMatchGamesScores,
   startNextGameAfterWin,
+  withCurrentServer,
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
 import {
@@ -385,6 +386,9 @@ export async function updateBracketLiveScore(
     side?: MatchScoreEvent["side"];
     scorerName?: string;
     scorerUserId?: string;
+    servingSide?: "a" | "b";
+    serverName?: string;
+    serverUserId?: string;
     /** Absolute intra-game points target when action is set_points. */
     targetPoints?: number;
   },
@@ -446,6 +450,16 @@ export async function updateBracketLiveScore(
   }
 
   let nextGameState = prevMeta.gameState ?? emptyMatchGameState();
+  const serverName = input.serverName ?? input.scorerName;
+  const serverUserId = input.serverUserId ?? input.scorerUserId;
+  // Do not stamp serve on next_game — startNextGameAfterWin flips the side.
+  if (input.action !== "next_game" && (input.servingSide || serverName)) {
+    nextGameState = withCurrentServer(nextGameState, {
+      servingSide: input.servingSide ?? nextGameState.servingSide ?? "a",
+      servingUserId: serverUserId,
+      servingName: serverName,
+    });
+  }
   const reconciled = reconcileMatchGamesScores(match.scoreA, match.scoreB, nextGameState);
   let scoreA = reconciled.scoreA;
   let scoreB = reconciled.scoreB;

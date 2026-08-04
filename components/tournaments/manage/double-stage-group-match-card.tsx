@@ -22,7 +22,6 @@ import {
   type ClassicSetRules,
 } from "@/lib/tournaments/scoring/classic-sets";
 import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
-import { aggregateScorerPoints } from "@/lib/tournaments/scoring/match-score-events";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +33,9 @@ type LivePointInput = {
   targetPoints?: number;
   scorerName?: string;
   scorerUserId?: string;
+  servingSide?: "a" | "b";
+  serverName?: string;
+  serverUserId?: string;
 };
 
 type DoubleStageGroupMatchCardProps = {
@@ -115,9 +117,11 @@ export function DoubleStageGroupMatchCard({
   const queueLivePoint = (
     side: "a" | "b",
     delta: 1 | -1,
-    scorer?: ScoreAdjustOptions,
+    server?: ScoreAdjustOptions,
   ) => {
     if (!onLivePoint || !canScore) return;
+    const serverName = server?.serverName ?? server?.scorerName;
+    const serverUserId = server?.serverUserId ?? server?.scorerUserId;
     const run = async () => {
       gamesWriteDepthRef.current += 1;
       setSyncing(true);
@@ -127,8 +131,11 @@ export function DoubleStageGroupMatchCard({
           scoreB: 0,
           scoreAction: delta > 0 ? "increment" : "decrement",
           side,
-          scorerName: delta > 0 ? scorer?.scorerName : undefined,
-          scorerUserId: delta > 0 ? scorer?.scorerUserId : undefined,
+          servingSide: server?.servingSide,
+          serverName,
+          serverUserId,
+          scorerName: serverName,
+          scorerUserId: serverUserId,
         });
       } catch {
         // Parent toasts errors.
@@ -143,9 +150,11 @@ export function DoubleStageGroupMatchCard({
   const queueSetPoints = (
     side: "a" | "b",
     target: number,
-    scorer?: ScoreAdjustOptions,
+    server?: ScoreAdjustOptions,
   ) => {
     if (!onLivePoint || !canScore) return;
+    const serverName = server?.serverName ?? server?.scorerName;
+    const serverUserId = server?.serverUserId ?? server?.scorerUserId;
     const run = async () => {
       gamesWriteDepthRef.current += 1;
       setSyncing(true);
@@ -156,8 +165,11 @@ export function DoubleStageGroupMatchCard({
           scoreAction: "set_points",
           side,
           targetPoints: target,
-          scorerName: scorer?.scorerName,
-          scorerUserId: scorer?.scorerUserId,
+          servingSide: server?.servingSide,
+          serverName,
+          serverUserId,
+          scorerName: serverName,
+          scorerUserId: serverUserId,
         });
       } catch {
         // Parent toasts errors.
@@ -169,7 +181,7 @@ export function DoubleStageGroupMatchCard({
     gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
   };
 
-  const queueNextGame = () => {
+  const queueNextGame = (server?: ScoreAdjustOptions) => {
     if (!onLivePoint || !canScore) return;
     const run = async () => {
       gamesWriteDepthRef.current += 1;
@@ -178,6 +190,9 @@ export function DoubleStageGroupMatchCard({
         await onLivePoint({
           scoreA: 0,
           scoreB: 0,
+          servingSide: server?.servingSide,
+          serverName: server?.serverName ?? server?.scorerName,
+          serverUserId: server?.serverUserId ?? server?.scorerUserId,
           scoreAction: "next_game",
         });
       } catch {
@@ -329,10 +344,6 @@ export function DoubleStageGroupMatchCard({
         />
       )}
 
-      {gamesMode && match.scoreEvents?.length ? (
-        <ScorerBreakdown events={match.scoreEvents} />
-      ) : null}
-
       {isPending ? (
         <div className="mt-4 flex flex-col gap-2 border-t border-cp-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-center text-xs text-cp-muted sm:text-left">
@@ -442,32 +453,5 @@ export function DoubleStageGroupMatchCard({
         </>
       ) : null}
     </article>
-  );
-}
-
-function ScorerBreakdown({
-  events,
-}: {
-  events: NonNullable<GroupMatchView["scoreEvents"]>;
-}) {
-  const totals = aggregateScorerPoints(events);
-  if (!totals.length) return null;
-  return (
-    <div className="mt-3 rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-        Points this match
-      </p>
-      <ul className="mt-1.5 flex flex-wrap gap-1.5">
-        {totals.map((row) => (
-          <li
-            key={row.key}
-            className="rounded-full border border-cp-border/80 bg-cp-card px-2.5 py-0.5 text-[11px] text-foreground"
-          >
-            <span className="font-medium">{row.displayName}</span>
-            <span className="ml-1 tabular-nums text-cp-muted">{row.points}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

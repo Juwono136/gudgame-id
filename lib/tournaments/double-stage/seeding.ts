@@ -116,11 +116,24 @@ export type PlayInPlan = {
 
 export function planPlayInAndByes(seeded: SeededTeam[]): PlayInPlan {
   const n = seeded.length;
-  const bracketSize = nextPowerOfTwo(n);
+  const bracketSize = nextPowerOfTwo(Math.max(2, n));
   const byeCount = bracketSize - n;
-  const playInTeams = n - byeCount;
-  const playInMatchCount = playInTeams / 2;
 
+  // Power-of-two field — every team starts in round 1 (no play-in round).
+  // Without this guard, playInMatchCount becomes n/2 and R1 is also fully seeded,
+  // so the same pairings are played twice before the bracket advances.
+  if (byeCount === 0) {
+    return {
+      bracketSize,
+      byeCount: 0,
+      playInMatchCount: 0,
+      byeTeams: seeded,
+      playInTeams: [],
+    };
+  }
+
+  const playInTeamCount = n - byeCount;
+  const playInMatchCount = playInTeamCount / 2;
   const byeTeams = seeded.slice(0, byeCount);
   const playInTeamsList = seeded.slice(byeCount);
 

@@ -129,7 +129,15 @@ export function partnerGuestRegistrationSchema(playersPerTeam: number) {
                 .max(120)
                 .transform((value) => (value === "" ? undefined : value)),
             ),
-      members: z.array(memberSchema).length(memberCount),
+      members: z.preprocess(
+        (value) => (Array.isArray(value) ? value : []),
+        z.array(memberSchema).length(memberCount, {
+          message:
+            memberCount === 0
+              ? "This tournament does not accept additional teammates"
+              : `Add exactly ${memberCount} teammate${memberCount === 1 ? "" : "s"}`,
+        }),
+      ),
       notes: z.preprocess(
         asOptionalString,
         z

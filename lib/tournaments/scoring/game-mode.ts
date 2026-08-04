@@ -64,6 +64,10 @@ export function isNoAdDecider(
 export type CompletedGameScore = {
   pointsA: number;
   pointsB: number;
+  /** Side that served this completed game. */
+  serverSide?: "a" | "b";
+  serverUserId?: string | null;
+  serverName?: string | null;
 };
 
 export type MatchGameState = {
@@ -80,6 +84,10 @@ export type MatchGameState = {
    * Used for FIP Star Point (sudden death on the 3rd deuce).
    */
   deuceCount?: number;
+  /** Side serving the current game (alternates after each game). */
+  servingSide?: "a" | "b";
+  servingUserId?: string | null;
+  servingName?: string | null;
   /** Classic sets (ITF/FIP) — optional; ignored in race-to-N mode. */
   phase?: "game" | "set_tiebreak" | "super_tiebreak";
   gamesInSetA?: number;
@@ -92,6 +100,12 @@ export type MatchGameState = {
     viaTiebreak?: boolean;
     viaSuperTiebreak?: boolean;
   }>;
+};
+
+export type ServeSelection = {
+  servingSide: "a" | "b";
+  servingUserId?: string | null;
+  servingName?: string | null;
 };
 
 export const FIP_STAR_POINT_DEUCE_THRESHOLD = 3;
@@ -122,7 +136,65 @@ export function emptyMatchGameState(): MatchGameState {
     completedGames: [],
     pendingGameWinner: null,
     deuceCount: 0,
+    servingSide: "a",
+    servingUserId: null,
+    servingName: null,
   };
+}
+
+/** Update who serves the current game (does not change points). */
+export function withCurrentServer(
+  gameState: MatchGameState,
+  serve: ServeSelection,
+): MatchGameState {
+  return {
+    ...gameState,
+    servingSide: serve.servingSide,
+    servingUserId: serve.servingUserId ?? null,
+    servingName: serve.servingName?.trim() || null,
+  };
+}
+
+/** Flip serve to the opposite side after a completed game. */
+export function flipServingSide(gameState: MatchGameState): MatchGameState {
+  const nextSide: "a" | "b" = (gameState.servingSide ?? "a") === "a" ? "b" : "a";
+  return {
+    ...gameState,
+    servingSide: nextSide,
+    servingUserId: null,
+    servingName: null,
+  };
+}
+
+function stampCompletedGame(
+  pointsA: number,
+  pointsB: number,
+  gameState: MatchGameState,
+): CompletedGameScore {
+  return {
+    pointsA,
+    pointsB,
+    serverSide: gameState.servingSide ?? "a",
+    serverUserId: gameState.servingUserId ?? null,
+    serverName: gameState.servingName ?? null,
+  };
+}
+
+export type ServeHistoryEntry = {
+  gameNumber: number;
+  serverSide: "a" | "b";
+  displayName: string;
+};
+
+/** Build serve history from completed games (preferred over point-scorer logs). */
+export function serveHistoryFromCompletedGames(
+  completedGames: CompletedGameScore[],
+): ServeHistoryEntry[] {
+  return completedGames.map((game, index) => ({
+    gameNumber: index + 1,
+    serverSide: game.serverSide === "b" ? "b" : "a",
+    displayName: game.serverName?.trim() || (game.serverSide === "b" ? "Team B" : "Team A"),
+  }));
 }
 
 export function parseMatchGameState(raw: unknown): MatchGameState | null {
@@ -145,10 +217,25 @@ export function parseMatchGameState(raw: unknown): MatchGameState | null {
             typeof (g as CompletedGameScore).pointsA === "number" &&
             typeof (g as CompletedGameScore).pointsB === "number",
         )
-        .map((g) => ({
-          pointsA: Math.floor(g.pointsA),
-          pointsB: Math.floor(g.pointsB),
-        }))
+        .map((g) => {
+          const serverSide =
+            g.serverSide === "a" || g.serverSide === "b" ? g.serverSide : undefined;
+          const serverName =
+            typeof g.serverName === "string" && g.serverName.trim()
+              ? g.serverName.trim()
+              : null;
+          const serverUserId =
+            typeof g.serverUserId === "string" && g.serverUserId.trim()
+              ? g.serverUserId.trim()
+              : null;
+          return {
+            pointsA: Math.floor(g.pointsA),
+            pointsB: Math.floor(g.pointsB),
+            ...(serverSide ? { serverSide } : {}),
+            ...(serverName != null ? { serverName } : {}),
+            ...(serverUserId != null ? { serverUserId } : {}),
+          };
+        })
     : [];
   const pendingRaw = v.pendingGameWinner;
   const pendingGameWinner =
@@ -157,6 +244,16 @@ export function parseMatchGameState(raw: unknown): MatchGameState | null {
     typeof v.deuceCount === "number" && v.deuceCount >= 0
       ? Math.floor(v.deuceCount)
       : 0;
+  const servingSide =
+    v.servingSide === "a" || v.servingSide === "b" ? v.servingSide : "a";
+  const servingName =
+    typeof v.servingName === "string" && v.servingName.trim()
+      ? v.servingName.trim()
+      : null;
+  const servingUserId =
+    typeof v.servingUserId === "string" && v.servingUserId.trim()
+      ? v.servingUserId.trim()
+      : null;
 
   // Preserve optional classic-sets fields (ITF/FIP) without requiring callers to
   // use a separate parser — otherwise phase / games-in-set / TB are lost on read.
@@ -191,6 +288,9 @@ export function parseMatchGameState(raw: unknown): MatchGameState | null {
     completedGames,
     pendingGameWinner,
     deuceCount,
+    servingSide,
+    servingUserId,
+    servingName,
     ...(phase ? { phase } : {}),
     ...(numOrUndef("gamesInSetA") != null ? { gamesInSetA: numOrUndef("gamesInSetA") } : {}),
     ...(numOrUndef("gamesInSetB") != null ? { gamesInSetB: numOrUndef("gamesInSetB") } : {}),
@@ -374,11 +474,15 @@ export function applyGamePointDelta(
         gamesA: nextGamesA,
         gamesB: nextGamesB,
         gameState: {
+          ...gameState,
           currentPointsA: pointsA,
           currentPointsB: pointsB,
           completedGames,
           pendingGameWinner: null,
           deuceCount: Math.max(0, deuceCount),
+          servingSide: last.serverSide ?? gameState.servingSide ?? "a",
+          servingUserId: last.serverUserId ?? gameState.servingUserId ?? null,
+          servingName: last.serverName ?? gameState.servingName ?? null,
         },
         gameJustWon: null,
         matchComplete: afterUndo.complete,
@@ -451,9 +555,10 @@ export function applyGamePointDelta(
     gamesB: nextGamesB,
     gameState: {
       // Hold winning totals on screen until operator starts the next game.
+      ...gameState,
       currentPointsA: pointsA,
       currentPointsB: pointsB,
-      completedGames: [...completedGames, { pointsA, pointsB }],
+      completedGames: [...completedGames, stampCompletedGame(pointsA, pointsB, gameState)],
       pendingGameWinner: gameDone.winner,
       deuceCount,
     },
@@ -521,9 +626,13 @@ export function applyGamePointSet(
     gamesA: nextGamesA,
     gamesB: nextGamesB,
     gameState: {
+      ...gameState,
       currentPointsA: pointsA,
       currentPointsB: pointsB,
-      completedGames: [...gameState.completedGames, { pointsA, pointsB }],
+      completedGames: [
+        ...gameState.completedGames,
+        stampCompletedGame(pointsA, pointsB, gameState),
+      ],
       pendingGameWinner: gameDone.winner,
       deuceCount: gameState.deuceCount ?? 0,
     },
@@ -535,19 +644,20 @@ export function applyGamePointSet(
 
 /**
  * After a game win is held at the finishing score (e.g. 40–x), reset points to 0–0
- * for the next game. No-op if nothing is pending.
+ * for the next game and flip serve to the other side. No-op if nothing is pending.
  */
 export function startNextGameAfterWin(
   gameState: MatchGameState,
 ): MatchGameState | null {
   if (!gameState.pendingGameWinner) return null;
-  return {
+  return flipServingSide({
+    ...gameState,
     currentPointsA: 0,
     currentPointsB: 0,
     completedGames: gameState.completedGames,
     pendingGameWinner: null,
     deuceCount: 0,
-  };
+  });
 }
 
 export function formatRaceToGamesLabel(raceTo: number): string {

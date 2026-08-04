@@ -28,10 +28,17 @@ export type ScoreChangeMeta = {
   side?: "a" | "b";
   scorerName?: string;
   scorerUserId?: string;
+  /** Current server (race-to-N games mode). */
+  servingSide?: "a" | "b";
+  serverName?: string;
+  serverUserId?: string;
 };
 
 /** UI callback options when adjusting live scores. */
-export type ScoreAdjustOptions = Pick<ScoreChangeMeta, "scorerName" | "scorerUserId">;
+export type ScoreAdjustOptions = Pick<
+  ScoreChangeMeta,
+  "scorerName" | "scorerUserId" | "servingSide" | "serverName" | "serverUserId"
+>;
 
 export const FUN_MATCH_MAX_SCORE_EVENTS = 200;
 export const OFFICIAL_MAX_SCORE_EVENTS = 500;

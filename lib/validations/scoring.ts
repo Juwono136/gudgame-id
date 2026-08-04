@@ -20,3 +20,6 @@ export const optionalScorerNameSchema = z.preprocess((value) => {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : undefined;
 }, z.string().min(1).max(120).optional());
+
+/** Optional serving side for race-to-N live scoring. */
+export const optionalServingSideSchema = z.enum(["a", "b"]).optional();

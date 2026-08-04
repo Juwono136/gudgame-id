@@ -423,7 +423,13 @@ export async function buildTournamentLivePayload(
       if (matchScoreMode !== "games") {
         return { matchScoreMode };
       }
-      const rules = getTournamentGameRules(tournament);
+      const stage =
+        doubleStageOverview?.phase === "knockout"
+          ? "knockout"
+          : doubleStageOverview
+            ? "group"
+            : "default";
+      const rules = getTournamentGameRules(tournament, stage);
       return {
         matchScoreMode,
         raceToGames: rules.raceToGames,

@@ -45,13 +45,16 @@ export class AppError extends Error {
   }
 
   toJSON() {
+    // Validation field maps are safe to expose in production (helps forms show
+    // precise errors). Other context stays dev-only.
+    const exposeContext =
+      Boolean(this.context) &&
+      (this.code === "VALIDATION_ERROR" || process.env.NODE_ENV !== "production");
     return {
       error: {
         code: this.code,
         message: this.message,
-        ...(process.env.NODE_ENV !== "production" && this.context
-          ? { context: this.context }
-          : {}),
+        ...(exposeContext ? { context: this.context } : {}),
       },
     };
   }

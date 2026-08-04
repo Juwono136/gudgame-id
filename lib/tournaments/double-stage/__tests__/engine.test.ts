@@ -173,4 +173,26 @@ describe("seeding and play-in", () => {
     expect(plan.byeCount).toBe(6);
     expect(plan.playInMatchCount).toBe(2);
   });
+
+  it("skips play-in when qualified count is already a power of two", () => {
+    const seeded = assignGlobalSeeds(
+      Array.from({ length: 4 }, (_, i) => ({
+        teamId: `t${i}`,
+        teamName: `T${i}`,
+        groupId: `g${i % 2}`,
+        groupName: `G${i % 2}`,
+        groupRank: 1,
+        points: 10 - i,
+        wins: 3,
+        scoreDiff: 5,
+        scoreFor: 10,
+      })),
+    );
+    const plan = planPlayInAndByes(seeded);
+    expect(plan.bracketSize).toBe(4);
+    expect(plan.byeCount).toBe(0);
+    expect(plan.playInMatchCount).toBe(0);
+    expect(plan.byeTeams).toHaveLength(4);
+    expect(plan.playInTeams).toHaveLength(0);
+  });
 });

@@ -107,10 +107,9 @@ export async function provisionKnockoutBracket(
   }
 
   const round1MatchIds = allMatchIds[round1Index] ?? [];
-  const slotAssignments = optimizePairingsAvoidSameGroup(seeded, bracketSize);
-  for (const bye of plan.byeTeams) {
-    slotAssignments.set(bye.globalSeed, bye);
-  }
+  // Only seed teams that start in R1 (byes / power-of-two field). Play-in teams
+  // must stay out of R1 until they win their play-in match.
+  const slotAssignments = optimizePairingsAvoidSameGroup(plan.byeTeams, bracketSize);
   const pairings = standardBracketPairings(bracketSize);
 
   const teamsInSlotOrder: { id: string; name: string }[] = [];
@@ -118,9 +117,27 @@ export async function provisionKnockoutBracket(
     const t1 = slotAssignments.get(s1);
     const t2 = slotAssignments.get(s2);
     teamsInSlotOrder.push(
-      t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "BYE" },
-      t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "BYE" },
+      t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "" },
+      t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "" },
     );
+  }
+
+  /** Exactly one R1 match per play-in winner (prefer half-filled seed vs TBD). */
+  const playInFeederMatchIds = new Set<string>();
+  if (plan.playInMatchCount > 0) {
+    const halfFilled: string[] = [];
+    const fullyEmpty: string[] = [];
+    for (let i = 0; i < round1MatchIds.length; i++) {
+      const teamA = teamsInSlotOrder[i * 2];
+      const teamB = teamsInSlotOrder[i * 2 + 1];
+      const filled = Number(Boolean(teamA?.id)) + Number(Boolean(teamB?.id));
+      const matchId = round1MatchIds[i]!;
+      if (filled === 1) halfFilled.push(matchId);
+      else if (filled === 0) fullyEmpty.push(matchId);
+    }
+    for (const id of [...halfFilled, ...fullyEmpty].slice(0, plan.playInMatchCount)) {
+      playInFeederMatchIds.add(id);
+    }
   }
 
   for (let i = 0; i < round1MatchIds.length; i++) {
@@ -129,6 +146,7 @@ export async function provisionKnockoutBracket(
     const matchId = round1MatchIds[i]!;
     const aValid = teamA?.id;
     const bValid = teamB?.id;
+    const awaitsPlayIn = playInFeederMatchIds.has(matchId);
 
     if (aValid && bValid) {
       await db
@@ -142,33 +160,60 @@ export async function provisionKnockoutBracket(
         })
         .where(eq(tournamentBracketMatches.id, matchId));
     } else if (aValid && !bValid) {
-      await db
-        .update(tournamentBracketMatches)
-        .set({
-          teamAId: teamA.id,
-          teamAName: teamA.name,
-          teamBId: null,
-          teamBName: "BYE",
-          winnerTeamId: teamA.id,
-          status: "bye",
-          completedAt: new Date(),
-        })
-        .where(eq(tournamentBracketMatches.id, matchId));
-      await advanceWinnerToNextMatch(tournament.id, matchId, teamA.id, teamA.name);
+      if (awaitsPlayIn) {
+        // Keep pending — play-in winner fills the open side.
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: teamA.id,
+            teamAName: teamA.name,
+            teamBId: null,
+            teamBName: null,
+            status: "pending",
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+      } else {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: teamA.id,
+            teamAName: teamA.name,
+            teamBId: null,
+            teamBName: "BYE",
+            winnerTeamId: teamA.id,
+            status: "bye",
+            completedAt: new Date(),
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+        await advanceWinnerToNextMatch(tournament.id, matchId, teamA.id, teamA.name);
+      }
     } else if (!aValid && bValid) {
-      await db
-        .update(tournamentBracketMatches)
-        .set({
-          teamAId: teamB.id,
-          teamAName: teamB.name,
-          teamBId: null,
-          teamBName: "BYE",
-          winnerTeamId: teamB.id,
-          status: "bye",
-          completedAt: new Date(),
-        })
-        .where(eq(tournamentBracketMatches.id, matchId));
-      await advanceWinnerToNextMatch(tournament.id, matchId, teamB.id, teamB.name);
+      if (awaitsPlayIn) {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: null,
+            teamAName: null,
+            teamBId: teamB.id,
+            teamBName: teamB.name,
+            status: "pending",
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+      } else {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: teamB.id,
+            teamAName: teamB.name,
+            teamBId: null,
+            teamBName: "BYE",
+            winnerTeamId: teamB.id,
+            status: "bye",
+            completedAt: new Date(),
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+        await advanceWinnerToNextMatch(tournament.id, matchId, teamB.id, teamB.name);
+      }
     }
   }
 
@@ -184,14 +229,10 @@ export async function provisionKnockoutBracket(
 
   if (plan.playInMatchCount > 0 && round1MatchIds.length > 0) {
     const playInIds = allMatchIds[0] ?? [];
-    const openR1Slots = round1MatchIds.filter((_, i) => {
-      const teamA = teamsInSlotOrder[i * 2];
-      const teamB = teamsInSlotOrder[i * 2 + 1];
-      return !teamA?.id && !teamB?.id;
-    });
-    for (let pi = 0; pi < playInIds.length && pi < openR1Slots.length; pi++) {
+    const feederOrder = [...playInFeederMatchIds];
+    for (let pi = 0; pi < playInIds.length && pi < feederOrder.length; pi++) {
       const playInId = playInIds[pi]!;
-      const r1Id = openR1Slots[pi]!;
+      const r1Id = feederOrder[pi]!;
       await db
         .update(tournamentBracketMatches)
         .set({ nextMatchId: r1Id })

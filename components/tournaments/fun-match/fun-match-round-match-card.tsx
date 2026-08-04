@@ -55,7 +55,6 @@ import {
 } from "@/lib/styles/surface-classes";
 import { uniquePlayerNames } from "@/lib/format/player-names";
 import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
-import { aggregateScorerPoints } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
 
 const SELECT_NONE = "__none__";
@@ -101,6 +100,9 @@ type FunMatchRoundMatchCardProps = {
     targetPoints?: number;
     scorerName?: string;
     scorerUserId?: string;
+    servingSide?: "a" | "b";
+    serverName?: string;
+    serverUserId?: string;
   }) => void | Promise<unknown>;
   onComplete?: () => void;
   onEditCourtName?: () => void;
@@ -337,10 +339,15 @@ export function FunMatchRoundMatchCard({
   const activeGameState = serverGameState;
 
   const adjustScore = useCallback(
-    (side: "a" | "b", delta: 1 | -1, scorer?: ScoreAdjustOptions | string) => {
+    (side: "a" | "b", delta: 1 | -1, server?: ScoreAdjustOptions | string) => {
       if (!onScoreChange || readOnly || !isLive) return;
-      const scorerName = typeof scorer === "string" ? scorer : scorer?.scorerName;
-      const scorerUserId = typeof scorer === "string" ? undefined : scorer?.scorerUserId;
+      const serverOpts: ScoreAdjustOptions | undefined =
+        typeof server === "string"
+          ? { serverName: server, scorerName: server }
+          : server;
+      const servingSide = serverOpts?.servingSide;
+      const serverName = serverOpts?.serverName ?? serverOpts?.scorerName;
+      const serverUserId = serverOpts?.serverUserId ?? serverOpts?.scorerUserId;
 
       // Games mode: queue server deltas strictly in order (no optimistic desync).
       if (gameRules) {
@@ -355,8 +362,11 @@ export function FunMatchRoundMatchCard({
               scoreB: 0,
               action: delta > 0 ? "increment" : "decrement",
               side,
-              scorerName: delta > 0 ? scorerName : undefined,
-              scorerUserId: delta > 0 ? scorerUserId : undefined,
+              servingSide,
+              serverName,
+              serverUserId,
+              scorerName: serverName,
+              scorerUserId: serverUserId,
             });
           } catch {
             // Mutation hook already toasts; keep the queue moving.
@@ -382,8 +392,11 @@ export function FunMatchRoundMatchCard({
             scoreB: nextB,
             action: "set",
             side,
-            scorerName: delta > 0 ? scorerName : undefined,
-            scorerUserId: delta > 0 ? scorerUserId : undefined,
+            servingSide,
+            serverName: delta > 0 ? serverName : undefined,
+            serverUserId: delta > 0 ? serverUserId : undefined,
+            scorerName: delta > 0 ? serverName : undefined,
+            scorerUserId: delta > 0 ? serverUserId : undefined,
           });
         }, 120);
         return { a: nextA, b: nextB };
@@ -393,7 +406,7 @@ export function FunMatchRoundMatchCard({
   );
 
   const setGamePoints = useCallback(
-    (side: "a" | "b", target: number, scorer?: ScoreAdjustOptions) => {
+    (side: "a" | "b", target: number, server?: ScoreAdjustOptions) => {
       if (!onScoreChange || readOnly || !isLive || !gameRules) return;
       const run = async () => {
         gamesWriteDepthRef.current += 1;
@@ -405,8 +418,11 @@ export function FunMatchRoundMatchCard({
             action: "set_points",
             side,
             targetPoints: target,
-            scorerName: scorer?.scorerName,
-            scorerUserId: scorer?.scorerUserId,
+            servingSide: server?.servingSide,
+            serverName: server?.serverName ?? server?.scorerName,
+            serverUserId: server?.serverUserId ?? server?.scorerUserId,
+            scorerName: server?.serverName ?? server?.scorerName,
+            scorerUserId: server?.serverUserId ?? server?.scorerUserId,
           });
         } catch {
           // Mutation hook already toasts.
@@ -420,26 +436,32 @@ export function FunMatchRoundMatchCard({
     [gameRules, isLive, onScoreChange, readOnly],
   );
 
-  const startNextGame = useCallback(() => {
-    if (!onScoreChange || readOnly || !isLive || !gameRules) return;
-    const run = async () => {
-      gamesWriteDepthRef.current += 1;
-      setGamesWritePending(true);
-      try {
-        await onScoreChange({
-          scoreA: 0,
-          scoreB: 0,
-          action: "next_game",
-        });
-      } catch {
-        // Mutation hook already toasts.
-      } finally {
-        gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
-        if (gamesWriteDepthRef.current === 0) setGamesWritePending(false);
-      }
-    };
-    gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
-  }, [gameRules, isLive, onScoreChange, readOnly]);
+  const startNextGame = useCallback(
+    (server?: ScoreAdjustOptions) => {
+      if (!onScoreChange || readOnly || !isLive || !gameRules) return;
+      const run = async () => {
+        gamesWriteDepthRef.current += 1;
+        setGamesWritePending(true);
+        try {
+          await onScoreChange({
+            scoreA: 0,
+            scoreB: 0,
+            action: "next_game",
+            servingSide: server?.servingSide,
+            serverName: server?.serverName ?? server?.scorerName,
+            serverUserId: server?.serverUserId ?? server?.scorerUserId,
+          });
+        } catch {
+          // Mutation hook already toasts.
+        } finally {
+          gamesWriteDepthRef.current = Math.max(0, gamesWriteDepthRef.current - 1);
+          if (gamesWriteDepthRef.current === 0) setGamesWritePending(false);
+        }
+      };
+      gamesWriteChainRef.current = gamesWriteChainRef.current.then(run, run);
+    },
+    [gameRules, isLive, onScoreChange, readOnly],
+  );
 
   const teamA = teams.find((t) => t.id === teamAId);
   const teamB = teams.find((t) => t.id === teamBId);
@@ -779,11 +801,6 @@ export function FunMatchRoundMatchCard({
     </div>
   );
 
-  const scorerBreakdown =
-    gameRules && match?.scoreEvents?.length ? (
-      <ScorerBreakdown events={match.scoreEvents} />
-    ) : null;
-
   return (
     <article
       className={cn(
@@ -839,8 +856,6 @@ export function FunMatchRoundMatchCard({
           </div>
         </>
       )}
-
-      {scorerBreakdown}
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-cp-border/60 pt-2.5">
         <div className="flex items-center gap-1.5 text-xs text-cp-muted">
@@ -1047,29 +1062,3 @@ export function FunMatchRoundMatchCard({
   );
 }
 
-function ScorerBreakdown({
-  events,
-}: {
-  events: NonNullable<ReclubMatchView["scoreEvents"]>;
-}) {
-  const totals = aggregateScorerPoints(events);
-  if (!totals.length) return null;
-  return (
-    <div className="mt-3 rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-        Points this match
-      </p>
-      <ul className="mt-1.5 flex flex-wrap gap-1.5">
-        {totals.map((row) => (
-          <li
-            key={row.key}
-            className="rounded-full border border-cp-border/80 bg-cp-card px-2.5 py-0.5 text-[11px] text-foreground"
-          >
-            <span className="font-medium">{row.displayName}</span>
-            <span className="ml-1 tabular-nums text-cp-muted">{row.points}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}

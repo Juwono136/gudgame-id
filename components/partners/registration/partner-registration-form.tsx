@@ -78,19 +78,44 @@ export function PartnerRegistrationForm({
 
   const { fields } = useFieldArray({ control, name: "members" });
 
+  const onInvalid = () => {
+    const memberError = Array.isArray(errors.members)
+      ? errors.members.find((m) => m?.fullName?.message || m?.email?.message || m?.phone?.message)
+      : undefined;
+    const first =
+      errors.captain?.fullName?.message ||
+      errors.captain?.email?.message ||
+      errors.captain?.phone?.message ||
+      errors.teamName?.message ||
+      memberError?.fullName?.message ||
+      memberError?.email?.message ||
+      memberError?.phone?.message ||
+      (typeof errors.members?.message === "string" ? errors.members.message : null) ||
+      errors.notes?.message ||
+      "Please check the highlighted fields and try again.";
+    toast.error(String(first));
+  };
+
   const onSubmit = async (values: PartnerGuestRegistrationInput) => {
     setSubmitting(true);
     try {
       // Keep optional strings on the wire — JSON.stringify drops `undefined`, which
       // breaks server z.string() fields after client-side Zod transforms.
       const payload = {
-        captain: values.captain,
+        captain: {
+          fullName: values.captain.fullName,
+          email: values.captain.email,
+          phone: values.captain.phone,
+        },
         teamName: values.teamName ?? "",
-        members: values.members.map((m) => ({
-          fullName: m.fullName,
-          email: m.email ?? "",
-          phone: m.phone ?? "",
-        })),
+        members: Array.from({ length: memberCount }, (_, index) => {
+          const m = values.members[index];
+          return {
+            fullName: m?.fullName ?? "",
+            email: m?.email ?? "",
+            phone: m?.phone ?? "",
+          };
+        }),
         notes: values.notes ?? "",
       };
 
@@ -133,7 +158,7 @@ export function PartnerRegistrationForm({
   return (
     <>
       {submitting ? <LoadingOverlay show label="Submitting registration…" /> : null}
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate className="space-y-6">
         <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-cp-muted">
             Team captain

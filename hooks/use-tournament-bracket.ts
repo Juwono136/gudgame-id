@@ -86,6 +86,9 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
       targetPoints?: number;
       scorerName?: string;
       scorerUserId?: string;
+      servingSide?: "a" | "b";
+      serverName?: string;
+      serverUserId?: string;
     }) =>
       enqueueBracketScoreUpdate(input.matchId, async () => {
         const res = await fetch(`/api/tournaments/${sportSlug}/${slug}/bracket/live`, {
@@ -100,6 +103,9 @@ export function useUpdateBracketLiveScore(sportSlug: string, slug: string) {
             targetPoints: input.targetPoints,
             scorerName: input.scorerName,
             scorerUserId: input.scorerUserId,
+            servingSide: input.servingSide,
+            serverName: input.serverName,
+            serverUserId: input.serverUserId,
           }),
         });
         const json = await parseJsonResponse<{
