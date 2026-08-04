@@ -55,6 +55,46 @@ export function extractStorageObjectKey(urlOrPath: string): string | null {
 }
 
 /**
+ * Normalize a DB value (key, proxy path, or legacy bucket URL) to an object key.
+ * Strips cache-bust query strings (e.g. `?v=…`).
+ */
+export function resolveStorageKey(
+  reference: string | null | undefined,
+): string | null {
+  if (!reference?.trim()) return null;
+
+  const trimmed = reference.trim().split(/[?#]/)[0] ?? "";
+  if (!trimmed) return null;
+  const bare = trimmed.replace(/^\/+/, "");
+
+  if (isAllowedMediaKey(bare)) return bare;
+
+  const fromBucketUrl = extractStorageObjectKey(trimmed);
+  if (fromBucketUrl && isAllowedMediaKey(fromBucketUrl)) return fromBucketUrl;
+
+  if (trimmed.startsWith(MEDIA_API_PREFIX)) {
+    const segments = trimmed
+      .slice(MEDIA_API_PREFIX.length)
+      .split("/")
+      .map((s) => decodeURIComponent(s))
+      .join("/");
+    if (isAllowedMediaKey(segments)) return segments;
+  }
+
+  return null;
+}
+
+/** Stable SeaweedFS object key for partner logo / brand icon (overwrite-friendly). */
+export function partnerBrandMediaKey(
+  partnerId: string,
+  kind: "logo" | "icon",
+  ext: string,
+): string {
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
+  return `${PARTNERS_MEDIA_PREFIX}${partnerId}/${kind}/brand.${safeExt}`;
+}
+
+/**
  * Resolves a stored user.image value to a same-origin URL the browser can load
  * without nginx basic auth prompts.
  */

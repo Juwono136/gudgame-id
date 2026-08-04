@@ -13,6 +13,7 @@ import {
 import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
+import { PartnerTournamentPublicListRow } from "@/components/partners/partner-tournament-public-list-row";
 import { PartnerTournamentRow } from "@/components/partners/partner-tournament-row";
 import { TournamentDiscoveryCard } from "@/components/tournaments/tournament-discovery-card";
 import { TournamentDiscoveryPublicCard } from "@/components/tournaments/tournament-discovery-public-card";
@@ -214,18 +215,23 @@ export function PartnerTournamentsDirectory({
             />
           </div>
         ) : viewMode === "list" ? (
-          <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
+          <ul className="space-y-2.5 sm:space-y-3">
             {items.map((t) => {
               const publicHref = partnerPublicRoutes.tournament(partnerSlug, t.slug);
               if (mode === "public") {
                 return (
-                  <PartnerTournamentRow key={t.id} tournament={t} href={publicHref} />
+                  <PartnerTournamentPublicListRow
+                    key={t.id}
+                    tournament={t}
+                    partnerSlug={partnerSlug}
+                  />
                 );
               }
               return (
                 <PartnerTournamentRow
                   key={t.id}
                   tournament={t}
+                  href={partnerPublicRoutes.tournamentManage(partnerSlug, t.slug)}
                   publicHref={publicHref}
                   manageHref={partnerPublicRoutes.tournamentManage(partnerSlug, t.slug)}
                   editHref={

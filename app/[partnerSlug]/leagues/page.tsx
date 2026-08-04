@@ -26,7 +26,7 @@ export default async function PartnerPublicLeaguesPage({ params }: PageProps) {
           backHref={partnerPublicRoutes.home(partner.slug)}
           backLabel="Home"
           title="Leagues"
-          description={`Season standings and fixtures from ${partner.displayName}. Scores are managed on this white-label site.`}
+          description={`Season standings and fixtures from ${partner.displayName}.`}
         />
       </section>
 

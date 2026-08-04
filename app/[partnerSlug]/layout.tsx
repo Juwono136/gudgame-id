@@ -67,7 +67,17 @@ export async function generateMetadata({
 }) {
   const { partnerSlug } = await params;
   const partner = await getActivePartnerBySlug(partnerSlug);
-  return { title: partner?.displayName ?? "Partner" };
+  const icon = partner?.iconUrl?.trim() || partner?.logoUrl?.trim() || undefined;
+  return {
+    title: partner?.displayName ?? "Partner",
+    icons: icon
+      ? {
+          icon: [{ url: icon }],
+          shortcut: icon,
+          apple: icon,
+        }
+      : undefined,
+  };
 }
 
 export async function loadPartnerTournamentsForSlug(partnerSlug: string) {

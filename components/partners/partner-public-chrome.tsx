@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PartnerPublicNav } from "@/components/partners/partner-public-nav";
+import { partnerBrandCssVars } from "@/lib/partners/brand-style";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
 
 type PartnerPublicChromeProps = {
@@ -36,10 +37,7 @@ export function PartnerPublicChrome({
   const immersive = useMemo(() => isImmersivePartnerPath(pathname), [pathname]);
 
   const brandStyle = {
-    ["--cp-primary" as string]: primaryColor,
-    ["--cp-primary-light" as string]: accentColor,
-    ["--partner-accent" as string]: accentColor,
-    ["--ring" as string]: primaryColor,
+    ...partnerBrandCssVars(primaryColor, accentColor),
     /** Align sticky manage/session chrome under partner public nav. */
     ["--site-header-height" as string]: "3.75rem",
   } as React.CSSProperties;

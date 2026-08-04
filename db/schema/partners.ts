@@ -23,6 +23,9 @@ export const partners = pgTable(
     displayName: varchar("display_name", { length: 120 }).notNull(),
     logoUrl: text("logo_url"),
     logoStorageKey: varchar("logo_storage_key", { length: 512 }),
+    /** Favicon / brand icon (smaller than logo). */
+    iconUrl: text("icon_url"),
+    iconStorageKey: varchar("icon_storage_key", { length: 512 }),
     /** Theme tokens: primaryColor, accentColor, etc. */
     branding: jsonb("branding").default({}).notNull(),
     isActive: boolean("is_active").default(true).notNull(),

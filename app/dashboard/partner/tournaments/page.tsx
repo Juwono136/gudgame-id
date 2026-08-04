@@ -24,7 +24,7 @@ export default async function PartnerTournamentsPage() {
         backHref={dashboardRoutes.partner}
         backLabel="Partner dashboard"
         title="Tournaments"
-        description="Run knockout, group stage, and Americano formats with live or paper scoring, brackets, and optional venue TV."
+        description="Run knockout, group stage, and Americano formats with live or paper scoring, and brackets."
         actions={
           <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
             <Link href={dashboardRoutes.partnerTournamentsNew}>

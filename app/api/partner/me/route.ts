@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiPartnerDashboardAccess } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
+import {
+  buildPartnerBrandingPatch,
+  hasPartnerBrandingErrors,
+  validatePartnerBrandingForm,
+} from "@/lib/partners/branding-validation";
 import {
   getPrimaryPartnerForUser,
   updatePartnerBranding,
@@ -55,19 +59,44 @@ export async function PATCH(request: Request) {
       contactWebsite?: string | null;
     };
 
+    const formValues = {
+      displayName: body.displayName ?? partner.displayName,
+      slug: body.slug ?? partner.slug,
+      primaryColor: body.primaryColor ?? partner.branding.primaryColor ?? "#0d9488",
+      accentColor: body.accentColor ?? partner.branding.accentColor ?? "#14b8a6",
+      heroTitle: body.heroTitle ?? "",
+      tagline: body.tagline ?? "",
+      about: body.about ?? "",
+      contactEmail: body.contactEmail ?? "",
+      contactWhatsapp: body.contactWhatsapp ?? "",
+      contactWebsite: body.contactWebsite ?? "",
+    };
+
+    const errors = validatePartnerBrandingForm(formValues);
+    if (hasPartnerBrandingErrors(errors)) {
+      const first = Object.values(errors)[0] ?? "Invalid branding fields";
+      throw new AppError(first, {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+        context: { fieldErrors: errors },
+      });
+    }
+
+    const patch = buildPartnerBrandingPatch(formValues);
+
     const updated = await updatePartnerBranding(partner.id, {
-      displayName: body.displayName,
-      slug: body.slug,
+      displayName: patch.displayName,
+      slug: patch.slug,
       logoUrl: body.logoUrl,
       branding: {
-        ...(body.primaryColor ? { primaryColor: body.primaryColor } : {}),
-        ...(body.accentColor ? { accentColor: body.accentColor } : {}),
-        tagline: body.tagline ?? "",
-        about: body.about ?? "",
-        heroTitle: body.heroTitle ?? "",
-        contactEmail: body.contactEmail ?? "",
-        contactWhatsapp: body.contactWhatsapp ?? "",
-        contactWebsite: body.contactWebsite ?? "",
+        primaryColor: patch.primaryColor,
+        accentColor: patch.accentColor,
+        tagline: patch.tagline ?? "",
+        about: patch.about ?? "",
+        heroTitle: patch.heroTitle ?? "",
+        contactEmail: patch.contactEmail ?? "",
+        contactWhatsapp: patch.contactWhatsapp ?? "",
+        contactWebsite: patch.contactWebsite ?? "",
       },
     });
 

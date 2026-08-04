@@ -4,6 +4,7 @@ import { and, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { partnerMembers, partners, type Partner } from "@/db/schema/partners";
 import { AppError } from "@/lib/errors";
+import { sanitizePartnerBrandingInput } from "@/lib/partners/branding-validation";
 import {
   isValidPartnerSlugFormat,
   normalizePartnerSlug,
@@ -17,6 +18,8 @@ export type PartnerPublicView = {
   displayName: string;
   logoUrl: string | null;
   logoStorageKey: string | null;
+  iconUrl: string | null;
+  iconStorageKey: string | null;
   branding: PartnerBranding;
   isActive: boolean;
 };
@@ -32,6 +35,8 @@ function toPublicView(row: Partner): PartnerPublicView {
     displayName: row.displayName,
     logoUrl: row.logoUrl,
     logoStorageKey: row.logoStorageKey ?? null,
+    iconUrl: row.iconUrl ?? null,
+    iconStorageKey: row.iconStorageKey ?? null,
     branding: parsePartnerBranding(row.branding),
     isActive: row.isActive,
   };
@@ -219,6 +224,8 @@ export async function updatePartnerBranding(
     slug?: string;
     logoUrl?: string | null;
     logoStorageKey?: string | null;
+    iconUrl?: string | null;
+    iconStorageKey?: string | null;
     branding?: PartnerBranding;
     isActive?: boolean;
   },
@@ -270,11 +277,13 @@ export async function updatePartnerBranding(
 
   if (input.logoUrl !== undefined) patch.logoUrl = input.logoUrl;
   if (input.logoStorageKey !== undefined) patch.logoStorageKey = input.logoStorageKey;
+  if (input.iconUrl !== undefined) patch.iconUrl = input.iconUrl;
+  if (input.iconStorageKey !== undefined) patch.iconStorageKey = input.iconStorageKey;
   if (input.branding !== undefined) {
-    const merged = {
+    const merged = sanitizePartnerBrandingInput({
       ...parsePartnerBranding(existing.branding),
       ...input.branding,
-    };
+    });
     // Re-parse so empty strings clear fields instead of lingering in JSON.
     patch.branding = parsePartnerBranding({
       primaryColor: merged.primaryColor ?? "",

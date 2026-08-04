@@ -99,6 +99,13 @@
       "when": 1782900000000,
       "tag": "0017_partner_guest_registration",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0018_partner_brand_icon",
+      "breakpoints": true
     }
   ]
 }

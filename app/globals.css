@@ -122,6 +122,7 @@
   --color-cp-card: var(--cp-bg-card);
   --color-cp-border: var(--cp-border);
   --color-cp-primary: var(--cp-primary);
+  --color-cp-primary-light: var(--cp-primary-light);
   --color-cp-logo-accent: var(--cp-logo-accent);
   --color-cp-logo-mint: var(--cp-logo-mint);
   --color-cp-muted: var(--cp-text-muted);

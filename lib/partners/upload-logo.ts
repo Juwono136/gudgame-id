@@ -1,9 +1,8 @@
 import "server-only";
 
-import { randomUUID } from "crypto";
 import { getPublicObjectUrl, uploadObject } from "@/lib/storage/client";
-import { PARTNERS_MEDIA_PREFIX } from "@/lib/storage/media-url";
 import { assertSafeImageBuffer } from "@/lib/security/image-magic";
+import { partnerBrandMediaKey } from "@/lib/storage/media-url";
 import { validatePartnerLogoFile } from "@/lib/partners/logo-validation";
 import { logger } from "@/lib/logger";
 
@@ -23,15 +22,18 @@ export async function uploadPartnerLogoImage(
   try {
     const buffer = Buffer.from(await validation.file.arrayBuffer());
     const { mime, ext } = assertSafeImageBuffer(buffer, validation.file.type);
-    const storageKey = `${PARTNERS_MEDIA_PREFIX}${partnerId}/logo/${randomUUID()}.${ext}`;
+    // Stable key → SeaweedFS PUT overwrites same object (no UUID pile-up).
+    const storageKey = partnerBrandMediaKey(partnerId, "logo", ext);
     await uploadObject({
       key: storageKey,
       body: buffer,
       contentType: mime,
     });
+    // Cache-bust so browsers reload after overwrite of the stable key.
+    const url = `${getPublicObjectUrl(storageKey)}?v=${Date.now()}`;
     return {
       ok: true,
-      url: getPublicObjectUrl(storageKey),
+      url,
       storageKey,
     };
   } catch (err) {

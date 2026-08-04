@@ -20,6 +20,8 @@ type PartnerDashboardCardActionsProps = {
   deleteDisabledReason?: string;
   deleting?: boolean;
   manageLabel?: string;
+  /** `card` stretches Manage; `inline` keeps a compact list-row control group. */
+  layout?: "card" | "inline";
 };
 
 /** Compact Manage + overflow menu for partner dashboard discovery cards. */
@@ -32,10 +34,19 @@ export function PartnerDashboardCardActions({
   deleteDisabledReason,
   deleting = false,
   manageLabel = "Manage",
+  layout = "card",
 }: PartnerDashboardCardActionsProps) {
   return (
-    <div className="flex items-center gap-2">
-      <Button asChild size="sm" className="h-9 flex-1 bg-cp-primary hover:bg-cp-primary-light">
+    <div className={layout === "inline" ? "flex w-full items-center gap-2 sm:w-auto" : "flex items-center gap-2"}>
+      <Button
+        asChild
+        size="sm"
+        className={
+          layout === "inline"
+            ? "h-9 flex-1 bg-cp-primary hover:bg-cp-primary-light sm:flex-none sm:px-4"
+            : "h-9 flex-1 bg-cp-primary hover:bg-cp-primary-light"
+        }
+      >
         <Link href={manageHref}>
           <Settings className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           {manageLabel}

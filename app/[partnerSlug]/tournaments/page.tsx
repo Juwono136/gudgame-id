@@ -26,7 +26,7 @@ export default async function PartnerTournamentsPublicPage({ params }: PageProps
           backHref={partnerPublicRoutes.home(partner.slug)}
           backLabel={partner.displayName}
           title="Tournaments"
-          description="Event-day brackets and results on this partner site only — never mixed into Gud Game career rankings."
+          description={`Event-day brackets and results from ${partner.displayName}.`}
         />
       </section>
 

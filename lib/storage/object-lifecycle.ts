@@ -2,50 +2,27 @@ import "server-only";
 
 import { deleteObject } from "@/lib/storage/client";
 import {
-  extractStorageObjectKey,
   isAllowedMediaKey,
+  resolveStorageKey,
 } from "@/lib/storage/media-url";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ module: "storage-object-lifecycle" });
 
-const MEDIA_API_PREFIX = "/api/media/";
-
-/** Normalize a DB value (key, proxy path, or legacy bucket URL) to an object key. */
-export function resolveStorageKey(
-  reference: string | null | undefined,
-): string | null {
-  if (!reference?.trim()) return null;
-
-  const trimmed = reference.trim();
-  const bare = trimmed.replace(/^\/+/, "");
-
-  if (isAllowedMediaKey(bare)) return bare;
-
-  const fromBucketUrl = extractStorageObjectKey(trimmed);
-  if (fromBucketUrl && isAllowedMediaKey(fromBucketUrl)) return fromBucketUrl;
-
-  if (trimmed.startsWith(MEDIA_API_PREFIX)) {
-    const segments = trimmed
-      .slice(MEDIA_API_PREFIX.length)
-      .split("/")
-      .map((s) => decodeURIComponent(s))
-      .join("/");
-    if (isAllowedMediaKey(segments)) return segments;
-  }
-
-  return null;
-}
+export { resolveStorageKey } from "@/lib/storage/media-url";
 
 /**
  * Deletes one object from SeaweedFS. Best-effort — logs failures, never throws.
- * Only keys under allowed prefixes (profiles/, wiki/) are removed.
+ * Only keys under allowed media prefixes (profiles/, wiki/, sports/, tournaments/, partners/) are removed.
  */
 export async function deleteStoredObject(
   keyOrReference: string | null | undefined,
 ): Promise<boolean> {
   const key = resolveStorageKey(keyOrReference);
   if (!key) return false;
+
+  // Defense in depth — never delete outside allow-listed prefixes.
+  if (!isAllowedMediaKey(key)) return false;
 
   const ok = await deleteObject(key);
   if (ok) {

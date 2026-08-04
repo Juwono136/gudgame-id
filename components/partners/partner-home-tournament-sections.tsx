@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FadeInView } from "@/components/motion/fade-in";
 import { DirectoryViewToggle } from "@/components/partners/directory-view-toggle";
-import { PartnerTournamentRow } from "@/components/partners/partner-tournament-row";
+import { PartnerTournamentPublicListRow } from "@/components/partners/partner-tournament-public-list-row";
 import { TournamentDiscoveryPublicCard } from "@/components/tournaments/tournament-discovery-public-card";
 import { useDirectoryViewMode } from "@/hooks/use-directory-view-mode";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
@@ -81,12 +81,12 @@ export function PartnerHomeTournamentSections({
                 {bucket.emptyMessage}
               </div>
             ) : viewMode === "list" ? (
-              <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card/95 shadow-sm">
+              <ul className="space-y-2.5 sm:space-y-3">
                 {bucket.tournaments.map((t) => (
-                  <PartnerTournamentRow
+                  <PartnerTournamentPublicListRow
                     key={t.id}
                     tournament={t}
-                    href={partnerPublicRoutes.tournament(partnerSlug, t.slug)}
+                    partnerSlug={partnerSlug}
                   />
                 ))}
               </ul>

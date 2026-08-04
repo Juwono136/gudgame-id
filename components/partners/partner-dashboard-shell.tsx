@@ -1,4 +1,5 @@
 import { PartnerDashboardNav } from "@/components/partners/partner-dashboard-nav";
+import { partnerBrandCssVars } from "@/lib/partners/brand-style";
 import { partnerPageWidthClass } from "@/lib/partners/layout";
 import type { PartnerDashboardView } from "@/lib/partners/service";
 import { cn } from "@/lib/utils";
@@ -23,14 +24,7 @@ export function PartnerDashboardShell({
   return (
     <div
       className="relative flex min-h-screen min-w-0 flex-col overflow-x-clip bg-background text-foreground"
-      style={
-        {
-          ["--cp-primary" as string]: primary,
-          ["--cp-primary-light" as string]: accent,
-          ["--partner-accent" as string]: accent,
-          ["--ring" as string]: primary,
-        } as React.CSSProperties
-      }
+      style={partnerBrandCssVars(primary, accent)}
     >
       <div
         className="pointer-events-none fixed inset-0 -z-10"

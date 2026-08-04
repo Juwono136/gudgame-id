@@ -1,3 +1,6 @@
+import { stripHtmlTags } from "@/lib/html/strip-html";
+import { coerceRichHtmlField } from "@/lib/wiki/sanitize-rich-text";
+
 /** Reserved top-level path segments that cannot be partner slugs. */
 export const PARTNER_RESERVED_SLUGS = [
   "about",
@@ -60,6 +63,9 @@ export type PartnerBranding = {
 
 const COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+/** Keep in sync with `PARTNER_BRANDING_LIMITS` (plain about = 2000). */
+const ABOUT_PLAIN_MAX = 2000;
+
 function trimText(value: unknown, max: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const t = value.trim();
@@ -72,18 +78,29 @@ export function parsePartnerBranding(raw: unknown): PartnerBranding {
   const obj = raw as Record<string, unknown>;
   const out: PartnerBranding = {};
   if (typeof obj.primaryColor === "string" && COLOR_RE.test(obj.primaryColor.trim())) {
-    out.primaryColor = obj.primaryColor.trim();
+    out.primaryColor = obj.primaryColor.trim().toLowerCase();
   }
   if (typeof obj.accentColor === "string" && COLOR_RE.test(obj.accentColor.trim())) {
-    out.accentColor = obj.accentColor.trim();
+    out.accentColor = obj.accentColor.trim().toLowerCase();
   }
   if (typeof obj.backgroundStyle === "string" && obj.backgroundStyle.trim()) {
     out.backgroundStyle = obj.backgroundStyle.trim().slice(0, 40);
   }
   const tagline = trimText(obj.tagline, 160);
   if (tagline) out.tagline = tagline;
-  const about = trimText(obj.about, 2000);
-  if (about) out.about = about;
+
+  if (typeof obj.about === "string" && obj.about.trim()) {
+    const aboutHtml = coerceRichHtmlField(obj.about);
+    if (aboutHtml && stripHtmlTags(aboutHtml).length <= ABOUT_PLAIN_MAX) {
+      out.about = aboutHtml;
+    } else if (aboutHtml) {
+      // Legacy oversize: keep a truncated plain-text fallback rather than dropping entirely.
+      const plain = stripHtmlTags(aboutHtml).slice(0, ABOUT_PLAIN_MAX);
+      const fallback = coerceRichHtmlField(plain);
+      if (fallback) out.about = fallback;
+    }
+  }
+
   const heroTitle = trimText(obj.heroTitle, 120);
   if (heroTitle) out.heroTitle = heroTitle;
   const contactEmail = trimText(obj.contactEmail, 160);
