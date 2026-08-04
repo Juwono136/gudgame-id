@@ -75,7 +75,7 @@ describe("game-mode scoring", () => {
   });
 
   it("records the server on each completed game and alternates serve", () => {
-    let state = {
+    const state = {
       ...emptyMatchGameState(),
       servingSide: "b" as const,
       servingName: "Zafa",
