@@ -6,7 +6,13 @@ import { getTrustedClientIp } from "@/lib/security/client-ip";
 
 export const API_RATE_LIMITS = {
   auth: { limit: 20, windowSeconds: 60 },
+  /** Gud Game account signup — keep strict. */
   register: { limit: 5, windowSeconds: 3600 },
+  /**
+   * Partner guest tournament registration (venue WiFi / walk-up desks).
+   * Higher than account signup so organizers can enroll many teams from one IP.
+   */
+  partnerRegister: { limit: 60, windowSeconds: 3600 },
   passwordReset: { limit: 5, windowSeconds: 3600 },
   sensitive: { limit: 30, windowSeconds: 60 },
   general: { limit: 120, windowSeconds: 60 },
@@ -46,6 +52,7 @@ export async function guardApiRequest(
     failClosedInProduction:
       tier === "auth" ||
       tier === "register" ||
+      tier === "partnerRegister" ||
       tier === "passwordReset" ||
       tier === "general" ||
       tier === "sensitive" ||

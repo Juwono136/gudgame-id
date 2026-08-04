@@ -92,12 +92,14 @@ export function PartnerHomeTournamentSections({
               </ul>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
-                {bucket.tournaments.map((t) => (
+                {bucket.tournaments.map((t, index) => (
                   <TournamentDiscoveryPublicCard
                     key={t.id}
                     tournament={t}
                     detailHref={partnerPublicRoutes.tournament(partnerSlug, t.slug)}
                     registerHref={partnerPublicRoutes.tournamentRegister(partnerSlug, t.slug)}
+                    partnerSlug={partnerSlug}
+                    priority={index === 0}
                   />
                 ))}
               </div>

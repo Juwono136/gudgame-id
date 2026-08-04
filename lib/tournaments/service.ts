@@ -50,8 +50,12 @@ export type TournamentListItem = {
   slug: string;
   name: string;
   summary: string | null;
+  /** Full rich-text description (partner list cards prefer this over plain summary). */
+  description?: string | null;
   status: TournamentStatus;
   tournamentType: string;
+  /** Match structure: double_stage | single_elimination | americano */
+  format?: string | null;
   officialBilling: OfficialBillingType | null;
   venue: string | null;
   categoryLabel: string | null;
@@ -101,6 +105,7 @@ function mapListRow(row: {
   summary: string | null;
   status: string;
   tournamentType: string;
+  format?: string | null;
   officialBilling?: string | null;
   venue: string | null;
   categoryLabel?: string | null;
@@ -124,6 +129,7 @@ function mapListRow(row: {
     summary: row.summary,
     status,
     tournamentType: normalizeTournamentType(row.tournamentType) as TournamentType,
+    format: row.format ?? null,
     officialBilling: (row.officialBilling as OfficialBillingType | null) ?? null,
     venue: row.venue,
     categoryLabel: row.categoryLabel ?? null,
@@ -205,6 +211,7 @@ export async function listTournaments(
       summary: tournaments.summary,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      format: tournaments.format,
       officialBilling: tournaments.officialBilling,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
@@ -364,6 +371,7 @@ export async function listPublicTournamentsPaginated(
       summary: tournaments.summary,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      format: tournaments.format,
       officialBilling: tournaments.officialBilling,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,
@@ -429,6 +437,7 @@ const tournamentListSelect = {
   summary: tournaments.summary,
   status: tournaments.status,
   tournamentType: tournaments.tournamentType,
+  format: tournaments.format,
   officialBilling: tournaments.officialBilling,
   venue: tournaments.venue,
   categoryLabel: tournaments.categoryLabel,

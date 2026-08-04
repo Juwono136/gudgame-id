@@ -42,12 +42,35 @@ function saveSelectionRange(container: HTMLElement | null): Range | null {
   return range.cloneRange();
 }
 
-function restoreSelectionRange(container: HTMLElement | null, range: Range | null) {
+function restoreSelectionRange(
+  container: HTMLElement | null,
+  range: Range | null,
+  options?: { forceFocus?: boolean },
+) {
   if (!container || !range) return;
+
+  const active = document.activeElement;
+  const focusStillInEditor =
+    !active ||
+    active === document.body ||
+    active === container ||
+    container.contains(active);
+
+  // Never steal focus from another field (e.g. tournament name after leaving the editor).
+  if (!options?.forceFocus && !focusStillInEditor) {
+    return;
+  }
+
   const selection = window.getSelection();
   selection?.removeAllRanges();
-  selection?.addRange(range);
-  container.focus();
+  try {
+    selection?.addRange(range);
+  } catch {
+    /* Range can be invalid after innerHTML rewrite */
+  }
+  if (options?.forceFocus || focusStillInEditor) {
+    container.focus();
+  }
 }
 
 export function RichTextEditor({
@@ -92,13 +115,18 @@ export function RichTextEditor({
   );
 
   const emitSanitizedChange = useCallback(
-    (html: string) => {
+    (html: string, options?: { restoreCaret?: boolean }) => {
       const sanitized = sanitizeRichText(html);
       const next = maxLength ? truncateHtml(sanitized, maxLength) : sanitized;
       if (ref.current && ref.current.innerHTML !== next) {
-        const selection = saveSelectionRange(ref.current);
-        ref.current.innerHTML = next;
-        restoreSelectionRange(ref.current, selection);
+        if (options?.restoreCaret && isFocusedRef.current) {
+          const selection = saveSelectionRange(ref.current);
+          ref.current.innerHTML = next;
+          restoreSelectionRange(ref.current, selection, { forceFocus: true });
+        } else {
+          // Blur / external updates: rewrite DOM without yanking focus back into the editor.
+          ref.current.innerHTML = next;
+        }
       }
       lastEmittedRef.current = next;
       onChange(next);
@@ -111,7 +139,7 @@ export function RichTextEditor({
   }, []);
 
   const restoreSelection = useCallback(() => {
-    restoreSelectionRange(ref.current, savedSelectionRef.current);
+    restoreSelectionRange(ref.current, savedSelectionRef.current, { forceFocus: true });
   }, []);
 
   const exec = useCallback(
@@ -131,11 +159,15 @@ export function RichTextEditor({
 
   const handleBlur = (event: React.FocusEvent<HTMLDivElement>) => {
     const related = event.relatedTarget as Node | null;
-    if (related && event.currentTarget.parentElement?.contains(related)) {
+    const editorRoot = event.currentTarget.parentElement;
+    // Keep focus flag when moving to toolbar / link UI inside this editor only.
+    if (related && editorRoot?.contains(related)) {
       return;
     }
     isFocusedRef.current = false;
-    if (ref.current) emitSanitizedChange(ref.current.innerHTML);
+    if (ref.current) {
+      emitSanitizedChange(ref.current.innerHTML, { restoreCaret: false });
+    }
   };
 
   const handleFocus = () => {

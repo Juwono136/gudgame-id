@@ -243,7 +243,7 @@ export function PartnerTournamentsDirectory({
           </ul>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
-            {items.map((t) => {
+            {items.map((t, index) => {
               const publicHref = partnerPublicRoutes.tournament(partnerSlug, t.slug);
               const registerHref = partnerPublicRoutes.tournamentRegister(partnerSlug, t.slug);
               if (mode === "public") {
@@ -253,6 +253,8 @@ export function PartnerTournamentsDirectory({
                     tournament={t}
                     detailHref={publicHref}
                     registerHref={registerHref}
+                    partnerSlug={partnerSlug}
+                    priority={index === 0}
                   />
                 );
               }
@@ -264,6 +266,7 @@ export function PartnerTournamentsDirectory({
                   key={t.id}
                   tournament={t}
                   href={manageHref}
+                  priority={index === 0}
                   actions={
                     <PartnerDashboardCardActions
                       manageHref={manageHref}

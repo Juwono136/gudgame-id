@@ -775,3 +775,96 @@ export async function findPartnerPlayerContact(
     .limit(1);
   return row ?? null;
 }
+
+const VIEWER_ACTIVE_STATUSES = ["awaiting_payment", "registered", "confirmed"] as const;
+
+export type ViewerPartnerRegistrationStatus = {
+  status: "none" | (typeof VIEWER_ACTIVE_STATUSES)[number] | "cancelled" | "expired";
+  isRegistered: boolean;
+  registrationId: string | null;
+  teamId: string | null;
+  isAuthenticated: boolean;
+};
+
+/**
+ * Resolve whether the signed-in viewer already has a guest registration / team
+ * on this partner tournament (matched by account email on the roster).
+ */
+export async function getViewerPartnerRegistrationStatus(input: {
+  tournamentId: string;
+  partnerId: string;
+  userEmail: string | null | undefined;
+  userId: string | null | undefined;
+}): Promise<ViewerPartnerRegistrationStatus> {
+  const email = input.userEmail?.trim().toLowerCase() || null;
+  if (!email && !input.userId) {
+    return {
+      status: "none",
+      isRegistered: false,
+      registrationId: null,
+      teamId: null,
+      isAuthenticated: false,
+    };
+  }
+
+  const db = getDb();
+
+  if (email) {
+    const [byEmail] = await db
+      .select({
+        id: partnerTournamentRegistrations.id,
+        status: partnerTournamentRegistrations.status,
+        teamId: partnerTournamentRegistrations.teamId,
+      })
+      .from(partnerTournamentRegistrationMembers)
+      .innerJoin(
+        partnerTournamentRegistrations,
+        eq(
+          partnerTournamentRegistrationMembers.registrationId,
+          partnerTournamentRegistrations.id,
+        ),
+      )
+      .where(
+        and(
+          eq(partnerTournamentRegistrations.tournamentId, input.tournamentId),
+          eq(partnerTournamentRegistrations.partnerId, input.partnerId),
+          eq(partnerTournamentRegistrationMembers.email, email),
+          inArray(partnerTournamentRegistrations.status, [...VIEWER_ACTIVE_STATUSES]),
+        ),
+      )
+      .limit(1);
+
+    if (byEmail) {
+      const status = byEmail.status as ViewerPartnerRegistrationStatus["status"];
+      return {
+        status,
+        isRegistered: true,
+        registrationId: byEmail.id,
+        teamId: byEmail.teamId,
+        isAuthenticated: true,
+      };
+    }
+  }
+
+  if (input.userId) {
+    const { getUserTeamInTournament } = await import("@/lib/tournaments/reclub/teams");
+    const teamId = await getUserTeamInTournament(input.tournamentId, input.userId);
+    if (teamId) {
+      return {
+        status: "confirmed",
+        isRegistered: true,
+        registrationId: null,
+        teamId,
+        isAuthenticated: true,
+      };
+    }
+  }
+
+  return {
+    status: "none",
+    isRegistered: false,
+    registrationId: null,
+    teamId: null,
+    isAuthenticated: Boolean(email || input.userId),
+  };
+}

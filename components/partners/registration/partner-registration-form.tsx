@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import {
   partnerGuestRegistrationSchema,
@@ -25,6 +26,18 @@ type PartnerRegistrationFormProps = {
   isPaid: boolean;
 };
 
+function firstFieldErrorMessage(issues: unknown): string | null {
+  if (!issues || typeof issues !== "object") return null;
+  const fieldErrors = (issues as { fieldErrors?: Record<string, string[] | undefined> })
+    .fieldErrors;
+  if (!fieldErrors) return null;
+
+  for (const messages of Object.values(fieldErrors)) {
+    if (Array.isArray(messages) && messages[0]) return messages[0];
+  }
+  return null;
+}
+
 export function PartnerRegistrationForm({
   partnerSlug,
   tournamentSlug,
@@ -36,7 +49,10 @@ export function PartnerRegistrationForm({
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const memberCount = Math.max(0, playersPerTeam - 1);
-  const schema = partnerGuestRegistrationSchema(playersPerTeam);
+  const schema = useMemo(
+    () => partnerGuestRegistrationSchema(playersPerTeam),
+    [playersPerTeam],
+  );
 
   const {
     register,
@@ -44,7 +60,10 @@ export function PartnerRegistrationForm({
     handleSubmit,
     formState: { errors },
   } = useForm<PartnerGuestRegistrationInput>({
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- zod transforms widen input vs output for RHF
+    resolver: zodResolver(schema) as any,
+    mode: "onBlur",
+    reValidateMode: "onChange",
     defaultValues: {
       captain: { fullName: "", email: "", phone: "" },
       teamName: "",
@@ -63,19 +82,28 @@ export function PartnerRegistrationForm({
     setSubmitting(true);
     try {
       const res = await fetch(
-        `/api/partner/public/${partnerSlug}/tournaments/${tournamentSlug}/register`,
+        `/api/partner/public/${encodeURIComponent(partnerSlug)}/tournaments/${encodeURIComponent(tournamentSlug)}/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(values),
         },
       );
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error?.message ?? "Registration failed");
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { status: string; payUrl?: string; successUrl: string };
+        error?: { message?: string; context?: { issues?: unknown } };
+      } | null;
+
+      if (!res.ok || !json?.data) {
+        const fromFields = firstFieldErrorMessage(json?.error?.context?.issues);
+        const message =
+          fromFields ?? json?.error?.message ?? "Registration failed. Please check your details.";
+
+        throw new Error(message);
       }
 
-      const data = json.data as { status: string; payUrl?: string; successUrl: string };
+      const data = json.data;
       toast.success(
         data.status === "registered"
           ? "Registration submitted — awaiting organizer confirmation"
@@ -90,176 +118,195 @@ export function PartnerRegistrationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
-      <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-cp-muted">
-          Team captain
-        </h2>
-        <p className="mt-1 text-xs text-cp-muted">
-          No Gud Game account required — used only for this registration.
-        </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="captain.fullName">Full name *</Label>
-            <Input
-              id="captain.fullName"
-              placeholder="Jane Doe"
-              aria-invalid={!!errors.captain?.fullName}
-              {...register("captain.fullName")}
-            />
-            {errors.captain?.fullName ? (
-              <p className="text-xs text-destructive">{errors.captain.fullName.message}</p>
-            ) : null}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="captain.email">Email *</Label>
-            <Input
-              id="captain.email"
-              type="email"
-              placeholder="jane@example.com"
-              aria-invalid={!!errors.captain?.email}
-              {...register("captain.email")}
-            />
-            {errors.captain?.email ? (
-              <p className="text-xs text-destructive">{errors.captain.email.message}</p>
-            ) : null}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="captain.phone">Phone *</Label>
-            <Input
-              id="captain.phone"
-              placeholder="0812xxxxxxx"
-              aria-invalid={!!errors.captain?.phone}
-              {...register("captain.phone")}
-            />
-            {errors.captain?.phone ? (
-              <p className="text-xs text-destructive">{errors.captain.phone.message}</p>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      {playersPerTeam > 1 ? (
+    <>
+      {submitting ? <LoadingOverlay show label="Submitting registration…" /> : null}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
         <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-cp-muted">
-            Team name
-          </h2>
-          <div className="mt-4 space-y-1.5">
-            <Label htmlFor="teamName">Team name *</Label>
-            <Input
-              id="teamName"
-              placeholder={`${tournamentName} squad`}
-              aria-invalid={!!errors.teamName}
-              {...register("teamName")}
-            />
-            {errors.teamName ? (
-              <p className="text-xs text-destructive">{errors.teamName.message}</p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {fields.length > 0 ? (
-        <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cp-muted">
-            <UserPlus className="h-4 w-4" aria-hidden />
-            Teammates ({fields.length})
+            Team captain
           </h2>
           <p className="mt-1 text-xs text-cp-muted">
-            Email and phone are optional for teammates — full name is required.
+            No Gud Game account required — used only for this registration.
           </p>
-          <div className="mt-4 space-y-4">
-            {fields.map((field, index) => (
-              <div
-                key={field.id}
-                className="grid gap-3 rounded-xl border border-cp-border/70 bg-cp-elevated/30 p-4 sm:grid-cols-3"
-              >
-                <div className="space-y-1.5 sm:col-span-3">
-                  <Label htmlFor={`members.${index}.fullName`}>Player {index + 2} name *</Label>
-                  <Input
-                    id={`members.${index}.fullName`}
-                    placeholder="Teammate name"
-                    aria-invalid={!!errors.members?.[index]?.fullName}
-                    {...register(`members.${index}.fullName` as const)}
-                  />
-                  {errors.members?.[index]?.fullName ? (
-                    <p className="text-xs text-destructive">
-                      {errors.members[index]?.fullName?.message}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-1.5 sm:col-span-1">
-                  <Label htmlFor={`members.${index}.email`}>Email</Label>
-                  <Input
-                    id={`members.${index}.email`}
-                    type="email"
-                    placeholder="Optional"
-                    aria-invalid={!!errors.members?.[index]?.email}
-                    {...register(`members.${index}.email` as const)}
-                  />
-                  {errors.members?.[index]?.email ? (
-                    <p className="text-xs text-destructive">
-                      {errors.members[index]?.email?.message}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor={`members.${index}.phone`}>Phone</Label>
-                  <Input
-                    id={`members.${index}.phone`}
-                    placeholder="Optional"
-                    aria-invalid={!!errors.members?.[index]?.phone}
-                    {...register(`members.${index}.phone` as const)}
-                  />
-                  {errors.members?.[index]?.phone ? (
-                    <p className="text-xs text-destructive">
-                      {errors.members[index]?.phone?.message}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="captain.fullName">Full name *</Label>
+              <Input
+                id="captain.fullName"
+                autoComplete="name"
+                placeholder="Jane Doe"
+                aria-invalid={!!errors.captain?.fullName}
+                {...register("captain.fullName")}
+              />
+              {errors.captain?.fullName ? (
+                <p className="text-xs text-destructive">{errors.captain.fullName.message}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="captain.email">Email *</Label>
+              <Input
+                id="captain.email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                placeholder="jane@example.com"
+                aria-invalid={!!errors.captain?.email}
+                {...register("captain.email")}
+              />
+              {errors.captain?.email ? (
+                <p className="text-xs text-destructive">{errors.captain.email.message}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="captain.phone">Phone *</Label>
+              <Input
+                id="captain.phone"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="0812xxxxxxx"
+                aria-invalid={!!errors.captain?.phone}
+                {...register("captain.phone")}
+              />
+              {errors.captain?.phone ? (
+                <p className="text-xs text-destructive">{errors.captain.phone.message}</p>
+              ) : (
+                <p className="text-[11px] text-cp-muted">Indonesian mobile, e.g. 0812… or +62…</p>
+              )}
+            </div>
           </div>
         </section>
-      ) : null}
 
-      <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
-        <Label htmlFor="notes">Notes (optional)</Label>
-        <Textarea
-          id="notes"
-          className="mt-2"
-          placeholder="Anything the organizer should know"
-          {...register("notes")}
-        />
-        {errors.notes ? <p className="mt-1 text-xs text-destructive">{errors.notes.message}</p> : null}
-      </section>
+        {playersPerTeam > 1 ? (
+          <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-cp-muted">
+              Team name
+            </h2>
+            <div className="mt-4 space-y-1.5">
+              <Label htmlFor="teamName">Team name *</Label>
+              <Input
+                id="teamName"
+                placeholder={`${tournamentName} squad`}
+                aria-invalid={!!errors.teamName}
+                {...register("teamName")}
+              />
+              {errors.teamName ? (
+                <p className="text-xs text-destructive">{errors.teamName.message}</p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
-      <div className="flex items-center justify-between gap-4 rounded-2xl border border-cp-border bg-cp-elevated/30 p-4 sm:p-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
-            {isPaid ? "Registration fee" : "Entry"}
-          </p>
-          <p className="mt-0.5 text-lg font-bold text-foreground">
-            {isPaid ? formatIdrDisplay(feeIdr ?? 0) : "Free"}
-          </p>
+        {fields.length > 0 ? (
+          <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cp-muted">
+              <UserPlus className="h-4 w-4" aria-hidden />
+              Teammates ({fields.length})
+            </h2>
+            <p className="mt-1 text-xs text-cp-muted">
+              Full name is required. Email and phone are optional — if filled, they must be valid
+              and unique on this team.
+            </p>
+            <div className="mt-4 space-y-4">
+              {fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  className="grid gap-3 rounded-xl border border-cp-border/70 bg-cp-elevated/30 p-4 sm:grid-cols-3"
+                >
+                  <div className="space-y-1.5 sm:col-span-3">
+                    <Label htmlFor={`members.${index}.fullName`}>Player {index + 2} name *</Label>
+                    <Input
+                      id={`members.${index}.fullName`}
+                      autoComplete="name"
+                      placeholder="Teammate name"
+                      aria-invalid={!!errors.members?.[index]?.fullName}
+                      {...register(`members.${index}.fullName` as const)}
+                    />
+                    {errors.members?.[index]?.fullName ? (
+                      <p className="text-xs text-destructive">
+                        {errors.members[index]?.fullName?.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <Label htmlFor={`members.${index}.email`}>Email</Label>
+                    <Input
+                      id={`members.${index}.email`}
+                      type="email"
+                      inputMode="email"
+                      placeholder="Optional"
+                      aria-invalid={!!errors.members?.[index]?.email}
+                      {...register(`members.${index}.email` as const)}
+                    />
+                    {errors.members?.[index]?.email ? (
+                      <p className="text-xs text-destructive">
+                        {errors.members[index]?.email?.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor={`members.${index}.phone`}>Phone</Label>
+                    <Input
+                      id={`members.${index}.phone`}
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Optional"
+                      aria-invalid={!!errors.members?.[index]?.phone}
+                      {...register(`members.${index}.phone` as const)}
+                    />
+                    {errors.members?.[index]?.phone ? (
+                      <p className="text-xs text-destructive">
+                        {errors.members[index]?.phone?.message}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
+          <Label htmlFor="notes">Notes (optional)</Label>
+          <Textarea
+            id="notes"
+            className="mt-2"
+            maxLength={500}
+            placeholder="Anything the organizer should know"
+            {...register("notes")}
+          />
+          {errors.notes ? (
+            <p className="mt-1 text-xs text-destructive">{errors.notes.message}</p>
+          ) : null}
+        </section>
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-cp-border bg-cp-elevated/30 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
+              {isPaid ? "Registration fee" : "Entry"}
+            </p>
+            <p className="mt-0.5 text-lg font-bold text-foreground">
+              {isPaid ? formatIdrDisplay(feeIdr ?? 0) : "Free"}
+            </p>
+          </div>
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="h-11 w-full bg-cp-primary px-6 hover:bg-cp-primary-light sm:w-auto"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Submitting…
+              </>
+            ) : isPaid ? (
+              "Continue to payment"
+            ) : (
+              "Register for free"
+            )}
+          </Button>
         </div>
-        <Button
-          type="submit"
-          disabled={submitting}
-          className="h-11 bg-cp-primary px-6 hover:bg-cp-primary-light"
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Submitting…
-            </>
-          ) : isPaid ? (
-            "Continue to payment"
-          ) : (
-            "Register for free"
-          )}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 /**
- * Resolve public discovery card CTA (Join / Bracket / Results).
- * Keeps list pages deep-linking into register or bracket without extra hops.
+ * Resolve public discovery card CTA (Join / Bracket).
+ * Join when the viewer is not registered; Bracket once they are (or for completed events).
  */
 
 export type DiscoveryCtaEmphasis = "primary" | "secondary";
@@ -15,6 +15,8 @@ const ACTIVE_REGISTRATION = new Set([
   "confirmed",
   "pending_payment",
   "awaiting_confirmation",
+  "awaiting_payment",
+  "registered",
 ]);
 
 export function isActiveRegistrationStatus(status: string | null | undefined): boolean {
@@ -35,17 +37,17 @@ export function resolveTournamentDiscoveryCta(input: {
 }): TournamentDiscoveryCta {
   const { status, detailHref, registerHref, isRegistered = false } = input;
   const bracketHref = withTournamentTab(detailHref, "Bracket");
-  const liveHref = withTournamentTab(detailHref, "Live Score");
 
-  if (status === "completed" || status === "cancelled") {
+  if (status === "cancelled") {
     return {
-      label: status === "completed" ? "Bracket" : "Open",
-      href: status === "completed" ? bracketHref : detailHref,
+      label: "Open",
+      href: detailHref,
       emphasis: "secondary",
     };
   }
 
-  if (status === "live") {
+  // Completed events: always open bracket/results.
+  if (status === "completed") {
     return {
       label: "Bracket",
       href: bracketHref,
@@ -53,7 +55,6 @@ export function resolveTournamentDiscoveryCta(input: {
     };
   }
 
-  // upcoming / draft / unknown — prefer Join unless already registered
   if (isRegistered) {
     return {
       label: "Bracket",
@@ -62,18 +63,9 @@ export function resolveTournamentDiscoveryCta(input: {
     };
   }
 
-  if (status === "upcoming" || status === "draft") {
-    return {
-      label: "Join",
-      href: registerHref || detailHref,
-      emphasis: "primary",
-    };
-  }
-
-  // Fallback for odd statuses while live-adjacent
   return {
-    label: "Open",
-    href: liveHref,
-    emphasis: "secondary",
+    label: "Join",
+    href: registerHref || detailHref,
+    emphasis: "primary",
   };
 }

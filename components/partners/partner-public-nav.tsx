@@ -18,6 +18,10 @@ type PartnerPublicNavProps = {
   primaryColor: string;
 };
 
+/**
+ * Auth UI must match on server + first client paint to avoid hydration mismatch.
+ * Show guest "Sign in" until hydrated, then resolve session (skeleton → UserMenu / Sign in).
+ */
 export function PartnerPublicNav({
   partnerSlug,
   partnerName,
@@ -25,8 +29,13 @@ export function PartnerPublicNav({
   primaryColor,
 }: PartnerPublicNavProps) {
   const pathname = usePathname();
-  const { user, isAuthLoading } = useAuthUser();
+  const { user, isAuthenticated, isAuthLoading } = useAuthUser();
+  const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(false);
@@ -42,8 +51,13 @@ export function PartnerPublicNav({
   }, [open]);
 
   const loginHref = `${authRoutes.login}?callbackUrl=${encodeURIComponent(
-    partnerPublicRoutes.home(partnerSlug),
+    pathname || partnerPublicRoutes.home(partnerSlug),
   )}`;
+
+  // Match main Navbar: never branch on auth during SSR / pre-hydration.
+  const showAuthLoading = hydrated && isAuthLoading && !isAuthenticated;
+  const showAuthenticated = hydrated && isAuthenticated && Boolean(user);
+  const showSignIn = hydrated ? !showAuthLoading && !showAuthenticated : true;
 
   const links = [
     { href: partnerPublicRoutes.home(partnerSlug), label: "Home", exact: true },
@@ -118,9 +132,12 @@ export function PartnerPublicNav({
         <div className="flex shrink-0 items-center gap-1">
           <div className="hidden items-center gap-1 border-l border-cp-border/70 pl-2.5 lg:flex">
             <ThemeToggle />
-            {isAuthLoading ? (
-              <span className="h-9 w-9 animate-pulse rounded-full bg-cp-elevated" />
-            ) : user ? (
+            {showAuthLoading ? (
+              <span
+                className="h-9 w-9 animate-pulse rounded-full bg-cp-elevated"
+                aria-hidden
+              />
+            ) : showAuthenticated ? (
               <UserMenu />
             ) : (
               <Button asChild size="sm" className="ml-1 bg-cp-primary hover:bg-cp-primary-light">
@@ -131,7 +148,7 @@ export function PartnerPublicNav({
 
           <div className="flex items-center gap-1 lg:hidden">
             <ThemeToggle />
-            {!isAuthLoading && user ? <UserMenu /> : null}
+            {showAuthenticated ? <UserMenu /> : null}
             <Button
               type="button"
               variant="outline"
@@ -169,7 +186,7 @@ export function PartnerPublicNav({
                 {l.label}
               </Link>
             ))}
-            {!isAuthLoading && !user ? (
+            {showSignIn ? (
               <Button asChild className="mt-2 w-full bg-cp-primary hover:bg-cp-primary-light">
                 <Link href={loginHref} onClick={() => setOpen(false)}>
                   Sign in

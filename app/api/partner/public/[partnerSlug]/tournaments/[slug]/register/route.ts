@@ -17,7 +17,8 @@ export async function POST(
   { params }: { params: Promise<{ partnerSlug: string; slug: string }> },
 ) {
   try {
-    await guardApiRequest(request, { tier: "register" });
+    // Venue desks often share one IP — do not use the strict account-signup "register" tier.
+    await guardApiRequest(request, { tier: "partnerRegister" });
 
     const { partnerSlug: rawPartnerSlug, slug } = await params;
     const partnerSlug = normalizePartnerSlug(rawPartnerSlug);
@@ -42,10 +43,21 @@ export async function POST(
     }
 
     const ip = getTrustedClientIp(request);
+    const captainEmail = parsed.data.captain.email.trim().toLowerCase();
+
+    // Anti-spam: same captain email cannot flood a single tournament.
     await enforceRateLimit({
-      key: `partner-register:${parsed.data.captain.email.trim().toLowerCase()}:${ip}`,
+      key: `partner-register:captain:${tournament.id}:${captainEmail}`,
       limit: 5,
       windowSeconds: 3600,
+      failClosedInProduction: true,
+    });
+
+    // Soft per-IP burst control (on top of partnerRegister hourly bucket).
+    await enforceRateLimit({
+      key: `partner-register:ip:${tournament.id}:${ip}`,
+      limit: 30,
+      windowSeconds: 600,
       failClosedInProduction: true,
     });
 

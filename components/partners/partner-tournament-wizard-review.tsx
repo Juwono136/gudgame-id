@@ -38,6 +38,7 @@ type PartnerTournamentWizardReviewProps = {
   matchFormatLabel: string;
   poolRows: { label: string; value: string }[];
   scoringRows: { label: string; value: string }[];
+  summary: string;
   description: string;
   isEdit?: boolean;
   onEditStep?: (stepIndex: number) => void;
@@ -118,10 +119,12 @@ export function PartnerTournamentWizardReview({
   matchFormatLabel,
   poolRows,
   scoringRows,
+  summary,
   description,
   isEdit,
   onEditStep,
 }: PartnerTournamentWizardReviewProps) {
+  const hasSummary = Boolean(stripHtmlToText(summary));
   const hasDescription = Boolean(stripHtmlToText(description));
   const feeIsPaid = entryBilling === "paid";
   const feeDisplay =
@@ -199,13 +202,23 @@ export function PartnerTournamentWizardReview({
             <ReviewItem label="Prize pool" value={prizeDisplay} />
             <ReviewItem label="Players per team" value="2 (fixed pairs)" />
           </dl>
-          <div className="mt-4">
-            <TournamentReviewRichBlock label="Description" html={description} />
-            {!hasDescription ? (
-              <p className="mt-2 text-xs text-cp-muted">
-                No public description yet — guests will see format and venue only.
-              </p>
-            ) : null}
+          <div className="mt-4 space-y-4">
+            <div>
+              <TournamentReviewRichBlock label="Short summary" html={summary} />
+              {!hasSummary ? (
+                <p className="mt-2 text-xs text-cp-muted">
+                  No short summary — hero and cards will look sparse until you add one.
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <TournamentReviewRichBlock label="Description" html={description} />
+              {!hasDescription ? (
+                <p className="mt-2 text-xs text-cp-muted">
+                  No full description yet — the About section will stay empty.
+                </p>
+              ) : null}
+            </div>
           </div>
         </ReviewSection>
 

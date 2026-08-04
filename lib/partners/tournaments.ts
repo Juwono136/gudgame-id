@@ -68,8 +68,10 @@ function mapTournamentRow(row: {
   slug: string;
   name: string;
   summary: string | null;
+  description?: string | null;
   status: string;
   tournamentType: string;
+  format?: string | null;
   officialBilling: string | null;
   venue: string | null;
   categoryLabel: string | null;
@@ -94,8 +96,10 @@ function mapTournamentRow(row: {
     slug: row.slug,
     name: row.name,
     summary: row.summary,
+    description: row.description ?? null,
     status,
     tournamentType: row.tournamentType,
+    format: row.format ?? null,
     officialBilling: (row.officialBilling as TournamentListItem["officialBilling"]) ?? null,
     venue: row.venue,
     categoryLabel: row.categoryLabel,
@@ -141,8 +145,10 @@ export async function queryPartnerTournaments(
       slug: tournaments.slug,
       name: tournaments.name,
       summary: tournaments.summary,
+      description: tournaments.description,
       status: tournaments.status,
       tournamentType: tournaments.tournamentType,
+      format: tournaments.format,
       officialBilling: tournaments.officialBilling,
       venue: tournaments.venue,
       categoryLabel: tournaments.categoryLabel,

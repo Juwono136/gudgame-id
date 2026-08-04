@@ -56,7 +56,6 @@ import {
 import {
   TOURNAMENT_FIELD_LIMITS,
   htmlCharCount,
-  stripHtmlToText,
 } from "@/lib/tournaments/form/field-limits";
 import { uploadTournamentCoverClient } from "@/lib/tournaments/upload-cover-client";
 import type { MatchFormat } from "@/lib/tournaments/scoring/classic-sets";
@@ -149,6 +148,8 @@ type PartnerTournamentWizardProps = {
 
 type FormState = {
   name: string;
+  /** Short teaser for hero + discovery cards (rich text, capped). */
+  summary: string;
   description: string;
   categoryLabel: TournamentCategoryOption | "";
   venue: string;
@@ -182,6 +183,7 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
   if (!initial) {
     return {
       name: "",
+      summary: "",
       description: "",
       categoryLabel: "",
       venue: "",
@@ -222,6 +224,7 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       : "free";
   return {
     name: initial.name.slice(0, TOURNAMENT_FIELD_LIMITS.name),
+    summary: (initial.summary ?? "").slice(0, TOURNAMENT_FIELD_LIMITS.summary),
     description: (initial.description ?? "").slice(0, TOURNAMENT_FIELD_LIMITS.description),
     categoryLabel: normalizeCategory(initial.categoryLabel),
     venue: (initial.venue ?? "").slice(0, TOURNAMENT_FIELD_LIMITS.venue),
@@ -278,6 +281,7 @@ export function PartnerTournamentWizard({
   const [stepIndex, setStepIndex] = useState(0);
   const [pending, setPending] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
   const [regCloseError, setRegCloseError] = useState<string | null>(null);
@@ -342,6 +346,15 @@ export function PartnerTournamentWizard({
         return false;
       }
       setNameError(null);
+
+      if (htmlCharCount(form.summary) > TOURNAMENT_FIELD_LIMITS.summary) {
+        setSummaryError(
+          `Summary must be at most ${TOURNAMENT_FIELD_LIMITS.summary} characters`,
+        );
+        toast.error("Summary is too long");
+        return false;
+      }
+      setSummaryError(null);
 
       if (htmlCharCount(form.description) > TOURNAMENT_FIELD_LIMITS.description) {
         setDescriptionError(
@@ -466,12 +479,14 @@ export function PartnerTournamentWizard({
       ? new Date(form.endsAt).toISOString()
       : new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
     const descriptionHtml = form.description.trim();
-    const summaryFromDescription = stripHtmlToText(descriptionHtml).slice(0, TOURNAMENT_FIELD_LIMITS.summary);
+    const summaryHtml = form.summary.trim();
 
     return {
       name: form.name.trim().slice(0, TOURNAMENT_FIELD_LIMITS.name),
       description: descriptionHtml.slice(0, TOURNAMENT_FIELD_LIMITS.description),
-      summary: summaryFromDescription || undefined,
+      summary: summaryHtml
+        ? summaryHtml.slice(0, TOURNAMENT_FIELD_LIMITS.summary)
+        : undefined,
       format: form.format,
       categoryLabel: form.categoryLabel || "",
       tournamentType: "fun_match",
@@ -696,7 +711,7 @@ export function PartnerTournamentWizard({
                       placeholder="e.g. Friday Night Open"
                       maxLength={TOURNAMENT_FIELD_LIMITS.name}
                       aria-invalid={nameError ? true : undefined}
-                      autoFocus
+                      autoFocus={!isEdit}
                     />
                     <FieldError message={nameError} />
                   </div>
@@ -710,9 +725,35 @@ export function PartnerTournamentWizard({
                   />
 
                   <div className="space-y-2">
+                    <div className="flex items-end justify-between gap-2">
+                      <Label>Short summary</Label>
+                      <FieldCharCounter
+                        current={htmlCharCount(form.summary)}
+                        max={TOURNAMENT_FIELD_LIMITS.summary}
+                      />
+                    </div>
+                    <p className="text-xs text-cp-muted">
+                      Teaser for the hero banner and tournament cards. Keep it short — use
+                      Description below for the full story.
+                    </p>
+                    <RichTextEditor
+                      value={form.summary}
+                      onChange={(html) => {
+                        setSummaryError(null);
+                        patch("summary", html.slice(0, TOURNAMENT_FIELD_LIMITS.summary));
+                      }}
+                      placeholder="One or two lines guests see first on listings and the banner…"
+                      minHeight={100}
+                      maxLength={TOURNAMENT_FIELD_LIMITS.summary}
+                    />
+                    <FieldError message={summaryError} />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Description</Label>
                     <p className="text-xs text-cp-muted">
-                      Full overview shown on the tournament page for guests and staff.
+                      Full overview in the About section — lists, formatting, and longer detail are
+                      fine here.
                     </p>
                     <RichTextEditor
                       value={form.description}
@@ -1185,6 +1226,7 @@ export function PartnerTournamentWizard({
                     }
                     poolRows={poolRows}
                     scoringRows={scoringRows}
+                    summary={form.summary}
                     description={form.description}
                     isEdit={isEdit}
                     onEditStep={goToStep}

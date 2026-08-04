@@ -125,8 +125,7 @@ export function PartnerPublicEligibilitySearch({
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-cp-muted sm:text-base">
           Internal lookup for {partnerName} staff — tournament, category, how far a player
-          advanced, and doubles partner. Not a skill rating, not public, and separate from Gud
-          Game rankings.
+          advanced, and doubles partner.
         </p>
       </div>
 

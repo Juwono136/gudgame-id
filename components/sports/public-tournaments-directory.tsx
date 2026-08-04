@@ -143,7 +143,7 @@ export function PublicTournamentsDirectory({
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-              {(data?.items ?? []).map((tournament) => (
+              {(data?.items ?? []).map((tournament, index) => (
                 <TournamentDiscoveryPublicCard
                   key={tournament.id}
                   tournament={tournament}
@@ -152,6 +152,7 @@ export function PublicTournamentsDirectory({
                     sportSlug,
                     tournament.slug,
                   )}
+                  priority={index === 0}
                 />
               ))}
             </div>

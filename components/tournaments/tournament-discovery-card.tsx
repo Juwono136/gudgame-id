@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Calendar, MapPin, Trophy, Users } from "lucide-react";
+import { ArrowRight, Calendar, MapPin, Ticket, Trophy, Users } from "lucide-react";
+import { DiscoveryCardSummary } from "@/components/tournaments/discovery-card-summary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { htmlExcerpt } from "@/lib/html/strip-html";
 import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
 import type { TournamentDiscoveryCta } from "@/lib/tournaments/discovery-cta";
 import type { TournamentListItem } from "@/lib/tournaments/service";
+import { getTournamentFormatLabel } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 
 const STATUS_OVERLAY: Record<string, string> = {
@@ -50,18 +51,29 @@ export type TournamentDiscoveryCardProps = {
   cta?: TournamentDiscoveryCta;
   /** Dashboard action strip (Manage + secondary). */
   actions?: React.ReactNode;
+  /** Eager-load cover when this card is above the fold (LCP). */
+  priority?: boolean;
   className?: string;
 };
+
+function isPaidEntry(tournament: TournamentListItem): boolean {
+  if (tournament.officialBilling === "paid") return true;
+  if (tournament.officialBilling === "free") return false;
+  return (tournament.registrationFeeIdr ?? 0) > 0;
+}
 
 export function TournamentDiscoveryCard({
   tournament,
   href,
   cta,
   actions,
+  priority = false,
   className,
 }: TournamentDiscoveryCardProps) {
   const prize = formatIdr(tournament.prizePoolIdr);
   const fee = formatIdr(tournament.registrationFeeIdr);
+  const paid = isPaidEntry(tournament);
+  const formatLabel = getTournamentFormatLabel(tournament.format);
   const statusKey = tournament.status in STATUS_OVERLAY ? tournament.status : "upcoming";
   const cover = tournament.coverImageUrl?.trim() || null;
   const ctaHref = cta?.href ?? href;
@@ -82,6 +94,9 @@ export function TournamentDiscoveryCard({
             src={cover}
             alt=""
             fill
+            priority={priority}
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
             className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             unoptimized
@@ -128,18 +143,31 @@ export function TournamentDiscoveryCard({
           </h3>
         </Link>
 
-        {tournament.summary ? (
-          <p className="line-clamp-2 min-h-[2.5rem] text-sm leading-relaxed text-cp-muted">
-            {htmlExcerpt(tournament.summary, 100)}
-          </p>
-        ) : (
-          <p className="min-h-[2.5rem] text-sm text-cp-muted/70">No description yet.</p>
-        )}
+        <DiscoveryCardSummary
+          html={tournament.summary?.trim() || tournament.description}
+        />
 
         <p className="inline-flex items-center gap-1.5 text-xs text-cp-muted">
           <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {formatDateRange(tournament.startsAt, tournament.endsAt)}
         </p>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge
+            className={cn(
+              "border-0 text-[10px] font-semibold uppercase tracking-wide",
+              paid
+                ? "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
+            )}
+          >
+            <Ticket className="mr-1 h-3 w-3" aria-hidden />
+            {paid ? (fee ? `Paid · ${fee}` : "Paid") : "Free"}
+          </Badge>
+          <Badge className="border-cp-border bg-cp-elevated/70 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
+            {formatLabel}
+          </Badge>
+        </div>
 
         <div className="mt-auto space-y-3 border-t border-cp-border/70 pt-3">
           <div className="flex items-end justify-between gap-3">
@@ -160,7 +188,7 @@ export function TournamentDiscoveryCard({
                     Entry
                   </p>
                   <p className="mt-0.5 text-base font-bold tabular-nums text-cp-primary sm:text-lg">
-                    {fee ?? "Free"}
+                    {paid ? fee ?? "Paid" : "Free"}
                   </p>
                 </>
               )}

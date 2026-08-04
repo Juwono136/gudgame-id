@@ -55,6 +55,8 @@ export function TournamentHeroBanner({
               alt=""
               fill
               priority
+              loading="eager"
+              fetchPriority="high"
               sizes="(max-width: 768px) 100vw, (max-width: 1280px) 100vw, 1152px"
               className="object-cover object-center"
               unoptimized
@@ -86,7 +88,12 @@ export const tournamentHeroStyles = {
     "inline-flex items-center text-sm font-medium text-foreground/90 drop-shadow-sm transition-colors hover:text-foreground",
   title:
     "mt-3 break-words text-2xl font-bold tracking-tight text-foreground drop-shadow-md sm:mt-4 sm:text-3xl md:text-4xl lg:text-5xl",
-  summaryWrap: "mt-3 max-w-2xl text-base text-foreground/90 sm:text-lg",
+  summaryWrap: cn(
+    "mt-3 max-w-2xl text-base text-foreground/90 sm:text-lg",
+    "[&_.rich-html]:max-h-[6.5rem] [&_.rich-html]:overflow-hidden",
+    "[&_.rich-html_p]:my-1 [&_.rich-html_ul]:my-1 [&_.rich-html_ol]:my-1",
+    "[&_.rich-html_ul]:list-disc [&_.rich-html_ol]:list-decimal [&_.rich-html_ul]:pl-5 [&_.rich-html_ol]:pl-5",
+  ),
   /** Schedule + venue facts; calendar CTA sits below via metaActions. */
   metaRow: "mt-4 flex flex-col items-start gap-2.5 sm:mt-5",
   metaFacts:
