@@ -231,7 +231,26 @@ export function PublicMultiCourtLiveScore({
   }, [activeMatches]);
 
   if (mode === "group_stage") {
+    const completedMatches = allMatches.filter((m) => m.status === "completed");
     if (activeMatches.length === 0) {
+      if (completedMatches.length > 0) {
+        return (
+          <FunMatchLiveHub
+            roundGroups={groupMatchesByRound(completedMatches, { includeFriendly: false })}
+            currentRound={1}
+            courts={courts}
+            teams={teams}
+            matchByCourt={new Map()}
+            readOnly
+            pointsPerMatch={pointsPerMatch}
+            scoringRules={scoringRules}
+            gameRules={gameRules}
+            maxRounds={maxRounds}
+            accentVariant={variant === "official" ? "official" : "fun"}
+            isGroupStageMode
+          />
+        );
+      }
       return (
         <PublicLiveScoreEmptyState
           title="Waiting for live group matches"
@@ -240,7 +259,7 @@ export function PublicMultiCourtLiveScore({
               ? "When the organizer starts group-stage matches on courts, live scores appear here automatically."
               : "When the organizer starts pool matches from Manage → Live scoring, scores update here in real time."
           }
-          tip="Tip: keep this tab open — it refreshes automatically while the event is live."
+          tip="Tip: keep this tab open — it refreshes automatically while the event is live. Check the Matches tab for Order of Play."
         />
       );
     }

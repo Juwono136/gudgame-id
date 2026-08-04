@@ -3,8 +3,7 @@ import { TournamentManageAccessDenied } from "@/components/tournaments/manage/to
 import { TournamentManageShell } from "@/components/tournaments/manage/tournament-manage-shell";
 import { getServerSession } from "@/lib/auth/session";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
-import { listPartnerTournaments } from "@/lib/partners/tournaments";
-import { getPartnerTournamentBySlug } from "@/lib/tournaments/service";
+import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { toPartnerFunMatchTournament } from "@/lib/partners/tournament-surface";
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
@@ -26,10 +25,7 @@ export default async function PartnerTournamentManagePage({ params }: PageProps)
   const partner = await getActivePartnerBySlug(partnerSlug);
   if (!partner) notFound();
 
-  const listed = (await listPartnerTournaments(partner.id)).find((t) => t.slug === slug);
-  if (!listed) notFound();
-
-  const rawTournament = await getPartnerTournamentBySlug(partner.id, listed.sportSlug, slug);
+  const rawTournament = await getPartnerTournamentDetailBySlug(partner.id, slug);
   if (!rawTournament || rawTournament.status === "draft") notFound();
   const tournament = toPartnerFunMatchTournament(rawTournament);
 
@@ -49,7 +45,7 @@ export default async function PartnerTournamentManagePage({ params }: PageProps)
   if (!access.canAccessManagePage) {
     return (
       <TournamentManageAccessDenied
-        sportSlug={listed.sportSlug}
+        sportSlug={tournament.sportSlug}
         slug={slug}
         tournamentName={tournament.name}
         reason="forbidden"

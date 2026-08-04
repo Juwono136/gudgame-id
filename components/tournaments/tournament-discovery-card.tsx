@@ -47,6 +47,8 @@ export type TournamentDiscoveryCardProps = {
   tournament: TournamentListItem;
   /** Detail / manage page (title + cover link). */
   href: string;
+  /** When set, league badge links to the league page. */
+  leagueHref?: string;
   /** Public CTA (Join / Bracket). Ignored when `actions` is set. */
   cta?: TournamentDiscoveryCta;
   /** Dashboard action strip (Manage + secondary). */
@@ -65,6 +67,7 @@ function isPaidEntry(tournament: TournamentListItem): boolean {
 export function TournamentDiscoveryCard({
   tournament,
   href,
+  leagueHref,
   cta,
   actions,
   priority = false,
@@ -119,6 +122,20 @@ export function TournamentDiscoveryCard({
       </Link>
 
       <div className="flex flex-1 flex-col gap-2.5 p-4 sm:p-5">
+        {tournament.partnerLeagueName?.trim() ? (
+          leagueHref ? (
+            <Link href={leagueHref} className="w-fit max-w-full" onClick={(e) => e.stopPropagation()}>
+              <Badge className="max-w-full truncate border-0 bg-cp-primary/12 text-[10px] font-semibold uppercase tracking-wide text-cp-primary transition-opacity hover:opacity-90">
+                {tournament.partnerLeagueName}
+              </Badge>
+            </Link>
+          ) : (
+            <Badge className="w-fit max-w-full truncate border-0 bg-cp-primary/12 text-[10px] font-semibold uppercase tracking-wide text-cp-primary">
+              {tournament.partnerLeagueName}
+            </Badge>
+          )
+        ) : null}
+
         <div className="flex items-center justify-between gap-2">
           <Badge className="max-w-[60%] truncate border-cp-border bg-cp-elevated/60 text-[10px] font-semibold uppercase text-cp-muted">
             {tournament.categoryLabel?.trim() ||

@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth";
+import { partnerLeagues } from "./partner-leagues";
 import { sports } from "./sports";
 import { partners } from "./partners";
 import { uuidFk, uuidPrimaryKey } from "./uuid";
@@ -84,6 +85,13 @@ export const tournaments = pgTable(
     partnerId: uuidFk("partner_id").references(() => partners.id, {
       onDelete: "cascade",
     }),
+    /**
+     * Optional partner league grouping (brand / season). Partner tournaments only.
+     * Cleared if the league is deleted.
+     */
+    partnerLeagueId: uuidFk("partner_league_id").references(() => partnerLeagues.id, {
+      onDelete: "set null",
+    }),
     /** Bracket config, registration settings — extended by tournament module */
     settings: jsonb("settings").default({}).notNull(),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
@@ -97,6 +105,7 @@ export const tournaments = pgTable(
     index("tournaments_sport_status_idx").on(table.sportId, table.status),
     index("tournaments_starts_at_idx").on(table.startsAt),
     index("tournaments_partner_idx").on(table.partnerId),
+    index("tournaments_partner_league_idx").on(table.partnerLeagueId),
     index("tournaments_sport_type_billing_status_idx").on(
       table.sportId,
       table.tournamentType,

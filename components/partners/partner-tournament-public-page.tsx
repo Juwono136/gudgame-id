@@ -472,9 +472,31 @@ export function PartnerTournamentPublicPage({
         <FadeInView className="mt-5 flex flex-col gap-6 sm:mt-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap gap-2">
-              {tournament.categoryLabel ? (
+              {tournament.partnerLeagueName?.trim() && tournament.partnerLeagueSlug ? (
+                <Link
+                  href={partnerPublicRoutes.league(partnerSlug, tournament.partnerLeagueSlug)}
+                  className="inline-flex"
+                >
+                  <Badge
+                    className={cn(
+                      statusBadgeClass.accent,
+                      tournamentHeroStyles.statusBadge,
+                      "transition-opacity hover:opacity-90",
+                    )}
+                  >
+                    {tournament.partnerLeagueName}
+                  </Badge>
+                </Link>
+              ) : tournament.partnerLeagueName?.trim() ? (
                 <Badge
                   className={cn(statusBadgeClass.accent, tournamentHeroStyles.statusBadge)}
+                >
+                  {tournament.partnerLeagueName}
+                </Badge>
+              ) : null}
+              {tournament.categoryLabel ? (
+                <Badge
+                  className={cn(statusBadgeClass.muted, tournamentHeroStyles.statusBadge)}
                 >
                   {tournament.categoryLabel}
                 </Badge>
@@ -499,7 +521,6 @@ export function PartnerTournamentPublicPage({
 
             <p className="mt-3 text-sm font-medium text-foreground/85 drop-shadow-sm sm:mt-4">
               Hosted by {partnerName}
-              {tournament.sportName ? ` · ${tournament.sportName}` : ""}
             </p>
 
             {tournament.summary ? (
@@ -751,8 +772,7 @@ export function PartnerTournamentPublicPage({
               <TournamentShareCard url={publicUrl} tournamentName={tournament.name} />
 
               <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/50 px-4 py-3 text-xs leading-relaxed text-cp-muted">
-                White-label event on {partnerName}. Results stay on this site and do not affect
-                career rankings elsewhere.
+                {`Event-day brackets and results from ${partnerName}.`}
               </div>
             </aside>
           </div>

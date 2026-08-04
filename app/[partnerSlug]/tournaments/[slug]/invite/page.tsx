@@ -2,9 +2,8 @@ import { notFound } from "next/navigation";
 import { TournamentInviteClient } from "@/components/tournaments/tournament-invite-client";
 import { resolveTournamentSurfaceUrls } from "@/lib/constants/routes";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
-import { listPartnerTournaments } from "@/lib/partners/tournaments";
+import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { toPartnerFunMatchTournament } from "@/lib/partners/tournament-surface";
-import { getPartnerTournamentBySlug } from "@/lib/tournaments/service";
 
 type PageProps = {
   params: Promise<{ partnerSlug: string; slug: string }>;
@@ -22,10 +21,7 @@ export default async function PartnerTournamentInvitePage({ params }: PageProps)
   const partner = await getActivePartnerBySlug(partnerSlug);
   if (!partner) notFound();
 
-  const listed = (await listPartnerTournaments(partner.id)).find((t) => t.slug === slug);
-  if (!listed) notFound();
-
-  const rawTournament = await getPartnerTournamentBySlug(partner.id, listed.sportSlug, slug);
+  const rawTournament = await getPartnerTournamentDetailBySlug(partner.id, slug);
   if (!rawTournament || rawTournament.status === "draft") notFound();
   const tournament = toPartnerFunMatchTournament(rawTournament);
 

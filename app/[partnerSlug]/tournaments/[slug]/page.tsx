@@ -4,13 +4,12 @@ import { PartnerTournamentPublicPage } from "@/components/partners/partner-tourn
 import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { getServerSession } from "@/lib/auth/session";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
-import { listPartnerTournaments } from "@/lib/partners/tournaments";
+import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { toPartnerFunMatchTournament } from "@/lib/partners/tournament-surface";
 import { resolveTournamentManageAccess } from "@/lib/tournaments/manage-access";
 import { canManageTournament } from "@/lib/tournaments/permissions";
 import { buildTournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import { getUserTeamInTournament } from "@/lib/tournaments/reclub/teams";
-import { getPartnerTournamentBySlug } from "@/lib/tournaments/service";
 import { getUserRoleAssignments } from "@/lib/roles/sync";
 
 type PageProps = {
@@ -25,14 +24,7 @@ export default async function PartnerTournamentDetailPage({ params }: PageProps)
   const partner = await getActivePartnerBySlug(partnerSlug);
   if (!partner) notFound();
 
-  const listed = (await listPartnerTournaments(partner.id)).find((t) => t.slug === slug);
-  if (!listed) notFound();
-
-  const rawTournament = await getPartnerTournamentBySlug(
-    partner.id,
-    listed.sportSlug,
-    slug,
-  );
+  const rawTournament = await getPartnerTournamentDetailBySlug(partner.id, slug);
   if (!rawTournament || rawTournament.status === "draft") notFound();
   const tournament = toPartnerFunMatchTournament(rawTournament);
 

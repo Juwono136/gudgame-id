@@ -19,7 +19,10 @@ export type PartnerLeagueStatus = (typeof PARTNER_LEAGUE_STATUSES)[number];
 export const PARTNER_LEAGUE_MATCH_STATUSES = ["scheduled", "completed", "cancelled"] as const;
 export type PartnerLeagueMatchStatus = (typeof PARTNER_LEAGUE_MATCH_STATUSES)[number];
 
-/** Partner-only recurring league (manual scores, no TV / career sync). */
+/**
+ * Partner league — brand/group for tournaments (optional), plus optional
+ * manual standings (teams/matches). No TV / career sync.
+ */
 export const partnerLeagues = pgTable(
   "partner_leagues",
   {
@@ -32,6 +35,12 @@ export const partnerLeagues = pgTable(
       .references(() => sports.id, { onDelete: "restrict" }),
     slug: varchar("slug", { length: 100 }).notNull(),
     name: varchar("name", { length: 160 }).notNull(),
+    /** Short teaser for listings (rich HTML). */
+    summary: text("summary"),
+    /** Longer public details (rich HTML). */
+    description: text("description"),
+    brandImageUrl: text("brand_image_url"),
+    brandImageStorageKey: varchar("brand_image_storage_key", { length: 512 }),
     status: varchar("status", { length: 20 }).default("active").notNull(),
     settings: jsonb("settings").default({}).notNull(),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),

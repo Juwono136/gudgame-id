@@ -5,7 +5,7 @@ import { CalendarDays, ListOrdered, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   callStatusLabel,
-  formatKickoffTime,
+  formatKickoffDateAndTimeParts,
   groupMatchesByCourt,
   groupMatchesByOrderOfPlay,
   groupMatchesByScheduleDay,
@@ -43,7 +43,11 @@ function MatchRow({
 }) {
   const status = scheduleStatusLabel(m.status, m.kind);
   const call = callStatusLabel(m.callStatus);
-  const displayScore = m.status === "completed" || m.status === "in_progress";
+  const displayScore =
+    m.status === "completed" ||
+    m.status === "in_progress" ||
+    (m.callStatus === "on_court" && (m.scoreA != null || m.scoreB != null));
+  const kickoff = formatKickoffDateAndTimeParts(m.scheduledAt);
 
   return (
     <li className="px-3 py-3 sm:px-4">
@@ -93,7 +97,7 @@ function MatchRow({
 
         <div
           className={cn(
-            "flex min-w-[5.75rem] flex-col items-center justify-center rounded-xl border px-2 py-1.5 sm:min-w-[6.5rem] sm:px-2.5 sm:py-2",
+            "flex min-w-[6.25rem] flex-col items-center justify-center rounded-xl border px-2 py-1.5 sm:min-w-[7.25rem] sm:px-2.5 sm:py-2",
             displayScore
               ? "border-cp-border/80 bg-cp-elevated/50"
               : "border-transparent bg-transparent",
@@ -111,11 +115,36 @@ function MatchRow({
                   Games
                 </p>
               ) : null}
+              {kickoff.date || kickoff.time !== "TBA" ? (
+                <p className="mt-1 text-center text-[9px] font-medium leading-tight text-cp-muted sm:text-[10px]">
+                  {kickoff.date ? (
+                    <>
+                      <span className="block whitespace-nowrap">{kickoff.date}</span>
+                      <span className="block whitespace-nowrap tabular-nums">{kickoff.time}</span>
+                    </>
+                  ) : (
+                    <span className="whitespace-nowrap tabular-nums">{kickoff.time}</span>
+                  )}
+                </p>
+              ) : null}
             </>
           ) : (
-            <p className="whitespace-nowrap text-xs font-semibold tabular-nums text-cp-muted sm:text-sm">
-              {formatKickoffTime(m.scheduledAt)}
-            </p>
+            <div className="text-center">
+              {kickoff.date ? (
+                <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:text-[11px]">
+                  {kickoff.date}
+                </p>
+              ) : null}
+              <p
+                className={cn(
+                  "whitespace-nowrap font-semibold tabular-nums text-foreground",
+                  kickoff.date ? "mt-0.5 text-xs sm:text-sm" : "text-xs sm:text-sm",
+                  kickoff.time === "TBA" && "text-cp-muted",
+                )}
+              >
+                {kickoff.time}
+              </p>
+            </div>
           )}
         </div>
 

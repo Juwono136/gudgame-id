@@ -1,10 +1,71 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Trophy } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  Globe,
+  Mail,
+  Phone,
+  Trophy,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
 import { partnerBrandCssVars } from "@/lib/partners/brand-style";
 import { cn } from "@/lib/utils";
+
+function whatsappHref(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : `https://wa.me/`;
+}
+
+function ContactChip({
+  href,
+  interactive,
+  icon: Icon,
+  children,
+  compact,
+}: {
+  href?: string;
+  interactive: boolean;
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  const className = cn(
+    "inline-flex max-w-full items-center gap-2 rounded-full border border-cp-border/80 bg-background/70 font-medium text-foreground shadow-sm backdrop-blur-sm transition-colors",
+    "hover:border-cp-primary/40 hover:bg-cp-primary/5 hover:text-cp-primary",
+    compact ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs sm:px-3.5 sm:py-2 sm:text-sm",
+  );
+
+  const content = (
+    <>
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-full bg-cp-primary/12 text-cp-primary",
+          compact ? "h-5 w-5" : "h-6 w-6 sm:h-7 sm:w-7",
+        )}
+      >
+        <Icon className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} aria-hidden />
+      </span>
+      <span className="min-w-0 truncate">{children}</span>
+    </>
+  );
+
+  if (interactive && href) {
+    const external = href.startsWith("http");
+    return (
+      <a
+        href={href}
+        className={className}
+        {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return <span className={className}>{content}</span>;
+}
 
 export type PartnerLandingHeroStat = {
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties; "aria-hidden"?: boolean }>;
@@ -162,164 +223,192 @@ export function PartnerLandingHero({
           "relative",
           compact
             ? "space-y-4 px-4 py-5"
-            : "space-y-6 px-4 py-7 sm:space-y-8 sm:px-10 sm:py-11",
+            : "space-y-7 px-4 py-7 sm:space-y-8 sm:px-8 sm:py-10 lg:px-10 lg:py-11",
         )}
       >
-        <div className={cn(compact ? "space-y-3.5" : "space-y-5")}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            {logoUrl?.trim() ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl.trim()}
-                alt=""
+        <div
+          className={cn(
+            "flex flex-col",
+            compact ? "gap-4" : "gap-6 lg:flex-row lg:items-stretch lg:justify-between lg:gap-10",
+          )}
+        >
+          <div className={cn("min-w-0 flex-1", compact ? "space-y-3.5" : "space-y-5")}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+              {logoUrl?.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl.trim()}
+                  alt=""
+                  className={cn(
+                    "shrink-0 rounded-2xl object-cover shadow-md ring-1 ring-black/5 dark:ring-white/10",
+                    compact
+                      ? "h-14 w-14"
+                      : "mx-auto h-16 w-16 sm:mx-0 sm:h-[4.75rem] sm:w-[4.75rem]",
+                  )}
+                />
+              ) : (
+                <span
+                  className={cn(
+                    "flex shrink-0 items-center justify-center rounded-2xl font-bold text-white shadow-md",
+                    compact
+                      ? "h-14 w-14 text-xl"
+                      : "mx-auto h-16 w-16 text-2xl sm:mx-0 sm:h-[4.75rem] sm:w-[4.75rem] sm:text-3xl",
+                  )}
+                  style={{ background: primary }}
+                >
+                  {(displayName || "P").slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className={cn("min-w-0", !compact && "text-center sm:text-left")}>
+                <h1
+                  className={cn(
+                    "break-words font-bold tracking-tight text-foreground",
+                    compact ? "text-xl" : "text-3xl sm:text-4xl",
+                  )}
+                >
+                  {title}
+                </h1>
+                <p
+                  className={cn(
+                    "mt-2 max-w-2xl leading-relaxed text-cp-muted",
+                    compact ? "text-xs" : "mx-auto text-sm sm:mx-0 sm:text-base",
+                  )}
+                >
+                  {subtitle}
+                </p>
+              </div>
+            </div>
+
+            {aboutHtml ? (
+              <RichHtmlContent
+                html={aboutHtml}
+                variant="article"
                 className={cn(
-                  "shrink-0 rounded-2xl object-cover shadow-md ring-1 ring-black/5 dark:ring-white/10",
-                  compact
-                    ? "h-14 w-14"
-                    : "h-16 w-16 sm:h-[4.75rem] sm:w-[4.75rem]",
+                  "max-w-3xl text-foreground/90 [&_.rich-html]:text-cp-muted",
+                  compact && "max-h-36 overflow-hidden text-xs",
+                  !compact && "text-center sm:text-left",
                 )}
               />
-            ) : (
-              <span
-                className={cn(
-                  "flex shrink-0 items-center justify-center rounded-2xl font-bold text-white shadow-md",
-                  compact
-                    ? "h-14 w-14 text-xl"
-                    : "h-16 w-16 text-2xl sm:h-[4.75rem] sm:w-[4.75rem] sm:text-3xl",
-                )}
-                style={{ background: primary }}
-              >
-                {(displayName || "P").slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <div className="min-w-0">
-              <h1
-                className={cn(
-                  "break-words font-bold tracking-tight text-foreground",
-                  compact ? "text-xl" : "text-3xl sm:text-4xl",
-                )}
-              >
-                {title}
-              </h1>
-              <p
-                className={cn(
-                  "mt-2 max-w-2xl leading-relaxed text-cp-muted",
-                  compact ? "text-xs" : "text-sm sm:text-base",
-                )}
-              >
-                {subtitle}
-              </p>
-            </div>
-          </div>
+            ) : null}
 
-          {aboutHtml ? (
-            <RichHtmlContent
-              html={aboutHtml}
-              variant="article"
+            <div
               className={cn(
-                "max-w-3xl text-foreground/90",
-                compact && "max-h-36 overflow-hidden text-xs",
-              )}
-            />
-          ) : null}
-
-          <div
-            className={cn(
-              compact ? "flex flex-wrap gap-2" : "grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap",
-            )}
-          >
-            {ctaTournaments}
-            {ctaLeagues}
-          </div>
-
-          {hasContact ? (
-            <ul
-              className={cn(
-                "flex flex-wrap gap-x-4 gap-y-1 border-t border-cp-border/60 text-cp-muted",
-                compact ? "pt-3 text-[11px]" : "pt-4 text-xs sm:text-sm",
+                compact
+                  ? "flex flex-wrap gap-2"
+                  : "grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap sm:justify-start",
               )}
             >
-              {contactEmail?.trim() ? (
-                <li className="min-w-0 break-all">
-                  {interactive ? (
-                    <a
-                      href={`mailto:${contactEmail.trim()}`}
-                      className="font-medium text-cp-primary hover:underline"
-                    >
-                      {contactEmail.trim()}
-                    </a>
-                  ) : (
-                    <span className="font-medium text-cp-primary">{contactEmail.trim()}</span>
+              {ctaTournaments}
+              {ctaLeagues}
+            </div>
+
+            {hasContact ? (
+              <div
+                className={cn(
+                  "border-t border-cp-border/60",
+                  compact ? "pt-3" : "pt-4 sm:pt-5",
+                )}
+              >
+                <p
+                  className={cn(
+                    "mb-2 font-semibold uppercase tracking-[0.12em] text-cp-muted",
+                    compact ? "text-[9px]" : "text-[10px] sm:text-[11px]",
                   )}
-                </li>
-              ) : null}
-              {contactWhatsapp?.trim() ? (
-                <li>
-                  <span className="font-medium text-foreground">{contactWhatsapp.trim()}</span>
-                </li>
-              ) : null}
-              {contactWebsite?.trim() ? (
-                <li>
-                  {interactive ? (
-                    <a
-                      href={contactWebsite.trim()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-cp-primary hover:underline"
-                    >
-                      Website
-                    </a>
-                  ) : (
-                    <span className="font-medium text-cp-primary">Website</span>
+                >
+                  Contact
+                </p>
+                <ul
+                  className={cn(
+                    "flex flex-wrap gap-2",
+                    !compact && "justify-center sm:justify-start",
                   )}
-                </li>
-              ) : null}
-            </ul>
+                >
+                  {contactEmail?.trim() ? (
+                    <li className="min-w-0 max-w-full">
+                      <ContactChip
+                        href={`mailto:${contactEmail.trim()}`}
+                        interactive={interactive}
+                        icon={Mail}
+                        compact={compact}
+                      >
+                        {contactEmail.trim()}
+                      </ContactChip>
+                    </li>
+                  ) : null}
+                  {contactWhatsapp?.trim() ? (
+                    <li className="min-w-0 max-w-full">
+                      <ContactChip
+                        href={whatsappHref(contactWhatsapp.trim())}
+                        interactive={interactive}
+                        icon={Phone}
+                        compact={compact}
+                      >
+                        {contactWhatsapp.trim()}
+                      </ContactChip>
+                    </li>
+                  ) : null}
+                  {contactWebsite?.trim() ? (
+                    <li className="min-w-0 max-w-full">
+                      <ContactChip
+                        href={contactWebsite.trim()}
+                        interactive={interactive}
+                        icon={Globe}
+                        compact={compact}
+                      >
+                        Website
+                      </ContactChip>
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          {stats && stats.length > 0 && !compact ? (
+            <div className="grid w-full shrink-0 grid-cols-3 gap-2 sm:gap-3 lg:w-[17.5rem] lg:grid-cols-1 lg:gap-2.5 xl:w-[19rem]">
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="min-w-0 rounded-2xl border border-cp-border/70 bg-background/70 px-2 py-3 text-center shadow-sm backdrop-blur-sm sm:px-4 sm:py-4 lg:flex lg:items-center lg:gap-3 lg:px-4 lg:py-3.5 lg:text-left"
+                >
+                  <span
+                    className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-cp-primary/10 sm:h-10 sm:w-10 lg:mx-0 lg:shrink-0"
+                    style={{ color: primary }}
+                  >
+                    <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
+                  </span>
+                  <div className="min-w-0 lg:flex-1">
+                    <p className="mt-1.5 text-xl font-bold tabular-nums tracking-tight text-foreground sm:mt-2 sm:text-2xl lg:mt-0 lg:text-2xl">
+                      {stat.value}
+                    </p>
+                    <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-cp-muted sm:text-[11px] sm:tracking-[0.1em]">
+                      <span className="sm:hidden">{stat.shortLabel}</span>
+                      <span className="hidden sm:inline">{stat.label}</span>
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : null}
         </div>
 
-        {stats && stats.length > 0 ? (
-          <div
-            className={cn(
-              "grid grid-cols-3 border-t border-cp-border/60",
-              compact ? "gap-1 pt-4" : "gap-1.5 pt-5 sm:gap-3 sm:pt-6",
-            )}
-          >
+        {stats && stats.length > 0 && compact ? (
+          <div className="grid grid-cols-3 gap-1 border-t border-cp-border/60 pt-4">
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className={cn(
-                  "min-w-0 border border-cp-border/70 bg-background/65 text-center backdrop-blur-sm",
-                  compact
-                    ? "rounded-xl px-1 py-2.5"
-                    : "rounded-xl px-1.5 py-3 sm:rounded-2xl sm:px-4 sm:py-5",
-                )}
+                className="min-w-0 rounded-xl border border-cp-border/70 bg-background/65 px-1 py-2.5 text-center backdrop-blur-sm"
               >
                 <stat.icon
-                  className={cn("mx-auto", compact ? "h-3.5 w-3.5" : "h-3.5 w-3.5 sm:h-5 sm:w-5")}
+                  className="mx-auto h-3.5 w-3.5"
                   style={{ color: primary }}
                   aria-hidden
                 />
-                <p
-                  className={cn(
-                    "mt-1.5 font-bold tabular-nums tracking-tight text-foreground",
-                    compact ? "text-base" : "text-xl sm:mt-2 sm:text-3xl",
-                  )}
-                >
+                <p className="mt-1.5 text-base font-bold tabular-nums tracking-tight text-foreground">
                   {stat.value}
                 </p>
-                <p
-                  className={cn(
-                    "mt-0.5 font-semibold uppercase leading-tight text-cp-muted",
-                    compact
-                      ? "text-[8px] tracking-[0.06em]"
-                      : "text-[9px] tracking-[0.08em] sm:mt-1 sm:text-[11px] sm:tracking-[0.1em]",
-                  )}
-                >
-                  <span className={compact ? undefined : "sm:hidden"}>{stat.shortLabel}</span>
-                  {!compact ? (
-                    <span className="hidden sm:inline">{stat.label}</span>
-                  ) : null}
+                <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.06em] text-cp-muted">
+                  {stat.shortLabel}
                 </p>
               </div>
             ))}

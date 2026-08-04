@@ -19,10 +19,19 @@ const patchSchema = z
   .object({
     name: z.string().trim().min(2).max(200).optional(),
     status: z.enum(["draft", "active", "completed", "archived"]).optional(),
+    summary: z.string().trim().max(500).nullable().optional(),
+    description: z.string().trim().max(10_000).nullable().optional(),
   })
-  .refine((v) => v.name != null || v.status != null, {
-    message: "Provide a name and/or status to update",
-  });
+  .refine(
+    (v) =>
+      v.name != null ||
+      v.status != null ||
+      v.summary !== undefined ||
+      v.description !== undefined,
+    {
+      message: "Provide at least one field to update",
+    },
+  );
 
 async function requirePartner() {
   const ctx = await requireApiPartnerDashboardAccess();
@@ -67,6 +76,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       leagueId,
       name: parsed.data.name,
       status: parsed.data.status,
+      summary: parsed.data.summary,
+      description: parsed.data.description,
     });
     return jsonSuccess(league);
   } catch (error) {

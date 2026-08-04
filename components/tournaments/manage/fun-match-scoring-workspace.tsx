@@ -144,7 +144,10 @@ export function FunMatchScoringWorkspace({
   const activeGroupMatches = data?.activeGroupMatches ?? [];
   const doubleStageOverview = data?.doubleStage;
   const sessionStats = data?.sessionStats;
-  const canScore = participant.canUseCourtsideScoring && livePhase === "live";
+  /** Staff may assign fixtures even before status flips to live (avoids empty courts UI). */
+  const canManageCourts = participant.canUseCourtsideScoring;
+  /** Starting / incrementing scores requires the event to be live. */
+  const canScore = canManageCourts && livePhase === "live";
   const isOfficialWorkspace =
     workspaceVariant === "official" || isOfficialType(tournament.tournamentType);
   const isPartnerEvent = Boolean(tournament.partnerId);
@@ -767,6 +770,10 @@ export function FunMatchScoringWorkspace({
   );
 
   const handleStartOnCourt = async (courtId: string) => {
+    if (!canScore) {
+      toast.message("Start the tournament (set status to Live) before scoring on courts");
+      return;
+    }
     const groupMatchId = groupPickByCourt[courtId];
     if (isGroupStageMode && groupMatchId) {
       await startGroupOnCourt.mutateAsync({ matchId: groupMatchId, courtId });
@@ -816,6 +823,10 @@ export function FunMatchScoringWorkspace({
   };
 
   const handleStartAllCourts = async () => {
+    if (!canScore) {
+      toast.message("Start the tournament (set status to Live) before scoring on courts");
+      return;
+    }
     setStartingAllCourts(true);
     try {
       const idleCourts = courts.filter((c) => !matchByCourt.get(c.id));
@@ -1247,8 +1258,8 @@ export function FunMatchScoringWorkspace({
         onScoreChange={handleScoreChange}
         onCompleteMatch={(m) => void handleComplete(m)}
         onEditCourtName={handleEditCourtName}
-        canManage={canScore}
-        readOnly={!canScore}
+        canManage={canManageCourts}
+        readOnly={!canManageCourts}
         pointsPerMatch={pointsPerMatch}
         scoringRules={scoringRules}
         gameRules={gameRules}
@@ -1261,11 +1272,11 @@ export function FunMatchScoringWorkspace({
         startingAll={startingAllCourts}
         maxRounds={maxRounds}
         onReshuffle={
-          canScore && (!isOfficialWorkspace || isAmericanoMode || isGroupStageMode)
+          canManageCourts && (!isOfficialWorkspace || isAmericanoMode || isGroupStageMode)
             ? handleReshuffle
             : undefined
         }
-        onStartAllCourts={canScore ? () => void handleStartAllCourts() : undefined}
+        onStartAllCourts={canManageCourts ? () => void handleStartAllCourts() : undefined}
         onFinishRound={canScore ? () => void handleFinishRound() : undefined}
         hasActiveMatches={hasActive}
         toolbar={toolbar}

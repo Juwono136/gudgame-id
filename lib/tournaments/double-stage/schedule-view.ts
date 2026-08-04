@@ -283,3 +283,22 @@ export function formatKickoffDateTime(iso: string | null): string {
   }).format(d);
   return `${date} · ${formatKickoffTime(iso)}`;
 }
+
+/**
+ * Two-line kickoff for Order of Play cards (date above time).
+ * Keeps TBA when schedule is unset — syncs with Manage → Order of Play kickoff.
+ */
+export function formatKickoffDateAndTimeParts(iso: string | null): {
+  date: string | null;
+  time: string;
+} {
+  if (!iso) return { date: null, time: "TBA" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: null, time: "TBA" };
+  const date = new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(d);
+  return { date, time: formatKickoffTime(iso) };
+}

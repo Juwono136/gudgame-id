@@ -23,9 +23,11 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useDirectoryViewMode } from "@/hooks/use-directory-view-mode";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
+import type { PartnerLeagueOption } from "@/lib/partners/league-types";
 import type { PartnerTournamentsListQuery } from "@/lib/partners/list-query";
 import type { TournamentListItem } from "@/lib/tournaments/service";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
+import { cn } from "@/lib/utils";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 
 type PartnerTournamentsDirectoryProps = {
@@ -72,6 +74,7 @@ export function PartnerTournamentsDirectory({
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<PartnerTournamentsListQuery["status"]>("all");
+  const [leagueId, setLeagueId] = useState<string>("");
   const [sortBy, setSortBy] = useState<PartnerTournamentsListQuery["sortBy"]>("updatedAt");
   const [sortDir, setSortDir] = useState<PartnerTournamentsListQuery["sortDir"]>("desc");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -79,7 +82,7 @@ export function PartnerTournamentsDirectory({
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, status, sortBy, sortDir]);
+  }, [debouncedSearch, status, leagueId, sortBy, sortDir]);
 
   const query = useMemo(
     (): PartnerTournamentsListQuery => ({
@@ -87,11 +90,29 @@ export function PartnerTournamentsDirectory({
       pageSize: DEFAULT_PAGE_SIZE,
       search: debouncedSearch.trim() || undefined,
       status,
+      leagueId: leagueId || undefined,
       sortBy,
       sortDir,
     }),
-    [page, debouncedSearch, status, sortBy, sortDir],
+    [page, debouncedSearch, status, leagueId, sortBy, sortDir],
   );
+
+  const { data: leagueOptions = [] } = useQuery({
+    queryKey: ["partner-leagues", "options", mode, partnerSlug],
+    queryFn: async (): Promise<PartnerLeagueOption[]> => {
+      const url =
+        mode === "public"
+          ? `/api/partner/public/${encodeURIComponent(partnerSlug)}/leagues/options`
+          : `/api/partner/leagues/options`;
+      const res = await fetch(url);
+      const json = await parseJsonResponse<{
+        success: true;
+        data: { items: PartnerLeagueOption[] };
+      }>(res);
+      if (!res.ok || !("data" in json)) return [];
+      return json.data.items;
+    },
+  });
 
   const { data, isLoading, isFetching, isError, error } = useQuery({
     queryKey: ["partner-tournaments", mode, partnerSlug, query],
@@ -101,6 +122,7 @@ export function PartnerTournamentsDirectory({
       params.set("pageSize", String(query.pageSize));
       if (query.search) params.set("search", query.search);
       params.set("status", query.status);
+      if (query.leagueId) params.set("leagueId", query.leagueId);
       params.set("sortBy", query.sortBy);
       params.set("sortDir", query.sortDir);
 
@@ -177,6 +199,45 @@ export function PartnerTournamentsDirectory({
         onViewModeChange={setViewMode}
       />
 
+      {leagueOptions.length > 0 ? (
+        <div
+          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="group"
+          aria-label="Filter by league"
+        >
+          <button
+            type="button"
+            onClick={() => setLeagueId("")}
+            className={cn(
+              "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+              !leagueId
+                ? "bg-cp-primary text-white"
+                : "border border-cp-border bg-cp-card text-cp-muted hover:bg-cp-elevated hover:text-foreground",
+            )}
+          >
+            All
+          </button>
+          {leagueOptions.map((league) => {
+            const active = leagueId === league.id;
+            return (
+              <button
+                key={league.id}
+                type="button"
+                onClick={() => setLeagueId(active ? "" : league.id)}
+                className={cn(
+                  "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold tracking-wide transition-colors",
+                  active
+                    ? "bg-cp-primary text-white"
+                    : "border border-cp-border bg-cp-card text-cp-muted hover:bg-cp-elevated hover:text-foreground",
+                )}
+              >
+                {league.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <div className="relative min-h-[12rem]">
         {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
         {isLoading ? (
@@ -191,19 +252,19 @@ export function PartnerTournamentsDirectory({
           <div className="rounded-2xl border border-cp-border bg-cp-card">
             <PartnerEmptyState
               title={
-                debouncedSearch || status !== "all"
+                debouncedSearch || status !== "all" || leagueId
                   ? "No matching tournaments"
                   : "No tournaments yet"
               }
               description={
-                debouncedSearch || status !== "all"
-                  ? "Try another search, status, or sort order."
+                debouncedSearch || status !== "all" || leagueId
+                  ? "Try another search, league, status, or sort order."
                   : mode === "dashboard"
                     ? "Set up a double-stage, knockout, or Americano event for your club."
                     : "When this partner publishes an event, it will appear here."
               }
               action={
-                mode === "dashboard" && !debouncedSearch && status === "all" ? (
+                mode === "dashboard" && !debouncedSearch && status === "all" && !leagueId ? (
                   <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
                     <Link href={dashboardRoutes.partnerTournamentsNew}>
                       <CalendarPlus className="mr-2 h-4 w-4" />
@@ -234,6 +295,11 @@ export function PartnerTournamentsDirectory({
                   href={partnerPublicRoutes.tournamentManage(partnerSlug, t.slug)}
                   publicHref={publicHref}
                   manageHref={partnerPublicRoutes.tournamentManage(partnerSlug, t.slug)}
+                  leagueHref={
+                    t.partnerLeagueSlug
+                      ? partnerPublicRoutes.league(partnerSlug, t.partnerLeagueSlug)
+                      : undefined
+                  }
                   editHref={
                     t.status === "completed" || t.status === "cancelled"
                       ? undefined
@@ -272,6 +338,11 @@ export function PartnerTournamentsDirectory({
                   key={t.id}
                   tournament={t}
                   href={manageHref}
+                  leagueHref={
+                    t.partnerLeagueSlug
+                      ? partnerPublicRoutes.league(partnerSlug, t.partnerLeagueSlug)
+                      : undefined
+                  }
                   priority={index === 0}
                   actions={
                     <PartnerDashboardCardActions

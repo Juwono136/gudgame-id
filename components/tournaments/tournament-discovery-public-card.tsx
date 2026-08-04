@@ -3,6 +3,7 @@
 import { TournamentDiscoveryCard } from "@/components/tournaments/tournament-discovery-card";
 import { usePartnerRegistrationStatus } from "@/hooks/use-partner-registration-status";
 import { useRegistrationStatus } from "@/hooks/use-registration-status";
+import { partnerPublicRoutes } from "@/lib/constants/routes";
 import {
   isActiveRegistrationStatus,
   resolveTournamentDiscoveryCta,
@@ -51,10 +52,16 @@ export function TournamentDiscoveryPublicCard({
     isRegistered,
   });
 
+  const leagueHref =
+    partnerSlug && tournament.partnerLeagueSlug?.trim()
+      ? partnerPublicRoutes.league(partnerSlug, tournament.partnerLeagueSlug)
+      : undefined;
+
   return (
     <TournamentDiscoveryCard
       tournament={tournament}
       href={detailHref}
+      leagueHref={leagueHref}
       cta={cta}
       priority={priority}
     />

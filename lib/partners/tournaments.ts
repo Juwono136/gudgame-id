@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, asc, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { partnerLeagues } from "@/db/schema/partner-leagues";
 import { sports } from "@/db/schema/sports";
 import { tournaments, type TournamentStatus } from "@/db/schema/tournaments";
 import {
@@ -13,6 +14,7 @@ import {
   type TournamentDetail,
   type TournamentListItem,
 } from "@/lib/tournaments/service";
+import { isPartnerLeaguePubliclyVisible } from "@/lib/partners/league-types";
 import {
   toPartnerPagedResult,
   type PartnerPagedResult,
@@ -23,7 +25,7 @@ import { resolveTournamentCoverUrl } from "@/lib/tournaments/resolve-cover";
 
 function buildTournamentConditions(
   partnerId: string,
-  query: Pick<PartnerTournamentsListQuery, "search" | "status">,
+  query: Pick<PartnerTournamentsListQuery, "search" | "status" | "leagueId">,
   options?: { sportId?: string; excludeDrafts?: boolean },
 ): SQL[] {
   const conditions: SQL[] = [eq(tournaments.partnerId, partnerId)];
@@ -36,8 +38,14 @@ function buildTournamentConditions(
         ilike(tournaments.name, `%${search}%`),
         ilike(tournaments.venue, `%${search}%`),
         ilike(tournaments.categoryLabel, `%${search}%`),
+        ilike(partnerLeagues.name, `%${search}%`),
       )!,
     );
+  }
+
+  const leagueId = query.leagueId?.trim();
+  if (leagueId) {
+    conditions.push(eq(tournaments.partnerLeagueId, leagueId));
   }
 
   if (query.status === "active") {
@@ -82,12 +90,19 @@ function mapTournamentRow(row: {
   startsAt: Date | null;
   endsAt: Date | null;
   updatedAt: Date;
+  partnerLeagueId?: string | null;
+  partnerLeagueName?: string | null;
+  partnerLeagueSlug?: string | null;
+  partnerLeagueStatus?: string | null;
 }): TournamentListItem {
   const status = computeTournamentStatus(
     row.status as TournamentStatus,
     row.startsAt,
     row.endsAt,
   );
+  const hideLeagueSlug =
+    row.partnerLeagueStatus != null &&
+    !isPartnerLeaguePubliclyVisible(row.partnerLeagueStatus);
   return {
     id: row.id,
     sportId: row.sportId,
@@ -112,6 +127,11 @@ function mapTournamentRow(row: {
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
+    partnerLeagueId: row.partnerLeagueId ?? null,
+    partnerLeagueName: row.partnerLeagueName ?? null,
+    // Hide slug when league is draft/archived so badges do not 404.
+    partnerLeagueSlug: hideLeagueSlug ? null : (row.partnerLeagueSlug ?? null),
+    partnerLeagueStatus: row.partnerLeagueStatus ?? null,
   };
 }
 
@@ -129,6 +149,7 @@ export async function queryPartnerTournaments(
   const [totalRow] = await db
     .select({ value: count() })
     .from(tournaments)
+    .leftJoin(partnerLeagues, eq(tournaments.partnerLeagueId, partnerLeagues.id))
     .where(where);
 
   const total = Number(totalRow?.value ?? 0);
@@ -159,9 +180,14 @@ export async function queryPartnerTournaments(
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
       updatedAt: tournaments.updatedAt,
+      partnerLeagueId: tournaments.partnerLeagueId,
+      partnerLeagueName: partnerLeagues.name,
+      partnerLeagueSlug: partnerLeagues.slug,
+      partnerLeagueStatus: partnerLeagues.status,
     })
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .leftJoin(partnerLeagues, eq(tournaments.partnerLeagueId, partnerLeagues.id))
     .where(where)
     .orderBy(tournamentOrderBy(query))
     .limit(query.pageSize)
@@ -225,18 +251,67 @@ export async function listPartnerTournamentTeasers(
   return result.items;
 }
 
+/** Tournaments linked to a partner league (public or dashboard). */
+export async function listPartnerTournamentsForLeague(
+  partnerId: string,
+  leagueId: string,
+  options?: { excludeDrafts?: boolean; limit?: number; page?: number },
+): Promise<TournamentListItem[]> {
+  const result = await queryPartnerTournamentsForLeague(partnerId, leagueId, options);
+  return result.items;
+}
+
+/** Paginated tournaments for a league detail page. */
+export async function queryPartnerTournamentsForLeague(
+  partnerId: string,
+  leagueId: string,
+  options?: {
+    excludeDrafts?: boolean;
+    limit?: number;
+    page?: number;
+  },
+): Promise<PartnerPagedResult<TournamentListItem>> {
+  return queryPartnerTournaments(
+    partnerId,
+    {
+      page: Math.max(options?.page ?? 1, 1),
+      pageSize: Math.min(Math.max(options?.limit ?? 20, 1), 50),
+      status: "all",
+      leagueId,
+      sortBy: "startsAt",
+      sortDir: "asc",
+    },
+    { excludeDrafts: options?.excludeDrafts },
+  );
+}
+
+/**
+ * Resolve sportSlug for a partner tournament by URL slug (no 50-item list scan).
+ */
+export async function resolvePartnerTournamentSportSlug(
+  partnerId: string,
+  slug: string,
+): Promise<string | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ sportSlug: sports.slug })
+    .from(tournaments)
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(and(eq(tournaments.partnerId, partnerId), eq(tournaments.slug, slug)))
+    .limit(1);
+  return row?.sportSlug ?? null;
+}
+
 /**
  * Public-facing tournament detail lookup by slug only (no sportSlug segment in the URL).
- * Mirrors the lookup used by the partner tournament detail page.
  */
 export async function getPartnerTournamentDetailBySlug(
   partnerId: string,
   slug: string,
 ): Promise<TournamentDetail | null> {
-  const listed = await listPartnerTournaments(partnerId);
-  const match = listed.find((t) => t.slug === slug);
-  if (!match) return null;
-  return getPartnerTournamentBySlug(partnerId, match.sportSlug, slug);
+  const sportSlug = await resolvePartnerTournamentSportSlug(partnerId, slug);
+  if (!sportSlug) return null;
+  return getPartnerTournamentBySlug(partnerId, sportSlug, slug);
 }
 
 export async function countPartnerTournaments(

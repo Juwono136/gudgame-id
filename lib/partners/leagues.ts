@@ -15,25 +15,44 @@ import type {
   PartnerLeagueDetail,
   PartnerLeagueListItem,
   PartnerLeagueMatchView,
+  PartnerLeagueOption,
   PartnerLeagueTeamView,
 } from "@/lib/partners/league-types";
-import { computeLeagueStandings } from "@/lib/partners/league-types";
+import {
+  computeLeagueStandings,
+  isPartnerLeagueLinkable,
+} from "@/lib/partners/league-types";
 import {
   toPartnerPagedResult,
   type PartnerLeaguesListQuery,
   type PartnerPagedResult,
 } from "@/lib/partners/list-query";
+import { PARTNER_LEAGUE_FIELD_LIMITS } from "@/lib/partners/league-field-limits";
+import { cleanupPartnerLeagueBrandMedia } from "@/lib/partners/media-lifecycle";
+import { resolvePartnerLeagueBrandUrl } from "@/lib/partners/resolve-league-brand";
 import { toOffset } from "@/lib/pagination/constants";
+import { sanitizeTournamentRichField } from "@/lib/tournaments/rich-text";
 import { ensureUniqueWikiSlug, slugifyWikiName } from "@/lib/wiki/slug";
 
 export type {
   PartnerLeagueDetail,
   PartnerLeagueListItem,
   PartnerLeagueMatchView,
+  PartnerLeagueOption,
   PartnerLeagueStandingRow,
   PartnerLeagueTeamView,
 } from "@/lib/partners/league-types";
 export { computeLeagueStandings };
+
+function normalizeOptionalRichText(
+  value: string | null | undefined,
+  max: number,
+): string | null {
+  if (value == null) return null;
+  const sanitized = sanitizeTournamentRichField(value);
+  if (!sanitized?.trim()) return null;
+  return sanitized.slice(0, max);
+}
 
 function asStatus(raw: string): PartnerLeagueStatus {
   if (raw === "draft" || raw === "active" || raw === "completed" || raw === "archived") {
@@ -57,6 +76,37 @@ async function assertPartnerOwnsLeague(partnerId: string, leagueId: string) {
   if (!row) {
     throw new AppError("League not found", { code: "NOT_FOUND", statusCode: 404 });
   }
+}
+
+/**
+ * Validate league ownership for tournament linking; returns null when unset.
+ * `allowExistingLeagueId` keeps a previously linked draft/archived league on edit
+ * without allowing new attachments to non-linkable seasons.
+ */
+export async function resolveOwnedPartnerLeagueId(
+  partnerId: string,
+  leagueId: string | null | undefined,
+  options?: { allowExistingLeagueId?: string | null },
+): Promise<string | null> {
+  if (leagueId == null || !String(leagueId).trim()) return null;
+  const db = getDb();
+  const [row] = await db
+    .select({ id: partnerLeagues.id, status: partnerLeagues.status })
+    .from(partnerLeagues)
+    .where(and(eq(partnerLeagues.id, leagueId), eq(partnerLeagues.partnerId, partnerId)))
+    .limit(1);
+  if (!row) {
+    throw new AppError("League not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+  const keepingExisting =
+    options?.allowExistingLeagueId != null && options.allowExistingLeagueId === row.id;
+  if (!isPartnerLeagueLinkable(row.status) && !keepingExisting) {
+    throw new AppError(
+      "Only active or completed leagues can be linked to tournaments. Draft and archived leagues are not available.",
+      { code: "VALIDATION_ERROR", statusCode: 400 },
+    );
+  }
+  return row.id;
 }
 
 function buildLeagueConditions(
@@ -111,6 +161,10 @@ export async function queryPartnerLeagues(
       sportName: sports.name,
       slug: partnerLeagues.slug,
       name: partnerLeagues.name,
+      summary: partnerLeagues.summary,
+      description: partnerLeagues.description,
+      brandImageUrl: partnerLeagues.brandImageUrl,
+      brandImageStorageKey: partnerLeagues.brandImageStorageKey,
       status: partnerLeagues.status,
       createdAt: partnerLeagues.createdAt,
       updatedAt: partnerLeagues.updatedAt,
@@ -137,6 +191,12 @@ export async function queryPartnerLeagues(
       sportName: row.sportName,
       slug: row.slug,
       name: row.name,
+      summary: row.summary ?? null,
+      description: row.description ?? null,
+      brandImageUrl: resolvePartnerLeagueBrandUrl(
+        row.brandImageUrl,
+        row.brandImageStorageKey,
+      ),
       status: asStatus(row.status),
       teamCount: Number(row.teamCount) || 0,
       matchCount: Number(row.matchCount) || 0,
@@ -147,6 +207,40 @@ export async function queryPartnerLeagues(
     query.page,
     query.pageSize,
   );
+}
+
+/**
+ * Compact league list for pickers / filter chips (not directory pagination).
+ * Defaults to public-linkable seasons (active + completed).
+ */
+export async function listPartnerLeagueOptions(
+  partnerId: string,
+  options?: { includeDraft?: boolean; limit?: number },
+): Promise<PartnerLeagueOption[]> {
+  const db = getDb();
+  const limit = Math.min(Math.max(options?.limit ?? 200, 1), 200);
+  const statusFilter = options?.includeDraft
+    ? inArray(partnerLeagues.status, ["active", "completed", "draft"])
+    : inArray(partnerLeagues.status, ["active", "completed"]);
+
+  const rows = await db
+    .select({
+      id: partnerLeagues.id,
+      name: partnerLeagues.name,
+      slug: partnerLeagues.slug,
+      status: partnerLeagues.status,
+    })
+    .from(partnerLeagues)
+    .where(and(eq(partnerLeagues.partnerId, partnerId), statusFilter))
+    .orderBy(asc(partnerLeagues.name))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    status: asStatus(row.status),
+  }));
 }
 
 export async function listPartnerLeagues(partnerId: string): Promise<PartnerLeagueListItem[]> {
@@ -194,6 +288,8 @@ export async function createPartnerLeague(input: {
   name: string;
   createdBy: string;
   status?: PartnerLeagueStatus;
+  summary?: string | null;
+  description?: string | null;
 }): Promise<PartnerLeagueListItem> {
   const db = getDb();
   const name = input.name.trim();
@@ -220,6 +316,14 @@ export async function createPartnerLeague(input: {
       sportId: input.sportId,
       slug,
       name,
+      summary: normalizeOptionalRichText(
+        input.summary,
+        PARTNER_LEAGUE_FIELD_LIMITS.summary,
+      ),
+      description: normalizeOptionalRichText(
+        input.description,
+        PARTNER_LEAGUE_FIELD_LIMITS.description,
+      ),
       status: input.status ?? "active",
       settings: {},
       createdBy: input.createdBy,
@@ -238,25 +342,31 @@ export async function createPartnerLeague(input: {
   return item;
 }
 
+const leagueDetailSelect = {
+  id: partnerLeagues.id,
+  partnerId: partnerLeagues.partnerId,
+  sportId: partnerLeagues.sportId,
+  sportSlug: sports.slug,
+  sportName: sports.name,
+  slug: partnerLeagues.slug,
+  name: partnerLeagues.name,
+  summary: partnerLeagues.summary,
+  description: partnerLeagues.description,
+  brandImageUrl: partnerLeagues.brandImageUrl,
+  brandImageStorageKey: partnerLeagues.brandImageStorageKey,
+  status: partnerLeagues.status,
+  settings: partnerLeagues.settings,
+  createdAt: partnerLeagues.createdAt,
+  updatedAt: partnerLeagues.updatedAt,
+};
+
 export async function getPartnerLeagueById(
   partnerId: string,
   leagueId: string,
 ): Promise<PartnerLeagueDetail | null> {
   const db = getDb();
   const [row] = await db
-    .select({
-      id: partnerLeagues.id,
-      partnerId: partnerLeagues.partnerId,
-      sportId: partnerLeagues.sportId,
-      sportSlug: sports.slug,
-      sportName: sports.name,
-      slug: partnerLeagues.slug,
-      name: partnerLeagues.name,
-      status: partnerLeagues.status,
-      settings: partnerLeagues.settings,
-      createdAt: partnerLeagues.createdAt,
-      updatedAt: partnerLeagues.updatedAt,
-    })
+    .select(leagueDetailSelect)
     .from(partnerLeagues)
     .innerJoin(sports, eq(partnerLeagues.sportId, sports.id))
     .where(and(eq(partnerLeagues.id, leagueId), eq(partnerLeagues.partnerId, partnerId)))
@@ -272,19 +382,7 @@ export async function getPartnerLeagueBySlug(
 ): Promise<PartnerLeagueDetail | null> {
   const db = getDb();
   const [row] = await db
-    .select({
-      id: partnerLeagues.id,
-      partnerId: partnerLeagues.partnerId,
-      sportId: partnerLeagues.sportId,
-      sportSlug: sports.slug,
-      sportName: sports.name,
-      slug: partnerLeagues.slug,
-      name: partnerLeagues.name,
-      status: partnerLeagues.status,
-      settings: partnerLeagues.settings,
-      createdAt: partnerLeagues.createdAt,
-      updatedAt: partnerLeagues.updatedAt,
-    })
+    .select(leagueDetailSelect)
     .from(partnerLeagues)
     .innerJoin(sports, eq(partnerLeagues.sportId, sports.id))
     .where(and(eq(partnerLeagues.partnerId, partnerId), eq(partnerLeagues.slug, leagueSlug)))
@@ -302,6 +400,10 @@ async function hydrateLeagueDetail(row: {
   sportName: string;
   slug: string;
   name: string;
+  summary: string | null;
+  description: string | null;
+  brandImageUrl: string | null;
+  brandImageStorageKey: string | null;
   status: string;
   settings: unknown;
   createdAt: Date;
@@ -363,6 +465,13 @@ async function hydrateLeagueDetail(row: {
     sportName: row.sportName,
     slug: row.slug,
     name: row.name,
+    summary: row.summary ?? null,
+    description: row.description ?? null,
+    brandImageUrl: resolvePartnerLeagueBrandUrl(
+      row.brandImageUrl,
+      row.brandImageStorageKey,
+    ),
+    brandImageStorageKey: row.brandImageStorageKey ?? null,
     status: asStatus(row.status),
     teamCount: teams.length,
     matchCount: matches.length,
@@ -594,6 +703,8 @@ export async function updatePartnerLeague(input: {
   leagueId: string;
   name?: string;
   status?: PartnerLeagueStatus;
+  summary?: string | null;
+  description?: string | null;
 }): Promise<PartnerLeagueDetail> {
   await assertPartnerOwnsLeague(input.partnerId, input.leagueId);
   const db = getDb();
@@ -601,6 +712,8 @@ export async function updatePartnerLeague(input: {
   const patch: {
     name?: string;
     status?: PartnerLeagueStatus;
+    summary?: string | null;
+    description?: string | null;
     updatedAt: Date;
   } = { updatedAt: new Date() };
 
@@ -619,7 +732,26 @@ export async function updatePartnerLeague(input: {
     patch.status = asStatus(input.status);
   }
 
-  if (patch.name == null && patch.status == null) {
+  if (input.summary !== undefined) {
+    patch.summary = normalizeOptionalRichText(
+      input.summary,
+      PARTNER_LEAGUE_FIELD_LIMITS.summary,
+    );
+  }
+
+  if (input.description !== undefined) {
+    patch.description = normalizeOptionalRichText(
+      input.description,
+      PARTNER_LEAGUE_FIELD_LIMITS.description,
+    );
+  }
+
+  if (
+    patch.name == null &&
+    patch.status == null &&
+    input.summary === undefined &&
+    input.description === undefined
+  ) {
     throw new AppError("No changes provided", {
       code: "VALIDATION_ERROR",
       statusCode: 422,
@@ -629,6 +761,41 @@ export async function updatePartnerLeague(input: {
   const [updated] = await db
     .update(partnerLeagues)
     .set(patch)
+    .where(
+      and(eq(partnerLeagues.id, input.leagueId), eq(partnerLeagues.partnerId, input.partnerId)),
+    )
+    .returning({ id: partnerLeagues.id });
+
+  if (!updated) {
+    throw new AppError("League not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const detail = await getPartnerLeagueById(input.partnerId, input.leagueId);
+  if (!detail) {
+    throw new AppError("League updated but not found", {
+      code: "INTERNAL_ERROR",
+      statusCode: 500,
+    });
+  }
+  return detail;
+}
+
+export async function updatePartnerLeagueBrandImage(input: {
+  partnerId: string;
+  leagueId: string;
+  brandImageUrl: string | null;
+  brandImageStorageKey: string | null;
+}): Promise<PartnerLeagueDetail> {
+  await assertPartnerOwnsLeague(input.partnerId, input.leagueId);
+  const db = getDb();
+
+  const [updated] = await db
+    .update(partnerLeagues)
+    .set({
+      brandImageUrl: input.brandImageUrl,
+      brandImageStorageKey: input.brandImageStorageKey,
+      updatedAt: new Date(),
+    })
     .where(
       and(eq(partnerLeagues.id, input.leagueId), eq(partnerLeagues.partnerId, input.partnerId)),
     )
@@ -685,10 +852,31 @@ export async function deletePartnerLeague(input: {
     );
   }
 
+  const [media] = await db
+    .select({
+      brandImageUrl: partnerLeagues.brandImageUrl,
+      brandImageStorageKey: partnerLeagues.brandImageStorageKey,
+    })
+    .from(partnerLeagues)
+    .where(
+      and(eq(partnerLeagues.id, input.leagueId), eq(partnerLeagues.partnerId, input.partnerId)),
+    )
+    .limit(1);
+
   await db
     .delete(partnerLeagues)
     .where(
       and(eq(partnerLeagues.id, input.leagueId), eq(partnerLeagues.partnerId, input.partnerId)),
     );
+
+  if (media) {
+    await cleanupPartnerLeagueBrandMedia({
+      partnerId: input.partnerId,
+      leagueId: input.leagueId,
+      keepKey: null,
+      previousStorageKey: media.brandImageStorageKey,
+      previousUrl: media.brandImageUrl,
+    });
+  }
 }
 

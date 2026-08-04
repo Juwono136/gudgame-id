@@ -48,6 +48,7 @@ export const dashboardRoutes = {
   partnerLeagues: "/dashboard/partner/leagues",
   partnerLeaguesNew: "/dashboard/partner/leagues/new",
   partnerLeague: (id: string) => `/dashboard/partner/leagues/${id}`,
+  partnerLeagueEdit: (id: string) => `/dashboard/partner/leagues/${id}/edit`,
   partnerSettings: "/dashboard/partner/settings",
 } as const;
 

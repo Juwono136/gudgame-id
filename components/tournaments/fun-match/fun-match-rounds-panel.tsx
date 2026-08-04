@@ -226,8 +226,16 @@ export function FunMatchRoundsPanel({
         {filteredGroups.length === 0 && !showPlanningSlots ? (
           <p className="py-8 text-center text-sm text-cp-muted">
             {isGroupStageMode
-              ? "Assign group fixtures to idle courts below to start scoring."
+              ? canManage && !readOnly
+                ? "No courts available yet. Open Display settings or refresh — then use Reshuffle to assign group fixtures."
+                : "No live group matches on courts yet. Organizers assign fixtures from Manage → Live scoring."
               : "No rounds yet. The host will start matches when the session goes live."}
+          </p>
+        ) : null}
+
+        {filteredGroups.length === 0 && showPlanningSlots ? (
+          <p className="rounded-xl border border-dashed border-cp-border/80 bg-cp-elevated/30 px-3 py-2.5 text-center text-xs text-cp-muted sm:text-sm">
+            Assign group fixtures to the idle courts below, then start scoring.
           </p>
         ) : null}
 

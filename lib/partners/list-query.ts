@@ -27,6 +27,8 @@ export const partnerTournamentsListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(5).max(50).default(DEFAULT_PAGE_SIZE),
   search: z.string().trim().max(100).optional(),
   status: partnerTournamentStatusFilterSchema.default("all"),
+  /** Filter by partner league id. Omit or empty = all leagues. */
+  leagueId: z.string().uuid().optional().or(z.literal("")),
   sortBy: z.enum(["name", "startsAt", "updatedAt"]).default("updatedAt"),
   sortDir: partnerSortDirSchema.default("desc"),
 });

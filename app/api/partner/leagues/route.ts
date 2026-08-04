@@ -44,7 +44,11 @@ export async function POST(request: Request) {
       });
     }
 
-    const body = (await request.json()) as { name?: string };
+    const body = (await request.json()) as {
+      name?: string;
+      summary?: string | null;
+      description?: string | null;
+    };
     const name = typeof body.name === "string" ? body.name : "";
     if (name.trim().length < 2) {
       return Response.json(
@@ -58,6 +62,8 @@ export async function POST(request: Request) {
       partnerId: partner.id,
       sportId: sportCtx.sportId,
       name,
+      summary: typeof body.summary === "string" ? body.summary : null,
+      description: typeof body.description === "string" ? body.description : null,
       createdBy: ctx.userId,
     });
 

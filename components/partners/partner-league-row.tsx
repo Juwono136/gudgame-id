@@ -1,10 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { ArrowRight, Trophy, Users } from "lucide-react";
+import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
 import { Button } from "@/components/ui/button";
 import type { PartnerLeagueListItem } from "@/lib/partners/league-types";
+import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import { cn } from "@/lib/utils";
 
 export function PartnerLeagueRow({
@@ -12,6 +15,7 @@ export function PartnerLeagueRow({
   href,
   publicHref,
   manageHref,
+  editHref,
   onDelete,
   deleting = false,
   className,
@@ -20,20 +24,54 @@ export function PartnerLeagueRow({
   href?: string;
   publicHref?: string;
   manageHref?: string;
+  editHref?: string;
   onDelete?: () => void;
   deleting?: boolean;
   className?: string;
 }) {
-  const hasActions = Boolean(publicHref || manageHref || onDelete);
-  const body = (
+  const hasDashboardActions = Boolean(publicHref || manageHref || editHref || onDelete);
+  const brand = league.brandImageUrl?.trim() || null;
+  const summary = league.summary?.trim() ? stripHtmlToText(league.summary) : null;
+
+  const thumb = (
+    <span
+      className={cn(
+        "relative flex h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-cp-border bg-cp-elevated sm:h-16 sm:w-16",
+        !brand && "items-center justify-center bg-gradient-to-br from-cp-primary/20 via-cp-elevated to-cp-card",
+      )}
+    >
+      {brand ? (
+        <Image src={brand} alt="" fill className="object-cover" sizes="64px" unoptimized />
+      ) : (
+        <Trophy className="h-5 w-5 text-cp-primary sm:h-6 sm:w-6" aria-hidden />
+      )}
+    </span>
+  );
+
+  const meta = (
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
-        <Trophy className="h-4 w-4 shrink-0 text-cp-primary" aria-hidden />
-        <p className="truncate font-medium text-foreground">{league.name}</p>
+        <p className="truncate text-sm font-semibold text-foreground sm:text-[15px]">
+          {league.name}
+        </p>
         <PartnerStatusBadge status={league.status} />
       </div>
-      <p className="mt-0.5 text-xs text-cp-muted">
-        {league.sportName} · {league.teamCount} teams · {league.matchCount} matches
+      {summary ? (
+        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-cp-muted sm:text-sm">
+          {summary}
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-cp-muted">Season standings and fixtures</p>
+      )}
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-cp-muted">
+        <span className="inline-flex items-center gap-1">
+          <Users className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {league.teamCount} teams
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {league.matchCount} matches
+        </span>
       </p>
     </div>
   );
@@ -41,54 +79,67 @@ export function PartnerLeagueRow({
   return (
     <li
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5",
+        "overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm",
+        "transition-colors hover:border-cp-primary/35 hover:shadow-md",
         className,
       )}
     >
-      {href && !hasActions ? (
-        <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90">
-          {body}
-          <span className="shrink-0 text-xs font-medium text-cp-primary">Open</span>
-        </Link>
-      ) : (
-        <>
-          {href ? (
-            <Link href={href} className="min-w-0 flex-1 hover:opacity-90">
-              {body}
-            </Link>
-          ) : (
-            body
-          )}
-          {hasActions ? (
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {publicHref ? (
-                <Button asChild variant="outline" size="sm" className="border-cp-border">
-                  <Link href={publicHref} target="_blank" rel="noopener noreferrer">
-                    Public
-                  </Link>
-                </Button>
-              ) : null}
-              {manageHref ? (
-                <Button asChild size="sm" className="bg-cp-primary hover:bg-cp-primary-light">
-                  <Link href={manageHref}>Manage</Link>
-                </Button>
-              ) : null}
-              {onDelete ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                  disabled={deleting}
-                  onClick={onDelete}
-                >
-                  Delete
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </>
-      )}
+      <div className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+        {href && !hasDashboardActions ? (
+          <Link
+            href={href}
+            className="flex min-w-0 flex-1 items-start gap-3 sm:items-center"
+          >
+            {thumb}
+            {meta}
+            <span className="ml-auto hidden shrink-0 items-center gap-1 rounded-full border border-cp-border bg-cp-elevated/50 px-2.5 py-1 text-xs font-semibold text-cp-primary sm:inline-flex">
+              Open
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </span>
+          </Link>
+        ) : (
+          <>
+            {href ? (
+              <Link
+                href={href}
+                className="flex min-w-0 flex-1 items-start gap-3 hover:opacity-95 sm:items-center"
+              >
+                {thumb}
+                {meta}
+              </Link>
+            ) : (
+              <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                {thumb}
+                {meta}
+              </div>
+            )}
+
+            {hasDashboardActions && manageHref && publicHref ? (
+              <div className="w-full shrink-0 sm:w-auto sm:min-w-[11.5rem]">
+                <PartnerDashboardCardActions
+                  layout="inline"
+                  manageHref={manageHref}
+                  publicHref={publicHref}
+                  editHref={editHref}
+                  onDelete={onDelete}
+                  deleting={deleting}
+                />
+              </div>
+            ) : href ? (
+              <Button
+                asChild
+                size="sm"
+                className="w-full rounded-full bg-cp-primary sm:ml-auto sm:w-auto"
+              >
+                <Link href={href}>
+                  View league
+                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+                </Link>
+              </Button>
+            ) : null}
+          </>
+        )}
+      </div>
     </li>
   );
 }

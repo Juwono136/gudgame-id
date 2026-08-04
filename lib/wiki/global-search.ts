@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sports } from "@/db/schema/sports";
 import { tournaments } from "@/db/schema/tournaments";
@@ -200,6 +200,8 @@ async function searchTournaments(
     .from(tournaments)
     .where(
       and(
+        // Gud Game search only — partner white-label events stay on /{partnerSlug}
+        isNull(tournaments.partnerId),
         inArray(tournaments.sportId, sportIds),
         or(
           eq(tournaments.status, "live"),

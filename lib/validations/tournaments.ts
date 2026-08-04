@@ -91,6 +91,11 @@ export const tournamentUpsertSchema = z
      * Never accept from untrusted Gud Game host create without partnerId.
      */
     partnerTenant: z.boolean().optional(),
+    /**
+     * Optional partner league grouping. Empty string clears the link.
+     * Ownership is enforced in partner tournament APIs.
+     */
+    partnerLeagueId: z.union([z.string().uuid(), z.literal(""), z.null()]).optional(),
     allowedTierLevels: z
       .array(z.enum(PLAYER_TIER_LEVELS))
       .max(1, "Official tournaments use exactly one skill tier")

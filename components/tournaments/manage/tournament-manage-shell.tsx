@@ -45,6 +45,7 @@ import { useManageTournamentDetail } from "@/hooks/use-manage-tournament-detail"
 import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import { cpBadgeSuccessClass, cpBadgeWarningClass } from "@/lib/styles/surface-classes";
 import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
+import { getTournamentFormatLabel } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 
 function manageBaseUrl(tournament: TournamentDetail, partnerSlug?: string | null): string {
@@ -345,7 +346,9 @@ export function TournamentManageShell({
                     <div>
                       <h1 className="text-xl font-semibold text-foreground">Manage tournament</h1>
                       <p className="mt-1 text-sm text-cp-muted">
-                        {isOfficial ? "Official event" : "Fun Match"} · {tournament.format}
+                        {isPartnerEvent
+                          ? getTournamentFormatLabel(tournament.format)
+                          : `${isOfficial ? "Official event" : "Fun Match"} · ${getTournamentFormatLabel(tournament.format)}`}
                         {access.grantRole ? ` · Staff: ${access.grantRole}` : ""}
                       </p>
                     </div>

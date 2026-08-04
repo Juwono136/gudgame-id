@@ -47,6 +47,8 @@ export function PartnerTournamentRow({
   publicHref,
   manageHref,
   editHref,
+  leagueHref,
+  hideLeagueBadge = false,
   onDelete,
   deleteDisabled = false,
   deleteDisabledReason,
@@ -60,6 +62,10 @@ export function PartnerTournamentRow({
   publicHref?: string;
   manageHref?: string;
   editHref?: string;
+  /** When set, league badge links to the league page (must not nest inside another Link). */
+  leagueHref?: string;
+  /** Hide league badge (e.g. already on that league page). */
+  hideLeagueBadge?: boolean;
   onDelete?: () => void;
   deleteDisabled?: boolean;
   deleteDisabledReason?: string;
@@ -75,6 +81,8 @@ export function PartnerTournamentRow({
   const dateLabel = formatDateRange(tournament.startsAt, tournament.endsAt);
   const detailHref = href ?? manageHref ?? publicHref;
   const hasDashboardActions = Boolean(manageHref || publicHref || editHref || onDelete);
+  const showLeague =
+    !hideLeagueBadge && Boolean(tournament.partnerLeagueName?.trim());
 
   const thumb = (
     <span
@@ -96,8 +104,28 @@ export function PartnerTournamentRow({
     </span>
   );
 
-  const body = (
-    <div className="min-w-0 flex-1">
+  const leagueBadge = showLeague ? (
+    leagueHref ? (
+      <Link
+        href={leagueHref}
+        className="mb-1 inline-flex max-w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Badge className="max-w-full truncate border-0 bg-cp-primary/12 text-[10px] font-semibold uppercase tracking-wide text-cp-primary transition-opacity hover:opacity-90">
+          {tournament.partnerLeagueName}
+        </Badge>
+      </Link>
+    ) : (
+      <p className="mb-1">
+        <Badge className="border-0 bg-cp-primary/12 text-[10px] font-semibold uppercase tracking-wide text-cp-primary">
+          {tournament.partnerLeagueName}
+        </Badge>
+      </p>
+    )
+  ) : null;
+
+  const titleBlock = (
+    <>
       <div className="flex flex-wrap items-center gap-2">
         <p className="truncate text-sm font-semibold text-foreground sm:text-[15px]">
           {tournament.name}
@@ -106,7 +134,6 @@ export function PartnerTournamentRow({
       </div>
 
       <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-cp-muted">
-        {tournament.sportName ? <span>{tournament.sportName}</span> : null}
         {tournament.venue ? (
           <span className="inline-flex min-w-0 items-center gap-1">
             <MapPin className="h-3 w-3 shrink-0" aria-hidden />
@@ -142,6 +169,37 @@ export function PartnerTournamentRow({
           </Badge>
         ) : null}
       </div>
+    </>
+  );
+
+  const mainContent = detailHref ? (
+    <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+      <Link href={detailHref} className="shrink-0">
+        {thumb}
+      </Link>
+      <div className="min-w-0 flex-1">
+        {leagueBadge}
+        <Link href={detailHref} className="block min-w-0 hover:opacity-95">
+          {titleBlock}
+        </Link>
+      </div>
+      {!hasDashboardActions && !cta ? (
+        <Link
+          href={detailHref}
+          className="ml-auto hidden shrink-0 items-center gap-1 rounded-full border border-cp-border bg-cp-elevated/50 px-2.5 py-1 text-xs font-semibold text-cp-primary sm:inline-flex"
+        >
+          Open
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        </Link>
+      ) : null}
+    </div>
+  ) : (
+    <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+      {thumb}
+      <div className="min-w-0 flex-1">
+        {leagueBadge}
+        {titleBlock}
+      </div>
     </div>
   );
 
@@ -154,72 +212,43 @@ export function PartnerTournamentRow({
       )}
     >
       <div className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
-        {detailHref && !hasDashboardActions && !cta ? (
-          <Link
-            href={detailHref}
-            className="flex min-w-0 flex-1 items-start gap-3 sm:items-center"
-          >
-            {thumb}
-            {body}
-            <span className="ml-auto hidden shrink-0 items-center gap-1 rounded-full border border-cp-border bg-cp-elevated/50 px-2.5 py-1 text-xs font-semibold text-cp-primary sm:inline-flex">
-              Open
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </span>
-          </Link>
-        ) : (
-          <>
-            {detailHref ? (
-              <Link
-                href={detailHref}
-                className="flex min-w-0 flex-1 items-start gap-3 sm:items-center"
-              >
-                {thumb}
-                {body}
+        {mainContent}
+
+        {cta ? (
+          <div className="flex shrink-0 sm:pl-1">
+            <Button
+              asChild
+              size="sm"
+              className={cn(
+                "h-9 w-full rounded-full px-4 sm:w-auto",
+                cta.emphasis === "primary"
+                  ? "bg-cp-primary hover:bg-cp-primary-light"
+                  : "border-cp-border bg-cp-elevated text-foreground hover:bg-cp-elevated/80",
+              )}
+              variant={cta.emphasis === "primary" ? "default" : "outline"}
+            >
+              <Link href={cta.href}>
+                {cta.label}
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
               </Link>
-            ) : (
-              <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
-                {thumb}
-                {body}
-              </div>
-            )}
+            </Button>
+          </div>
+        ) : null}
 
-            {cta ? (
-              <div className="flex shrink-0 sm:pl-1">
-                <Button
-                  asChild
-                  size="sm"
-                  className={cn(
-                    "h-9 w-full rounded-full px-4 sm:w-auto",
-                    cta.emphasis === "primary"
-                      ? "bg-cp-primary hover:bg-cp-primary-light"
-                      : "border-cp-border bg-cp-elevated text-foreground hover:bg-cp-elevated/80",
-                  )}
-                  variant={cta.emphasis === "primary" ? "default" : "outline"}
-                >
-                  <Link href={cta.href}>
-                    {cta.label}
-                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
-
-            {hasDashboardActions && manageHref && publicHref ? (
-              <div className="w-full shrink-0 sm:w-auto sm:min-w-[11.5rem]">
-                <PartnerDashboardCardActions
-                  layout="inline"
-                  manageHref={manageHref}
-                  publicHref={publicHref}
-                  editHref={editHref}
-                  onDelete={onDelete}
-                  deleteDisabled={deleteDisabled}
-                  deleteDisabledReason={deleteDisabledReason}
-                  deleting={deleting}
-                />
-              </div>
-            ) : null}
-          </>
-        )}
+        {hasDashboardActions && manageHref && publicHref ? (
+          <div className="w-full shrink-0 sm:w-auto sm:min-w-[11.5rem]">
+            <PartnerDashboardCardActions
+              layout="inline"
+              manageHref={manageHref}
+              publicHref={publicHref}
+              editHref={editHref}
+              onDelete={onDelete}
+              deleteDisabled={deleteDisabled}
+              deleteDisabledReason={deleteDisabledReason}
+              deleting={deleting}
+            />
+          </div>
+        ) : null}
       </div>
     </li>
   );

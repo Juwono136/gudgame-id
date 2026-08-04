@@ -122,7 +122,7 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
     const ok = await confirm({
       title: `Delete "${league.name}"?`,
       description:
-        "This permanently removes the league, teams, matches, and standings. This cannot be undone.",
+        "This permanently removes the league, teams, matches, and standings. Linked tournaments stay but become ungrouped. This cannot be undone.",
       confirmLabel: "Delete league",
       cancelLabel: "Cancel",
       variant: "destructive",
@@ -210,7 +210,7 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
             />
           </div>
         ) : viewMode === "list" ? (
-          <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
+          <ul className="space-y-2.5 sm:space-y-3">
             {items.map((league) => {
               const publicHref = partnerPublicRoutes.league(partnerSlug, league.slug);
               if (mode === "public") {
@@ -225,6 +225,7 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
                   href={dashboardRoutes.partnerLeague(league.id)}
                   publicHref={publicHref}
                   manageHref={dashboardRoutes.partnerLeague(league.id)}
+                  editHref={dashboardRoutes.partnerLeagueEdit(league.id)}
                   onDelete={() => void handleDelete(league)}
                   deleting={deletingId === league.id}
                 />
@@ -232,7 +233,7 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
             })}
           </ul>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
             {items.map((league) => {
               const publicHref = partnerPublicRoutes.league(partnerSlug, league.slug);
               if (mode === "public") {
@@ -255,7 +256,7 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
                     <PartnerDashboardCardActions
                       manageHref={manageHref}
                       publicHref={publicHref}
-                      editHref={manageHref}
+                      editHref={dashboardRoutes.partnerLeagueEdit(league.id)}
                       onDelete={() => void handleDelete(league)}
                       deleting={deletingId === league.id}
                     />

@@ -269,14 +269,19 @@ export async function buildTournamentLivePayload(
         : [...lobbyLiveMatches, ...bracketLiveNotInLobby]
       : bracketLiveMatches;
 
-  const funMatchSessionMatches =
-    isLiveOrDone && isFunMatch
+  // Americano / lobby-round fun matches. Do not use an empty [] here — partner
+  // double_stage events are typed fun_match but live on group_stage tables.
+  const funMatchLobbySessionMatches =
+    isLiveOrDone && isFunMatch && includeLobbyRounds
       ? dedupeReclubMatchViews(
           lobbyMatches.filter((m) => m.status === "in_progress" || m.status === "completed"),
         ).map(mapReclubToLiveMatch)
       : null;
 
-  const matchesPayload = funMatchSessionMatches ?? activeLiveMatches;
+  const matchesPayload =
+    funMatchLobbySessionMatches && funMatchLobbySessionMatches.length > 0
+      ? funMatchLobbySessionMatches
+      : activeLiveMatches;
 
   const maxBracketRound = bracketMatches.length
     ? Math.max(...bracketMatches.map((m) => m.roundNumber))

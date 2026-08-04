@@ -24,6 +24,7 @@ import {
 } from "@/components/tournaments/form/tournament-cover-upload";
 import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
+import { PartnerTournamentLeagueField } from "@/components/partners/partner-tournament-league-field";
 import { PartnerTournamentWizardReview } from "@/components/partners/partner-tournament-wizard-review";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
@@ -144,6 +145,9 @@ type PartnerTournamentWizardProps = {
   mode?: "create" | "edit";
   initial?: TournamentDetail | null;
   tournamentId?: string;
+  /** Prefill when creating from a league detail page. */
+  defaultPartnerLeagueId?: string | null;
+  defaultPartnerLeagueName?: string | null;
 };
 
 type FormState = {
@@ -176,6 +180,9 @@ type FormState = {
   registrationFeeIdr: string;
   /** Optional prize pool */
   prizePoolIdr: string;
+  /** Optional partner league grouping */
+  partnerLeagueId: string | null;
+  partnerLeagueName: string | null;
 };
 
 function formFromInitial(initial?: TournamentDetail | null): FormState {
@@ -208,6 +215,8 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       entryBilling: "free",
       registrationFeeIdr: "",
       prizePoolIdr: "",
+      partnerLeagueId: null,
+      partnerLeagueName: null,
     };
   }
 
@@ -265,6 +274,8 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       initial.prizePoolIdr != null && initial.prizePoolIdr > 0
         ? String(initial.prizePoolIdr)
         : "",
+    partnerLeagueId: initial.partnerLeagueId ?? null,
+    partnerLeagueName: initial.partnerLeagueName ?? null,
   };
 }
 
@@ -274,6 +285,8 @@ export function PartnerTournamentWizard({
   mode = "create",
   initial = null,
   tournamentId,
+  defaultPartnerLeagueId = null,
+  defaultPartnerLeagueName = null,
 }: PartnerTournamentWizardProps) {
   const router = useRouter();
   const { confirm } = useConfirmDialog();
@@ -287,7 +300,21 @@ export function PartnerTournamentWizard({
   const [regCloseError, setRegCloseError] = useState<string | null>(null);
   const [maxTeamsError, setMaxTeamsError] = useState<string | null>(null);
   const [venueError, setVenueError] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(() => formFromInitial(initial));
+  const [form, setForm] = useState<FormState>(() => {
+    const base = formFromInitial(initial);
+    if (
+      mode === "create" &&
+      !base.partnerLeagueId &&
+      defaultPartnerLeagueId?.trim()
+    ) {
+      return {
+        ...base,
+        partnerLeagueId: defaultPartnerLeagueId,
+        partnerLeagueName: defaultPartnerLeagueName ?? null,
+      };
+    }
+    return base;
+  });
   const [cover, setCover] = useState<TournamentCoverValue>(() => ({
     previewUrl: initial?.coverImageUrl ?? null,
     storageKey: initial?.coverImageStorageKey ?? null,
@@ -524,6 +551,7 @@ export function PartnerTournamentWizard({
       teamsAdvancePerGroup: isDoubleStage ? form.teamsAdvancePerGroup : undefined,
       bestRunnerUpSlots: isDoubleStage ? form.bestRunnerUpSlots : undefined,
       thirdPlaceEnabled: false,
+      partnerLeagueId: form.partnerLeagueId,
     };
   };
 
@@ -722,6 +750,18 @@ export function PartnerTournamentWizard({
                     required={false}
                     allowClear
                     helperText="Optional label for your public page and listings. Guest registration does not require a Gud Game account, so category is not enforced."
+                  />
+
+                  <PartnerTournamentLeagueField
+                    value={form.partnerLeagueId}
+                    onChange={(leagueId, leagueName) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        partnerLeagueId: leagueId,
+                        partnerLeagueName: leagueName ?? null,
+                      }));
+                    }}
+                    disabled={pending}
                   />
 
                   <div className="space-y-2">
@@ -1207,6 +1247,7 @@ export function PartnerTournamentWizard({
                     partnerSlug={partnerSlug}
                     name={form.name.trim()}
                     categoryLabel={form.categoryLabel}
+                    leagueLabel={form.partnerLeagueName}
                     venue={form.venue}
                     venueMapsUrl={form.venueMapsUrl}
                     coverPreviewUrl={!cover.removed ? cover.previewUrl : null}

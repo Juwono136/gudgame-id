@@ -94,6 +94,16 @@ export function partnerBrandMediaKey(
   return `${PARTNERS_MEDIA_PREFIX}${partnerId}/${kind}/brand.${safeExt}`;
 }
 
+/** Stable SeaweedFS object key for a partner league brand image. */
+export function partnerLeagueBrandMediaKey(
+  partnerId: string,
+  leagueId: string,
+  ext: string,
+): string {
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
+  return `${PARTNERS_MEDIA_PREFIX}${partnerId}/leagues/${leagueId}/brand.${safeExt}`;
+}
+
 /**
  * Resolves a stored user.image value to a same-origin URL the browser can load
  * without nginx basic auth prompts.

@@ -10,12 +10,19 @@ import { partnerPublicRoutes } from "@/lib/constants/routes";
 export function PartnerTournamentPublicListRow({
   tournament,
   partnerSlug,
+  hideLeagueBadge = false,
 }: {
   tournament: TournamentListItem;
   partnerSlug: string;
+  /** Hide league badge when already viewing that league. */
+  hideLeagueBadge?: boolean;
 }) {
   const detailHref = partnerPublicRoutes.tournament(partnerSlug, tournament.slug);
   const registerHref = partnerPublicRoutes.tournamentRegister(partnerSlug, tournament.slug);
+  const leagueHref =
+    !hideLeagueBadge && tournament.partnerLeagueSlug?.trim()
+      ? partnerPublicRoutes.league(partnerSlug, tournament.partnerLeagueSlug)
+      : undefined;
   const { data } = usePartnerRegistrationStatus(partnerSlug, tournament.slug, true);
 
   const cta = resolveTournamentDiscoveryCta({
@@ -26,6 +33,12 @@ export function PartnerTournamentPublicListRow({
   });
 
   return (
-    <PartnerTournamentRow tournament={tournament} href={detailHref} cta={cta} />
+    <PartnerTournamentRow
+      tournament={tournament}
+      href={detailHref}
+      leagueHref={leagueHref}
+      hideLeagueBadge={hideLeagueBadge}
+      cta={cta}
+    />
   );
 }

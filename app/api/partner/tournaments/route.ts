@@ -5,6 +5,7 @@ import {
   parseSearchParamsWithSchema,
   partnerTournamentsListQuerySchema,
 } from "@/lib/partners/list-query";
+import { resolveOwnedPartnerLeagueId } from "@/lib/partners/leagues";
 import { getPrimaryPartnerForUser } from "@/lib/partners/service";
 import { queryPartnerTournaments } from "@/lib/partners/tournaments";
 import { createTournament } from "@/lib/tournaments/service";
@@ -89,8 +90,13 @@ export async function POST(request: Request) {
 
     const sportCtx = await resolveDashboardSportContext(ctx.userId);
     const { partnerTenant: _partnerTenant, ...validated } = parsed.data;
+    const partnerLeagueId = await resolveOwnedPartnerLeagueId(
+      partner.id,
+      validated.partnerLeagueId,
+    );
     const input = {
       ...validated,
+      partnerLeagueId,
       allowedTierLevels: undefined,
     };
 

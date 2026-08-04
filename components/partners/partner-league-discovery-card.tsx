@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Trophy, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PartnerLeagueListItem } from "@/lib/partners/league-types";
+import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -35,9 +37,20 @@ export function PartnerLeagueDiscoveryCard({
     >
       <Link
         href={href}
-        className="relative flex aspect-[16/10] items-center justify-center overflow-hidden bg-gradient-to-br from-cp-primary/20 via-cp-elevated to-cp-card"
+        className="relative flex aspect-[16/11] items-center justify-center overflow-hidden bg-gradient-to-br from-cp-primary/20 via-cp-elevated to-cp-card"
       >
-        <Trophy className="h-12 w-12 text-cp-primary/70 transition-transform duration-300 group-hover:scale-110" />
+        {league.brandImageUrl?.trim() ? (
+          <Image
+            src={league.brandImageUrl}
+            alt=""
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            unoptimized
+          />
+        ) : (
+          <Trophy className="h-12 w-12 text-cp-primary/70 transition-transform duration-300 group-hover:scale-110" />
+        )}
         <Badge
           className={cn(
             "absolute left-3 top-3 border-0 text-[10px] font-bold uppercase tracking-wider",
@@ -49,22 +62,28 @@ export function PartnerLeagueDiscoveryCard({
       </Link>
 
       <div className="flex flex-1 flex-col gap-2.5 p-4 sm:p-5">
-        <Badge className="w-fit border-cp-border bg-cp-elevated/60 text-[10px] font-semibold uppercase text-cp-muted">
-          {league.sportName}
-        </Badge>
-
         <Link href={href} className="min-w-0">
-          <h3 className="line-clamp-2 text-base font-bold tracking-tight text-foreground transition-colors group-hover:text-cp-primary sm:text-lg">
+          <h3 className="line-clamp-2 text-base font-bold tracking-tight text-foreground transition-colors group-hover:text-cp-primary sm:text-[1.05rem]">
             {league.name}
           </h3>
         </Link>
+        {league.summary?.trim() ? (
+          <p className="line-clamp-2 text-sm leading-relaxed text-cp-muted">
+            {stripHtmlToText(league.summary)}
+          </p>
+        ) : (
+          <p className="text-sm text-cp-muted">Season standings and fixtures</p>
+        )}
 
         <p className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-cp-muted">
           <span className="inline-flex items-center gap-1">
             <Users className="h-3.5 w-3.5" aria-hidden />
             {league.teamCount} teams
           </span>
-          <span>{league.matchCount} matches</span>
+          <span className="inline-flex items-center gap-1">
+            <Trophy className="h-3.5 w-3.5" aria-hidden />
+            {league.matchCount} matches
+          </span>
         </p>
 
         <div className="mt-auto border-t border-cp-border/70 pt-3">
@@ -78,7 +97,7 @@ export function PartnerLeagueDiscoveryCard({
                 className="rounded-full bg-cp-primary px-4 hover:bg-cp-primary-light"
               >
                 <Link href={href}>
-                  Standings
+                  View league
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
                 </Link>
               </Button>

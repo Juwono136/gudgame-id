@@ -2,6 +2,7 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiPartnerDashboardAccess } from "@/lib/auth/role-guard";
 import { parseEntityIdParam } from "@/lib/domain/uuid";
 import { AppError } from "@/lib/errors";
+import { resolveOwnedPartnerLeagueId } from "@/lib/partners/leagues";
 import { getPrimaryPartnerForUser } from "@/lib/partners/service";
 import {
   assertTournamentDeletable,
@@ -89,8 +90,14 @@ export async function PATCH(
     }
 
     const { partnerTenant: _partnerTenant, ...validated } = parsed.data;
+    const partnerLeagueId = await resolveOwnedPartnerLeagueId(
+      partner.id,
+      validated.partnerLeagueId,
+      { allowExistingLeagueId: existing.partnerLeagueId },
+    );
     const tournament = await updateTournament(tournamentId, existing.sportId, {
       ...validated,
+      partnerLeagueId,
       allowedTierLevels: undefined,
     });
 

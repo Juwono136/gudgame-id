@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import {
   Calendar,
-  FileText,
   Gamepad2,
   MapPin,
   Pencil,
@@ -14,7 +12,6 @@ import { TournamentCoverPreview } from "@/components/tournaments/form/tournament
 import { TournamentReviewRichBlock } from "@/components/tournaments/form/tournament-review-rich-block";
 import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
 import { formatIdrDisplay } from "@/components/tournaments/form/currency-input";
-import { partnerPublicRoutes } from "@/lib/constants/routes";
 import { formatWizardDateRange, formatWizardDateTime } from "@/lib/tournaments/form/format-wizard-dates";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import { cn } from "@/lib/utils";
@@ -23,6 +20,7 @@ type PartnerTournamentWizardReviewProps = {
   partnerSlug: string;
   name: string;
   categoryLabel: string;
+  leagueLabel?: string | null;
   venue: string;
   venueMapsUrl: string;
   coverPreviewUrl?: string | null;
@@ -101,9 +99,10 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
 }
 
 export function PartnerTournamentWizardReview({
-  partnerSlug,
+  partnerSlug: _partnerSlug,
   name,
   categoryLabel,
+  leagueLabel = null,
   venue,
   venueMapsUrl,
   coverPreviewUrl = null,
@@ -196,6 +195,7 @@ export function PartnerTournamentWizardReview({
           <dl className="grid gap-3 sm:grid-cols-2">
             <ReviewItem label="Name" value={name} />
             <ReviewItem label="Category" value={categoryLabel || "Not set (optional)"} />
+            <ReviewItem label="League" value={leagueLabel?.trim() || "None (optional)"} />
             <ReviewItem label="Max teams" value={maxTeams || "—"} />
             <ReviewItem label="Courts" value={courtCount || "—"} />
             <ReviewItem label="Entry" value={feeDisplay} />
@@ -282,35 +282,6 @@ export function PartnerTournamentWizardReview({
           </dl>
           <p className="mt-3 text-xs leading-relaxed text-cp-muted">
             Live tablet vs paper score entry is configured later under Manage → Display.
-          </p>
-        </ReviewSection>
-
-        <ReviewSection
-          title="Isolation & publish"
-          icon={FileText}
-          stepIndex={3}
-          onEditStep={onEditStep}
-          className="lg:col-span-2"
-        >
-          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <ReviewItem label="Surface" value="Partner white-label" />
-            <ReviewItem label="Rankings" value="Never on Gud Game" />
-            <ReviewItem label="Skill tiers" value="Not used" />
-          </dl>
-          <p className="mt-3 text-xs leading-relaxed text-cp-muted">
-            Stats and players stay on{" "}
-            <Link
-              href={partnerPublicRoutes.home(partnerSlug)}
-              className="font-medium text-cp-primary hover:underline"
-            >
-              /{partnerSlug}
-            </Link>{" "}
-            only.
-            {feeIsPaid
-              ? ` Guests pay Rp ${formatIdrDisplay(
-                  Number(registrationFeeIdr) || 0,
-                )} via your partner payment flow.`
-              : " Guest registration is free confirmation only."}
           </p>
         </ReviewSection>
       </div>

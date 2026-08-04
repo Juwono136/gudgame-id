@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { PartnerPageHeader } from "@/components/partners/partner-page-header";
-import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
-import { PartnerLeagueMatchesPanel } from "@/components/partners/partner-league-matches-panel";
+import { PartnerLeagueBanner } from "@/components/partners/partner-league-banner";
+import { PartnerLeagueHistorySection } from "@/components/partners/partner-league-history-section";
+import { PartnerLeagueStandingsSection } from "@/components/partners/partner-league-standings-section";
+import { PartnerLeagueTournamentsSection } from "@/components/partners/partner-league-tournaments-section";
 import { Button } from "@/components/ui/button";
-import { partnerPageWidthClass } from "@/lib/partners/layout";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -31,46 +31,51 @@ import {
 } from "@/components/ui/select";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
+import { partnerBrandCssVars } from "@/lib/partners/brand-style";
 import type {
   PartnerLeagueDetail,
   PartnerLeagueMatchView,
-  PartnerLeagueStatus,
 } from "@/lib/partners/league-types";
+import { isPartnerLeaguePubliclyVisible } from "@/lib/partners/league-types";
+import { partnerPageWidthClass } from "@/lib/partners/layout";
+import type { TournamentListItem } from "@/lib/tournaments/service";
 import {
   cpSelectContentClass,
   cpSelectItemClass,
   cpSelectTriggerClass,
 } from "@/lib/styles/surface-classes";
+import { cn } from "@/lib/utils";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
-
-const LEAGUE_STATUS_OPTIONS: { value: PartnerLeagueStatus; label: string }[] = [
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "completed", label: "Completed" },
-  { value: "archived", label: "Archived" },
-];
 
 type PartnerLeagueManageClientProps = {
   leagueId: string;
   partnerSlug: string;
   initialLeague: PartnerLeagueDetail;
+  initialTournaments: TournamentListItem[];
+  initialTournamentTotal: number;
+  primaryColor: string;
+  accentColor: string;
 };
 
 export function PartnerLeagueManageClient({
   leagueId,
   partnerSlug,
   initialLeague,
+  initialTournaments,
+  initialTournamentTotal,
+  primaryColor,
+  accentColor,
 }: PartnerLeagueManageClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { confirm } = useConfirmDialog();
+  const brandStyle = partnerBrandCssVars(primaryColor, accentColor);
+
   const [league, setLeague] = useState(initialLeague);
+  const [tournamentTotal, setTournamentTotal] = useState(initialTournamentTotal);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("Saving…");
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editName, setEditName] = useState(initialLeague.name);
-  const [editStatus, setEditStatus] = useState<PartnerLeagueStatus>(initialLeague.status);
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
@@ -86,58 +91,29 @@ export function PartnerLeagueManageClient({
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/partner/leagues/${leagueId}`);
-      const json = await parseJsonResponse<{ success: true; data: PartnerLeagueDetail }>(res);
-      if (res.ok && "data" in json) setLeague(json.data);
+      const leagueRes = await fetch(`/api/partner/leagues/${leagueId}`);
+      const leagueJson = await parseJsonResponse<{ success: true; data: PartnerLeagueDetail }>(
+        leagueRes,
+      );
+      if (leagueRes.ok && "data" in leagueJson) setLeague(leagueJson.data);
+      await queryClient.invalidateQueries({
+        queryKey: ["partner-league-tournaments", "dashboard", partnerSlug, leagueId],
+      });
     } finally {
       setLoading(false);
     }
-  }, [leagueId]);
+  }, [leagueId, partnerSlug, queryClient]);
 
   useEffect(() => {
     setLeague(initialLeague);
-  }, [initialLeague]);
-
-  const openSettings = () => {
-    setEditName(league.name);
-    setEditStatus(league.status);
-    setSettingsOpen(true);
-  };
-
-  const saveSettings = async () => {
-    const name = editName.trim();
-    if (name.length < 2) {
-      toast.error("Name must be at least 2 characters");
-      return;
-    }
-    setBusyLabel("Saving settings…");
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/partner/leagues/${leagueId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, status: editStatus }),
-      });
-      const json = await parseJsonResponse<{ success: true; data: PartnerLeagueDetail }>(res);
-      if (!res.ok || !("data" in json)) {
-        toast.error(
-          (json as { error?: { message?: string } }).error?.message ?? "Could not update league",
-        );
-        return;
-      }
-      setLeague(json.data);
-      setSettingsOpen(false);
-      toast.success("League settings saved");
-    } finally {
-      setBusy(false);
-    }
-  };
+    setTournamentTotal(initialTournamentTotal);
+  }, [initialLeague, initialTournamentTotal]);
 
   const deleteLeague = async () => {
     const ok = await confirm({
       title: `Delete "${league.name}"?`,
       description:
-        "This permanently removes the league, teams, matches, and standings. This cannot be undone.",
+        "This permanently removes the league, teams, matches, and standings. Linked tournaments stay but become ungrouped.",
       confirmLabel: "Delete league",
       cancelLabel: "Cancel",
       variant: "destructive",
@@ -276,359 +252,237 @@ export function PartnerLeagueManageClient({
   };
 
   const publicHref = partnerPublicRoutes.league(partnerSlug, league.slug);
+  const editHref = dashboardRoutes.partnerLeagueEdit(leagueId);
+  const showPublicLink = isPartnerLeaguePubliclyVisible(league.status);
 
   return (
-    <div className={cn("relative space-y-6 py-8", partnerPageWidthClass)}>
-        {(busy || loading) && (
-          <LoadingOverlay
-            show
-            label={busy ? busyLabel : "Refreshing…"}
-          />
-        )}
+    <div
+      className={cn("relative space-y-6 py-8 sm:space-y-8", partnerPageWidthClass)}
+      style={brandStyle}
+    >
+      {(busy || loading) && (
+        <LoadingOverlay show label={busy ? busyLabel : "Refreshing…"} />
+      )}
 
-        <PartnerPageHeader
-          backHref={dashboardRoutes.partnerLeagues}
-          backLabel="Leagues"
-          title={league.name}
-          description={
-            <span className="mt-1 flex flex-wrap items-center gap-2">
-              <PartnerStatusBadge status={league.status} />
-              <span>
-                {league.sportName} · {league.teamCount} teams · {league.matchCount} matches
-              </span>
-            </span>
-          }
-          actions={
-            <>
+      <PartnerLeagueBanner
+        league={league}
+        backHref={dashboardRoutes.partnerLeagues}
+        backLabel="Leagues"
+        tournamentCount={tournamentTotal}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
+        actions={
+          <>
+            <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
+              <Link href={editHref}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit league
+              </Link>
+            </Button>
+            {showPublicLink ? (
               <Button asChild variant="outline" className="border-cp-border">
                 <Link href={publicHref} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Public page
                 </Link>
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-cp-border"
-                onClick={openSettings}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit settings
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                onClick={() => void deleteLeague()}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-cp-border"
-                onClick={() => setTeamDialogOpen(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add team
-              </Button>
-              <Button
-                type="button"
-                className="bg-cp-primary hover:bg-cp-primary-light"
-                onClick={() => setMatchDialogOpen(true)}
-                disabled={league.teams.length < 2}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                New match
-              </Button>
-            </>
-          }
-        />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => void deleteLeague()}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </>
+        }
+      />
 
-        <section className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
-          <div className="border-b border-cp-border px-4 py-3 sm:px-5">
-            <h2 className="text-sm font-semibold text-foreground">Standings</h2>
+      <PartnerLeagueTournamentsSection
+        partnerSlug={partnerSlug}
+        leagueId={leagueId}
+        leagueName={league.name}
+        mode="dashboard"
+        initialItems={initialTournaments}
+        initialTotal={initialTournamentTotal}
+        onTotalChange={setTournamentTotal}
+      />
+
+      <PartnerLeagueStandingsSection
+        standings={league.standings}
+        onAddTeam={() => setTeamDialogOpen(true)}
+      />
+
+      <PartnerLeagueHistorySection
+        matches={league.matches}
+        mode="dashboard"
+        onNewMatch={() => setMatchDialogOpen(true)}
+        canCreateMatch={league.teams.length >= 2}
+        onEditScore={(match) => {
+          setScoreMatch(match);
+          setScoreA(match.scoreA != null ? String(match.scoreA) : "");
+          setScoreB(match.scoreB != null ? String(match.scoreB) : "");
+        }}
+      />
+
+      <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
+        <DialogContent className="border-cp-border bg-cp-card sm:max-w-md" style={brandStyle}>
+          <DialogHeader>
+            <DialogTitle>Add team</DialogTitle>
+            <DialogDescription>Teams appear on the optional standings table.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="team-name">Team name</Label>
+            <Input
+              id="team-name"
+              value={teamName}
+              onChange={(e) => setTeamName(e.target.value)}
+              className="border-cp-border bg-cp-elevated/40"
+              placeholder="e.g. Court Hawks"
+            />
           </div>
-          {league.standings.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-cp-muted sm:px-5">
-              Add teams to start the table.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[36rem] text-left text-sm">
-                <thead className="border-b border-cp-border bg-cp-elevated/40 text-[11px] uppercase tracking-wider text-cp-muted">
-                  <tr>
-                    <th className="px-3 py-2 font-semibold sm:px-4">#</th>
-                    <th className="px-3 py-2 font-semibold sm:px-4">Team</th>
-                    <th className="px-3 py-2 font-semibold tabular-nums sm:px-4">P</th>
-                    <th className="px-3 py-2 font-semibold tabular-nums sm:px-4">W</th>
-                    <th className="px-3 py-2 font-semibold tabular-nums sm:px-4">D</th>
-                    <th className="px-3 py-2 font-semibold tabular-nums sm:px-4">L</th>
-                    <th className="px-3 py-2 font-semibold tabular-nums sm:px-4">Diff</th>
-                    <th className="px-3 py-2 font-semibold tabular-nums sm:px-4">Pts</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-cp-border">
-                  {league.standings.map((row, idx) => (
-                    <tr key={row.teamId}>
-                      <td className="px-3 py-2.5 tabular-nums text-cp-muted sm:px-4">{idx + 1}</td>
-                      <td className="px-3 py-2.5 font-medium text-foreground sm:px-4">
-                        {row.teamName}
-                      </td>
-                      <td className="px-3 py-2.5 tabular-nums sm:px-4">{row.played}</td>
-                      <td className="px-3 py-2.5 tabular-nums sm:px-4">{row.wins}</td>
-                      <td className="px-3 py-2.5 tabular-nums sm:px-4">{row.draws}</td>
-                      <td className="px-3 py-2.5 tabular-nums sm:px-4">{row.losses}</td>
-                      <td className="px-3 py-2.5 tabular-nums sm:px-4">
-                        {row.diff > 0 ? `+${row.diff}` : row.diff}
-                      </td>
-                      <td className="px-3 py-2.5 font-semibold tabular-nums sm:px-4">
-                        {row.points}
-                      </td>
-                    </tr>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-cp-border"
+              onClick={() => setTeamDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-cp-primary hover:bg-cp-primary-light"
+              disabled={busy}
+              onClick={() => void addTeam()}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Add team
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={matchDialogOpen} onOpenChange={setMatchDialogOpen}>
+        <DialogContent className="border-cp-border bg-cp-card sm:max-w-md" style={brandStyle}>
+          <DialogHeader>
+            <DialogTitle>New match</DialogTitle>
+            <DialogDescription>Schedule a fixture between two teams.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label>Team A</Label>
+              <Select value={teamAId} onValueChange={setTeamAId}>
+                <SelectTrigger className={cpSelectTriggerClass}>
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  {league.teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
+                      {t.name}
+                    </SelectItem>
                   ))}
-                </tbody>
-              </table>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-foreground">Matches</h2>
+            <div className="space-y-2">
+              <Label>Team B</Label>
+              <Select value={teamBId} onValueChange={setTeamBId}>
+                <SelectTrigger className={cpSelectTriggerClass}>
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  {league.teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <PartnerLeagueMatchesPanel
-            matches={league.matches}
-            defaultStatus="all"
-            onEditScore={(match) => {
-              setScoreMatch(match);
-              setScoreA(match.scoreA != null ? String(match.scoreA) : "");
-              setScoreB(match.scoreB != null ? String(match.scoreB) : "");
-            }}
-          />
-        </section>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-cp-border"
+              onClick={() => setMatchDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-cp-primary hover:bg-cp-primary-light"
+              disabled={busy}
+              onClick={() => void createMatch()}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create match
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent className="border-cp-border bg-cp-card sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit league settings</DialogTitle>
-              <DialogDescription>
-                Rename the league or change its visibility status on your partner site.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="league-name">Name</Label>
-                <Input
-                  id="league-name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="border-cp-border bg-cp-elevated/40"
-                  placeholder="League name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={editStatus}
-                  onValueChange={(v) => setEditStatus(v as PartnerLeagueStatus)}
-                >
-                  <SelectTrigger className={cpSelectTriggerClass}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className={cpSelectContentClass}>
-                    {LEAGUE_STATUS_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value} className={cpSelectItemClass}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-cp-border"
-                onClick={() => setSettingsOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-cp-primary hover:bg-cp-primary-light"
-                disabled={busy}
-                onClick={() => void saveSettings()}
-              >
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
-          <DialogContent className="border-cp-border bg-cp-card sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add team</DialogTitle>
-              <DialogDescription>Teams appear on the public standings table.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 py-2">
-              <Label htmlFor="team-name">Team name</Label>
+      <Dialog
+        open={Boolean(scoreMatch)}
+        onOpenChange={(open) => {
+          if (!open) setScoreMatch(null);
+        }}
+      >
+        <DialogContent className="border-cp-border bg-cp-card sm:max-w-md" style={brandStyle}>
+          <DialogHeader>
+            <DialogTitle>Record score</DialogTitle>
+            <DialogDescription>
+              {scoreMatch
+                ? `${scoreMatch.teamAName} vs ${scoreMatch.teamBName}`
+                : "Enter the final score."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="score-a">{scoreMatch?.teamAName ?? "Team A"}</Label>
               <Input
-                id="team-name"
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
+                id="score-a"
+                inputMode="numeric"
+                value={scoreA}
+                onChange={(e) => setScoreA(e.target.value)}
                 className="border-cp-border bg-cp-elevated/40"
-                placeholder="e.g. Court Hawks"
               />
             </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-cp-border"
-                onClick={() => setTeamDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-cp-primary hover:bg-cp-primary-light"
-                disabled={busy}
-                onClick={() => void addTeam()}
-              >
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Add team
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={matchDialogOpen} onOpenChange={setMatchDialogOpen}>
-          <DialogContent className="border-cp-border bg-cp-card sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Schedule match</DialogTitle>
-              <DialogDescription>Pick two different teams for a fixture.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="space-y-2">
-                <Label>Team A</Label>
-                <Select value={teamAId} onValueChange={setTeamAId}>
-                  <SelectTrigger className={cpSelectTriggerClass}>
-                    <SelectValue placeholder="Select team" />
-                  </SelectTrigger>
-                  <SelectContent className={cpSelectContentClass}>
-                    {league.teams.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Team B</Label>
-                <Select value={teamBId} onValueChange={setTeamBId}>
-                  <SelectTrigger className={cpSelectTriggerClass}>
-                    <SelectValue placeholder="Select team" />
-                  </SelectTrigger>
-                  <SelectContent className={cpSelectContentClass}>
-                    {league.teams.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className={cpSelectItemClass}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="score-b">{scoreMatch?.teamBName ?? "Team B"}</Label>
+              <Input
+                id="score-b"
+                inputMode="numeric"
+                value={scoreB}
+                onChange={(e) => setScoreB(e.target.value)}
+                className="border-cp-border bg-cp-elevated/40"
+              />
             </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-cp-border"
-                onClick={() => setMatchDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-cp-primary hover:bg-cp-primary-light"
-                disabled={busy}
-                onClick={() => void createMatch()}
-              >
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Create match
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={Boolean(scoreMatch)}
-          onOpenChange={(open) => {
-            if (!open) setScoreMatch(null);
-          }}
-        >
-          <DialogContent className="border-cp-border bg-cp-card sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Record score</DialogTitle>
-              <DialogDescription>
-                {scoreMatch
-                  ? `${scoreMatch.teamAName} vs ${scoreMatch.teamBName}`
-                  : "Enter final score"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="score-a">{scoreMatch?.teamAName ?? "Team A"}</Label>
-                <Input
-                  id="score-a"
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={scoreA}
-                  onChange={(e) => setScoreA(e.target.value)}
-                  className="border-cp-border bg-cp-elevated/40"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="score-b">{scoreMatch?.teamBName ?? "Team B"}</Label>
-                <Input
-                  id="score-b"
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={scoreB}
-                  onChange={(e) => setScoreB(e.target.value)}
-                  className="border-cp-border bg-cp-elevated/40"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-cp-border"
-                onClick={() => setScoreMatch(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-cp-primary hover:bg-cp-primary-light"
-                disabled={busy}
-                onClick={() => void saveScore()}
-              >
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save score
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-cp-border"
+              onClick={() => setScoreMatch(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-cp-primary hover:bg-cp-primary-light"
+              disabled={busy}
+              onClick={() => void saveScore()}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save score
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

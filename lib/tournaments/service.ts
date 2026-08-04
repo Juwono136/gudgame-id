@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import { partnerLeagues } from "@/db/schema/partner-leagues";
 import { partners } from "@/db/schema/partners";
 import { sports } from "@/db/schema/sports";
 import {
@@ -11,6 +12,8 @@ import {
   type TournamentStatus,
   type TournamentType,
 } from "@/db/schema/tournaments";
+import { isPartnerLeaguePubliclyVisible } from "@/lib/partners/league-types";
+import { gudGameTournamentScope } from "@/lib/partners/tournament-scope";
 import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { shouldProvisionBracketOnCreate } from "@/lib/tournaments/format-capabilities";
 import { withCache } from "@/lib/cache/redis-cache";
@@ -65,6 +68,12 @@ export type TournamentListItem = {
   startsAt: string | null;
   endsAt: string | null;
   updatedAt: string;
+  /** Optional partner league grouping (partner white-label only). */
+  partnerLeagueId?: string | null;
+  partnerLeagueName?: string | null;
+  /** Public slug only when the league is publicly visible; otherwise null. */
+  partnerLeagueSlug?: string | null;
+  partnerLeagueStatus?: string | null;
 };
 
 export type TournamentDetail = TournamentListItem & {
@@ -113,12 +122,19 @@ function mapListRow(row: {
   startsAt: Date | null;
   endsAt: Date | null;
   updatedAt: Date;
+  partnerLeagueId?: string | null;
+  partnerLeagueName?: string | null;
+  partnerLeagueSlug?: string | null;
+  partnerLeagueStatus?: string | null;
 }): TournamentListItem {
   const status = computeTournamentStatus(
     row.status as TournamentStatus,
     row.startsAt,
     row.endsAt,
   );
+  const hideLeagueSlug =
+    row.partnerLeagueStatus != null &&
+    !isPartnerLeaguePubliclyVisible(row.partnerLeagueStatus);
   return {
     id: row.id,
     sportId: row.sportId,
@@ -137,6 +153,10 @@ function mapListRow(row: {
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
+    partnerLeagueId: row.partnerLeagueId ?? null,
+    partnerLeagueName: row.partnerLeagueName ?? null,
+    partnerLeagueSlug: hideLeagueSlug ? null : (row.partnerLeagueSlug ?? null),
+    partnerLeagueStatus: row.partnerLeagueStatus ?? null,
   };
 }
 
@@ -506,11 +526,16 @@ async function getTournamentBySlugScoped(
       settings: tournaments.settings,
       partnerId: tournaments.partnerId,
       partnerSlug: partners.slug,
+      partnerLeagueId: tournaments.partnerLeagueId,
+      partnerLeagueName: partnerLeagues.name,
+      partnerLeagueSlug: partnerLeagues.slug,
+      partnerLeagueStatus: partnerLeagues.status,
     })
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
     .leftJoin(user, eq(tournaments.createdBy, user.id))
     .leftJoin(partners, eq(tournaments.partnerId, partners.id))
+    .leftJoin(partnerLeagues, eq(tournaments.partnerLeagueId, partnerLeagues.id))
     .where(and(...conditions))
     .limit(1);
 
@@ -670,6 +695,11 @@ export async function createTournament(
         ? null
         : input.coverImageUrl?.trim() || null,
       coverImageStorageKey: input.coverImageStorageKey?.trim() || null,
+      partnerLeagueId: partnerId
+        ? input.partnerLeagueId === undefined || input.partnerLeagueId === ""
+          ? null
+          : input.partnerLeagueId
+        : null,
       settings: buildTournamentSettings(
         undefined,
         settingsInputFromUpsert(
@@ -729,7 +759,7 @@ export async function createTournament(
 }
 
 export async function getTournamentStats(sportId: string, createdBy?: string) {
-  const conditions = [eq(tournaments.sportId, sportId)];
+  const conditions = [eq(tournaments.sportId, sportId), gudGameTournamentScope()];
   if (createdBy) {
     conditions.push(eq(tournaments.createdBy, createdBy));
   }
@@ -888,6 +918,16 @@ export async function updateTournament(
       endsAt,
       coverImageUrl: nextCoverKey ? null : input.coverImageUrl?.trim() || null,
       coverImageStorageKey: nextCoverKey,
+      ...(current.partnerId
+        ? {
+            partnerLeagueId:
+              input.partnerLeagueId === undefined
+                ? undefined
+                : input.partnerLeagueId === "" || input.partnerLeagueId === null
+                  ? null
+                  : input.partnerLeagueId,
+          }
+        : { partnerLeagueId: null }),
       settings: buildTournamentSettings(
         (current?.settings as Record<string, unknown>) ?? undefined,
         settingsInputFromUpsert(

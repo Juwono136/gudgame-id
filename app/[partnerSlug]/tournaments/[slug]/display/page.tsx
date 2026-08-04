@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { TournamentDisplayClient } from "@/components/tournaments/tournament-display-client";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
-import { listPartnerTournaments } from "@/lib/partners/tournaments";
+import { resolvePartnerTournamentSportSlug } from "@/lib/partners/tournaments";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
 
 type PageProps = {
@@ -20,13 +20,13 @@ export default async function PartnerTournamentDisplayPage({ params }: PageProps
   const partner = await getActivePartnerBySlug(partnerSlug);
   if (!partner) notFound();
 
-  const listed = (await listPartnerTournaments(partner.id)).find((t) => t.slug === slug);
-  if (!listed) notFound();
+  const sportSlug = await resolvePartnerTournamentSportSlug(partner.id, slug);
+  if (!sportSlug) notFound();
 
   return (
     <div className="fixed inset-0 z-[80] bg-black">
       <TournamentDisplayClient
-        sportSlug={listed.sportSlug}
+        sportSlug={sportSlug}
         slug={slug}
         backHref={partnerPublicRoutes.tournament(partner.slug, slug)}
         partnerLogoUrl={partner.logoUrl}

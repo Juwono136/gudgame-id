@@ -24,7 +24,7 @@ export default async function PartnerLeaguesPage() {
         backHref={dashboardRoutes.partner}
         backLabel="Partner dashboard"
         title="Leagues"
-        description="Season-long competitions with manual score entry and rolling standings."
+        description="Create league brands to group tournaments for public filters. Optional manual standings stay available here."
         actions={
           <Button asChild className="bg-cp-primary hover:bg-cp-primary-light">
             <Link href={dashboardRoutes.partnerLeaguesNew}>

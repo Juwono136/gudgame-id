@@ -10,7 +10,8 @@ export function richHtmlClassName(variant: RichHtmlVariant = "default", classNam
       ? "text-foreground/90"
       : variant === "article"
         ? "text-cp-muted"
-        : "text-slate-300",
+        : // Theme-aware default (avoid slate-300 which breaks light mode partner pages)
+          "text-foreground/85",
     className,
   );
 }

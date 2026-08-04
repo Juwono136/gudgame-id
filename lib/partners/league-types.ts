@@ -1,6 +1,20 @@
 export type PartnerLeagueStatus = "draft" | "active" | "completed" | "archived";
 export type PartnerLeagueMatchStatus = "scheduled" | "completed" | "cancelled";
 
+/** Public league pages + badges only for seasons that are live or finished. */
+export function isPartnerLeaguePubliclyVisible(
+  status: PartnerLeagueStatus | string | null | undefined,
+): boolean {
+  return status === "active" || status === "completed";
+}
+
+/** Leagues that can be attached to new/updated tournaments. */
+export function isPartnerLeagueLinkable(
+  status: PartnerLeagueStatus | string | null | undefined,
+): boolean {
+  return status === "active" || status === "completed";
+}
+
 export type PartnerLeagueListItem = {
   id: string;
   partnerId: string;
@@ -9,6 +23,9 @@ export type PartnerLeagueListItem = {
   sportName: string;
   slug: string;
   name: string;
+  summary: string | null;
+  description: string | null;
+  brandImageUrl: string | null;
   status: PartnerLeagueStatus;
   teamCount: number;
   matchCount: number;
@@ -49,10 +66,19 @@ export type PartnerLeagueStandingRow = {
 };
 
 export type PartnerLeagueDetail = PartnerLeagueListItem & {
+  brandImageStorageKey: string | null;
   settings: Record<string, unknown>;
   teams: PartnerLeagueTeamView[];
   matches: PartnerLeagueMatchView[];
   standings: PartnerLeagueStandingRow[];
+};
+
+/** Compact option for tournament league pickers. */
+export type PartnerLeagueOption = {
+  id: string;
+  name: string;
+  slug: string;
+  status: PartnerLeagueStatus;
 };
 
 export function computeLeagueStandings(
@@ -105,17 +131,14 @@ export function computeLeagueStandings(
     }
   }
 
-  const rows = [...map.values()].map((row) => ({
-    ...row,
-    diff: row.pointsFor - row.pointsAgainst,
-  }));
+  for (const row of map.values()) {
+    row.diff = row.pointsFor - row.pointsAgainst;
+  }
 
-  rows.sort((x, y) => {
+  return [...map.values()].sort((x, y) => {
     if (y.points !== x.points) return y.points - x.points;
     if (y.diff !== x.diff) return y.diff - x.diff;
     if (y.pointsFor !== x.pointsFor) return y.pointsFor - x.pointsFor;
     return x.teamName.localeCompare(y.teamName);
   });
-
-  return rows;
 }

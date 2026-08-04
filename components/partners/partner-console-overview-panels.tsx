@@ -129,13 +129,14 @@ function ConsoleTournamentItem({
             </div>
 
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-cp-muted">
-              {tournament.sportName ? <span>{tournament.sportName}</span> : null}
               {tournament.venue ? (
                 <span className="inline-flex min-w-0 items-center gap-1">
                   <MapPin className="h-3 w-3 shrink-0" aria-hidden />
                   <span className="truncate">{tournament.venue}</span>
                 </span>
-              ) : null}
+              ) : (
+                <span>{formatLabel}</span>
+              )}
             </p>
 
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -186,7 +187,6 @@ function ConsoleLeagueItem({ league }: { league: PartnerLeagueListItem }) {
               </p>
               <PartnerStatusBadge status={league.status} />
             </div>
-            <p className="mt-1 text-xs text-cp-muted">{league.sportName}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <Badge className="border-cp-border bg-cp-elevated/70 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
                 <Users className="mr-1 h-3 w-3" aria-hidden />
