@@ -116,11 +116,7 @@ export default async function PartnerDashboardPage() {
               variant="outline"
               className={`border-cp-border bg-cp-card/70 ${actionBtn}`}
             >
-              <Link
-                href={partnerPublicRoutes.players(partner.slug)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <Link href={partnerPublicRoutes.players(partner.slug)}>
                 <Users className="mr-2 h-4 w-4 shrink-0" />
                 Players
               </Link>

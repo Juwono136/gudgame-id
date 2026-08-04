@@ -15,7 +15,7 @@ function normalizeQuery(input: string): string {
 }
 
 export function getCachedAutocomplete(
-  provider: "google" | "osm",
+  provider: "google",
   input: string,
 ): PlacePrediction[] | null {
   const key = `${provider}:${normalizeQuery(input)}`;
@@ -29,7 +29,7 @@ export function getCachedAutocomplete(
 }
 
 export function setCachedAutocomplete(
-  provider: "google" | "osm",
+  provider: "google",
   input: string,
   items: PlacePrediction[],
 ): void {

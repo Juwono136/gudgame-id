@@ -21,6 +21,7 @@ import { DoubleStageManagePanel } from "@/components/tournaments/manage/double-s
 import { BracketManagePanel } from "@/components/tournaments/manage/bracket-manage-panel";
 import { DisplayControlPanel } from "@/components/tournaments/manage/display-control-panel";
 import { ManageOfficialDashboardPanel } from "@/components/tournaments/manage/manage-official-dashboard-panel";
+import { ScoreEntryPanel } from "@/components/tournaments/manage/score-entry-panel";
 import { TournamentAccessInvitesPanel } from "@/components/tournaments/tournament-access-invites-panel";
 import { TournamentPlayerInvitesPanel } from "@/components/tournaments/tournament-player-invites-panel";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
@@ -145,7 +146,27 @@ export function TournamentManageShell({
   const caps = getFormatCapabilities(tournament);
   const isOfficial = isOfficialType(tournament.tournamentType);
   const isFunMatch = isFunMatchType(tournament.tournamentType);
+  const isPartnerEvent = Boolean(tournament.partnerId);
   const canInvitePlayers = supportsPlayerInvites(tournament);
+
+  const sectionMetaMap = useMemo(() => {
+    if (!isPartnerEvent) return SECTION_META;
+    return {
+      ...SECTION_META,
+      players: {
+        title: "Players",
+        description: "Guest teams registered for this partner event.",
+      },
+      invites: {
+        title: "Invites",
+        description: "Invite scorekeepers and bracket managers for this event.",
+      },
+      display: {
+        title: "Display",
+        description: "Score entry mode, venue screens, and brand theme.",
+      },
+    };
+  }, [isPartnerEvent]);
 
   const visibleSections = useMemo(() => {
     const canOrgAdmin = access.isOwner || access.isPartnerMember;
@@ -205,7 +226,7 @@ export function TournamentManageShell({
   }, [searchParams, visibleSections]);
 
   const sectionMeta = useMemo(() => {
-    const base = SECTION_META[section];
+    const base = sectionMetaMap[section];
     if (!caps.isDoubleStage) return base;
     if (section === "groups") {
       return {
@@ -235,7 +256,7 @@ export function TournamentManageShell({
       };
     }
     return base;
-  }, [caps.hasGroupStage, caps.isDoubleStage, section]);
+  }, [caps.hasGroupStage, caps.isDoubleStage, section, sectionMetaMap]);
 
   const livePhase =
     tournament.status === "live"
@@ -492,6 +513,7 @@ export function TournamentManageShell({
                   tournamentType="fun_match"
                   variant="reclub"
                   canRemoveTeams
+                  partnerEvent={isPartnerEvent}
                 />
               </div>
             ) : null}
@@ -536,8 +558,9 @@ export function TournamentManageShell({
                 <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                   <h2 className="text-base font-semibold text-foreground">Staff access</h2>
                   <p className="mt-1 text-sm text-cp-muted">
-                    Invite scorekeepers and bracket managers with a reusable link or code (valid 7
-                    days). Only you can create or revoke staff access.
+                    {isPartnerEvent
+                      ? "Invite scorekeepers and bracket managers with a reusable link or code (valid 7 days). Partner staff can create or revoke access."
+                      : "Invite scorekeepers and bracket managers with a reusable link or code (valid 7 days). Only you can create or revoke staff access."}
                   </p>
                   <div className="mt-4">
                     <TournamentAccessInvitesPanel
@@ -564,16 +587,37 @@ export function TournamentManageShell({
                       />
                     </div>
                   </div>
+                ) : isPartnerEvent ? (
+                  <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/50 p-4 sm:p-5">
+                    <h2 className="text-sm font-semibold text-foreground">Guest registration</h2>
+                    <p className="mt-1 text-sm text-cp-muted">
+                      Players join through your public registration form — not Gud Game invite codes.
+                      Share the tournament page from Display or Open site.
+                    </p>
+                    <Button asChild variant="outline" size="sm" className="mt-3 border-cp-border">
+                      <Link href={publicUrl} target="_blank" rel="noopener noreferrer">
+                        Open registration page
+                      </Link>
+                    </Button>
+                  </div>
                 ) : null}
               </div>
             ) : null}
 
             {section === "display" ? (
-              <DisplayControlPanel
-                tournament={tournament}
-                partnerSlug={partnerSlug}
-                onSaved={() => void refetchTournament()}
-              />
+              <div className="space-y-5">
+                {access.isOwner || access.isPartnerMember ? (
+                  <ScoreEntryPanel
+                    tournament={tournament}
+                    onSaved={() => void refetchTournament()}
+                  />
+                ) : null}
+                <DisplayControlPanel
+                  tournament={tournament}
+                  partnerSlug={partnerSlug}
+                  onSaved={() => void refetchTournament()}
+                />
+              </div>
             ) : null}
             </FadeInView>
           </div>

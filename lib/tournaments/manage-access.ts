@@ -63,3 +63,21 @@ export async function assertTournamentManagePageAccess(
   }
   return access;
 }
+
+/**
+ * Staff invite create/list/revoke — tournament owner, or partner org member for white-label events.
+ */
+export async function assertCanManageStaffInvites(
+  tournament: TournamentDetail,
+  userId: string,
+  roles: AppRole[],
+): Promise<TournamentManageAccess> {
+  const access = await resolveTournamentManageAccess(tournament, userId, roles);
+  if (access.isOwner || access.isPartnerMember) {
+    return access;
+  }
+  throw new AppError("Only the organizer or partner staff can manage invites.", {
+    code: "FORBIDDEN",
+    statusCode: 403,
+  });
+}

@@ -7,7 +7,7 @@ import { guardApiRequest } from "@/lib/api/guard-request";
 export const runtime = "nodejs";
 
 const querySchema = z.object({
-  input: z.string().trim().min(2).max(120),
+  input: z.string().trim().min(3).max(120),
 });
 
 export async function GET(request: Request) {

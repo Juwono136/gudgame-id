@@ -17,7 +17,7 @@ function buildContentSecurityPolicy(): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.googleapis.com https://photon.komoot.io https://nominatim.openstreetmap.org https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com",
+    "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com",
     "frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://maps.google.com https://www.google.com https://www.openstreetmap.org",
     "worker-src 'self' blob:",
     "manifest-src 'self'",

@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/use-debounce";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
-import { buildVenueOpenUrl, resolveVenueOpenUrl } from "@/lib/maps/venue-maps-url";
+import { resolveVenueOpenUrl } from "@/lib/maps/venue-maps-url";
 import { buildGoogleMapsEmbedUrl } from "@/lib/maps/google-maps-url";
+import { VENUE_AUTOCOMPLETE_MIN_CHARS } from "@/lib/maps/venue-search-types";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +24,6 @@ type PlacePrediction = {
   longitude: number;
 };
 
-type VenueSearchProvider = "google" | "osm";
-
 type VenueAutocompleteFieldProps = {
   venue: string;
   mapsUrl: string;
@@ -33,10 +32,6 @@ type VenueAutocompleteFieldProps = {
   required?: boolean;
   fieldError?: string | null;
 };
-
-function isGooglePlaceId(placeId: string): boolean {
-  return placeId.startsWith("g:");
-}
 
 export function VenueAutocompleteField({
   venue,
@@ -51,9 +46,8 @@ export function VenueAutocompleteField({
   const [inputValue, setInputValue] = useState(venue);
   const [open, setOpen] = useState(false);
   const [searchConfigured, setSearchConfigured] = useState(true);
-  const [searchProvider, setSearchProvider] = useState<VenueSearchProvider>("google");
   const [selectingPlaceId, setSelectingPlaceId] = useState<string | null>(null);
-  const debouncedQuery = useDebounce(inputValue, 550);
+  const debouncedQuery = useDebounce(inputValue, 400);
 
   useEffect(() => {
     setInputValue(venue);
@@ -69,8 +63,13 @@ export function VenueAutocompleteField({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const queryReady =
+    open &&
+    debouncedQuery.trim().length >= VENUE_AUTOCOMPLETE_MIN_CHARS &&
+    searchConfigured;
+
   const { data, isFetching, error } = useQuery({
-    queryKey: ["maps", "venue", debouncedQuery],
+    queryKey: ["maps", "venue", "google", debouncedQuery],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ input: debouncedQuery });
       const res = await fetch(`/api/maps/places/autocomplete?${params}`, { signal });
@@ -79,7 +78,7 @@ export function VenueAutocompleteField({
         data: {
           items: PlacePrediction[];
           configured: boolean;
-          provider?: VenueSearchProvider;
+          provider?: "google";
         };
         error?: unknown;
       }>(res);
@@ -89,12 +88,9 @@ export function VenueAutocompleteField({
       }
 
       setSearchConfigured(json.data.configured);
-      if (json.data.provider) {
-        setSearchProvider(json.data.provider);
-      }
       return json.data.items;
     },
-    enabled: open && debouncedQuery.trim().length >= 2 && searchConfigured,
+    enabled: queryReady,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: false,
@@ -125,42 +121,29 @@ export function VenueAutocompleteField({
       setSelectingPlaceId(prediction.placeId);
 
       try {
-        const label = prediction.mainText || prediction.description;
+        const params = new URLSearchParams({ placeId: prediction.placeId });
+        const res = await fetch(`/api/maps/places/details?${params}`);
+        const json = await parseJsonResponse<{
+          success: boolean;
+          data: {
+            place: {
+              name: string;
+              formattedAddress: string;
+              mapsUrl: string;
+            } | null;
+            configured?: boolean;
+          };
+          error?: unknown;
+        }>(res);
 
-        if (
-          isGooglePlaceId(prediction.placeId) ||
-          (prediction.latitude === 0 && prediction.longitude === 0)
-        ) {
-          const params = new URLSearchParams({ placeId: prediction.placeId });
-          const res = await fetch(`/api/maps/places/details?${params}`);
-          const json = await parseJsonResponse<{
-            success: boolean;
-            data: {
-              place: {
-                name: string;
-                formattedAddress: string;
-                mapsUrl: string;
-              } | null;
-            };
-            error?: unknown;
-          }>(res);
-
-          if (!res.ok || !json.data.place) {
-            throw new Error(extractApiErrorMessage(json, "Could not load place details"));
-          }
-
-          const place = json.data.place;
-          setInputValue(place.name);
-          onVenueChange(place.name);
-          onMapsUrlChange(place.mapsUrl);
-          return;
+        if (!res.ok || !json.data.place) {
+          throw new Error(extractApiErrorMessage(json, "Could not load place details"));
         }
 
-        setInputValue(label);
-        onVenueChange(label);
-        onMapsUrlChange(
-          buildVenueOpenUrl(prediction.latitude, prediction.longitude, label),
-        );
+        const place = json.data.place;
+        setInputValue(place.name);
+        onVenueChange(place.name);
+        onMapsUrlChange(place.mapsUrl);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not select this location");
       } finally {
@@ -173,6 +156,10 @@ export function VenueAutocompleteField({
   const embedUrl =
     embedUrlFromApi ?? buildGoogleMapsEmbedUrl(mapsUrl, venue) ?? null;
   const openUrl = resolveVenueOpenUrl(mapsUrl, venue);
+  const charsNeeded = Math.max(
+    0,
+    VENUE_AUTOCOMPLETE_MIN_CHARS - inputValue.trim().length,
+  );
 
   return (
     <div className="space-y-4">
@@ -182,8 +169,7 @@ export function VenueAutocompleteField({
           {required ? <RequiredMark /> : null}
         </Label>
         <p className="mt-1 text-xs text-cp-muted">
-          Search with Google Maps when available — automatically falls back to OpenStreetMap if
-          Google is unavailable or out of quota. Pick a suggestion to fill the venue and map preview.
+          Search Google Maps for the venue, then pick a suggestion to set the location and preview.
         </p>
 
         <div className="relative mt-1.5">
@@ -221,19 +207,29 @@ export function VenueAutocompleteField({
         <FieldError id="venue-search-error" message={fieldError} />
 
         {!searchConfigured ? (
-          <p className="mt-2 text-xs text-amber-400/90">
-            Location search is temporarily unavailable. You can still enter a venue name manually.
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400/90">
+            Google Maps search is unavailable. Enter the venue name manually, or ask an admin to
+            configure the Maps API key.
           </p>
         ) : null}
 
-        {open && debouncedQuery.trim().length >= 2 && searchConfigured ? (
+        {open &&
+        inputValue.trim().length > 0 &&
+        inputValue.trim().length < VENUE_AUTOCOMPLETE_MIN_CHARS &&
+        searchConfigured ? (
+          <p className="mt-2 text-[11px] text-cp-muted">
+            Type {charsNeeded} more character{charsNeeded === 1 ? "" : "s"} to search Google Maps.
+          </p>
+        ) : null}
+
+        {queryReady ? (
           <ul
             id={listId}
             role="listbox"
-            className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-cp-border bg-cp-card py-1 shadow-lg"
+            className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-cp-border bg-cp-card py-1 shadow-lg"
           >
             {error ? (
-              <li className="px-3 py-2 text-xs text-red-400">
+              <li className="px-3 py-2.5 text-xs text-red-500 dark:text-red-400">
                 {error instanceof Error ? error.message : "Search failed"}
               </li>
             ) : data?.length ? (
@@ -255,14 +251,10 @@ export function VenueAutocompleteField({
               ))
             ) : !isFetching ? (
               <li className="px-3 py-3 text-xs text-cp-muted">No locations found</li>
-            ) : null}
+            ) : (
+              <li className="px-3 py-3 text-xs text-cp-muted">Searching Google Maps…</li>
+            )}
           </ul>
-        ) : null}
-
-        {searchProvider === "osm" && debouncedQuery.trim().length >= 2 && !isFetching ? (
-          <p className="mt-2 text-[11px] text-cp-muted">
-            Showing OpenStreetMap results (Google Maps unavailable or no matches).
-          </p>
         ) : null}
       </div>
 
@@ -270,7 +262,7 @@ export function VenueAutocompleteField({
         <div className="overflow-hidden rounded-xl border border-cp-border">
           <div className="flex items-center justify-between border-b border-cp-border bg-cp-elevated/50 px-3 py-2 text-xs text-cp-muted">
             <span className="inline-flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+              <MapPin className="h-3.5 w-3.5 text-cp-primary" />
               Location preview
             </span>
             {openUrl ? (

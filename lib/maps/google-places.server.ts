@@ -3,6 +3,7 @@ import "server-only";
 import { AppError } from "@/lib/errors";
 import { buildGoogleMapsUrlFromCoords } from "@/lib/maps/google-maps-url";
 import type { PlaceDetails, PlacePrediction } from "@/lib/maps/venue-search-types";
+import { VENUE_AUTOCOMPLETE_MIN_CHARS } from "@/lib/maps/venue-search-types";
 
 export const GOOGLE_PLACE_ID_PREFIX = "g:";
 
@@ -10,7 +11,7 @@ const PLACES_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocom
 const PLACES_BASE_URL = "https://places.googleapis.com/v1/places";
 
 /** Minimum characters before calling Google (reduces daily quota usage). */
-export const GOOGLE_AUTOCOMPLETE_MIN_CHARS = 3;
+export const GOOGLE_AUTOCOMPLETE_MIN_CHARS = VENUE_AUTOCOMPLETE_MIN_CHARS;
 
 type GooglePlacesErrorBody = {
   error?: {

@@ -2,7 +2,7 @@ import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { assertCanManageStaffInvites } from "@/lib/tournaments/manage-access";
 import {
   createAccessInvite,
   listAccessInvites,
@@ -24,12 +24,7 @@ export async function GET(
     if (!tournament) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Only the tournament organizer can manage staff invites.", {
-        code: "FORBIDDEN",
-        statusCode: 403,
-      });
-    }
+    await assertCanManageStaffInvites(tournament, userId, roles);
 
     const invites = await listAccessInvites(tournament);
     return jsonSuccess({ invites });
@@ -50,12 +45,7 @@ export async function POST(
     if (!tournament) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Only the tournament organizer can manage staff invites.", {
-        code: "FORBIDDEN",
-        statusCode: 403,
-      });
-    }
+    await assertCanManageStaffInvites(tournament, userId, roles);
 
     const body = await request.json();
     const parsed = accessInviteCreateSchema.safeParse(body);
@@ -90,12 +80,7 @@ export async function DELETE(
     if (!tournament) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Only the tournament organizer can manage staff invites.", {
-        code: "FORBIDDEN",
-        statusCode: 403,
-      });
-    }
+    await assertCanManageStaffInvites(tournament, userId, roles);
 
     const url = new URL(request.url);
     const inviteId = url.searchParams.get("inviteId");

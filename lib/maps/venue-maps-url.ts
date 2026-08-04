@@ -1,12 +1,16 @@
-import { buildGoogleMapsEmbedUrl, resolveMapsEmbedTarget } from "@/lib/maps/google-maps-url";
+import {
+  buildGoogleMapsEmbedUrl,
+  buildGoogleMapsUrlFromCoords,
+  resolveMapsEmbedTarget,
+} from "@/lib/maps/google-maps-url";
 
-/** Open in OpenStreetMap (free, no API key). */
+/** Open location in Google Maps (coords). */
 export function buildVenueOpenUrl(
   latitude: number,
   longitude: number,
   _name?: string,
 ): string {
-  return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`;
+  return buildGoogleMapsUrlFromCoords(latitude, longitude);
 }
 
 /** Map embed: Google legacy iframe when URL is Google; OSM for OpenStreetMap coords. */
@@ -75,7 +79,7 @@ export function resolveVenueOpenUrl(mapsUrl?: string | null, venue?: string): st
   }
 
   if (venue?.trim()) {
-    return `https://www.openstreetmap.org/search?query=${encodeURIComponent(venue.trim())}`;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.trim())}`;
   }
 
   return null;

@@ -3,7 +3,7 @@ import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { resolvePartnerSlugForTournament } from "@/lib/partners/resolve-slug";
 import { revealAccessInviteCredentials } from "@/lib/tournaments/invitations/access-grants";
-import { canManageTournament } from "@/lib/tournaments/permissions";
+import { assertCanManageStaffInvites } from "@/lib/tournaments/manage-access";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
 
@@ -25,9 +25,7 @@ export async function POST(
     if (!tournament) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (!canManageTournament(roles, tournament.createdBy, userId)) {
-      throw new AppError("Forbidden", { code: "FORBIDDEN", statusCode: 403 });
-    }
+    await assertCanManageStaffInvites(tournament, userId, roles);
 
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {

@@ -28,11 +28,15 @@ const CATEGORY_META: Record<
 
 type CategorySelectProps = {
   value: TournamentCategoryOption | "";
-  onChange: (value: TournamentCategoryOption) => void;
+  onChange: (value: TournamentCategoryOption | "") => void;
   disabled?: boolean;
   className?: string;
   required?: boolean;
+  /** When true and not required, clicking the selected option clears the value. */
+  allowClear?: boolean;
   error?: string | null;
+  /** Overrides the default helper copy under the label. */
+  helperText?: string;
 };
 
 export function CategorySelect({
@@ -41,17 +45,26 @@ export function CategorySelect({
   disabled,
   className,
   required = false,
+  allowClear = false,
   error,
+  helperText,
 }: CategorySelectProps) {
+  const helper =
+    helperText ??
+    (required
+      ? "Required for official tournaments (paid and free). Choose who may enter."
+      : "Optional informational label for listings. Not enforced at guest registration.");
+
   return (
     <div className={cn("space-y-2", className)}>
       <Label>
         Category
         {required ? <RequiredMark /> : null}
+        {!required ? (
+          <span className="ml-1 font-normal text-cp-muted">(optional)</span>
+        ) : null}
       </Label>
-      <p className="text-xs text-cp-muted">
-        Required for official tournaments (paid and free). Choose who may enter.
-      </p>
+      <p className="text-xs text-cp-muted">{helper}</p>
       <div
         className={cn(
           "grid grid-cols-1 gap-2 sm:grid-cols-3",
@@ -72,7 +85,13 @@ export function CategorySelect({
               key={category}
               type="button"
               disabled={disabled}
-              onClick={() => onChange(category)}
+              onClick={() => {
+                if (selected && allowClear && !required) {
+                  onChange("");
+                  return;
+                }
+                onChange(category);
+              }}
               aria-pressed={selected}
               className={cn(
                 "rounded-xl border p-4 text-left transition-colors",
@@ -104,6 +123,9 @@ export function CategorySelect({
           );
         })}
       </div>
+      {allowClear && !required && value ? (
+        <p className="text-xs text-cp-muted">Tap the selected option again to clear.</p>
+      ) : null}
       <FieldError id="category-select-error" message={error} />
     </div>
   );

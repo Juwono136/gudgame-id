@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
+import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { WikiStepper } from "@/components/admin/wiki/wiki-stepper";
 import { TournamentWizardFooter } from "@/components/admin/tournaments/tournament-wizard-footer";
 import { TournamentWizardStepHeader } from "@/components/admin/tournaments/tournament-wizard-step-header";
@@ -15,10 +15,12 @@ import {
 } from "@/components/tournaments/form/category-select";
 import { BillingTypeSelect } from "@/components/tournaments/form/billing-type-select";
 import { CurrencyInput } from "@/components/tournaments/form/currency-input";
+import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { VenueAutocompleteField } from "@/components/tournaments/form/venue-autocomplete-field";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
+import { PartnerTournamentWizardReview } from "@/components/partners/partner-tournament-wizard-review";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +49,11 @@ import {
   getTournamentScoringType,
   parseTournamentSettings,
 } from "@/lib/tournaments/settings";
+import {
+  TOURNAMENT_FIELD_LIMITS,
+  htmlCharCount,
+  stripHtmlToText,
+} from "@/lib/tournaments/form/field-limits";
 import type { MatchFormat } from "@/lib/tournaments/scoring/classic-sets";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
@@ -115,6 +122,18 @@ function formatLabel(format: TournamentFormat): string {
   return getTournamentFormatLabel(format);
 }
 
+function normalizeCategory(
+  value: string | null | undefined,
+): TournamentCategoryOption | "" {
+  if (
+    value &&
+    TOURNAMENT_CATEGORY_OPTIONS.includes(value as TournamentCategoryOption)
+  ) {
+    return value as TournamentCategoryOption;
+  }
+  return "";
+}
+
 type PartnerTournamentWizardProps = {
   partnerSlug: string;
   sportSlug?: string;
@@ -125,7 +144,8 @@ type PartnerTournamentWizardProps = {
 
 type FormState = {
   name: string;
-  categoryLabel: TournamentCategoryOption;
+  description: string;
+  categoryLabel: TournamentCategoryOption | "";
   venue: string;
   venueMapsUrl: string;
   courtCount: number;
@@ -155,7 +175,8 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
   if (!initial) {
     return {
       name: "",
-      categoryLabel: "Mix",
+      description: "",
+      categoryLabel: "",
       venue: "",
       venueMapsUrl: "",
       courtCount: 2,
@@ -192,13 +213,10 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       ? "paid"
       : "free";
   return {
-    name: initial.name,
-    categoryLabel: (TOURNAMENT_CATEGORY_OPTIONS.includes(
-      initial.categoryLabel as TournamentCategoryOption,
-    )
-      ? initial.categoryLabel
-      : "Mix") as TournamentCategoryOption,
-    venue: initial.venue ?? "",
+    name: initial.name.slice(0, TOURNAMENT_FIELD_LIMITS.name),
+    description: (initial.description ?? "").slice(0, TOURNAMENT_FIELD_LIMITS.description),
+    categoryLabel: normalizeCategory(initial.categoryLabel),
+    venue: (initial.venue ?? "").slice(0, TOURNAMENT_FIELD_LIMITS.venue),
     venueMapsUrl: settings.venueMapsUrl ?? "",
     courtCount: getTournamentCourtCount(initial),
     maxTeams: String(initial.maxTeams ?? 32),
@@ -248,6 +266,7 @@ export function PartnerTournamentWizard({
   const [stepIndex, setStepIndex] = useState(0);
   const [pending, setPending] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
   const [regCloseError, setRegCloseError] = useState<string | null>(null);
   const [maxTeamsError, setMaxTeamsError] = useState<string | null>(null);
@@ -275,18 +294,55 @@ export function PartnerTournamentWizard({
     });
   };
 
+  const goToStep = (i: number) => {
+    if (i === stepIndex) return;
+    if (i < stepIndex) {
+      setStepIndex(i);
+      return;
+    }
+    // Validate each intermediate step before jumping forward.
+    for (let s = stepIndex; s < i; s += 1) {
+      if (!validateStep(s)) {
+        setStepIndex(s);
+        return;
+      }
+    }
+    setStepIndex(i);
+  };
+
   const validateStep = (index: number): boolean => {
     if (index === 0) {
-      if (form.name.trim().length < 3) {
+      const name = form.name.trim();
+      if (name.length < 3) {
         setNameError("Enter a name with at least 3 characters");
         toast.error("Enter a tournament name");
         return false;
       }
+      if (name.length > TOURNAMENT_FIELD_LIMITS.name) {
+        setNameError(`Name must be at most ${TOURNAMENT_FIELD_LIMITS.name} characters`);
+        toast.error("Tournament name is too long");
+        return false;
+      }
       setNameError(null);
 
-      if (form.venue.trim().length < 2) {
+      if (htmlCharCount(form.description) > TOURNAMENT_FIELD_LIMITS.description) {
+        setDescriptionError(
+          `Description must be at most ${TOURNAMENT_FIELD_LIMITS.description.toLocaleString()} characters`,
+        );
+        toast.error("Description is too long");
+        return false;
+      }
+      setDescriptionError(null);
+
+      const venue = form.venue.trim();
+      if (venue.length < 2) {
         setVenueError("Venue is required");
         toast.error("Enter a venue for this tournament");
+        return false;
+      }
+      if (venue.length > TOURNAMENT_FIELD_LIMITS.venue) {
+        setVenueError(`Venue must be at most ${TOURNAMENT_FIELD_LIMITS.venue} characters`);
+        toast.error("Venue is too long");
         return false;
       }
       setVenueError(null);
@@ -353,6 +409,16 @@ export function PartnerTournamentWizard({
         }
       }
     }
+    if (index === 2) {
+      if (form.matchFormat !== "classic_sets" && form.matchFormat !== "race_to_games") {
+        toast.error("Choose a match scoring system");
+        return false;
+      }
+      if (form.scoringType === "timed" && form.roundDurationMinutes < 5) {
+        toast.error("Timed matches need a valid duration");
+        return false;
+      }
+    }
     return true;
   };
 
@@ -368,10 +434,15 @@ export function PartnerTournamentWizard({
     const endsAt = form.endsAt
       ? new Date(form.endsAt).toISOString()
       : new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+    const descriptionHtml = form.description.trim();
+    const summaryFromDescription = stripHtmlToText(descriptionHtml).slice(0, TOURNAMENT_FIELD_LIMITS.summary);
+
     return {
-      name: form.name.trim(),
+      name: form.name.trim().slice(0, TOURNAMENT_FIELD_LIMITS.name),
+      description: descriptionHtml.slice(0, TOURNAMENT_FIELD_LIMITS.description),
+      summary: summaryFromDescription || undefined,
       format: form.format,
-      categoryLabel: form.categoryLabel,
+      categoryLabel: form.categoryLabel || "",
       tournamentType: "fun_match",
       officialBilling: form.entryBilling,
       registrationFeeIdr:
@@ -379,7 +450,7 @@ export function PartnerTournamentWizard({
       status: form.status,
       playersPerTeam: 2,
       maxTeams: clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32),
-      venue: form.venue.trim(),
+      venue: form.venue.trim().slice(0, TOURNAMENT_FIELD_LIMITS.venue),
       venueMapsUrl: form.venueMapsUrl.trim() || undefined,
       startsAt,
       endsAt,
@@ -396,6 +467,7 @@ export function PartnerTournamentWizard({
       roundDurationMinutes:
         form.scoringType === "timed" ? form.roundDurationMinutes : undefined,
       courtCount: form.courtCount,
+      // Preserve existing mode on edit; create defaults to live (Manage → Display can change it).
       scoreEntryMode: form.scoreEntryMode,
       maxTeamsPerGroup: isDoubleStage ? form.maxTeamsPerGroup : undefined,
       teamsAdvancePerGroup: isDoubleStage ? form.teamsAdvancePerGroup : undefined,
@@ -405,8 +477,16 @@ export function PartnerTournamentWizard({
   };
 
   const onSubmit = async () => {
-    if (!validateStep(0) || !validateStep(1)) {
+    if (!validateStep(0)) {
       setStepIndex(0);
+      return;
+    }
+    if (!validateStep(1)) {
+      setStepIndex(1);
+      return;
+    }
+    if (!validateStep(2)) {
+      setStepIndex(2);
       return;
     }
 
@@ -460,19 +540,23 @@ export function PartnerTournamentWizard({
     }
   };
 
-  const reviewRows = useMemo(() => {
-    const rows: { label: string; value: string }[] = [
-      { label: "Name", value: form.name.trim() || "—" },
-      { label: "Category", value: form.categoryLabel },
-      { label: "Format", value: formatLabel(form.format) },
+  const poolRows = useMemo(() => {
+    if (!isDoubleStage) return [] as { label: string; value: string }[];
+    return [
+      { label: "Pairs per pool", value: String(form.maxTeamsPerGroup) },
       {
-        label: "Match format",
-        value:
-          form.matchFormat === "classic_sets"
-            ? "Classic sets (ITF / FIP)"
-            : "Short race-to-N games",
+        label: "Advance",
+        value: form.teamsAdvancePerGroup === 1 ? "1st only" : "1st & 2nd",
+      },
+      {
+        label: "Best runner-ups",
+        value: form.bestRunnerUpSlots === 0 ? "Off" : String(form.bestRunnerUpSlots),
       },
     ];
+  }, [form.bestRunnerUpSlots, form.maxTeamsPerGroup, form.teamsAdvancePerGroup, isDoubleStage]);
+
+  const scoringRows = useMemo(() => {
+    const rows: { label: string; value: string }[] = [];
     if (isRace) {
       if (isDoubleStage) {
         rows.push(
@@ -482,19 +566,6 @@ export function PartnerTournamentWizard({
       } else {
         rows.push({ label: "Race-to", value: `First to ${form.raceToGamesGroup}` });
       }
-    }
-    if (isDoubleStage) {
-      rows.push(
-        { label: "Pairs per pool", value: String(form.maxTeamsPerGroup) },
-        {
-          label: "Advance",
-          value: form.teamsAdvancePerGroup === 1 ? "1st only" : "1st & 2nd",
-        },
-        {
-          label: "Best runner-ups",
-          value: form.bestRunnerUpSlots === 0 ? "Off" : String(form.bestRunnerUpSlots),
-        },
-      );
     }
     rows.push(
       {
@@ -507,37 +578,23 @@ export function PartnerTournamentWizard({
               : "Advantage",
       },
       {
-        label: "Score entry",
-        value: form.scoreEntryMode === "live" ? "Live tablet" : "Paper / batch",
-      },
-      {
         label: "Time cap",
         value:
           form.scoringType === "timed"
             ? `${form.roundDurationMinutes} minutes`
             : "Untimed",
       },
-      { label: "Courts", value: String(form.courtCount) },
-      { label: "Max teams", value: form.maxTeams || "—" },
-      {
-        label: "Entry",
-        value:
-          form.entryBilling === "paid"
-            ? `Paid · Rp ${Number(form.registrationFeeIdr || 0).toLocaleString("id-ID")}`
-            : "Free",
-      },
-      {
-        label: "Registration closes",
-        value: formatPartnerScheduleLabel(
-          form.registrationClosesAt
-            ? new Date(form.registrationClosesAt).toISOString()
-            : null,
-        ),
-      },
-      { label: "Venue", value: form.venue.trim() || "—" },
     );
     return rows;
-  }, [form, isDoubleStage, isRace]);
+  }, [
+    form.gameDecider,
+    form.raceToGamesGroup,
+    form.raceToGamesKnockout,
+    form.roundDurationMinutes,
+    form.scoringType,
+    isDoubleStage,
+    isRace,
+  ]);
 
   return (
     <div className={cn("relative space-y-6 py-8", partnerPageWidthClass)}>
@@ -552,360 +609,380 @@ export function PartnerTournamentWizard({
         description="Partner white-label event — format, pools, and scoring stay on your site, never on Gud Game rankings. No skill tiers."
       />
 
-      <WikiStepper
-        steps={[...STEPS]}
-        currentIndex={stepIndex}
-        onStepClick={(i) => {
-          if (i < stepIndex) setStepIndex(i);
-          else if (i > stepIndex && validateStep(stepIndex)) setStepIndex(i);
-        }}
-        layout="segmented"
-      />
-
       <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-            className="space-y-5 p-5 sm:p-6"
-          >
-            {step.id === "basics" ? (
-              <>
-                <TournamentWizardStepHeader
-                  eyebrow="Step 1"
-                  title="Basics & schedule"
-                  description="Name your event, set capacity and courts, and choose when it runs."
-                />
-                <div className="space-y-2">
-                  <Label htmlFor="partner-t-name">
-                    Tournament name
-                    <RequiredMark />
-                  </Label>
-                  <Input
-                    id="partner-t-name"
-                    value={form.name}
-                    onChange={(e) => {
-                      patch("name", e.target.value);
-                      if (nameError) setNameError(null);
-                    }}
-                    className="border-cp-border bg-cp-bg-input"
-                    placeholder="e.g. Friday Night Open"
-                    autoFocus
-                  />
-                  <FieldError message={nameError} />
-                </div>
+        <div className="border-b border-cp-border bg-cp-elevated/50 px-3 py-3 sm:px-5 sm:py-5">
+          <WikiStepper
+            steps={[...STEPS]}
+            currentIndex={stepIndex}
+            onStepClick={goToStep}
+            layout="segmented"
+          />
+        </div>
 
-                <CategorySelect
-                  value={form.categoryLabel}
-                  onChange={(v) => patch("categoryLabel", v)}
-                  required
-                />
-                <VenueAutocompleteField
-                  venue={form.venue}
-                  mapsUrl={form.venueMapsUrl}
-                  onVenueChange={(venue) => {
-                    setVenueError(null);
-                    patch("venue", venue);
-                  }}
-                  onMapsUrlChange={(mapsUrl) => patch("venueMapsUrl", mapsUrl)}
-                  required
-                  fieldError={venueError}
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
+        <div className="bg-cp-card/50 p-4 sm:p-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-5"
+            >
+              {step.id === "basics" ? (
+                <>
+                  <TournamentWizardStepHeader
+                    eyebrow="Step 1"
+                    title="Basics & schedule"
+                    description={`${isEdit ? "Update" : "Name"} your event, set capacity and courts, choose when it runs, and add a public description.`}
+                  />
                   <div className="space-y-2">
-                    <Label>Courts</Label>
-                    <Select
-                      value={String(form.courtCount)}
-                      onValueChange={(v) => patch("courtCount", Number(v))}
-                    >
-                      <SelectTrigger className={cpSelectTriggerClass}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className={cpSelectContentClass}>
-                        {TOURNAMENT_COURT_COUNT_OPTIONS.map((n) => (
-                          <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
-                            {n} court{n === 1 ? "" : "s"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="partner-max-teams">
-                      Max teams
-                      <RequiredMark />
-                    </Label>
-                    <Input
-                      id="partner-max-teams"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      min={MAX_TEAMS_MIN}
-                      max={MAX_TEAMS_MAX}
-                      value={form.maxTeams}
-                      onChange={(e) => {
-                        setMaxTeamsError(null);
-                        const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
-                        patch("maxTeams", digits);
-                      }}
-                      onBlur={() => {
-                        const parsed = parseMaxTeamsInput(form.maxTeams);
-                        if (parsed == null) {
-                          patch("maxTeams", String(MAX_TEAMS_MIN));
-                          return;
-                        }
-                        patch("maxTeams", String(clampMaxTeams(parsed)));
-                      }}
-                      className="border-cp-border bg-cp-bg-input"
-                      placeholder="32"
-                    />
-                    <FieldError message={maxTeamsError} />
-                    <p className="text-xs text-cp-muted">
-                      Capacity for guest registration ({MAX_TEAMS_MIN}–{MAX_TEAMS_MAX} teams).
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <DateTimePicker
-                    label="Starts"
-                    value={form.startsAt}
-                    onChange={(v) => patch("startsAt", v)}
-                  />
-                  <DateTimePicker
-                    label="Ends"
-                    value={form.endsAt}
-                    onChange={(v) => patch("endsAt", v)}
-                    min={form.startsAt}
-                  />
-                  <div className="sm:col-span-2 space-y-2">
-                    <DateTimePicker
-                      label="Registration closes"
-                      value={form.registrationClosesAt}
-                      onChange={(v) => {
-                        setRegCloseError(null);
-                        patch("registrationClosesAt", v);
-                      }}
-                      disabled={scheduleLocked}
-                    />
-                    <FieldError message={regCloseError} />
-                    {scheduleLocked ? (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        Registration deadline cannot be changed while the tournament is live or
-                        completed.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-cp-muted">
-                        Guests can register until this deadline — including after the tournament
-                        has started. Must be on or before the end time.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-2xl border border-cp-border/80 bg-cp-elevated/40 p-4">
-                  <BillingTypeSelect
-                    value={form.entryBilling}
-                    onChange={(v) => {
-                      setFeeError(null);
-                      patch("entryBilling", v);
-                      if (v === "free") patch("registrationFeeIdr", "");
-                    }}
-                    required
-                    label="Entry: Free / Paid"
-                  />
-                  {form.entryBilling === "paid" ? (
-                    <div className="space-y-2">
-                      <Label>
-                        Entry fee (IDR)
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="partner-t-name">
+                        Tournament name
                         <RequiredMark />
                       </Label>
-                      <CurrencyInput
-                        value={form.registrationFeeIdr}
-                        onChange={(v) => {
-                          setFeeError(null);
-                          patch("registrationFeeIdr", v);
-                        }}
+                      <FieldCharCounter
+                        current={form.name.length}
+                        max={TOURNAMENT_FIELD_LIMITS.name}
                       />
-                      <FieldError message={feeError} />
                     </div>
-                  ) : null}
-                </div>
-              </>
-            ) : null}
+                    <Input
+                      id="partner-t-name"
+                      value={form.name}
+                      onChange={(e) => {
+                        patch("name", e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.name));
+                        if (nameError) setNameError(null);
+                      }}
+                      className="border-cp-border bg-cp-bg-input"
+                      placeholder="e.g. Friday Night Open"
+                      maxLength={TOURNAMENT_FIELD_LIMITS.name}
+                      aria-invalid={nameError ? true : undefined}
+                      autoFocus
+                    />
+                    <FieldError message={nameError} />
+                  </div>
 
-            {step.id === "format" ? (
-              <>
-                <TournamentWizardStepHeader
-                  eyebrow="Step 2"
-                  title="Tournament format"
-                  description="Pick knockout, group stage + knockout, or Americano. Pool rules follow FIP-style guidance and stay editable."
-                />
-                <FormatTypeSelect
-                  value={form.format}
-                  onChange={(v) => patch("format", v)}
-                  sportSlug={sportSlug}
-                  partnerTenant
-                  required
-                />
-                {isDoubleStage ? (
-                  <div className="space-y-4 rounded-2xl border border-cp-border/80 bg-cp-elevated/30 p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Pool configuration</p>
-                      <p className="mt-1 text-xs leading-relaxed text-cp-muted">
-                        FIP guidance for ≤32 pairs: typically 8 pools of 4 (winners to knockout).
-                        Small fields: 3→1×3; 4–5→1 pool; 6→2×3. Day-1 RR order: L1vL2 &amp; L3vL4.
+                  <CategorySelect
+                    value={form.categoryLabel}
+                    onChange={(v) => patch("categoryLabel", v)}
+                    required={false}
+                    allowClear
+                    helperText="Optional label for your public page and listings. Guest registration does not require a Gud Game account, so category is not enforced."
+                  />
+
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <p className="text-xs text-cp-muted">
+                      Full overview shown on the tournament page for guests and staff.
+                    </p>
+                    <RichTextEditor
+                      value={form.description}
+                      onChange={(html) => {
+                        setDescriptionError(null);
+                        patch("description", html.slice(0, TOURNAMENT_FIELD_LIMITS.description));
+                      }}
+                      placeholder="Overview, format notes, prizes, house rules…"
+                      minHeight={160}
+                      maxLength={TOURNAMENT_FIELD_LIMITS.description}
+                    />
+                    <FieldError message={descriptionError} />
+                  </div>
+
+                  <VenueAutocompleteField
+                    venue={form.venue}
+                    mapsUrl={form.venueMapsUrl}
+                    onVenueChange={(venue) => {
+                      setVenueError(null);
+                      patch("venue", venue.slice(0, TOURNAMENT_FIELD_LIMITS.venue));
+                    }}
+                    onMapsUrlChange={(mapsUrl) => patch("venueMapsUrl", mapsUrl)}
+                    required
+                    fieldError={venueError}
+                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Courts</Label>
+                      <Select
+                        value={String(form.courtCount)}
+                        onValueChange={(v) => patch("courtCount", Number(v))}
+                      >
+                        <SelectTrigger className={cpSelectTriggerClass}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className={cpSelectContentClass}>
+                          {TOURNAMENT_COURT_COUNT_OPTIONS.map((n) => (
+                            <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
+                              {n} court{n === 1 ? "" : "s"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-cp-muted">
+                        Used for court assignment and live display layout.
                       </p>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="partner-max-teams">
+                        Max teams
+                        <RequiredMark />
+                      </Label>
+                      <Input
+                        id="partner-max-teams"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        min={MAX_TEAMS_MIN}
+                        max={MAX_TEAMS_MAX}
+                        value={form.maxTeams}
+                        onChange={(e) => {
+                          setMaxTeamsError(null);
+                          const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
+                          patch("maxTeams", digits);
+                        }}
+                        onBlur={() => {
+                          const parsed = parseMaxTeamsInput(form.maxTeams);
+                          if (parsed == null) {
+                            patch("maxTeams", String(MAX_TEAMS_MIN));
+                            return;
+                          }
+                          patch("maxTeams", String(clampMaxTeams(parsed)));
+                        }}
+                        className="border-cp-border bg-cp-bg-input"
+                        placeholder="32"
+                        aria-invalid={maxTeamsError ? true : undefined}
+                      />
+                      <FieldError message={maxTeamsError} />
+                      <p className="text-xs text-cp-muted">
+                        Capacity for guest registration ({MAX_TEAMS_MIN}–{MAX_TEAMS_MAX} teams).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <DateTimePicker
+                      label="Starts"
+                      value={form.startsAt}
+                      onChange={(v) => patch("startsAt", v)}
+                    />
+                    <DateTimePicker
+                      label="Ends"
+                      value={form.endsAt}
+                      onChange={(v) => patch("endsAt", v)}
+                      min={form.startsAt}
+                    />
+                    <div className="sm:col-span-2 space-y-2">
+                      <DateTimePicker
+                        label="Registration closes"
+                        value={form.registrationClosesAt}
+                        onChange={(v) => {
+                          setRegCloseError(null);
+                          patch("registrationClosesAt", v);
+                        }}
+                        disabled={scheduleLocked}
+                      />
+                      <FieldError message={regCloseError} />
+                      {scheduleLocked ? (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          Registration deadline cannot be changed while the tournament is live or
+                          completed.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-cp-muted">
+                          Guests can register until this deadline — including after the tournament
+                          has started. Must be on or before the end time.
+                          {form.registrationClosesAt
+                            ? ` Currently ${formatPartnerScheduleLabel(
+                                new Date(form.registrationClosesAt).toISOString(),
+                              )}.`
+                            : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-cp-border/80 bg-cp-elevated/40 p-4">
+                    <BillingTypeSelect
+                      value={form.entryBilling}
+                      onChange={(v) => {
+                        setFeeError(null);
+                        patch("entryBilling", v);
+                        if (v === "free") patch("registrationFeeIdr", "");
+                      }}
+                      required
+                      label="Entry: Free / Paid"
+                    />
+                    {form.entryBilling === "paid" ? (
                       <div className="space-y-2">
-                        <Label>Pairs per pool</Label>
+                        <Label>
+                          Entry fee (IDR)
+                          <RequiredMark />
+                        </Label>
+                        <CurrencyInput
+                          value={form.registrationFeeIdr}
+                          onChange={(v) => {
+                            setFeeError(null);
+                            patch("registrationFeeIdr", v);
+                          }}
+                        />
+                        <FieldError message={feeError} />
+                        <p className="text-xs text-cp-muted">
+                          Charged at guest registration via your partner payment gateway.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+
+              {step.id === "format" ? (
+                <>
+                  <TournamentWizardStepHeader
+                    eyebrow="Step 2"
+                    title="Tournament format"
+                    description="Pick knockout, group stage + knockout, or Americano. Pool rules follow FIP-style guidance and stay editable — they drive bracket generation when the event runs."
+                  />
+                  <FormatTypeSelect
+                    value={form.format}
+                    onChange={(v) => patch("format", v)}
+                    sportSlug={sportSlug}
+                    partnerTenant
+                    required
+                  />
+                  {isDoubleStage ? (
+                    <div className="space-y-4 rounded-2xl border border-cp-border/80 bg-cp-elevated/30 p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Pool configuration</p>
+                        <p className="mt-1 text-xs leading-relaxed text-cp-muted">
+                          FIP guidance for ≤32 pairs: typically 8 pools of 4 (winners to knockout).
+                          Small fields: 3→1×3; 4–5→1 pool; 6→2×3. Day-1 RR order: L1vL2 &amp; L3vL4.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Pairs per pool</Label>
+                          <Select
+                            value={String(form.maxTeamsPerGroup)}
+                            onValueChange={(v) => patch("maxTeamsPerGroup", Number(v))}
+                          >
+                            <SelectTrigger className={cpSelectTriggerClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={cpSelectContentClass}>
+                              {[3, 4, 5].map((n) => (
+                                <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
+                                  {n} pairs{n === 4 ? " (FIP standard)" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Advance per pool</Label>
+                          <Select
+                            value={String(form.teamsAdvancePerGroup)}
+                            onValueChange={(v) => patch("teamsAdvancePerGroup", Number(v))}
+                          >
+                            <SelectTrigger className={cpSelectTriggerClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={cpSelectContentClass}>
+                              <SelectItem value="1" className={cpSelectItemClass}>
+                                1st only
+                              </SelectItem>
+                              <SelectItem value="2" className={cpSelectItemClass}>
+                                1st &amp; 2nd
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Best runner-up slots</Label>
                         <Select
-                          value={String(form.maxTeamsPerGroup)}
-                          onValueChange={(v) => patch("maxTeamsPerGroup", Number(v))}
+                          value={String(form.bestRunnerUpSlots)}
+                          onValueChange={(v) => patch("bestRunnerUpSlots", Number(v))}
                         >
                           <SelectTrigger className={cpSelectTriggerClass}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className={cpSelectContentClass}>
-                            {[3, 4, 5].map((n) => (
+                            {[0, 1, 2, 4, 8].map((n) => (
                               <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
-                                {n} pairs{n === 4 ? " (FIP standard)" : ""}
+                                {n === 0
+                                  ? "Off"
+                                  : `${n} cross-pool runner-up${n === 1 ? "" : "s"}`}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Advance per pool</Label>
-                        <Select
-                          value={String(form.teamsAdvancePerGroup)}
-                          onValueChange={(v) => patch("teamsAdvancePerGroup", Number(v))}
-                        >
-                          <SelectTrigger className={cpSelectTriggerClass}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className={cpSelectContentClass}>
-                            <SelectItem value="1" className={cpSelectItemClass}>
-                              1st only
-                            </SelectItem>
-                            <SelectItem value="2" className={cpSelectItemClass}>
-                              1st &amp; 2nd
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <p className="text-xs text-cp-muted">
+                          Fill remaining knockout slots from the best 2nds across all pools —
+                          common for 12–20 pair amateur fields.
+                        </p>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Best runner-up slots</Label>
-                      <Select
-                        value={String(form.bestRunnerUpSlots)}
-                        onValueChange={(v) => patch("bestRunnerUpSlots", Number(v))}
-                      >
-                        <SelectTrigger className={cpSelectTriggerClass}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className={cpSelectContentClass}>
-                          {[0, 1, 2, 4, 8].map((n) => (
-                            <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
-                              {n === 0
-                                ? "Off"
-                                : `${n} cross-pool runner-up${n === 1 ? "" : "s"}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-cp-muted">
-                        Fill remaining knockout slots from the best 2nds across all pools —
-                        common for 12–20 pair amateur fields.
-                      </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              {step.id === "scoring" ? (
+                <>
+                  <TournamentWizardStepHeader
+                    eyebrow="Step 3"
+                    title="Match scoring & operations"
+                    description="Choose classic ITF/FIP sets or short race-to-N. These rules apply to live scoring and standings once the tournament is running. Score entry (live tablet vs paper) is set under Manage → Display."
+                  />
+
+                  <div className="space-y-3">
+                    <Label>Scoring system</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {(
+                        [
+                          {
+                            value: "classic_sets" as const,
+                            title: "Classic sets",
+                            body: "ITF/FIP best of 3 — games to 6, TB at 6–6. Padel uses STB-10 when sets are 1–1.",
+                          },
+                          {
+                            value: "race_to_games" as const,
+                            title: "Short race-to-N",
+                            body: "Community / time-capped. Ideal when group and knockout need different race targets.",
+                          },
+                        ] as const
+                      ).map((opt) => {
+                        const selected = form.matchFormat === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => patch("matchFormat", opt.value)}
+                            className={cn(
+                              "rounded-2xl border p-4 text-left transition-all",
+                              selected
+                                ? "border-cp-primary bg-cp-primary/10 ring-2 ring-cp-primary/25"
+                                : "border-cp-border bg-cp-elevated/20 hover:bg-cp-elevated/40",
+                            )}
+                          >
+                            <p className="text-sm font-semibold text-foreground">{opt.title}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-cp-muted">{opt.body}</p>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                ) : null}
-              </>
-            ) : null}
 
-            {step.id === "scoring" ? (
-              <>
-                <TournamentWizardStepHeader
-                  eyebrow="Step 3"
-                  title="Match scoring & operations"
-                  description="Choose classic ITF/FIP sets or short race-to-N. For double stage you can set different race targets for groups vs knockout."
-                />
-
-                <div className="space-y-3">
-                  <Label>Scoring system</Label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {(
-                      [
-                        {
-                          value: "classic_sets" as const,
-                          title: "Classic sets",
-                          body: "ITF/FIP best of 3 — games to 6, TB at 6–6. Padel uses STB-10 when sets are 1–1.",
-                        },
-                        {
-                          value: "race_to_games" as const,
-                          title: "Short race-to-N",
-                          body: "Community / time-capped. Ideal when group and knockout need different race targets.",
-                        },
-                      ] as const
-                    ).map((opt) => {
-                      const selected = form.matchFormat === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => patch("matchFormat", opt.value)}
-                          className={cn(
-                            "rounded-2xl border p-4 text-left transition-all",
-                            selected
-                              ? "border-cp-primary bg-cp-primary/10 ring-2 ring-cp-primary/25"
-                              : "border-cp-border bg-cp-elevated/20 hover:bg-cp-elevated/40",
-                          )}
-                        >
-                          <p className="text-sm font-semibold text-foreground">{opt.title}</p>
-                          <p className="mt-1 text-xs leading-relaxed text-cp-muted">{opt.body}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {isRace ? (
-                  <div
-                    className={cn(
-                      "grid gap-4",
-                      isDoubleStage ? "sm:grid-cols-2" : "sm:grid-cols-1",
-                    )}
-                  >
-                    <div className="space-y-2">
-                      <Label>{isDoubleStage ? "Group stage race-to" : "Race-to games"}</Label>
-                      <Select
-                        value={String(form.raceToGamesGroup)}
-                        onValueChange={(v) =>
-                          patch("raceToGamesGroup", Number(v) as RaceToGames)
-                        }
-                      >
-                        <SelectTrigger className={cpSelectTriggerClass}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className={cpSelectContentClass}>
-                          {RACE_TO_GAMES_OPTIONS.map((n) => (
-                            <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
-                              {raceToLabel(n)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {isDoubleStage ? (
+                  {isRace ? (
+                    <div
+                      className={cn(
+                        "grid gap-4",
+                        isDoubleStage ? "sm:grid-cols-2" : "sm:grid-cols-1",
+                      )}
+                    >
                       <div className="space-y-2">
-                        <Label>Knockout race-to</Label>
+                        <Label>{isDoubleStage ? "Group stage race-to" : "Race-to games"}</Label>
                         <Select
-                          value={String(form.raceToGamesKnockout)}
+                          value={String(form.raceToGamesGroup)}
                           onValueChange={(v) =>
-                            patch("raceToGamesKnockout", Number(v) as RaceToGames)
+                            patch("raceToGamesGroup", Number(v) as RaceToGames)
                           }
                         >
                           <SelectTrigger className={cpSelectTriggerClass}>
@@ -919,70 +996,67 @@ export function PartnerTournamentWizard({
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-cp-muted">
-                          Example: groups race to 4, knockout race to 6.
-                        </p>
                       </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/30 px-4 py-3 text-xs leading-relaxed text-cp-muted">
-                    Classic sets use best-of-3. Standings follow ITF hierarchy (wins → matches
-                    played → H2H → set% → game%).
-                  </div>
-                )}
+                      {isDoubleStage ? (
+                        <div className="space-y-2">
+                          <Label>Knockout race-to</Label>
+                          <Select
+                            value={String(form.raceToGamesKnockout)}
+                            onValueChange={(v) =>
+                              patch("raceToGamesKnockout", Number(v) as RaceToGames)
+                            }
+                          >
+                            <SelectTrigger className={cpSelectTriggerClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={cpSelectContentClass}>
+                              {RACE_TO_GAMES_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
+                                  {raceToLabel(n)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-cp-muted">
+                            Example: groups race to 4, knockout race to 6.
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/30 px-4 py-3 text-xs leading-relaxed text-cp-muted">
+                      Classic sets use best-of-3. Standings follow ITF hierarchy (wins → matches
+                      played → H2H → set% → game%).
+                    </div>
+                  )}
 
-                <div className="space-y-2">
-                  <Label>Game decider (deuce)</Label>
-                  <Select
-                    value={form.gameDecider}
-                    onValueChange={(v) => patch("gameDecider", v as GameDecider)}
-                  >
-                    <SelectTrigger className={cpSelectTriggerClass}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className={cpSelectContentClass}>
-                      <SelectItem value="golden_point" className={cpSelectItemClass}>
-                        Golden Point (No-Ad) — first deuce decides
-                      </SelectItem>
-                      <SelectItem value="star_point" className={cpSelectItemClass}>
-                        Star Point (FIP 2026) — third deuce decides
-                      </SelectItem>
-                      <SelectItem value="advantage" className={cpSelectItemClass}>
-                        Advantage — win by 2 (tennis-style)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-cp-muted">
-                    Golden Point is recommended for community events. Star Point follows FIP
-                    rules effective 1 Jan 2026.
-                  </p>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Score entry</Label>
+                    <Label>Game decider (deuce)</Label>
                     <Select
-                      value={form.scoreEntryMode}
-                      onValueChange={(v) => patch("scoreEntryMode", v as ScoreEntryMode)}
+                      value={form.gameDecider}
+                      onValueChange={(v) => patch("gameDecider", v as GameDecider)}
                     >
                       <SelectTrigger className={cpSelectTriggerClass}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className={cpSelectContentClass}>
-                        <SelectItem value="live" className={cpSelectItemClass}>
-                          Live tablet / courtside
+                        <SelectItem value="golden_point" className={cpSelectItemClass}>
+                          Golden Point (No-Ad) — first deuce decides
                         </SelectItem>
-                        <SelectItem value="paper" className={cpSelectItemClass}>
-                          Paper / batch final scores
+                        <SelectItem value="star_point" className={cpSelectItemClass}>
+                          Star Point (FIP 2026) — third deuce decides
+                        </SelectItem>
+                        <SelectItem value="advantage" className={cpSelectItemClass}>
+                          Advantage — win by 2 (tennis-style)
                         </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-cp-muted">
-                      Paper mode: enter results later — no live TV score updates during play.
+                      Applied whenever a game reaches deuce during live or paper score entry.
                     </p>
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="space-y-2 sm:max-w-sm">
                     <Label>Time cap</Label>
                     <Select
                       value={form.scoringType}
@@ -1001,70 +1075,70 @@ export function PartnerTournamentWizard({
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                {form.scoringType === "timed" ? (
-                  <div className="space-y-2">
-                    <Label>Match / round duration</Label>
-                    <Select
-                      value={String(form.roundDurationMinutes)}
-                      onValueChange={(v) => patch("roundDurationMinutes", Number(v))}
-                    >
-                      <SelectTrigger className={cpSelectTriggerClass}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className={cpSelectContentClass}>
-                        {TOURNAMENT_ROUND_DURATION_OPTIONS.map((n) => (
-                          <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
-                            {n} minutes
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-cp-muted">
-                      When time expires, the current score stands as the result.
-                    </p>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-
-            {step.id === "review" ? (
-              <>
-                <TournamentWizardStepHeader
-                  eyebrow="Step 4"
-                  title="Review & publish"
-                  description="Confirm settings. You can still edit later from the partner dashboard."
-                />
-                <dl className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border">
-                  {reviewRows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex flex-col gap-0.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                    >
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-cp-muted">
-                        {row.label}
-                      </dt>
-                      <dd className="text-sm font-medium text-foreground sm:text-right">
-                        {row.value}
-                      </dd>
+                  {form.scoringType === "timed" ? (
+                    <div className="space-y-2">
+                      <Label>Match / round duration</Label>
+                      <Select
+                        value={String(form.roundDurationMinutes)}
+                        onValueChange={(v) => patch("roundDurationMinutes", Number(v))}
+                      >
+                        <SelectTrigger className={cpSelectTriggerClass}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className={cpSelectContentClass}>
+                          {TOURNAMENT_ROUND_DURATION_OPTIONS.map((n) => (
+                            <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
+                              {n} minutes
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-cp-muted">
+                        When time expires, the current score stands as the result.
+                      </p>
                     </div>
-                  ))}
-                </dl>
-                <p className="text-xs leading-relaxed text-cp-muted">
-                  Isolation: stats, players, and eligibility stay on{" "}
-                  <Link
-                    href={partnerPublicRoutes.home(partnerSlug)}
-                    className="font-medium text-cp-primary hover:underline"
-                  >
-                    /{partnerSlug}
-                  </Link>{" "}
-                  only — never mixed into Gud Game career rankings.
-                </p>
-              </>
-            ) : null}
-          </motion.div>
-        </AnimatePresence>
+                  ) : null}
+                </>
+              ) : null}
+
+              {step.id === "review" ? (
+                <>
+                  <TournamentWizardStepHeader
+                    eyebrow="Step 4"
+                    title="Review & publish"
+                    description="Confirm settings. You can still edit later from Manage on your partner site."
+                  />
+                  <PartnerTournamentWizardReview
+                    partnerSlug={partnerSlug}
+                    name={form.name.trim()}
+                    categoryLabel={form.categoryLabel}
+                    venue={form.venue}
+                    venueMapsUrl={form.venueMapsUrl}
+                    courtCount={String(form.courtCount)}
+                    maxTeams={form.maxTeams}
+                    startsAt={form.startsAt}
+                    endsAt={form.endsAt}
+                    registrationClosesAt={form.registrationClosesAt}
+                    entryBilling={form.entryBilling}
+                    registrationFeeIdr={form.registrationFeeIdr}
+                    formatLabel={formatLabel(form.format)}
+                    matchFormatLabel={
+                      form.matchFormat === "classic_sets"
+                        ? "Classic sets (ITF / FIP)"
+                        : "Short race-to-N games"
+                    }
+                    poolRows={poolRows}
+                    scoringRows={scoringRows}
+                    description={form.description}
+                    isEdit={isEdit}
+                    onEditStep={goToStep}
+                  />
+                </>
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
         <TournamentWizardFooter
           backHref={dashboardRoutes.partnerTournaments}

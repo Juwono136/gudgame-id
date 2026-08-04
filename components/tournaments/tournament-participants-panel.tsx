@@ -48,6 +48,8 @@ type TournamentParticipantsPanelProps = {
   teamScoreByName?: Record<string, FunMatchTeamScore>;
   teamScoreByTeamId?: Record<string, FunMatchTeamScore>;
   canRemoveTeams?: boolean;
+  /** Partner white-label guest registration (not Gud Game squad lobby). */
+  partnerEvent?: boolean;
 };
 
 type GroupedTeamEntry = {
@@ -349,6 +351,7 @@ export function TournamentParticipantsPanel({
   teamScoreByName,
   teamScoreByTeamId,
   canRemoveTeams = false,
+  partnerEvent = false,
 }: TournamentParticipantsPanelProps) {
   const { confirm } = useConfirmDialog();
   const [page, setPage] = useState(1);
@@ -473,16 +476,24 @@ export function TournamentParticipantsPanel({
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Users className={cn("h-5 w-5 shrink-0", accent)} />
-            {isOfficial ? "Registered teams" : "Session squads"}
+            {partnerEvent
+              ? "Registered teams"
+              : isOfficial
+                ? "Registered teams"
+                : "Session squads"}
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-cp-muted">
-            {isOfficial
-              ? isFreeOfficial
-                ? "Confirmed teams are grouped together so hosts can review each roster more clearly."
-                : "Confirmed and paid teams are grouped together so roster review stays clean and consistent."
-              : "Active squads are grouped together to make lineup review easier across every screen size."}
+            {partnerEvent
+              ? "Guest teams from your public registration form. Review rosters before play begins."
+              : isOfficial
+                ? isFreeOfficial
+                  ? "Confirmed teams are grouped together so hosts can review each roster more clearly."
+                  : "Confirmed and paid teams are grouped together so roster review stays clean and consistent."
+                : "Active squads are grouped together to make lineup review easier across every screen size."}
             {canRemoveTeams
-              ? " You can remove a team only if it has not played any matches yet — this keeps player career statistics consistent."
+              ? partnerEvent
+                ? " You can remove a team only if it has not played any matches yet."
+                : " You can remove a team only if it has not played any matches yet — this keeps player career statistics consistent."
               : null}
           </p>
         </div>
@@ -582,7 +593,9 @@ export function TournamentParticipantsPanel({
               ? isFreeOfficial
                 ? "Confirmed teams appear here after registration is complete."
                 : "Teams appear here after registration and payment are complete."
-              : "No players in the lobby yet. Join a squad to get started."}
+              : partnerEvent
+                ? "No teams yet. Entries appear here after guests register on your public page."
+                : "No players in the lobby yet. Join a squad to get started."}
           </p>
         </div>
       ) : showNoMatches ? (

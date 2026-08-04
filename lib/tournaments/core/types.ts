@@ -24,11 +24,14 @@ export function isOfficialType(value: string | null | undefined): boolean {
   return normalizeTournamentType(value) === "official";
 }
 
-/** Player invite links — Fun Match and free official events. */
+/** Player invite links — Fun Match and free official events (not partner guest registration). */
 export function supportsPlayerInvites(input: {
   tournamentType: string | null | undefined;
   officialBilling?: OfficialBillingType | string | null;
+  partnerId?: string | null;
 }): boolean {
+  // Partner events use guest registration — Gud Game player invite codes do not apply.
+  if (input.partnerId) return false;
   if (isFunMatchType(input.tournamentType)) return true;
   return isOfficialType(input.tournamentType) && input.officialBilling === "free";
 }

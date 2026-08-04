@@ -1,9 +1,12 @@
+/** Minimum characters before calling Google Places autocomplete. */
+export const VENUE_AUTOCOMPLETE_MIN_CHARS = 3;
+
 export type PlacePrediction = {
   placeId: string;
   description: string;
   mainText: string;
   secondaryText: string;
-  /** Populated for OSM results; Google fills via place-details on select. */
+  /** Google fills coordinates via place-details on select (may be 0 until then). */
   latitude: number;
   longitude: number;
 };
@@ -17,7 +20,7 @@ export type PlaceDetails = {
   mapsUrl: string;
 };
 
-export type VenueSearchProvider = "google" | "osm";
+export type VenueSearchProvider = "google";
 
 export type VenueAutocompleteResult = {
   items: PlacePrediction[];

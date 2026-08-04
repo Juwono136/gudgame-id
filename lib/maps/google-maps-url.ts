@@ -13,17 +13,11 @@ function extractCoordsFromUrl(url: string): string | null {
 
   try {
     const parsed = new URL(url);
-    const q = parsed.searchParams.get("q")?.trim();
-    if (q && /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(q)) {
-      return q;
-    }
-    const ll = parsed.searchParams.get("ll")?.trim();
-    if (ll && /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(ll)) {
-      return ll;
-    }
-    const center = parsed.searchParams.get("center")?.trim();
-    if (center && /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(center)) {
-      return center;
+    for (const key of ["q", "query", "ll", "center"] as const) {
+      const value = parsed.searchParams.get(key)?.trim();
+      if (value && /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(value)) {
+        return value;
+      }
     }
   } catch {
     /* ignore invalid URLs */
@@ -39,9 +33,15 @@ function extractPlaceNameFromUrl(url: string): string | null {
     if (placeMatch) {
       return decodeURIComponent(placeMatch[1].replace(/\+/g, " "));
     }
-    const q = parsed.searchParams.get("q")?.trim();
-    if (q && !q.startsWith("http") && !/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(q)) {
-      return q;
+    for (const key of ["q", "query"] as const) {
+      const value = parsed.searchParams.get(key)?.trim();
+      if (
+        value &&
+        !value.startsWith("http") &&
+        !/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(value)
+      ) {
+        return value;
+      }
     }
   } catch {
     /* ignore */

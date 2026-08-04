@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Monitor, Settings2, UserPlus } from "lucide-react";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerStatusBadge } from "@/components/partners/partner-status-badge";
+import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { FunMatchPublicLiveScore } from "@/components/tournaments/fun-match/fun-match-public-live-score";
 import { FunMatchPublicPlayersTab } from "@/components/tournaments/fun-match/fun-match-public-players-tab";
 import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
@@ -378,7 +379,11 @@ export function PartnerTournamentPublicPage({
       <div className="mt-6 space-y-6">
         {tab === "Overview" ? (
           <section className="space-y-4 rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-            {tournament.summary ? (
+            {tournament.description ? (
+              <div className="prose-sm max-w-none">
+                <RichHtmlContent html={tournament.description} variant="article" />
+              </div>
+            ) : tournament.summary ? (
               <p className="text-sm leading-relaxed text-foreground">{tournament.summary}</p>
             ) : (
               <p className="text-sm text-cp-muted">
@@ -402,6 +407,16 @@ export function PartnerTournamentPublicPage({
                   {displayStatus.replaceAll("_", " ")}
                 </dd>
               </div>
+              {tournament.categoryLabel ? (
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-cp-muted">
+                    Category
+                  </dt>
+                  <dd className="mt-0.5 font-medium text-foreground">
+                    {tournament.categoryLabel}
+                  </dd>
+                </div>
+              ) : null}
               {tournament.venue ? (
                 <div className="sm:col-span-2">
                   <dt className="text-[11px] font-semibold uppercase tracking-wider text-cp-muted">
