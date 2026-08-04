@@ -9,7 +9,6 @@ import { OfficialRegistrationEditDialog } from "@/components/tournaments/officia
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useCancelRegistration } from "@/hooks/use-cancel-registration";
-import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { formatRegistrationFeeIdr } from "@/lib/format/currency";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -32,7 +31,6 @@ export function RegistrationConfirmClient({
   hubHref: hubHrefProp,
 }: RegistrationConfirmClientProps) {
   const router = useRouter();
-  const { confirm } = useConfirmDialog();
   const { cancelRegistration, isPending: cancelling } = useCancelRegistration();
   const [submitting, setSubmitting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -40,14 +38,6 @@ export function RegistrationConfirmClient({
     hubHrefProp ?? publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
 
   const confirmParticipation = async () => {
-    const ok = await confirm({
-      title: "Confirm you will compete?",
-      description: `Team "${teamName}" will be locked in for ${tournament.name}. After confirming, you must complete payment to secure your slot.`,
-      confirmLabel: "Yes, I'm competing",
-      cancelLabel: "Not yet",
-    });
-    if (!ok) return;
-
     setSubmitting(true);
     try {
       const params = new URLSearchParams({

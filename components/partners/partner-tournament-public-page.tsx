@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Calendar,
@@ -232,8 +232,27 @@ export function PartnerTournamentPublicPage({
     });
   }, [caps, bracketHasTree, isDoubleStageKnockout]);
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<PartnerPublicTab>("Overview");
+
+  const manageHref = partnerPublicRoutes.tournamentManage(partnerSlug, tournament.slug);
+  const displayHref = partnerPublicRoutes.tournamentDisplay(partnerSlug, tournament.slug);
+  const registerHref = partnerPublicRoutes.tournamentRegister(partnerSlug, tournament.slug);
+  const publicUrl = partnerPublicRoutes.tournament(partnerSlug, tournament.slug);
+
+  const navigateTab = useCallback(
+    (next: PartnerPublicTab) => {
+      if (!visibleTabs.includes(next)) return;
+      setTab(next);
+      const url =
+        next === "Overview"
+          ? publicUrl
+          : `${publicUrl}?tab=${encodeURIComponent(next)}`;
+      router.replace(url, { scroll: false });
+    },
+    [publicUrl, router, visibleTabs],
+  );
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
@@ -252,15 +271,13 @@ export function PartnerTournamentPublicPage({
   }, [searchParams, visibleTabs]);
 
   useEffect(() => {
-    if (!visibleTabs.includes(tab)) setTab("Overview");
+    if (!visibleTabs.includes(tab)) {
+      setTab("Overview");
+    }
   }, [tab, visibleTabs]);
 
   const displayStatus = liveData?.tournament.status ?? tournament.status;
   const formatLabel = getTournamentFormatLabel(tournament.format);
-  const manageHref = partnerPublicRoutes.tournamentManage(partnerSlug, tournament.slug);
-  const displayHref = partnerPublicRoutes.tournamentDisplay(partnerSlug, tournament.slug);
-  const registerHref = partnerPublicRoutes.tournamentRegister(partnerSlug, tournament.slug);
-  const publicUrl = partnerPublicRoutes.tournament(partnerSlug, tournament.slug);
   const registrationOpen = isPartnerRegistrationOpen(tournament);
   const venueMapsUrl = getVenueMapsUrl(tournament) ?? "";
   const isPaidRegistration =
@@ -555,7 +572,7 @@ export function PartnerTournamentPublicPage({
       <TournamentLiveBanner
         matches={bannerMatches}
         variant="fun"
-        onViewLive={() => setTab("Live Score")}
+        onViewLive={() => navigateTab("Live Score")}
         viewLiveLabel="View live score"
       />
 
@@ -563,7 +580,7 @@ export function PartnerTournamentPublicPage({
         <TournamentTabNav
           tabs={visibleTabs}
           active={tab}
-          onChange={setTab}
+          onChange={navigateTab}
           variant="official"
         />
 
@@ -637,7 +654,7 @@ export function PartnerTournamentPublicPage({
                   type="button"
                   variant="outline"
                   className="mt-4 w-full border-cp-border sm:w-auto"
-                  onClick={() => setTab("Players")}
+                  onClick={() => navigateTab("Players")}
                 >
                   View full player list
                 </Button>

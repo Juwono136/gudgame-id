@@ -92,13 +92,15 @@ Wizard: `components/partners/partner-tournament-wizard.tsx`. Payload mengirim `t
 
 Ketersediaan format bergantung pada jenis turnamen dan (sebagian) sport defaults.
 
-| Format | Kode | Official | Fun Match | Ringkas |
-| --- | --- | --- | --- | --- |
-| **Double Stage** | `double_stage` | ✅ | ❌ | Group stage (round-robin) → knockout |
-| **Elimination** | `single_elimination` | ✅ | ✅ | Bracket knockout |
-| **Americano** | `americano` | ✅ | ✅ | Rotasi pasangan/lawan, poin per pemain |
+| Format | Kode | Official | Fun Match | Partner | Ringkas |
+| --- | --- | --- | --- | --- | --- |
+| **Double Stage** | `double_stage` | ✅ | ❌ | ✅ | Group stage (round-robin) → knockout |
+| **Elimination** | `single_elimination` | ✅ | ✅ | ✅ | Bracket knockout |
+| **Americano** | `americano` | ✅ | ✅ | ✅ | Rotasi pasangan/lawan, poin per pemain |
 
-### 2.1 Double Stage (hanya Official)
+### 2.1 Double Stage (Official + Partner white-label)
+
+Partner events enable double stage via `partnerTenant: true` (stored as `fun_match` + `partnerId`). Plain Gud Game Fun Match hosts still cannot create double stage.
 
 **Alur**
 
