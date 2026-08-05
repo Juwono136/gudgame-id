@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PartnerTournamentPublicPage } from "@/components/partners/partner-tournament-public-page";
 import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { getServerSession } from "@/lib/auth/session";
+import { getPartnerTournamentCapacity } from "@/lib/partners/registration/service";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { toPartnerFunMatchTournament } from "@/lib/partners/tournament-surface";
@@ -59,6 +60,11 @@ export default async function PartnerTournamentDetailPage({ params }: PageProps)
     isPartnerMember,
   });
 
+  const registrationCapacity = await getPartnerTournamentCapacity(
+    tournament.id,
+    tournament.maxTeams,
+  );
+
   return (
     <Suspense
       fallback={
@@ -74,6 +80,7 @@ export default async function PartnerTournamentDetailPage({ params }: PageProps)
         participant={participant}
         canManage={canManage}
         canEdit={canEdit}
+        registrationCapacity={registrationCapacity}
       />
     </Suspense>
   );

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { PartnerRegistrationForm } from "@/components/partners/registration/partner-registration-form";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
+import { getPartnerTournamentCapacity } from "@/lib/partners/registration/service";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { computeRegistrationOpen } from "@/lib/tournaments/status-sync";
@@ -24,8 +25,10 @@ export default async function PartnerTournamentRegisterPage({ params }: PageProp
   const registrationOpen = computeRegistrationOpen(
     tournament.registrationOpensAt,
     tournament.registrationClosesAt,
-    tournament.startsAt,
+    tournament.endsAt ?? tournament.startsAt,
   );
+
+  const capacity = await getPartnerTournamentCapacity(tournament.id, tournament.maxTeams);
 
   const tournamentHref = partnerPublicRoutes.tournament(partner.slug, tournament.slug);
   const isPaid =
@@ -34,6 +37,12 @@ export default async function PartnerTournamentRegisterPage({ params }: PageProp
   const registerMeta = [tournament.categoryLabel?.trim(), tournament.venue?.trim()]
     .filter(Boolean)
     .join(" · ");
+
+  const closedMessage = !registrationOpen
+    ? "Registration is not currently open for this tournament."
+    : capacity.isFull
+      ? "This tournament is full — no team spots remaining."
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
@@ -46,9 +55,14 @@ export default async function PartnerTournamentRegisterPage({ params }: PageProp
       />
 
       <div className="mt-6">
-        {!registrationOpen ? (
+        {closedMessage ? (
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-foreground">
-            Registration is not currently open for this tournament.
+            <p>{closedMessage}</p>
+            {capacity.maxTeams != null ? (
+              <p className="mt-2 text-cp-muted">
+                {capacity.reservedSpots} / {capacity.maxTeams} team spots taken.
+              </p>
+            ) : null}
           </div>
         ) : (
           <PartnerRegistrationForm
@@ -58,6 +72,7 @@ export default async function PartnerTournamentRegisterPage({ params }: PageProp
             playersPerTeam={tournament.playersPerTeam}
             feeIdr={tournament.registrationFeeIdr}
             isPaid={isPaid}
+            spotsRemaining={capacity.spotsRemaining}
           />
         )}
       </div>

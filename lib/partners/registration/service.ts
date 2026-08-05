@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   partnerPlayers,
@@ -36,6 +36,9 @@ export type { PartnerManageRegistrationRow } from "@/lib/partners/registration/t
 
 const log = logger.child({ module: "partner-registration" });
 
+/** Guest holds that claim a tournament slot (including confirmed). */
+const ACTIVE_SLOT_STATUSES = ["awaiting_payment", "registered", "confirmed"] as const;
+
 export type PartnerRegistrationContext = {
   id: string;
   slug: string;
@@ -56,6 +59,13 @@ export type PartnerRegistrationDetail = {
   payment: typeof tournamentPayments.$inferSelect | null;
 };
 
+export type PartnerTournamentCapacity = {
+  maxTeams: number | null;
+  reservedSpots: number;
+  spotsRemaining: number | null;
+  isFull: boolean;
+};
+
 function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
@@ -65,28 +75,80 @@ function isFreeBilling(tournament: TournamentDetail): boolean {
   return !tournament.registrationFeeIdr || tournament.registrationFeeIdr <= 0;
 }
 
-/** Slots already claimed for this tournament — confirmed teams + pending guest holds. */
-async function countReservedSpots(tournamentId: string): Promise<number> {
-  const db = getDb();
-  const [teamRow] = await db
-    .select({ value: count() })
-    .from(tournamentTeams)
-    .where(eq(tournamentTeams.tournamentId, tournamentId));
+type CapacityDb = Pick<ReturnType<typeof getDb>, "select">;
 
-  const [pendingRow] = await db
+/**
+ * Slots already claimed: every active guest registration (payment / curation / confirmed)
+ * plus lobby teams that are not linked to one of those registrations (staff-added / legacy).
+ * Confirmed regs with a teamId count once (via the registration), not twice.
+ */
+export async function countPartnerTournamentReservedSpots(
+  tournamentId: string,
+  executor: CapacityDb = getDb(),
+): Promise<number> {
+  const [regRow] = await executor
     .select({ value: count() })
     .from(partnerTournamentRegistrations)
     .where(
       and(
         eq(partnerTournamentRegistrations.tournamentId, tournamentId),
-        inArray(partnerTournamentRegistrations.status, [
-          "awaiting_payment",
-          "registered",
-        ]),
+        inArray(partnerTournamentRegistrations.status, [...ACTIVE_SLOT_STATUSES]),
       ),
     );
 
-  return Number(teamRow?.value ?? 0) + Number(pendingRow?.value ?? 0);
+  const linked = await executor
+    .select({ teamId: partnerTournamentRegistrations.teamId })
+    .from(partnerTournamentRegistrations)
+    .where(
+      and(
+        eq(partnerTournamentRegistrations.tournamentId, tournamentId),
+        inArray(partnerTournamentRegistrations.status, [...ACTIVE_SLOT_STATUSES]),
+        isNotNull(partnerTournamentRegistrations.teamId),
+      ),
+    );
+
+  const linkedIds = linked
+    .map((row) => row.teamId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+  const orphanWhere =
+    linkedIds.length > 0
+      ? and(
+          eq(tournamentTeams.tournamentId, tournamentId),
+          notInArray(tournamentTeams.id, linkedIds),
+        )
+      : eq(tournamentTeams.tournamentId, tournamentId);
+
+  const [orphanRow] = await executor
+    .select({ value: count() })
+    .from(tournamentTeams)
+    .where(orphanWhere);
+
+  return Number(regRow?.value ?? 0) + Number(orphanRow?.value ?? 0);
+}
+
+export async function getPartnerTournamentCapacity(
+  tournamentId: string,
+  maxTeams: number | null | undefined,
+): Promise<PartnerTournamentCapacity> {
+  const reservedSpots = await countPartnerTournamentReservedSpots(tournamentId);
+  const capped = maxTeams ?? null;
+  const spotsRemaining = capped != null ? Math.max(0, capped - reservedSpots) : null;
+  return {
+    maxTeams: capped,
+    reservedSpots,
+    spotsRemaining,
+    isFull: capped != null && reservedSpots >= capped,
+  };
+}
+
+function assertTournamentHasCapacity(
+  maxTeams: number | null | undefined,
+  reservedSpots: number,
+): void {
+  if (maxTeams != null && reservedSpots >= maxTeams) {
+    throw new AppError("This tournament is full.", { code: "CONFLICT", statusCode: 409 });
+  }
 }
 
 export async function startPartnerGuestRegistration(
@@ -119,13 +181,6 @@ export async function startPartnerGuestRegistration(
     });
   }
 
-  if (tournament.maxTeams != null) {
-    const reserved = await countReservedSpots(tournament.id);
-    if (reserved >= tournament.maxTeams) {
-      throw new AppError("This tournament is full.", { code: "CONFLICT", statusCode: 409 });
-    }
-  }
-
   const db = getDb();
   const captainEmail = input.captain.email.trim().toLowerCase();
   const captainName = input.captain.fullName.trim();
@@ -136,55 +191,72 @@ export async function startPartnerGuestRegistration(
     phone: input.captain.phone,
   });
 
-  const [existingReg] = await db
-    .select({ id: partnerTournamentRegistrations.id, status: partnerTournamentRegistrations.status })
-    .from(partnerTournamentRegistrations)
-    .where(
-      and(
-        eq(partnerTournamentRegistrations.tournamentId, tournament.id),
-        eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
-        inArray(partnerTournamentRegistrations.status, [
-          "awaiting_payment",
-          "registered",
-          "confirmed",
-        ]),
-      ),
-    )
-    .limit(1);
-
-  if (existingReg) {
-    throw new AppError(
-      existingReg.status === "confirmed"
-        ? "This captain is already confirmed for this tournament."
-        : existingReg.status === "registered"
-          ? "This captain already has a registration awaiting organizer confirmation."
-          : "A pending registration already exists for this captain — check your email for the payment link.",
-      { code: "CONFLICT", statusCode: 409 },
-    );
-  }
-
   const isFree = isFreeBilling(tournament);
   const fee = tournament.registrationFeeIdr ?? 0;
   const teamName =
     playersPerTeam > 1 ? input.teamName?.trim() || `${captainName}'s Team` : captainName;
 
-  const [registration] = await db
-    .insert(partnerTournamentRegistrations)
-    .values({
-      tournamentId: tournament.id,
-      partnerId: partner.id,
-      status: isFree ? "registered" : "awaiting_payment",
-      teamName,
-      captainPartnerPlayerId: captainPlayer.id,
-      feeIdr: isFree ? null : fee,
-      accessTokenHash: hashAccessToken(accessTokenPlain),
-      notes: input.notes?.trim() || null,
-    })
-    .returning();
+  // Serialize capacity checks so concurrent guests cannot overfill maxTeams.
+  const registration = await db.transaction(async (tx) => {
+    await tx
+      .select({ id: tournaments.id })
+      .from(tournaments)
+      .where(eq(tournaments.id, tournament.id))
+      .limit(1)
+      .for("update");
 
-  if (!registration) {
-    throw new AppError("Could not create registration", { code: "DATABASE_ERROR", statusCode: 500 });
-  }
+    const reserved = await countPartnerTournamentReservedSpots(tournament.id, tx);
+    assertTournamentHasCapacity(tournament.maxTeams, reserved);
+
+    const [existingReg] = await tx
+      .select({
+        id: partnerTournamentRegistrations.id,
+        status: partnerTournamentRegistrations.status,
+      })
+      .from(partnerTournamentRegistrations)
+      .where(
+        and(
+          eq(partnerTournamentRegistrations.tournamentId, tournament.id),
+          eq(partnerTournamentRegistrations.captainPartnerPlayerId, captainPlayer.id),
+          inArray(partnerTournamentRegistrations.status, [...ACTIVE_SLOT_STATUSES]),
+        ),
+      )
+      .limit(1);
+
+    if (existingReg) {
+      throw new AppError(
+        existingReg.status === "confirmed"
+          ? "This captain is already confirmed for this tournament."
+          : existingReg.status === "registered"
+            ? "This captain already has a registration awaiting organizer confirmation."
+            : "A pending registration already exists for this captain — check your email for the payment link.",
+        { code: "CONFLICT", statusCode: 409 },
+      );
+    }
+
+    const [created] = await tx
+      .insert(partnerTournamentRegistrations)
+      .values({
+        tournamentId: tournament.id,
+        partnerId: partner.id,
+        status: isFree ? "registered" : "awaiting_payment",
+        teamName,
+        captainPartnerPlayerId: captainPlayer.id,
+        feeIdr: isFree ? null : fee,
+        accessTokenHash: hashAccessToken(accessTokenPlain),
+        notes: input.notes?.trim() || null,
+      })
+      .returning();
+
+    if (!created) {
+      throw new AppError("Could not create registration", {
+        code: "DATABASE_ERROR",
+        statusCode: 500,
+      });
+    }
+
+    return created;
+  });
 
   const memberRows: (typeof partnerTournamentRegistrationMembers.$inferInsert)[] = [
     {
@@ -483,6 +555,7 @@ export async function confirmPartnerRegistration(
       venue: tournaments.venue,
       startsAt: tournaments.startsAt,
       endsAt: tournaments.endsAt,
+      maxTeams: tournaments.maxTeams,
     })
     .from(tournaments)
     .where(eq(tournaments.id, registration.tournamentId))
@@ -500,6 +573,18 @@ export async function confirmPartnerRegistration(
 
   if (!partnerRow) {
     throw new AppError("Partner not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  // If this hold still needs a lobby team, refuse when every slot is already occupied
+  // by existing teams (e.g. staff filled the bracket while this was pending).
+  if (!registration.teamId && tournamentRow.maxTeams != null) {
+    const [teamRow] = await db
+      .select({ value: count() })
+      .from(tournamentTeams)
+      .where(eq(tournamentTeams.tournamentId, registration.tournamentId));
+    if (Number(teamRow?.value ?? 0) >= tournamentRow.maxTeams) {
+      throw new AppError("This tournament is full.", { code: "CONFLICT", statusCode: 409 });
+    }
   }
 
   const teamId =

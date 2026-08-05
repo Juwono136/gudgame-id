@@ -24,6 +24,8 @@ type PartnerRegistrationFormProps = {
   playersPerTeam: number;
   feeIdr: number | null;
   isPaid: boolean;
+  /** When set, shown as a capacity hint above the form. */
+  spotsRemaining?: number | null;
 };
 
 function firstFieldErrorMessage(issues: unknown): string | null {
@@ -45,6 +47,7 @@ export function PartnerRegistrationForm({
   playersPerTeam,
   feeIdr,
   isPaid,
+  spotsRemaining = null,
 }: PartnerRegistrationFormProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -159,6 +162,13 @@ export function PartnerRegistrationForm({
     <>
       {submitting ? <LoadingOverlay show label="Submitting registration…" /> : null}
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate className="space-y-6">
+        {spotsRemaining != null ? (
+          <p className="text-sm text-cp-muted">
+            {spotsRemaining === 1
+              ? "1 team spot remaining."
+              : `${spotsRemaining} team spots remaining.`}
+          </p>
+        ) : null}
         <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-cp-muted">
             Team captain

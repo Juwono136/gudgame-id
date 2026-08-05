@@ -148,6 +148,13 @@ const TABS = [
 ] as const;
 type PartnerPublicTab = (typeof TABS)[number];
 
+type PartnerTournamentRegistrationCapacity = {
+  maxTeams: number | null;
+  reservedSpots: number;
+  spotsRemaining: number | null;
+  isFull: boolean;
+};
+
 type PartnerTournamentPublicPageProps = {
   partnerSlug: string;
   partnerName: string;
@@ -155,6 +162,8 @@ type PartnerTournamentPublicPageProps = {
   participant: TournamentParticipantContext;
   canManage: boolean;
   canEdit?: boolean;
+  /** Authoritative slot holds (pending + confirmed). Used to gate Register CTA. */
+  registrationCapacity?: PartnerTournamentRegistrationCapacity;
 };
 
 function InfoCard({
@@ -189,6 +198,7 @@ export function PartnerTournamentPublicPage({
   participant,
   canManage,
   canEdit = false,
+  registrationCapacity,
 }: PartnerTournamentPublicPageProps) {
   const { data: liveData } = useTournamentLive(tournament.sportSlug, tournament.slug);
   const { data: lobbyData, isLoading: lobbyLoading } = useTournamentLobby(
@@ -303,8 +313,18 @@ export function PartnerTournamentPublicPage({
   const registeredPlayers =
     lobbyData?.summary.registeredPlayers ?? participantsData?.total ?? 0;
   const maxTeams = tournament.maxTeams;
+  // Prefer reserved holds (includes awaiting payment / curation) over lobby-only teams.
+  const reservedSpots = Math.max(
+    registrationCapacity?.reservedSpots ?? 0,
+    registeredTeams,
+  );
   const spotsRemaining =
-    maxTeams != null ? Math.max(0, maxTeams - registeredTeams) : null;
+    maxTeams != null ? Math.max(0, maxTeams - reservedSpots) : null;
+  const isRegistrationFull =
+    registrationCapacity?.isFull === true ||
+    (maxTeams != null && reservedSpots >= maxTeams);
+  const canRegister = registrationOpen && !isRegistrationFull;
+  // Progress reflects confirmed lobby teams; Register CTA uses reserved holds above.
   const capacityRatio =
     maxTeams && maxTeams > 0 ? Math.min(1, registeredTeams / maxTeams) : 0;
 
@@ -739,24 +759,30 @@ export function PartnerTournamentPublicPage({
                   </div>
                 ) : null}
 
-                {spotsRemaining != null ? (
+                {spotsRemaining != null && canRegister ? (
                   <p className="mt-2 text-xs text-cp-muted">
-                    {spotsRemaining} spots remaining
+                    {spotsRemaining === 1
+                      ? "1 spot remaining"
+                      : `${spotsRemaining} spots remaining`}
                   </p>
                 ) : null}
 
                 <Badge
                   className={cn(
                     "mt-4 border-0",
-                    registrationOpen
+                    canRegister
                       ? "bg-cp-primary/15 text-cp-primary"
                       : "bg-cp-elevated text-cp-muted",
                   )}
                 >
-                  {registrationOpen ? "Registration open" : "Registration closed"}
+                  {canRegister
+                    ? "Registration open"
+                    : isRegistrationFull
+                      ? "Tournament full"
+                      : "Registration closed"}
                 </Badge>
 
-                {registrationOpen ? (
+                {canRegister ? (
                   <Button
                     asChild
                     className="mt-5 h-11 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light sm:mt-6 sm:h-12"
