@@ -4,17 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ExternalLink,
+  FileText,
   Info,
   LayoutTemplate,
   ListTree,
   Mail,
   PanelBottom,
+  Scale,
   Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
 import { AdminAboutSettingsPanel } from "@/components/admin/settings/admin-about-settings-panel";
 import { AdminContactSettingsPanel } from "@/components/admin/settings/admin-contact-settings-panel";
+import { AdminLegalDocumentSettingsPanel } from "@/components/admin/settings/admin-legal-document-settings-panel";
 import {
   SiteImageField,
   type SiteImagePendingState,
@@ -41,6 +44,7 @@ import {
   homepageSettingsSchema,
   type HomepageAboutSettings,
   type HomepageContactSettings,
+  type HomepageLegalDocumentSettings,
   type HomepageSettingsInput,
 } from "@/lib/validations/homepage-settings";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
@@ -79,6 +83,18 @@ const TABS = [
     label: "Contact Us",
     description: "Public /contact page — banner, support details, and CTA.",
     icon: Mail,
+  },
+  {
+    id: "privacy",
+    label: "Privacy Policy",
+    description: "Public /privacy page — rich-text privacy policy content.",
+    icon: Scale,
+  },
+  {
+    id: "terms",
+    label: "Terms of Service",
+    description: "Public /terms page — rich-text terms of service content.",
+    icon: FileText,
   },
   {
     id: "footer",
@@ -272,6 +288,20 @@ export function AdminHomepageSettingsPage({
     setSettings((prev) => ({ ...prev, contact: { ...prev.contact, [key]: value } }));
   };
 
+  const patchPrivacy = <K extends keyof HomepageLegalDocumentSettings>(
+    key: K,
+    value: HomepageLegalDocumentSettings[K],
+  ) => {
+    setSettings((prev) => ({ ...prev, privacy: { ...prev.privacy, [key]: value } }));
+  };
+
+  const patchTerms = <K extends keyof HomepageLegalDocumentSettings>(
+    key: K,
+    value: HomepageLegalDocumentSettings[K],
+  ) => {
+    setSettings((prev) => ({ ...prev, terms: { ...prev.terms, [key]: value } }));
+  };
+
   const save = async () => {
     const preflight = homepageSettingsSchema.safeParse(settings);
     if (!preflight.success) {
@@ -369,8 +399,8 @@ export function AdminHomepageSettingsPage({
             <div className="flex items-start gap-3 rounded-2xl border border-cp-primary/20 bg-cp-primary/5 px-4 py-3">
               <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-cp-primary" />
               <p className="text-xs leading-relaxed text-cp-muted sm:text-sm">
-                Manage public Gud Game content — homepage hero & sports copy, About, Contact Us,
-                and the global footer. Sport cards themselves stay under{" "}
+                Manage public Gud Game content — homepage, About, Contact Us, Privacy, Terms, and
+                the global footer. Sport cards themselves stay under{" "}
                 <span className="font-medium text-foreground">Sports</span>.
               </p>
             </div>
@@ -598,6 +628,26 @@ export function AdminHomepageSettingsPage({
             pendingImages={pendingImages}
             onPendingChange={setPending}
             onChange={patchContact}
+          />
+        ) : null}
+
+        {activeTab === "privacy" ? (
+          <AdminLegalDocumentSettingsPanel
+            pageLabel="Privacy Policy"
+            pagePath="/privacy"
+            value={settings.privacy}
+            disabled={saving}
+            onChange={patchPrivacy}
+          />
+        ) : null}
+
+        {activeTab === "terms" ? (
+          <AdminLegalDocumentSettingsPanel
+            pageLabel="Terms of Service"
+            pagePath="/terms"
+            value={settings.terms}
+            disabled={saving}
+            onChange={patchTerms}
           />
         ) : null}
 

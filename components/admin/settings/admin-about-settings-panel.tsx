@@ -37,7 +37,7 @@ export function AdminAboutSettingsPanel({
         <h2 className="text-base font-semibold text-foreground">About page</h2>
         <p className="mt-1 text-sm text-cp-muted">
           Content shown on the public <span className="font-medium text-foreground">/about</span>{" "}
-          page. Images upload to SeaweedFS only when you save.
+          page.
         </p>
       </div>
 

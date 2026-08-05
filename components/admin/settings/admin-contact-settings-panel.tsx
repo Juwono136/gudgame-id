@@ -37,7 +37,7 @@ export function AdminContactSettingsPanel({
         <h2 className="text-base font-semibold text-foreground">Contact Us page</h2>
         <p className="mt-1 text-sm text-cp-muted">
           Content shown on the public <span className="font-medium text-foreground">/contact</span>{" "}
-          page. Banner images upload to SeaweedFS only when you save.
+          page.
         </p>
       </div>
 

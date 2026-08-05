@@ -9,6 +9,8 @@ export function richHtmlClassName(variant: RichHtmlVariant = "default", classNam
     // Inline images from CMS / wiki editors
     "[&_img]:my-4 [&_img]:max-h-[28rem] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-cp-border [&_img]:object-cover",
     "[&_figure]:my-5 [&_figcaption]:mt-2 [&_figcaption]:text-center [&_figcaption]:text-xs [&_figcaption]:text-cp-muted",
+    "[&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground sm:[&_h2]:text-xl",
+    "[&_h3]:mt-5 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:text-foreground",
     variant === "hero"
       ? "text-foreground/90"
       : variant === "article"

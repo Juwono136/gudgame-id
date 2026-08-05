@@ -12,6 +12,7 @@ import {
   type HomepageContactSettings,
   type HomepageFooterSettings,
   type HomepageHeroSettings,
+  type HomepageLegalDocumentSettings,
   type HomepageSettingsInput,
   type HomepageSportsSectionSettings,
 } from "@/lib/validations/homepage-settings";
@@ -103,6 +104,46 @@ export const DEFAULT_HOMEPAGE_SETTINGS: HomepageSettings = {
     mapsSectionTitle: "Our location",
     mapsCtaLabel: "View on Maps",
     ctaLabel: "Email support",
+  },
+  privacy: {
+    badgeText: "Legal",
+    title: "Privacy Policy",
+    subtitle: `How ${siteConfig.name} collects, uses, and protects your personal information.`,
+    lastUpdatedLabel: "Last updated: August 2026",
+    body: `<p>This Privacy Policy explains how <strong>PT Aplikasi Wong Kito Galo</strong> (“we”, “us”) operates <strong>${siteConfig.name}</strong> and handles personal data when you use our website and related services.</p>
+<h2>Information we collect</h2>
+<p>We may collect account details (such as name and email), profile information you choose to share, usage data (pages visited, device/browser type), and communications you send to support.</p>
+<h2>How we use information</h2>
+<p>We use information to provide and improve the platform, authenticate users, process tournament-related features, send service notices, and keep the community safe.</p>
+<h2>Sharing</h2>
+<p>We do not sell personal data. We may share information with trusted processors (hosting, payments, analytics) under appropriate agreements, or when required by law.</p>
+<h2>Data retention &amp; security</h2>
+<p>We retain data only as long as needed for the purposes above or as required by law, and apply reasonable technical and organizational safeguards.</p>
+<h2>Your choices</h2>
+<p>You may request access, correction, or deletion of personal data where applicable by contacting us at <a href="mailto:help@gudgame.id">help@gudgame.id</a>.</p>
+<h2>Contact</h2>
+<p>Questions about this policy: <a href="mailto:help@gudgame.id">help@gudgame.id</a> — PT Aplikasi Wong Kito Galo, Jl. Limo Raya No. 7, Limo, Kota Depok - Jawa Barat, 16515.</p>`,
+  },
+  terms: {
+    badgeText: "Legal",
+    title: "Terms of Service",
+    subtitle: `The rules and conditions for using ${siteConfig.name}.`,
+    lastUpdatedLabel: "Last updated: August 2026",
+    body: `<p>These Terms of Service (“Terms”) govern access to and use of <strong>${siteConfig.name}</strong>, operated by <strong>PT Aplikasi Wong Kito Galo</strong>. By using the platform, you agree to these Terms.</p>
+<h2>Eligibility &amp; accounts</h2>
+<p>You must provide accurate information and keep your credentials secure. You are responsible for activity under your account.</p>
+<h2>Acceptable use</h2>
+<p>Do not misuse the service, upload unlawful or harmful content, attempt unauthorized access, scrape the platform abusively, or interfere with other users or systems.</p>
+<h2>User content</h2>
+<p>You retain rights to content you submit, and grant us a license to host, display, and distribute it as needed to operate ${siteConfig.name}. You represent that you have the rights to share that content.</p>
+<h2>Tournaments &amp; third parties</h2>
+<p>Partner tournaments, payments, and third-party services may have additional terms. We are not responsible for third-party sites or services linked from the platform.</p>
+<h2>Disclaimers &amp; limitation of liability</h2>
+<p>The service is provided “as is” to the extent permitted by law. We are not liable for indirect or consequential damages arising from your use of the platform.</p>
+<h2>Changes</h2>
+<p>We may update these Terms from time to time. Continued use after changes become effective constitutes acceptance of the updated Terms.</p>
+<h2>Contact</h2>
+<p>Questions: <a href="mailto:help@gudgame.id">help@gudgame.id</a> — PT Aplikasi Wong Kito Galo, Jl. Limo Raya No. 7, Limo, Kota Depok - Jawa Barat, 16515.</p>`,
   },
 };
 
@@ -312,6 +353,32 @@ function mergeContact(raw: unknown): HomepageContactSettings {
   };
 }
 
+function mergeLegalDocument(
+  raw: unknown,
+  fallback: HomepageLegalDocumentSettings,
+): HomepageLegalDocumentSettings {
+  const source = asRecord(raw);
+  const bodyRaw = pickString(source, "body", fallback.body, 50000);
+  const body = coerceRichHtmlField(bodyRaw) || sanitizeRichText(fallback.body) || fallback.body;
+
+  return {
+    badgeText: pickString(source, "badgeText", fallback.badgeText, 80),
+    title: pickString(source, "title", fallback.title, 120),
+    subtitle: pickString(source, "subtitle", fallback.subtitle, 400),
+    lastUpdatedLabel: pickOptionalString(
+      source,
+      "lastUpdatedLabel",
+      fallback.lastUpdatedLabel,
+      80,
+    ),
+    body,
+  };
+}
+
+function sanitizeLegalBody(body: string): string {
+  return coerceRichHtmlField(body) || sanitizeRichText(body) || body;
+}
+
 export function normalizeHomepageSettings(raw: unknown): HomepageSettings {
   const source = asRecord(raw);
   return {
@@ -320,6 +387,8 @@ export function normalizeHomepageSettings(raw: unknown): HomepageSettings {
     footer: mergeFooter(source?.footer),
     about: mergeAbout(source?.about),
     contact: mergeContact(source?.contact),
+    privacy: mergeLegalDocument(source?.privacy, DEFAULT_HOMEPAGE_SETTINGS.privacy),
+    terms: mergeLegalDocument(source?.terms, DEFAULT_HOMEPAGE_SETTINGS.terms),
   };
 }
 
@@ -347,6 +416,14 @@ function sanitizeForPersist(input: HomepageSettings): HomepageSettings {
         coerceRichHtmlField(parsed.contact.description) ||
         sanitizeRichText(parsed.contact.description) ||
         parsed.contact.description,
+    },
+    privacy: {
+      ...parsed.privacy,
+      body: sanitizeLegalBody(parsed.privacy.body),
+    },
+    terms: {
+      ...parsed.terms,
+      body: sanitizeLegalBody(parsed.terms.body),
     },
   };
 }

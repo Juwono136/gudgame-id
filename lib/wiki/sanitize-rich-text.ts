@@ -30,6 +30,7 @@ const RICH_TEXT_OPTIONS: sanitizeHtml.IOptions = {
     "ul",
     "ol",
     "li",
+    "h1",
     "h2",
     "h3",
     "blockquote",
@@ -49,6 +50,7 @@ const RICH_TEXT_OPTIONS: sanitizeHtml.IOptions = {
     b: "strong",
     i: "em",
     div: "p",
+    h1: "h2",
     a: (_tagName, attribs) => {
       const href = normalizeLinkHref(attribs.href);
       if (!href) {

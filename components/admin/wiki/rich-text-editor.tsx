@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bold, ImagePlus, Italic, Link2, List, ListOrdered, Unlink } from "lucide-react";
+import {
+  Bold,
+  Heading2,
+  Heading3,
+  ImagePlus,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  Pilcrow,
+  Unlink,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +35,8 @@ type RichTextEditorProps = {
    */
   onUploadImage?: (file: File) => Promise<string>;
 };
+
+type BlockFormat = "p" | "h2" | "h3";
 
 function truncateHtml(html: string, maxLength: number): string {
   if (html.length <= maxLength) return html;
@@ -77,6 +90,13 @@ function restoreSelectionRange(
   if (options?.forceFocus || focusStillInEditor) {
     container.focus();
   }
+}
+
+/** Apply block format across browsers (Chrome wants `h2`, Firefox prefers `<h2>`). */
+function execFormatBlock(tag: BlockFormat): boolean {
+  const withBrackets = `<${tag}>`;
+  if (document.execCommand("formatBlock", false, withBrackets)) return true;
+  return document.execCommand("formatBlock", false, tag);
 }
 
 export function RichTextEditor({
@@ -156,6 +176,17 @@ export function RichTextEditor({
       saveSelection();
       restoreSelection();
       document.execCommand(command, false, val);
+      ref.current?.focus();
+      if (ref.current) emitRawChange(ref.current.innerHTML);
+    },
+    [emitRawChange, restoreSelection, saveSelection],
+  );
+
+  const applyBlockFormat = useCallback(
+    (tag: BlockFormat) => {
+      saveSelection();
+      restoreSelection();
+      execFormatBlock(tag);
       ref.current?.focus();
       if (ref.current) emitRawChange(ref.current.innerHTML);
     },
@@ -271,6 +302,28 @@ export function RichTextEditor({
     <div className={cn("overflow-hidden rounded-xl border border-cp-border bg-cp-elevated", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-cp-border bg-cp-card/80 p-2">
         <div className="flex flex-wrap gap-1">
+          <ToolbarButton
+            onMouseDown={preventToolbarBlur}
+            onClick={() => applyBlockFormat("p")}
+            title="Paragraph"
+          >
+            <Pilcrow className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onMouseDown={preventToolbarBlur}
+            onClick={() => applyBlockFormat("h2")}
+            title="Heading 2"
+          >
+            <Heading2 className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onMouseDown={preventToolbarBlur}
+            onClick={() => applyBlockFormat("h3")}
+            title="Heading 3"
+          >
+            <Heading3 className="h-4 w-4" />
+          </ToolbarButton>
+          <span className="mx-0.5 hidden h-6 w-px self-center bg-cp-border sm:block" aria-hidden />
           <ToolbarButton onMouseDown={preventToolbarBlur} onClick={() => exec("bold")} title="Bold">
             <Bold className="h-4 w-4" />
           </ToolbarButton>
@@ -379,6 +432,8 @@ export function RichTextEditor({
         className={cn(
           richHtmlClassName("article"),
           "px-4 py-3 text-foreground outline-none",
+          "[&_h2]:mt-4 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground sm:[&_h2]:text-xl",
+          "[&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:text-foreground",
           "empty:before:pointer-events-none empty:before:text-cp-muted empty:before:content-[attr(data-placeholder)]",
           atLimit && "ring-1 ring-inset ring-amber-500/40",
         )}

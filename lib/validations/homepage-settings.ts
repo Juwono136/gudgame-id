@@ -159,12 +159,23 @@ export const homepageContactSettingsSchema = z.object({
   ctaLabel: trimmed(60).min(1, "Email CTA label is required"),
 });
 
+/** Shared shape for Privacy Policy / Terms of Service CMS pages. */
+export const homepageLegalDocumentSettingsSchema = z.object({
+  badgeText: trimmed(80).min(1, "Badge text is required"),
+  title: trimmed(120).min(1, "Title is required"),
+  subtitle: trimmed(400).min(1, "Subtitle is required"),
+  lastUpdatedLabel: trimmed(80),
+  body: trimmed(50000).min(1, "Body content is required"),
+});
+
 export const homepageSettingsSchema = z.object({
   hero: homepageHeroSettingsSchema,
   sportsSection: homepageSportsSectionSettingsSchema,
   footer: homepageFooterSettingsSchema,
   about: homepageAboutSettingsSchema,
   contact: homepageContactSettingsSchema,
+  privacy: homepageLegalDocumentSettingsSchema,
+  terms: homepageLegalDocumentSettingsSchema,
 });
 
 export type HomepageSettingsInput = z.infer<typeof homepageSettingsSchema>;
@@ -175,5 +186,8 @@ export type HomepageSportsSectionSettings = z.infer<
 export type HomepageFooterSettings = z.infer<typeof homepageFooterSettingsSchema>;
 export type HomepageAboutSettings = z.infer<typeof homepageAboutSettingsSchema>;
 export type HomepageContactSettings = z.infer<typeof homepageContactSettingsSchema>;
+export type HomepageLegalDocumentSettings = z.infer<
+  typeof homepageLegalDocumentSettingsSchema
+>;
 export type HomepageFooterLink = z.infer<typeof footerLinkSchema>;
 export type HomepageSocialLink = z.infer<typeof socialLinkSchema>;

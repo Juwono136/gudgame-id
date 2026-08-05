@@ -33,6 +33,8 @@ export async function PATCH(request: Request) {
     revalidatePath("/");
     revalidatePath("/about");
     revalidatePath("/contact");
+    revalidatePath("/privacy");
+    revalidatePath("/terms");
     return jsonSuccess({ settings });
   } catch (error) {
     return jsonError(error);

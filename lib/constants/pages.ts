@@ -19,6 +19,14 @@ export const pageMeta = {
     title: "Contact Us",
     description: `Reach the ${siteConfig.name} team for support, partnerships, and general inquiries.`,
   },
+  privacy: {
+    title: "Privacy Policy",
+    description: `How ${siteConfig.name} collects, uses, and protects your personal information.`,
+  },
+  terms: {
+    title: "Terms of Service",
+    description: `The rules and conditions for using ${siteConfig.name}.`,
+  },
 
   community: {
     title: "Community",

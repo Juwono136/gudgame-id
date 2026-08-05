@@ -1,10 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Home, Search } from "lucide-react";
+import { Home } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { brandAssets } from "@/lib/config";
-import { authRoutes, dashboardRoutes } from "@/lib/constants/routes";
 
 export const metadata = {
   title: "Page Not Found",
@@ -17,7 +16,7 @@ export default function NotFound() {
       <div className="mx-auto flex min-h-[calc(100dvh-8rem)] max-w-2xl flex-col items-center justify-center px-4 py-16 text-center sm:py-24">
         <div className="relative mb-8">
           <div
-            className="absolute inset-0 rounded-full bg-cp-primary/20 blur-3xl"
+            className="absolute inset-0 rounded-full bg-cp-primary/20 blur-3xl dark:bg-cp-primary/25"
             aria-hidden
           />
           <Image
@@ -32,7 +31,7 @@ export default function NotFound() {
         <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-cp-primary">
           Error 404
         </p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Court not found
         </h1>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-cp-muted sm:text-base">
@@ -42,7 +41,7 @@ export default function NotFound() {
         <div className="mt-10 flex w-full max-w-sm flex-col gap-3 sm:flex-row sm:justify-center">
           <Button
             asChild
-            className="btn-interactive h-11 rounded-lg bg-cp-primary font-semibold text-white hover:bg-[#00a67a]"
+            className="btn-interactive h-11 rounded-lg bg-cp-primary font-semibold text-white hover:bg-cp-primary-light"
           >
             <Link href="/">
               <Home className="mr-2 h-4 w-4" />
@@ -50,7 +49,6 @@ export default function NotFound() {
             </Link>
           </Button>
         </div>
-
       </div>
     </PageShell>
   );
