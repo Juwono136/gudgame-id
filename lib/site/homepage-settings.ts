@@ -8,6 +8,8 @@ import { brandAssets, siteConfig } from "@/lib/config/site";
 import { coerceRichHtmlField, sanitizeRichText } from "@/lib/wiki/sanitize-rich-text";
 import {
   homepageSettingsSchema,
+  type HomepageAboutSettings,
+  type HomepageContactSettings,
   type HomepageFooterSettings,
   type HomepageHeroSettings,
   type HomepageSettingsInput,
@@ -49,6 +51,7 @@ export const DEFAULT_HOMEPAGE_SETTINGS: HomepageSettings = {
     siteColumnTitle: "Site",
     siteLinks: [
       { label: "About", href: "/about" },
+      { label: "Contact Us", href: "/contact" },
       { label: "Terms", href: "/terms" },
     ],
     legalColumnTitle: "Legal",
@@ -62,6 +65,44 @@ export const DEFAULT_HOMEPAGE_SETTINGS: HomepageSettings = {
       { platform: "twitter", label: "Twitter", href: "https://twitter.com" },
     ],
     copyrightSuffix: "Performance Data Aesthetics.",
+  },
+  about: {
+    badgeText: "Our story",
+    title: "About Gud Game",
+    subtitle: `Learn about ${siteConfig.name} — the modern sports encyclopedia built for court sports communities.`,
+    bannerImageUrl: "/images/bg-03.jpg",
+    bannerAlt: "",
+    imageUrl: "",
+    imageAlt: "",
+    description: `<p>${siteConfig.name} is the community knowledge platform for court sports — bringing players, tournaments, gear, and live data together in one place.</p><p>We help organizers run events, give players a home for their profiles and stats, and make sport knowledge easier to discover.</p>`,
+    missionTitle: "Our mission",
+    missionBody:
+      "Build the most trusted, modern home for court sports communities — where performance data meets great aesthetics.",
+  },
+  contact: {
+    badgeText: "Get in touch",
+    title: "Contact Us",
+    subtitle: `Questions, partnerships, or support — the ${siteConfig.name} team is here to help.`,
+    bannerImageUrl: "/images/bg-03.jpg",
+    bannerAlt: "",
+    description:
+      "<p>Reach out for product support, partnership inquiries, or press. We typically respond within 1–2 business days.</p><p>This page lists the official contact channels for PT Aplikasi Wong Kito Galo, the company operating Gud Game.</p>",
+    introCardTitle: "Official business contact",
+    introCardSubtitle:
+      "Use these channels for support, partnerships, and compliance verification.",
+    legalSectionTitle: "Legal entity",
+    productName: siteConfig.name,
+    companyLegalName: "PT Aplikasi Wong Kito Galo",
+    supportEmail: "help@gudgame.id",
+    emailHint: "Primary support & business inquiries",
+    phone: "",
+    address: "Jl. Limo Raya No. 7, Limo, Kota Depok - Jawa Barat, 16515.",
+    officeHours: "Mon–Fri, 09:00–17:00 WIB",
+    websiteUrl: "https://gudgame.id",
+    mapsUrl: "",
+    mapsSectionTitle: "Our location",
+    mapsCtaLabel: "View on Maps",
+    ctaLabel: "Email support",
   },
 };
 
@@ -216,12 +257,69 @@ function mergeFooter(raw: unknown): HomepageFooterSettings {
   };
 }
 
+function mergeAbout(raw: unknown): HomepageAboutSettings {
+  const source = asRecord(raw);
+  const d = DEFAULT_HOMEPAGE_SETTINGS.about;
+  const descriptionRaw = pickString(source, "description", d.description, 20000);
+  const description =
+    coerceRichHtmlField(descriptionRaw) || sanitizeRichText(d.description) || d.description;
+
+  return {
+    badgeText: pickString(source, "badgeText", d.badgeText, 80),
+    title: pickString(source, "title", d.title, 120),
+    subtitle: pickString(source, "subtitle", d.subtitle, 400),
+    bannerImageUrl:
+      pickOptionalString(source, "bannerImageUrl", d.bannerImageUrl, 800) || d.bannerImageUrl,
+    bannerAlt: pickOptionalString(source, "bannerAlt", d.bannerAlt, 200),
+    imageUrl: pickOptionalString(source, "imageUrl", d.imageUrl, 800),
+    imageAlt: pickOptionalString(source, "imageAlt", d.imageAlt, 200),
+    description,
+    missionTitle: pickString(source, "missionTitle", d.missionTitle, 120),
+    missionBody: pickString(source, "missionBody", d.missionBody, 1200),
+  };
+}
+
+function mergeContact(raw: unknown): HomepageContactSettings {
+  const source = asRecord(raw);
+  const d = DEFAULT_HOMEPAGE_SETTINGS.contact;
+  const descriptionRaw = pickString(source, "description", d.description, 4000);
+  const description =
+    coerceRichHtmlField(descriptionRaw) || sanitizeRichText(d.description) || d.description;
+
+  return {
+    badgeText: pickString(source, "badgeText", d.badgeText, 80),
+    title: pickString(source, "title", d.title, 120),
+    subtitle: pickString(source, "subtitle", d.subtitle, 400),
+    bannerImageUrl:
+      pickOptionalString(source, "bannerImageUrl", d.bannerImageUrl, 800) || d.bannerImageUrl,
+    bannerAlt: pickOptionalString(source, "bannerAlt", d.bannerAlt, 200),
+    description,
+    introCardTitle: pickString(source, "introCardTitle", d.introCardTitle, 80),
+    introCardSubtitle: pickString(source, "introCardSubtitle", d.introCardSubtitle, 240),
+    legalSectionTitle: pickString(source, "legalSectionTitle", d.legalSectionTitle, 80),
+    productName: pickString(source, "productName", d.productName, 80),
+    companyLegalName: pickString(source, "companyLegalName", d.companyLegalName, 160),
+    supportEmail: pickString(source, "supportEmail", d.supportEmail, 160),
+    emailHint: pickOptionalString(source, "emailHint", d.emailHint, 120),
+    phone: pickOptionalString(source, "phone", d.phone, 60),
+    address: pickString(source, "address", d.address, 320),
+    officeHours: pickOptionalString(source, "officeHours", d.officeHours, 240),
+    websiteUrl: pickOptionalString(source, "websiteUrl", d.websiteUrl, 500),
+    mapsUrl: pickOptionalString(source, "mapsUrl", d.mapsUrl, 500),
+    mapsSectionTitle: pickString(source, "mapsSectionTitle", d.mapsSectionTitle, 80),
+    mapsCtaLabel: pickString(source, "mapsCtaLabel", d.mapsCtaLabel, 60),
+    ctaLabel: pickString(source, "ctaLabel", d.ctaLabel, 60),
+  };
+}
+
 export function normalizeHomepageSettings(raw: unknown): HomepageSettings {
   const source = asRecord(raw);
   return {
     hero: mergeHero(source?.hero),
     sportsSection: mergeSportsSection(source?.sportsSection),
     footer: mergeFooter(source?.footer),
+    about: mergeAbout(source?.about),
+    contact: mergeContact(source?.contact),
   };
 }
 
@@ -235,6 +333,20 @@ function sanitizeForPersist(input: HomepageSettings): HomepageSettings {
         coerceRichHtmlField(parsed.footer.description) ||
         sanitizeRichText(parsed.footer.description) ||
         parsed.footer.description,
+    },
+    about: {
+      ...parsed.about,
+      description:
+        coerceRichHtmlField(parsed.about.description) ||
+        sanitizeRichText(parsed.about.description) ||
+        parsed.about.description,
+    },
+    contact: {
+      ...parsed.contact,
+      description:
+        coerceRichHtmlField(parsed.contact.description) ||
+        sanitizeRichText(parsed.contact.description) ||
+        parsed.contact.description,
     },
   };
 }

@@ -15,6 +15,11 @@ export const pageMeta = {
     title: "About",
     description: `Learn about ${siteConfig.name} — the modern sports encyclopedia built for court sports communities.`,
   },
+  contact: {
+    title: "Contact Us",
+    description: `Reach the ${siteConfig.name} team for support, partnerships, and general inquiries.`,
+  },
+
   community: {
     title: "Community",
     description:

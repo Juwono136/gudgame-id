@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, UserRound } from "lucide-react";
+import { Home, Mail, UserRound } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -10,6 +10,7 @@ export type NavItem = {
 export const mainNavItems: NavItem[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/about", label: "About", icon: UserRound },
+  { href: "/contact", label: "Contact Us", icon: Mail },
 ];
 
 export { authRoutes, dashboardRoutes } from "@/lib/constants/routes";

@@ -1,6 +1,22 @@
 import sanitizeHtml from "sanitize-html";
 import { normalizeLinkHref } from "@/lib/wiki/normalize-link";
 
+function isSafeRichImageSrc(src: string | undefined): string | null {
+  if (!src?.trim()) return null;
+  const trimmed = src.trim();
+  // Same-origin media proxy / static assets, or https CDN.
+  if (
+    trimmed.startsWith("/api/media/") ||
+    trimmed.startsWith("/images/") ||
+    trimmed.startsWith("https://")
+  ) {
+    // Strip dangerous characters; keep cache-bust query on media paths.
+    if (trimmed.includes("javascript:") || trimmed.includes("data:")) return null;
+    return trimmed.slice(0, 800);
+  }
+  return null;
+}
+
 const RICH_TEXT_OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: [
     "p",
@@ -19,9 +35,14 @@ const RICH_TEXT_OPTIONS: sanitizeHtml.IOptions = {
     "blockquote",
     "a",
     "div",
+    "img",
+    "figure",
+    "figcaption",
   ],
   allowedAttributes: {
     a: ["href", "title", "target", "rel"],
+    img: ["src", "alt", "title", "width", "height", "loading"],
+    figure: ["class"],
   },
   allowedSchemes: ["http", "https", "mailto"],
   transformTags: {
@@ -40,6 +61,22 @@ const RICH_TEXT_OPTIONS: sanitizeHtml.IOptions = {
           target: "_blank",
           rel: "noopener noreferrer",
           ...(attribs.title ? { title: attribs.title } : {}),
+        },
+      };
+    },
+    img: (_tagName, attribs) => {
+      const src = isSafeRichImageSrc(attribs.src);
+      if (!src) {
+        return { tagName: "span", attribs: {} };
+      }
+      const alt = typeof attribs.alt === "string" ? attribs.alt.trim().slice(0, 200) : "";
+      return {
+        tagName: "img",
+        attribs: {
+          src,
+          alt,
+          loading: "lazy",
+          ...(attribs.title ? { title: String(attribs.title).slice(0, 200) } : {}),
         },
       };
     },
@@ -85,6 +122,7 @@ export function sanitizeTournamentRichField(value: string | null | undefined): s
 
 export function hasRichTextContent(value: string | null | undefined): boolean {
   if (!value?.trim()) return false;
+  if (/<img\b/i.test(value)) return true;
   const plain = sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} })
     .replace(/\s+/g, " ")
     .trim();

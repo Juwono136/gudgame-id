@@ -12,6 +12,10 @@ type TournamentVenueMapPreviewProps = {
   mapsUrl?: string;
   className?: string;
   compact?: boolean;
+  /** Eyebrow above the venue/address line. Defaults to "Venue". */
+  locationLabel?: string;
+  /** CTA on the map header. Defaults to "Open in Maps". */
+  openLabel?: string;
 };
 
 export function TournamentVenueMapPreview({
@@ -19,6 +23,8 @@ export function TournamentVenueMapPreview({
   mapsUrl = "",
   className,
   compact = false,
+  locationLabel = "Venue",
+  openLabel = "Open in Maps",
 }: TournamentVenueMapPreviewProps) {
   const embedUrl = buildVenueEmbedUrl(mapsUrl, venue);
   const openUrl = resolveVenueOpenUrl(mapsUrl, venue);
@@ -31,7 +37,9 @@ export function TournamentVenueMapPreview({
         <div className="flex min-w-0 items-start gap-2">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-cp-primary" aria-hidden />
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-cp-muted">Venue</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-cp-muted">
+              {locationLabel}
+            </p>
             <p className="mt-0.5 text-sm font-medium text-foreground">{venue.trim() || "Location"}</p>
           </div>
         </div>
@@ -42,7 +50,7 @@ export function TournamentVenueMapPreview({
             rel="noopener noreferrer"
             className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-cp-border bg-cp-elevated px-3 py-1.5 text-xs font-medium text-cp-primary transition-colors hover:bg-cp-primary/10"
           >
-            Open in Maps
+            {openLabel}
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         ) : null}

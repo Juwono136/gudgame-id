@@ -23,6 +23,13 @@ const nextConfig: NextConfig = {
     turbopackFileSystemCacheForDev: false,
   },
   images: {
+    // Allow cache-busting query strings on local media (e.g. /api/media/...?v=…).
+    // Omitting `search` permits any query; empty `search: ''` would block them.
+    localPatterns: [
+      { pathname: "/api/media/**" },
+      { pathname: "/images/**" },
+      { pathname: "/favicon.ico" },
+    ],
     remotePatterns: [
       {
         protocol: "https",

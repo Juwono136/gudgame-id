@@ -35,6 +35,8 @@ export default function Hero({ content }: HeroProps) {
           alt={bannerAlt}
           fill
           priority
+          loading="eager"
+          fetchPriority="high"
           className="object-cover object-center brightness-[0.92] contrast-[1.02] saturate-[0.95] dark:brightness-[0.72] dark:contrast-100 dark:saturate-100"
           sizes="100vw"
         />

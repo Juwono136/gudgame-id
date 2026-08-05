@@ -1,5 +1,46 @@
 /** Parse Google Maps share URLs into embed-friendly query strings (coords or place name). */
 
+/** True for https Google Maps / short-link hosts only (client + server safe). */
+export function isGoogleMapsHttpsUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "maps.app.goo.gl" ||
+      host === "goo.gl" ||
+      host.endsWith(".goo.gl") ||
+      host === "maps.google.com" ||
+      host.endsWith(".maps.google.com") ||
+      host === "www.google.com" ||
+      host === "google.com" ||
+      /^www\.google\.[a-z.]+$/.test(host) ||
+      /^maps\.google\.[a-z.]+$/.test(host)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** True when an iframe src is a Google Maps embed (never OpenStreetMap). */
+export function isGoogleMapsEmbedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    if (host.includes("openstreetmap.org")) return false;
+    return (
+      (host === "www.google.com" ||
+        host === "maps.google.com" ||
+        host.endsWith(".google.com")) &&
+      (path.includes("/maps") || parsed.searchParams.has("output"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 function extractCoordsFromUrl(url: string): string | null {
   const atMatch = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
   if (atMatch) {
@@ -46,6 +87,23 @@ function extractPlaceNameFromUrl(url: string): string | null {
   } catch {
     /* ignore */
   }
+  return null;
+}
+
+/**
+ * Human-readable label from a Google Maps URL only (never a separate address field).
+ * Prefer /place/… name, then q/query text.
+ */
+export function resolveGoogleMapsLocationLabel(mapsUrl?: string | null): string | null {
+  const trimmed = mapsUrl?.trim();
+  if (!trimmed) return null;
+
+  const place = extractPlaceNameFromUrl(trimmed);
+  if (place) {
+    const cleaned = place.replace(/\s+/g, " ").trim();
+    return cleaned ? cleaned.slice(0, 200) : null;
+  }
+
   return null;
 }
 

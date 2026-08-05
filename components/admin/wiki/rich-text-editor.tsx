@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bold, Italic, Link2, List, ListOrdered, Unlink } from "lucide-react";
+import { Bold, ImagePlus, Italic, Link2, List, ListOrdered, Unlink } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
@@ -17,6 +18,11 @@ type RichTextEditorProps = {
   minHeight?: number;
   maxLength?: number;
   className?: string;
+  /**
+   * When set, shows an Insert image control. Return a public URL
+   * (e.g. `/api/media/…`) for the uploaded file.
+   */
+  onUploadImage?: (file: File) => Promise<string>;
 };
 
 function truncateHtml(html: string, maxLength: number): string {
@@ -80,6 +86,7 @@ export function RichTextEditor({
   minHeight = 160,
   maxLength,
   className,
+  onUploadImage,
 }: RichTextEditorProps) {
   const ref = useRef<HTMLDivElement>(null);
   /** Tracks the last HTML emitted to the parent — avoids resetting the caret on self-updates. */
@@ -87,9 +94,11 @@ export function RichTextEditor({
   const isFocusedRef = useRef(false);
   const savedSelectionRef = useRef<Range | null>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -216,6 +225,26 @@ export function RichTextEditor({
     closeLinkEditor();
   };
 
+  const insertImageFromFile = async (file: File | null) => {
+    if (!file || !onUploadImage) return;
+    setUploadingImage(true);
+    try {
+      const url = await onUploadImage(file);
+      const safeUrl = url.trim();
+      if (!safeUrl) throw new Error("Upload returned an empty URL");
+      restoreSelection();
+      const alt = file.name.replace(/\.[^.]+$/, "").slice(0, 120) || "Image";
+      const html = `<figure><img src="${safeUrl}" alt="${alt.replace(/"/g, "")}" loading="lazy" /><figcaption></figcaption></figure><p><br></p>`;
+      document.execCommand("insertHTML", false, html);
+      if (ref.current) emitSanitizedChange(ref.current.innerHTML, { restoreCaret: true });
+      toast.success("Image inserted");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Image upload failed");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleEditorClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (target.closest("a")) {
@@ -265,11 +294,34 @@ export function RichTextEditor({
           <ToolbarButton onMouseDown={preventToolbarBlur} onClick={openLinkEditor} title="Insert link">
             <Link2 className="h-4 w-4" />
           </ToolbarButton>
+          {onUploadImage ? (
+            <ToolbarButton
+              onMouseDown={preventToolbarBlur}
+              onClick={() => imageInputRef.current?.click()}
+              title={uploadingImage ? "Uploading…" : "Insert image"}
+            >
+              <ImagePlus className={cn("h-4 w-4", uploadingImage && "animate-pulse")} />
+            </ToolbarButton>
+          ) : null}
         </div>
         {maxLength ? (
           <FieldCharCounter current={value.length} max={maxLength} className="px-1" />
         ) : null}
       </div>
+      {onUploadImage ? (
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          disabled={uploadingImage}
+          onChange={(e) => {
+            const file = e.target.files?.[0] ?? null;
+            e.target.value = "";
+            void insertImageFromFile(file);
+          }}
+        />
+      ) : null}
 
       {linkEditorOpen ? (
         <div className="space-y-2 border-b border-cp-border bg-cp-card/60 px-3 py-2">

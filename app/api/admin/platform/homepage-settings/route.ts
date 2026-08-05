@@ -31,6 +31,8 @@ export async function PATCH(request: Request) {
 
     const settings = await updateHomepageSettings(parsed.data, ctx.userId);
     revalidatePath("/");
+    revalidatePath("/about");
+    revalidatePath("/contact");
     return jsonSuccess({ settings });
   } catch (error) {
     return jsonError(error);

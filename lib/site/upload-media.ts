@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
 import { deleteObject, uploadObject } from "@/lib/storage/client";
 import { deleteStoredObject } from "@/lib/storage/object-lifecycle";
 import {
@@ -22,6 +23,11 @@ export { SITE_MEDIA_KINDS, type SiteMediaKind };
 const log = logger.child({ module: "site-media" });
 
 const SIBLING_EXTS = ["jpg", "jpeg", "png", "webp", "gif"] as const;
+
+/** Inline article images keep unique keys (many per page); other kinds overwrite `current.*`. */
+function usesStableKey(kind: SiteMediaKind): boolean {
+  return kind !== "about-inline";
+}
 
 export function siteHomepageStableKey(kind: SiteMediaKind, ext: string): string {
   const safeExt = ext.replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
@@ -50,9 +56,11 @@ export async function deleteSiteHomepageImage(
     await deleteStoredObject(previousKey);
   }
 
-  await Promise.all(
-    SIBLING_EXTS.map((ext) => deleteObject(siteHomepageStableKey(kind, ext))),
-  );
+  if (usesStableKey(kind)) {
+    await Promise.all(
+      SIBLING_EXTS.map((ext) => deleteObject(siteHomepageStableKey(kind, ext))),
+    );
+  }
 
   log.info("Homepage media cleared", { kind, previousKey });
 }
@@ -92,8 +100,9 @@ export async function uploadSiteHomepageImage(
       };
     }
 
-    // Overwrite a single stable key per kind — avoids orphan UUID duplicates.
-    const storageKey = siteHomepageStableKey(kind, ext);
+    const storageKey = usesStableKey(kind)
+      ? siteHomepageStableKey(kind, ext)
+      : `${SITE_MEDIA_PREFIX}homepage/${kind}/${randomUUID()}.${ext}`;
     const previousKey = resolveStorageKey(options?.previousUrl);
 
     await uploadObject({
@@ -102,19 +111,20 @@ export async function uploadSiteHomepageImage(
       contentType: mime,
     });
 
-    await deleteSiblingKeys(kind, ext);
-
-    if (
-      previousKey &&
-      previousKey !== storageKey &&
-      previousKey.startsWith(`${SITE_MEDIA_PREFIX}homepage/`)
-    ) {
-      await deleteStoredObject(previousKey);
+    if (usesStableKey(kind)) {
+      await deleteSiblingKeys(kind, ext);
+      if (
+        previousKey &&
+        previousKey !== storageKey &&
+        previousKey.startsWith(`${SITE_MEDIA_PREFIX}homepage/`)
+      ) {
+        await deleteStoredObject(previousKey);
+      }
     }
 
-    // Cache-bust public URL so browsers pick up the overwritten object.
+    // Cache-bust public URL so browsers pick up overwritten stable objects.
     const proxyPath = getMediaProxyPath(storageKey);
-    const url = `${proxyPath}?v=${Date.now()}`;
+    const url = usesStableKey(kind) ? `${proxyPath}?v=${Date.now()}` : proxyPath;
 
     log.info("Homepage media uploaded", { kind, storageKey, width, height });
     return {

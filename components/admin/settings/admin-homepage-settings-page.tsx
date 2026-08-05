@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ExternalLink, LayoutTemplate, ListTree, PanelBottom, Settings2 } from "lucide-react";
+import {
+  ExternalLink,
+  Info,
+  LayoutTemplate,
+  ListTree,
+  Mail,
+  PanelBottom,
+  Settings2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin/layout/admin-shell";
+import { AdminAboutSettingsPanel } from "@/components/admin/settings/admin-about-settings-panel";
+import { AdminContactSettingsPanel } from "@/components/admin/settings/admin-contact-settings-panel";
 import {
   SiteImageField,
   type SiteImagePendingState,
@@ -25,10 +35,12 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { AdminSessionContext } from "@/lib/admin/types";
 import { brandAssets } from "@/lib/config/site";
 import { adminRoutes } from "@/lib/constants/routes";
-import type { SiteMediaKind } from "@/lib/site/image-specs";
+import { SITE_MEDIA_KINDS, type SiteMediaKind } from "@/lib/site/image-specs";
 import { coerceRichHtmlField } from "@/lib/wiki/sanitize-rich-text";
 import {
   homepageSettingsSchema,
+  type HomepageAboutSettings,
+  type HomepageContactSettings,
   type HomepageSettingsInput,
 } from "@/lib/validations/homepage-settings";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
@@ -36,6 +48,12 @@ import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 const EMPTY_PENDING: SiteImagePendingState = { file: null, cleared: false };
 
 type PendingImages = Record<SiteMediaKind, SiteImagePendingState>;
+
+function emptyPendingImages(): PendingImages {
+  return Object.fromEntries(
+    SITE_MEDIA_KINDS.map((kind) => [kind, EMPTY_PENDING]),
+  ) as PendingImages;
+}
 
 const TABS = [
   {
@@ -49,6 +67,18 @@ const TABS = [
     label: "Choose your sport",
     description: "Section badge, heading, and supporting copy above the sports cards.",
     icon: ListTree,
+  },
+  {
+    id: "about",
+    label: "About",
+    description: "Public /about page — banner, story image, description, and mission.",
+    icon: Info,
+  },
+  {
+    id: "contact",
+    label: "Contact Us",
+    description: "Public /contact page — banner, support details, and CTA.",
+    icon: Mail,
   },
   {
     id: "footer",
@@ -134,6 +164,24 @@ const IMAGE_FIELD_MAP: {
     setUrl: (s, url) => ({ ...s, footer: { ...s.footer, logoUrl: url } }),
     fallback: brandAssets.logo,
   },
+  {
+    kind: "about-banner",
+    getUrl: (s) => s.about.bannerImageUrl,
+    setUrl: (s, url) => ({ ...s, about: { ...s.about, bannerImageUrl: url } }),
+    fallback: "/images/bg-03.jpg",
+  },
+  {
+    kind: "about-image",
+    getUrl: (s) => s.about.imageUrl,
+    setUrl: (s, url) => ({ ...s, about: { ...s.about, imageUrl: url } }),
+    fallback: "",
+  },
+  {
+    kind: "contact-banner",
+    getUrl: (s) => s.contact.bannerImageUrl,
+    setUrl: (s, url) => ({ ...s, contact: { ...s.contact, bannerImageUrl: url } }),
+    fallback: "/images/bg-03.jpg",
+  },
 ];
 
 function firstZodMessage(error: unknown): string | null {
@@ -163,11 +211,7 @@ export function AdminHomepageSettingsPage({
   const activeTab: TabId = isTabId(rawTab) ? rawTab : "hero";
 
   const [settings, setSettings] = useState<HomepageSettingsInput>(initialSettings);
-  const [pendingImages, setPendingImages] = useState<PendingImages>({
-    "hero-banner": EMPTY_PENDING,
-    "hero-logo": EMPTY_PENDING,
-    "footer-logo": EMPTY_PENDING,
-  });
+  const [pendingImages, setPendingImages] = useState<PendingImages>(emptyPendingImages);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -212,6 +256,20 @@ export function AdminHomepageSettingsPage({
     value: HomepageSettingsInput["footer"][K],
   ) => {
     setSettings((prev) => ({ ...prev, footer: { ...prev.footer, [key]: value } }));
+  };
+
+  const patchAbout = <K extends keyof HomepageAboutSettings>(
+    key: K,
+    value: HomepageAboutSettings[K],
+  ) => {
+    setSettings((prev) => ({ ...prev, about: { ...prev.about, [key]: value } }));
+  };
+
+  const patchContact = <K extends keyof HomepageContactSettings>(
+    key: K,
+    value: HomepageContactSettings[K],
+  ) => {
+    setSettings((prev) => ({ ...prev, contact: { ...prev.contact, [key]: value } }));
   };
 
   const save = async () => {
@@ -269,12 +327,8 @@ export function AdminHomepageSettingsPage({
         throw new Error(fromFields ?? json?.error?.message ?? "Save failed");
       }
       setSettings(json.data.settings);
-      setPendingImages({
-        "hero-banner": EMPTY_PENDING,
-        "hero-logo": EMPTY_PENDING,
-        "footer-logo": EMPTY_PENDING,
-      });
-      toast.success("Homepage content published");
+      setPendingImages(emptyPendingImages());
+      toast.success("Site content published");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
@@ -315,10 +369,9 @@ export function AdminHomepageSettingsPage({
             <div className="flex items-start gap-3 rounded-2xl border border-cp-primary/20 bg-cp-primary/5 px-4 py-3">
               <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-cp-primary" />
               <p className="text-xs leading-relaxed text-cp-muted sm:text-sm">
-                Manage public homepage content for Gud Game. Sport cards themselves are still
-                managed under{" "}
-                <span className="font-medium text-foreground">Sports</span> — this page controls
-                section copy, hero media, and the global footer.
+                Manage public Gud Game content — homepage hero & sports copy, About, Contact Us,
+                and the global footer. Sport cards themselves stay under{" "}
+                <span className="font-medium text-foreground">Sports</span>.
               </p>
             </div>
           </div>
@@ -526,6 +579,26 @@ export function AdminHomepageSettingsPage({
               </div>
             </div>
           </section>
+        ) : null}
+
+        {activeTab === "about" ? (
+          <AdminAboutSettingsPanel
+            value={settings.about}
+            disabled={saving}
+            pendingImages={pendingImages}
+            onPendingChange={setPending}
+            onChange={patchAbout}
+          />
+        ) : null}
+
+        {activeTab === "contact" ? (
+          <AdminContactSettingsPanel
+            value={settings.contact}
+            disabled={saving}
+            pendingImages={pendingImages}
+            onPendingChange={setPending}
+            onChange={patchContact}
+          />
         ) : null}
 
         {activeTab === "footer" ? (

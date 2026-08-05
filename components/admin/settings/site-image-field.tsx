@@ -109,8 +109,10 @@ export function SiteImageField({
               alt=""
               fill
               sizes="(max-width: 768px) 100vw, 480px"
-              className={kind === "hero-banner" ? "object-cover" : "object-contain p-4"}
-              unoptimized={displayUrl.startsWith("blob:")}
+              className={
+                kind.includes("logo") ? "object-contain p-4" : "object-cover"
+              }
+              unoptimized={displayUrl.startsWith("blob:") || displayUrl.includes("?")}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             <div className="absolute right-2 bottom-2 flex gap-2">

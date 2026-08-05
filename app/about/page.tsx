@@ -1,14 +1,26 @@
+import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/page-shell";
-import { ContentHeader } from "@/components/layout/content-header";
-import { ComingSoonPlaceholder } from "@/components/layout/coming-soon-placeholder";
+import { AboutPageContent } from "@/components/sections/about-page-content";
 import { pageMeta } from "@/lib/constants/pages";
+import { getHomepageSettings } from "@/lib/site/homepage-settings";
 
-export default function AboutPage() {
-  const meta = pageMeta.about;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getHomepageSettings();
+  return {
+    title: settings.about.title || pageMeta.about.title,
+    description: settings.about.subtitle || pageMeta.about.description,
+  };
+}
+
+export default async function AboutPage() {
+  const settings = await getHomepageSettings();
+
   return (
     <PageShell>
-      <ContentHeader title={meta.title} description={meta.description} />
-      <ComingSoonPlaceholder title={meta.title} description={meta.description} />
+      <AboutPageContent content={settings.about} />
     </PageShell>
   );
 }
