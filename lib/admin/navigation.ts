@@ -48,8 +48,7 @@ export const adminNavItems: AdminNavItem[] = [
     label: "System Settings",
     href: adminRoutes.settings,
     icon: Settings,
-    badge: "Soon",
-    disabled: true,
+    permission: "admin.users.manage",
   },
 ];
 
@@ -62,5 +61,9 @@ export function filterAdminNav(permissions: Set<Permission>): AdminNavItem[] {
 
 export function isAdminNavActive(pathname: string, href: string): boolean {
   if (href === adminRoutes.home) return pathname === adminRoutes.home;
+  // Exact match for /admin/settings so Payment settings (/admin/settings/payments) stays distinct.
+  if (href === adminRoutes.settings) {
+    return pathname === adminRoutes.settings || pathname === `${adminRoutes.settings}/`;
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

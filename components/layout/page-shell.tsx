@@ -1,5 +1,5 @@
 import Navbar from "@/components/layout/navbar";
-import Footer from "@/components/layout/footer";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { GridBackground } from "@/components/ui/backgrounds/grid-background";
 import { siteHeaderOffsetClass } from "@/lib/constants/site-layout";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,7 @@ export function PageShell({
       >
         {children}
       </main>
-      {showFooter ? <Footer /> : null}
+      {showFooter ? <SiteFooter /> : null}
     </div>
   );
 }

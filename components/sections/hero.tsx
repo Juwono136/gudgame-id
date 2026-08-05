@@ -4,16 +4,35 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { FadeIn } from "@/components/motion/fade-in";
 import { GlobalSearchBox } from "@/components/search/global-search-box";
+import { brandAssets, siteConfig } from "@/lib/config/site";
+import { resolveSiteImageUrl } from "@/lib/site/resolve-image";
+import type { HomepageHeroSettings } from "@/lib/validations/homepage-settings";
 
-export default function Hero() {
+type HeroProps = {
+  content?: HomepageHeroSettings;
+};
+
+export default function Hero({ content }: HeroProps) {
   const pathname = usePathname();
+  const badgeText = content?.badgeText ?? "The Official Community Hub";
+  const logoUrl = resolveSiteImageUrl(content?.logoUrl, brandAssets.logo);
+  const logoAlt = content?.logoAlt?.trim() || siteConfig.name;
+  const bannerUrl = resolveSiteImageUrl(content?.bannerImageUrl, "/images/bg-03.jpg");
+  const bannerAlt = content?.bannerAlt?.trim() ?? "";
+  const title = content?.title ?? "Super sports app";
+  const titleHighlight = content?.titleHighlight ?? "database and match maker";
+  const subtitle =
+    content?.subtitle ??
+    "Player profiles, gear specs, and tournament coverage — all in one place.";
+  const searchPlaceholder =
+    content?.searchPlaceholder ?? "Search players, gear, tournaments, news…";
 
   return (
     <section className="relative z-10 min-h-[min(42vh,380px)] sm:min-h-[min(44vh,420px)]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <Image
-          src="/images/bg-03.jpg"
-          alt=""
+          src={bannerUrl}
+          alt={bannerAlt}
           fill
           priority
           className="object-cover object-center brightness-[0.92] contrast-[1.02] saturate-[0.95] dark:brightness-[0.72] dark:contrast-100 dark:saturate-100"
@@ -43,21 +62,20 @@ export default function Hero() {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cp-primary opacity-55" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cp-primary" />
                   </span>
-                  The Official Community Hub
+                  {badgeText}
                 </div>
               </FadeIn>
 
               <FadeIn mountKey={`hero-logo-${pathname}`} delay={0.04}>
                 <div className="mt-4 flex justify-center lg:justify-start">
-                  {/* Soft halo (no hard plate) — keeps green mark readable over the photo */}
                   <div className="relative inline-flex items-center justify-center">
                     <span
                       aria-hidden
                       className="pointer-events-none absolute left-1/2 top-1/2 h-[140%] w-[150%] -translate-x-1/2 -translate-y-1/2 rounded-[100%] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.95)_0%,rgba(255,255,255,0.55)_38%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_center,rgba(2,8,16,0.92)_0%,rgba(2,8,16,0.5)_40%,transparent_72%)]"
                     />
                     <Image
-                      src="/images/logo-gud-game.png"
-                      alt="Gud Game"
+                      src={logoUrl}
+                      alt={logoAlt}
                       width={280}
                       height={88}
                       priority
@@ -70,15 +88,19 @@ export default function Hero() {
 
               <FadeIn mountKey={`hero-title-${pathname}`} delay={0.08}>
                 <h1 className="mt-3 text-2xl font-bold leading-tight tracking-tight text-cp-text drop-shadow-[0_1px_12px_rgba(255,255,255,0.65)] sm:mt-4 sm:text-3xl md:text-[2rem] dark:text-white dark:drop-shadow-[0_2px_16px_rgba(0,0,0,0.85)]">
-                  Super sports app{" "}
-                  <span className="text-cp-primary">database and match maker</span>
+                  {title}
+                  {titleHighlight ? (
+                    <>
+                      {" "}
+                      <span className="text-cp-primary">{titleHighlight}</span>
+                    </>
+                  ) : null}
                 </h1>
               </FadeIn>
 
               <FadeIn mountKey={`hero-desc-${pathname}`} delay={0.14}>
                 <p className="mt-2 text-sm leading-relaxed text-cp-muted sm:mt-3 sm:text-[15px] dark:text-slate-300 dark:drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)]">
-                  Player profiles, gear specs, and tournament coverage — all in one
-                  place.
+                  {subtitle}
                 </p>
               </FadeIn>
             </div>
@@ -87,6 +109,7 @@ export default function Hero() {
               <FadeIn mountKey={`hero-search-${pathname}`} delay={0.18}>
                 <GlobalSearchBox
                   variant="hero"
+                  placeholder={searchPlaceholder}
                   className="shadow-[0_12px_40px_rgba(15,23,42,0.08)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
                 />
               </FadeIn>

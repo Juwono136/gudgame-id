@@ -13,7 +13,7 @@ export { resolveStorageKey } from "@/lib/storage/media-url";
 
 /**
  * Deletes one object from SeaweedFS. Best-effort — logs failures, never throws.
- * Only keys under allowed media prefixes (profiles/, wiki/, sports/, tournaments/, partners/) are removed.
+ * Only keys under allowed media prefixes (profiles/, wiki/, sports/, tournaments/, partners/, site/) are removed.
  */
 export async function deleteStoredObject(
   keyOrReference: string | null | undefined,
