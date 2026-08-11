@@ -87,6 +87,7 @@ export const adminRoutes = {
   contributor: "/dashboard/host",
   host: "/dashboard/host",
   users: "/admin/users",
+  hostRequests: "/admin/host-requests",
   contentApproval: "/admin/content-approval",
   wikiEntities: "/admin/wiki-entities",
   wikiEntitiesNew: "/admin/wiki-entities/new",

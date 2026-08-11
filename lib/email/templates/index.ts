@@ -16,6 +16,9 @@ import { renderPartnerRegistrationPaymentTemplate } from "./partner-registration
 import { renderPartnerRegistrationPendingTemplate } from "./partner-registration-pending";
 import { renderPartnerRegistrationConfirmedTemplate } from "./partner-registration-confirmed";
 import { renderPartnerRoleAssignedTemplate } from "./partner-role-assigned";
+import { renderHostRoleRequestAdminTemplate } from "./host-role-request-admin";
+import { renderHostRoleRequestApprovedTemplate } from "./host-role-request-approved";
+import { renderHostRoleRequestRejectedTemplate } from "./host-role-request-rejected";
 import { renderVerifyEmailTemplate } from "./verify-email";
 import { renderResetPasswordTemplate } from "./reset-password";
 import { renderPasswordChangedTemplate } from "./password-changed";
@@ -87,6 +90,18 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "partner-role-assigned":
       return renderPartnerRoleAssignedTemplate(
         input.data as EmailTemplateDataMap["partner-role-assigned"],
+      );
+    case "host-role-request-admin":
+      return renderHostRoleRequestAdminTemplate(
+        input.data as EmailTemplateDataMap["host-role-request-admin"],
+      );
+    case "host-role-request-approved":
+      return renderHostRoleRequestApprovedTemplate(
+        input.data as EmailTemplateDataMap["host-role-request-approved"],
+      );
+    case "host-role-request-rejected":
+      return renderHostRoleRequestRejectedTemplate(
+        input.data as EmailTemplateDataMap["host-role-request-rejected"],
       );
     case "welcome":
       throw new Error("Welcome email template is not implemented yet");

@@ -110,6 +110,7 @@ export function useCreateAdminUser() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "host-role-requests"] });
       invalidateSessionContext(qc);
     },
   });
@@ -138,6 +139,7 @@ export function useUpdateAdminUser() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "host-role-requests"] });
       invalidateSessionContext(qc);
     },
   });

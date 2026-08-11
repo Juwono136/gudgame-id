@@ -13,6 +13,9 @@ export const NOTIFICATION_TYPES = [
   "tournament_payment_expired",
   "tournament_team_invite",
   "tournament_registration_cancelled",
+  "host_role_request_submitted",
+  "host_role_request_approved",
+  "host_role_request_rejected",
   "system",
 ] as const;
 

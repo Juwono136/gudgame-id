@@ -42,7 +42,10 @@ import {
 import { resolveNotificationHref } from "@/lib/notifications/resolve-action-url";
 import { readNotificationSportName } from "@/lib/notifications/tournament-label";
 import type { NotificationItem } from "@/lib/notifications/types";
+import { hostRoleRequestQueryKey } from "@/hooks/use-host-role-request";
+import { invalidateSessionContext } from "@/lib/session/invalidate-session-context";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -192,6 +195,7 @@ function NotificationListSentinel({
 
 export function NotificationBell({ className }: { className?: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -209,6 +213,14 @@ export function NotificationBell({ className }: { className?: string }) {
       setModalOpen(false);
       setDropdownOpen(false);
 
+      if (
+        item.type === "host_role_request_approved" ||
+        item.type === "host_role_request_rejected"
+      ) {
+        void queryClient.invalidateQueries({ queryKey: hostRoleRequestQueryKey });
+        invalidateSessionContext(queryClient);
+      }
+
       if (href) {
         router.push(href);
       }
@@ -217,7 +229,7 @@ export function NotificationBell({ className }: { className?: string }) {
         markRead.mutate(item.id);
       }
     },
-    [markRead, router],
+    [markRead, queryClient, router],
   );
 
   const handleMarkAllRead = useCallback(() => {

@@ -2,7 +2,12 @@
 
 import { cn } from "@/lib/utils";
 
-export type SettingsTabId = "profile" | "player-profile" | "security" | "appearance";
+export type SettingsTabId =
+  | "profile"
+  | "player-profile"
+  | "roles"
+  | "security"
+  | "appearance";
 
 export type SettingsTab = {
   id: SettingsTabId;

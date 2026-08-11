@@ -9,6 +9,7 @@ import { AccountInfoReadonly } from "@/components/settings/account-info-readonly
 import { StaffProfileForm } from "@/components/settings/staff-profile-form";
 import { PlayerSettingsForm } from "@/components/settings/player-settings-form";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
+import { HostRoleRequestCard } from "@/components/settings/host-role-request-card";
 import {
   SettingsTabNav,
   type SettingsTab,
@@ -31,6 +32,7 @@ type SettingsPageClientProps = {
 const ALL_TABS: SettingsTab[] = [
   { id: "profile", label: "Profile", shortLabel: "Profile" },
   { id: "player-profile", label: "Player page", shortLabel: "Player" },
+  { id: "roles", label: "Roles", shortLabel: "Roles" },
   { id: "security", label: "Security", shortLabel: "Security" },
   { id: "appearance", label: "Appearance", shortLabel: "Theme" },
 ];
@@ -141,6 +143,12 @@ export function SettingsPageClient({
                 accountFullName={resolvePlayerDisplayNameFromAccount(data.account)}
                 onGoToProfile={() => handleTabChange("profile")}
               />
+            ) : null}
+
+            {activeTab === "roles" ? (
+              <div className="space-y-6">
+                <HostRoleRequestCard />
+              </div>
             ) : null}
 
             {activeTab === "security" ? (

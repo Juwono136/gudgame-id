@@ -340,6 +340,16 @@ export async function createAdminUser(
 
   await setUserRoles(userId, input.roles, assignedBy);
 
+  const { syncHostRoleRequestsAfterRoleChange } = await import(
+    "@/lib/host-role-requests/sync-with-roles"
+  );
+  await syncHostRoleRequestsAfterRoleChange({
+    userId,
+    previousRoles: [],
+    nextRoles: input.roles,
+    assignedBy,
+  });
+
   if (wantsPartner && preparedPartner) {
     const { createPartnerWithOwner } = await import("@/lib/partners/service");
     const { notifyPartnerRoleAssigned } = await import(
@@ -465,6 +475,15 @@ export async function updateAdminUser(
 
   if (input.roles) {
     await setUserRoles(id, input.roles, assignedBy);
+    const { syncHostRoleRequestsAfterRoleChange } = await import(
+      "@/lib/host-role-requests/sync-with-roles"
+    );
+    await syncHostRoleRequestsAfterRoleChange({
+      userId: id,
+      previousRoles: existing.roles,
+      nextRoles: input.roles,
+      assignedBy,
+    });
   }
 
   const updated = await getAdminUserById(id);
@@ -584,6 +603,16 @@ export async function updateAdminUserStaff(
   const partnerRoleNewlyGranted = wantsPartner && !hadPartnerRole;
 
   await setUserRoles(id, input.roles, assignedBy);
+
+  const { syncHostRoleRequestsAfterRoleChange } = await import(
+    "@/lib/host-role-requests/sync-with-roles"
+  );
+  await syncHostRoleRequestsAfterRoleChange({
+    userId: id,
+    previousRoles: before.roles,
+    nextRoles: input.roles,
+    assignedBy,
+  });
 
   if (wantsPartner) {
     const {

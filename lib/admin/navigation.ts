@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { CreditCard, LayoutDashboard, Settings, Trophy, Users, BookOpen } from "lucide-react";
+import {
+  BookOpen,
+  CreditCard,
+  LayoutDashboard,
+  Settings,
+  ShieldPlus,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { adminRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { Permission } from "@/lib/roles/permissions";
@@ -24,6 +32,12 @@ export const adminNavItems: AdminNavItem[] = [
     label: "User Management",
     href: adminRoutes.users,
     icon: Users,
+    permission: "admin.users.manage",
+  },
+  {
+    label: "Host requests",
+    href: adminRoutes.hostRequests,
+    icon: ShieldPlus,
     permission: "admin.users.manage",
   },
   {

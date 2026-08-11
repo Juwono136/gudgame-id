@@ -15,7 +15,10 @@ export type EmailTemplateId =
   | "partner-registration-payment"
   | "partner-registration-pending"
   | "partner-registration-confirmed"
-  | "partner-role-assigned";
+  | "partner-role-assigned"
+  | "host-role-request-admin"
+  | "host-role-request-approved"
+  | "host-role-request-rejected";
 
 export type VerifyEmailTemplateData = {
   userName: string;
@@ -199,6 +202,31 @@ export type PartnerRoleAssignedTemplateData = {
   needsEmailVerification: boolean;
 };
 
+export type HostRoleRequestAdminTemplateData = {
+  appName: string;
+  adminName: string;
+  requesterName: string;
+  requesterEmail: string;
+  message: string;
+  reviewUrl: string;
+};
+
+export type HostRoleRequestApprovedTemplateData = {
+  appName: string;
+  userName: string;
+  settingsUrl: string;
+  hostDashboardUrl: string;
+  loginUrl: string;
+};
+
+export type HostRoleRequestRejectedTemplateData = {
+  appName: string;
+  userName: string;
+  rejectionReason: string;
+  settingsUrl: string;
+  loginUrl: string;
+};
+
 export type EmailTemplateDataMap = {
   "verify-email": VerifyEmailTemplateData;
   "reset-password": ResetPasswordTemplateData;
@@ -217,6 +245,9 @@ export type EmailTemplateDataMap = {
   "partner-registration-pending": PartnerRegistrationPendingTemplateData;
   "partner-registration-confirmed": PartnerRegistrationConfirmedTemplateData;
   "partner-role-assigned": PartnerRoleAssignedTemplateData;
+  "host-role-request-admin": HostRoleRequestAdminTemplateData;
+  "host-role-request-approved": HostRoleRequestApprovedTemplateData;
+  "host-role-request-rejected": HostRoleRequestRejectedTemplateData;
 };
 
 export type SendTemplatedEmailInput<T extends EmailTemplateId> = {

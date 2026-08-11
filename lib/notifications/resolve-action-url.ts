@@ -1,3 +1,4 @@
+import { dashboardRoutes } from "@/lib/constants/routes";
 import { readNotificationEntityId } from "@/lib/notifications/metadata";
 import type { NotificationItem } from "@/lib/notifications/types";
 
@@ -27,6 +28,16 @@ export function resolveNotificationHref(
   item: Pick<NotificationItem, "type" | "actionUrl" | "metadata">,
   origin?: string,
 ): string | null {
+  // Always land on Settings → Roles (where the request was made). Avoid linking
+  // straight to /dashboard/host: partner users without a fresh Host session were
+  // redirected to Partner via getDefaultDashboardUrl.
+  if (
+    item.type === "host_role_request_approved" ||
+    item.type === "host_role_request_rejected"
+  ) {
+    return `${dashboardRoutes.settings}#roles`;
+  }
+
   const direct = normalizeNotificationActionUrl(item.actionUrl, origin);
   if (direct) return direct;
 
