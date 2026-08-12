@@ -121,12 +121,14 @@ export function useLoginMutation() {
         description: "Welcome back to Gud Game!",
       });
 
+      // Always sync client session before navigating so the navbar avatar is ready.
+      await syncAuthSessionAfterChange(queryClient);
+
       if (mustChangePassword) {
         router.push(authRoutes.changePasswordRequired);
       } else if (!profileComplete) {
         router.push(dashboardRoutes.completeProfile);
       } else {
-        await syncAuthSessionAfterChange(queryClient);
         router.push(resolveSafeCallbackUrl(callbackUrl, roles));
       }
       router.refresh();
@@ -202,12 +204,14 @@ async function finishAuthRedirect(
     }
   }
 
+  // Always sync before redirect so navbar / guards see the new session immediately.
+  await syncAuthSessionAfterChange(queryClient);
+
   if (mustChangePassword) {
     router.push(authRoutes.changePasswordRequired);
   } else if (!profileComplete) {
     router.push(dashboardRoutes.completeProfile);
   } else {
-    await syncAuthSessionAfterChange(queryClient);
     router.push(resolveSafeCallbackUrl(callbackUrl, roles));
   }
   router.refresh();

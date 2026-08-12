@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlayerCreateReclubWizard } from "@/components/dashboard/player/player-create-reclub-wizard";
 import {
@@ -16,7 +17,9 @@ type PlayerTournamentCreatePickerProps = {
 export function PlayerTournamentCreatePicker({
   workspace = "player",
 }: PlayerTournamentCreatePickerProps) {
+  const router = useRouter();
   const [kind, setKind] = useState<TournamentCreateKind | null>(null);
+  const canCreateOfficial = workspace === "host";
 
   if (kind === "fun_match") {
     return (
@@ -26,10 +29,16 @@ export function PlayerTournamentCreatePicker({
 
   return (
     <TournamentCreateKindHub
-      variant="player"
-      onSelect={setKind}
+      variant={canCreateOfficial ? "host" : "player"}
+      onSelect={(next) => {
+        if (next === "official" && canCreateOfficial) {
+          router.push(dashboardRoutes.hostTournamentsNew);
+          return;
+        }
+        setKind(next);
+      }}
       onBack={() => {
-        window.location.href = dashboardRoutes.tournaments;
+        router.push(dashboardRoutes.tournaments);
       }}
       backLabel="Back to my tournaments"
     />

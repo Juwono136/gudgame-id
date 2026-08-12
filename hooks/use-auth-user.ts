@@ -13,13 +13,14 @@ export type AuthUser = SessionContextUser;
  * Unified auth user from Better Auth session + session-context API.
  * Prefer session-context for profile fields (image/name/nickname) so Settings
  * updates show immediately without a full page reload.
+ *
+ * Session-context stays enabled even while Better Auth is still settling after
+ * login, so the navbar can switch from LOGIN → avatar without a hard refresh.
  */
 export function useAuthUser() {
   const { data: session, isPending: sessionPending } = useSession();
   const hasAuthSession = Boolean(session?.user);
-  const { data: sessionCtx, isPending: ctxPending } = useSessionContext(
-    sessionPending || hasAuthSession,
-  );
+  const { data: sessionCtx, isPending: ctxPending } = useSessionContext(true);
 
   const user = useMemo((): AuthUser | null => {
     const ba = session?.user;
@@ -36,11 +37,16 @@ export function useAuthUser() {
       };
     }
 
-    return ctx ?? null;
-  }, [session?.user, sessionCtx?.user]);
+    // Fallback: cookie session already known via session-context while BA atom catches up.
+    if (sessionCtx?.authenticated && ctx?.id) {
+      return ctx;
+    }
+
+    return null;
+  }, [session?.user, sessionCtx?.authenticated, sessionCtx?.user]);
 
   const isAuthenticated =
-    Boolean(user) || sessionCtx?.authenticated === true;
+    Boolean(user) || sessionCtx?.authenticated === true || hasAuthSession;
 
   const isAuthLoading =
     (sessionPending || ctxPending) &&
