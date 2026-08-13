@@ -1,5 +1,6 @@
 import "server-only";
 
+import { asc, eq } from "drizzle-orm";
 import { nextPowerOfTwo } from "@/lib/tournaments/double-stage/allocate-groups";
 import {
   assignGlobalSeeds,
@@ -14,7 +15,6 @@ import { advanceWinnerToNextMatch } from "@/lib/tournaments/brackets/round-one";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
-import { eq } from "drizzle-orm";
 import { AppError } from "@/lib/errors";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
@@ -22,9 +22,289 @@ import {
   syncSeriesTeams,
   tournamentKnockoutLegs,
 } from "@/lib/tournaments/brackets/series-legs";
+import {
+  isBracketSeriesChildLeg,
+} from "@/lib/tournaments/brackets/bracket-metadata";
+import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
+import { knockoutBracketEntryNeedsSeeding } from "@/lib/tournaments/double-stage/knockout-seeding-state";
+
+export { knockoutBracketEntryNeedsSeeding } from "@/lib/tournaments/double-stage/knockout-seeding-state";
 
 export { buildQualifiedTeamsFromStandings } from "@/lib/tournaments/double-stage/qualification";
 export type { BuildQualifiedOptions } from "@/lib/tournaments/double-stage/qualification";
+
+type BracketSlotRow = {
+  id: string;
+  roundNumber: number;
+  matchNumber: number;
+  teamAId: string | null;
+  teamBId: string | null;
+  status: string;
+  metadata: unknown;
+};
+
+function isKnockoutSlotParent(row: BracketSlotRow): boolean {
+  return !isBracketSeriesChildLeg(row.metadata);
+}
+
+function orderedSlotParents(
+  rows: BracketSlotRow[],
+  roundNumber: number,
+): BracketSlotRow[] {
+  return rows
+    .filter((r) => r.roundNumber === roundNumber && isKnockoutSlotParent(r))
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+}
+
+async function applyKnockoutRoundOneSeeding(
+  tournament: TournamentDetail,
+  round1MatchIds: string[],
+  seeded: SeededTeam[],
+  plan: ReturnType<typeof planPlayInAndByes>,
+): Promise<void> {
+  const db = getDb();
+  const bracketSize = plan.bracketSize;
+  const slotAssignments = optimizePairingsAvoidSameGroup(plan.byeTeams, bracketSize);
+  const pairings = standardBracketPairings(bracketSize);
+
+  const teamsInSlotOrder: { id: string; name: string }[] = [];
+  for (const [s1, s2] of pairings) {
+    const t1 = slotAssignments.get(s1);
+    const t2 = slotAssignments.get(s2);
+    teamsInSlotOrder.push(
+      t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "" },
+      t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "" },
+    );
+  }
+
+  const playInFeederMatchIds = new Set<string>();
+  if (plan.playInMatchCount > 0) {
+    const halfFilled: string[] = [];
+    const fullyEmpty: string[] = [];
+    for (let i = 0; i < round1MatchIds.length; i++) {
+      const teamA = teamsInSlotOrder[i * 2];
+      const teamB = teamsInSlotOrder[i * 2 + 1];
+      const filled = Number(Boolean(teamA?.id)) + Number(Boolean(teamB?.id));
+      const matchId = round1MatchIds[i]!;
+      if (filled === 1) halfFilled.push(matchId);
+      else if (filled === 0) fullyEmpty.push(matchId);
+    }
+    for (const id of [...halfFilled, ...fullyEmpty].slice(0, plan.playInMatchCount)) {
+      playInFeederMatchIds.add(id);
+    }
+  }
+
+  for (let i = 0; i < round1MatchIds.length; i++) {
+    const teamA = teamsInSlotOrder[i * 2];
+    const teamB = teamsInSlotOrder[i * 2 + 1];
+    const matchId = round1MatchIds[i]!;
+    const aValid = teamA?.id;
+    const bValid = teamB?.id;
+    const awaitsPlayIn = playInFeederMatchIds.has(matchId);
+
+    if (aValid && bValid) {
+      await db
+        .update(tournamentBracketMatches)
+        .set({
+          teamAId: teamA.id,
+          teamAName: teamA.name,
+          teamBId: teamB.id,
+          teamBName: teamB.name,
+          status: "pending",
+        })
+        .where(eq(tournamentBracketMatches.id, matchId));
+      await syncSeriesTeams(tournament.id, matchId, {
+        teamAId: teamA.id,
+        teamAName: teamA.name,
+        teamBId: teamB.id,
+        teamBName: teamB.name,
+      });
+    } else if (aValid && !bValid) {
+      if (awaitsPlayIn) {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: teamA.id,
+            teamAName: teamA.name,
+            teamBId: null,
+            teamBName: null,
+            status: "pending",
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+        await syncSeriesTeams(tournament.id, matchId, {
+          teamAId: teamA.id,
+          teamAName: teamA.name,
+          teamBId: null,
+          teamBName: null,
+        });
+      } else {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: teamA.id,
+            teamAName: teamA.name,
+            teamBId: null,
+            teamBName: "BYE",
+            winnerTeamId: teamA.id,
+            status: "bye",
+            completedAt: new Date(),
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+        await syncSeriesTeams(tournament.id, matchId, {
+          teamAId: teamA.id,
+          teamAName: teamA.name,
+          teamBId: null,
+          teamBName: "BYE",
+        });
+        await advanceWinnerToNextMatch(tournament.id, matchId, teamA.id, teamA.name);
+      }
+    } else if (!aValid && bValid) {
+      if (awaitsPlayIn) {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: null,
+            teamAName: null,
+            teamBId: teamB.id,
+            teamBName: teamB.name,
+            status: "pending",
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+        await syncSeriesTeams(tournament.id, matchId, {
+          teamAId: null,
+          teamAName: null,
+          teamBId: teamB.id,
+          teamBName: teamB.name,
+        });
+      } else {
+        await db
+          .update(tournamentBracketMatches)
+          .set({
+            teamAId: teamB.id,
+            teamAName: teamB.name,
+            teamBId: null,
+            teamBName: "BYE",
+            winnerTeamId: teamB.id,
+            status: "bye",
+            completedAt: new Date(),
+          })
+          .where(eq(tournamentBracketMatches.id, matchId));
+        await syncSeriesTeams(tournament.id, matchId, {
+          teamAId: teamB.id,
+          teamAName: teamB.name,
+          teamBId: null,
+          teamBName: "BYE",
+        });
+        await advanceWinnerToNextMatch(tournament.id, matchId, teamB.id, teamB.name);
+      }
+    }
+  }
+}
+
+async function seedPlayInSlotsIfEmpty(
+  tournament: TournamentDetail,
+  playInRows: BracketSlotRow[],
+  playInTeams: SeededTeam[],
+): Promise<void> {
+  if (playInRows.length === 0 || playInTeams.length === 0) return;
+  const needsPlayInSeed = playInRows.every((r) => !r.teamAId && !r.teamBId);
+  if (!needsPlayInSeed) return;
+
+  const db = getDb();
+  const pairs = pairPlayInTeams(playInTeams);
+  for (let m = 0; m < playInRows.length; m++) {
+    const pair = pairs[m];
+    const row = playInRows[m]!;
+    if (!pair?.[0] || !pair?.[1]) continue;
+    await db
+      .update(tournamentBracketMatches)
+      .set({
+        teamAId: pair[0].teamId,
+        teamAName: pair[0].teamName,
+        teamBId: pair[1].teamId,
+        teamBName: pair[1].teamName,
+        status: "pending",
+      })
+      .where(eq(tournamentBracketMatches.id, row.id));
+    await syncSeriesTeams(tournament.id, row.id, {
+      teamAId: pair[0].teamId,
+      teamAName: pair[0].teamName,
+      teamBId: pair[1].teamId,
+      teamBName: pair[1].teamName,
+    });
+  }
+}
+
+/**
+ * Populate qualified teams into an existing empty knockout tree (partial write /
+ * idempotent advance race). No-op when entry slots already have teams or play started.
+ */
+export async function seedExistingKnockoutBracket(
+  tournament: TournamentDetail,
+  seeded: SeededTeam[],
+): Promise<{ applied: boolean; reason?: string }> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: tournamentBracketMatches.id,
+      roundNumber: tournamentBracketMatches.roundNumber,
+      matchNumber: tournamentBracketMatches.matchNumber,
+      teamAId: tournamentBracketMatches.teamAId,
+      teamBId: tournamentBracketMatches.teamBId,
+      status: tournamentBracketMatches.status,
+      metadata: tournamentBracketMatches.metadata,
+    })
+    .from(tournamentBracketMatches)
+    .where(eq(tournamentBracketMatches.tournamentId, tournament.id))
+    .orderBy(
+      asc(tournamentBracketMatches.roundNumber),
+      asc(tournamentBracketMatches.matchNumber),
+    );
+
+  if (rows.length === 0) {
+    return { applied: false, reason: "no_bracket" };
+  }
+
+  if (!knockoutBracketEntryNeedsSeeding(rows)) {
+    return { applied: false, reason: "already_seeded" };
+  }
+
+  const scored = rows.some(
+    (r) =>
+      isKnockoutSlotParent(r) &&
+      (r.status === "in_progress" ||
+        r.status === "completed" ||
+        r.status === "bye"),
+  );
+  if (scored) {
+    return { applied: false, reason: "play_started" };
+  }
+
+  const plan = planPlayInAndByes(seeded);
+  const playInRows = orderedSlotParents(rows, 0);
+  const round1Rows = orderedSlotParents(rows, 1);
+
+  await seedPlayInSlotsIfEmpty(tournament, playInRows, plan.playInTeams);
+
+  if (round1Rows.length === 0) {
+    return { applied: false, reason: "no_round_one" };
+  }
+
+  await applyKnockoutRoundOneSeeding(
+    tournament,
+    round1Rows.map((r) => r.id),
+    seeded,
+    plan,
+  );
+
+  await patchTournamentBracketSettings(tournament, {
+    bracketSeedMode: "random",
+    bracketSeedingFinalized: true,
+  });
+  await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
+
+  return { applied: true };
+}
 
 export async function provisionKnockoutBracket(
   tournament: TournamentDetail,
@@ -39,10 +319,21 @@ export async function provisionKnockoutBracket(
     .limit(1);
 
   if (existing.length > 0) {
-    throw new AppError("Knockout bracket already exists for this tournament. Reset it first if you need to regenerate.", {
-      code: "CONFLICT",
-      statusCode: 409,
-    });
+    const repaired = await seedExistingKnockoutBracket(tournament, seeded);
+    if (repaired.applied) {
+      const total = await db
+        .select({ id: tournamentBracketMatches.id })
+        .from(tournamentBracketMatches)
+        .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+      return { matchCount: total.length };
+    }
+    throw new AppError(
+      "Knockout bracket already exists for this tournament. Reset it first if you need to regenerate.",
+      {
+        code: "CONFLICT",
+        statusCode: 409,
+      },
+    );
   }
 
   const plan = planPlayInAndByes(seeded);
@@ -71,7 +362,7 @@ export async function provisionKnockoutBracket(
           teamAName: pair?.[0]?.teamName ?? null,
           teamBId: pair?.[1]?.teamId ?? null,
           teamBName: pair?.[1]?.teamName ?? null,
-          status: pair ? "pending" : "pending",
+          status: "pending",
           metadata: { phase: "play_in" },
         })
         .returning({ id: tournamentBracketMatches.id });
@@ -139,121 +430,7 @@ export async function provisionKnockoutBracket(
   }
 
   const round1MatchIds = allMatchIds[round1Index] ?? [];
-  // Only seed teams that start in R1 (byes / power-of-two field). Play-in teams
-  // must stay out of R1 until they win their play-in match.
-  const slotAssignments = optimizePairingsAvoidSameGroup(plan.byeTeams, bracketSize);
-  const pairings = standardBracketPairings(bracketSize);
-
-  const teamsInSlotOrder: { id: string; name: string }[] = [];
-  for (const [s1, s2] of pairings) {
-    const t1 = slotAssignments.get(s1);
-    const t2 = slotAssignments.get(s2);
-    teamsInSlotOrder.push(
-      t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "" },
-      t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "" },
-    );
-  }
-
-  /** Exactly one R1 match per play-in winner (prefer half-filled seed vs TBD). */
-  const playInFeederMatchIds = new Set<string>();
-  if (plan.playInMatchCount > 0) {
-    const halfFilled: string[] = [];
-    const fullyEmpty: string[] = [];
-    for (let i = 0; i < round1MatchIds.length; i++) {
-      const teamA = teamsInSlotOrder[i * 2];
-      const teamB = teamsInSlotOrder[i * 2 + 1];
-      const filled = Number(Boolean(teamA?.id)) + Number(Boolean(teamB?.id));
-      const matchId = round1MatchIds[i]!;
-      if (filled === 1) halfFilled.push(matchId);
-      else if (filled === 0) fullyEmpty.push(matchId);
-    }
-    for (const id of [...halfFilled, ...fullyEmpty].slice(0, plan.playInMatchCount)) {
-      playInFeederMatchIds.add(id);
-    }
-  }
-
-  for (let i = 0; i < round1MatchIds.length; i++) {
-    const teamA = teamsInSlotOrder[i * 2];
-    const teamB = teamsInSlotOrder[i * 2 + 1];
-    const matchId = round1MatchIds[i]!;
-    const aValid = teamA?.id;
-    const bValid = teamB?.id;
-    const awaitsPlayIn = playInFeederMatchIds.has(matchId);
-
-    if (aValid && bValid) {
-      await db
-        .update(tournamentBracketMatches)
-        .set({
-          teamAId: teamA.id,
-          teamAName: teamA.name,
-          teamBId: teamB.id,
-          teamBName: teamB.name,
-          status: "pending",
-        })
-        .where(eq(tournamentBracketMatches.id, matchId));
-      await syncSeriesTeams(tournament.id, matchId, {
-        teamAId: teamA.id,
-        teamAName: teamA.name,
-        teamBId: teamB.id,
-        teamBName: teamB.name,
-      });
-    } else if (aValid && !bValid) {
-      if (awaitsPlayIn) {
-        // Keep pending — play-in winner fills the open side.
-        await db
-          .update(tournamentBracketMatches)
-          .set({
-            teamAId: teamA.id,
-            teamAName: teamA.name,
-            teamBId: null,
-            teamBName: null,
-            status: "pending",
-          })
-          .where(eq(tournamentBracketMatches.id, matchId));
-      } else {
-        await db
-          .update(tournamentBracketMatches)
-          .set({
-            teamAId: teamA.id,
-            teamAName: teamA.name,
-            teamBId: null,
-            teamBName: "BYE",
-            winnerTeamId: teamA.id,
-            status: "bye",
-            completedAt: new Date(),
-          })
-          .where(eq(tournamentBracketMatches.id, matchId));
-        await advanceWinnerToNextMatch(tournament.id, matchId, teamA.id, teamA.name);
-      }
-    } else if (!aValid && bValid) {
-      if (awaitsPlayIn) {
-        await db
-          .update(tournamentBracketMatches)
-          .set({
-            teamAId: null,
-            teamAName: null,
-            teamBId: teamB.id,
-            teamBName: teamB.name,
-            status: "pending",
-          })
-          .where(eq(tournamentBracketMatches.id, matchId));
-      } else {
-        await db
-          .update(tournamentBracketMatches)
-          .set({
-            teamAId: teamB.id,
-            teamAName: teamB.name,
-            teamBId: null,
-            teamBName: "BYE",
-            winnerTeamId: teamB.id,
-            status: "bye",
-            completedAt: new Date(),
-          })
-          .where(eq(tournamentBracketMatches.id, matchId));
-        await advanceWinnerToNextMatch(tournament.id, matchId, teamB.id, teamB.name);
-      }
-    }
-  }
+  await applyKnockoutRoundOneSeeding(tournament, round1MatchIds, seeded, plan);
 
   if (options?.thirdPlaceEnabled && totalRounds >= 2) {
     await db.insert(tournamentBracketMatches).values({
@@ -267,6 +444,35 @@ export async function provisionKnockoutBracket(
 
   if (plan.playInMatchCount > 0 && round1MatchIds.length > 0) {
     const playInIds = allMatchIds[0] ?? [];
+    const planForFeeders = planPlayInAndByes(seeded);
+    const slotAssignments = optimizePairingsAvoidSameGroup(
+      planForFeeders.byeTeams,
+      planForFeeders.bracketSize,
+    );
+    const pairings = standardBracketPairings(planForFeeders.bracketSize);
+    const teamsInSlotOrder: { id: string; name: string }[] = [];
+    for (const [s1, s2] of pairings) {
+      const t1 = slotAssignments.get(s1);
+      const t2 = slotAssignments.get(s2);
+      teamsInSlotOrder.push(
+        t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "" },
+        t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "" },
+      );
+    }
+    const playInFeederMatchIds = new Set<string>();
+    const halfFilled: string[] = [];
+    const fullyEmpty: string[] = [];
+    for (let i = 0; i < round1MatchIds.length; i++) {
+      const teamA = teamsInSlotOrder[i * 2];
+      const teamB = teamsInSlotOrder[i * 2 + 1];
+      const filled = Number(Boolean(teamA?.id)) + Number(Boolean(teamB?.id));
+      const matchId = round1MatchIds[i]!;
+      if (filled === 1) halfFilled.push(matchId);
+      else if (filled === 0) fullyEmpty.push(matchId);
+    }
+    for (const id of [...halfFilled, ...fullyEmpty].slice(0, plan.playInMatchCount)) {
+      playInFeederMatchIds.add(id);
+    }
     const feederOrder = [...playInFeederMatchIds];
     for (let pi = 0; pi < playInIds.length && pi < feederOrder.length; pi++) {
       const playInId = playInIds[pi]!;

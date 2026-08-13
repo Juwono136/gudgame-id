@@ -7,6 +7,7 @@ import { buildTournamentLeaderboard } from "@/lib/tournaments/brackets/leaderboa
 import { shouldExposeBracketPublicData } from "@/lib/tournaments/lifecycle-guards";
 import { normalizeBracketMatchesForDisplay } from "@/lib/tournaments/match-display-status";
 import { isBracketSeedingFinalized } from "@/lib/tournaments/settings";
+import { buildDoubleStageOverview } from "@/lib/tournaments/double-stage/service";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,11 @@ export async function GET(
 
     if (!shouldExposeBracketPublicData(tournament)) {
       return jsonSuccess({ matches: [], leaderboard: [], generated: false, seedingFinalized: false });
+    }
+
+    // Double stage: repair empty knockout trees (qualified teams → bracket slots).
+    if (tournament.format === "double_stage") {
+      await buildDoubleStageOverview(tournament);
     }
 
     await ensureBracketStructure(tournament);

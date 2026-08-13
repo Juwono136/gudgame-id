@@ -20,6 +20,7 @@ import { generateRoundRobinFixtures } from "@/lib/tournaments/double-stage/fixtu
 import {
   buildQualifiedTeamsFromStandings,
   provisionKnockoutBracket,
+  seedExistingKnockoutBracket,
   seedQualifiedTeams,
 } from "@/lib/tournaments/double-stage/knockout-bridge";
 import {
@@ -726,6 +727,35 @@ export async function buildDoubleStageOverview(
       dsSettings.phase = "knockout";
       dsSettings.knockoutGeneratedAt =
         dsSettings.knockoutGeneratedAt ?? new Date().toISOString();
+    }
+  }
+
+  // Repair empty knockout tree: bracket exists but qualified teams were never placed.
+  if (
+    tournament.format === "double_stage" &&
+    allDone &&
+    qualifiedCount >= 2
+  ) {
+    const qualified = buildQualifiedTeamsFromStandings(groupOverviews, {
+      teamsAdvancePerGroup: dsSettings.teamsAdvancePerGroup,
+      bestRunnerUpSlots: dsSettings.bestRunnerUpSlots ?? 0,
+      scoringConfig,
+    });
+    const seeded = seedQualifiedTeams(qualified);
+    for (const s of seeded) {
+      await getDb()
+        .update(tournamentGroupTeams)
+        .set({ globalSeed: s.globalSeed })
+        .where(eq(tournamentGroupTeams.teamId, s.teamId));
+    }
+    const repair = await seedExistingKnockoutBracket(tournament, seeded);
+    if (repair.applied && dsSettings.phase === "group") {
+      await patchDoubleStageSettings(tournament, {
+        phase: "knockout",
+        knockoutGeneratedAt: new Date().toISOString(),
+      });
+      dsSettings.phase = "knockout";
+      dsSettings.knockoutGeneratedAt = new Date().toISOString();
     }
   }
 
@@ -1501,26 +1531,28 @@ export async function advanceDoubleStageToElimination(
     .from(tournamentBracketMatches)
     .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
 
-  // Idempotent: bracket already exists (auto-gen race / retry after partial write).
-  if (existingBracket.length > 0) {
-    if (overview.phase !== "knockout") {
-      await patchDoubleStageSettings(tournament, {
-        phase: "knockout",
-        knockoutGeneratedAt: new Date().toISOString(),
-      });
-    }
-    return {
-      bracketMatchCount: existingBracket.length,
-      qualifiedCount: qualified.length,
-    };
-  }
-
   const seeded = seedQualifiedTeams(qualified);
   for (const s of seeded) {
     await db
       .update(tournamentGroupTeams)
       .set({ globalSeed: s.globalSeed })
       .where(eq(tournamentGroupTeams.teamId, s.teamId));
+  }
+
+  // Idempotent: bracket already exists — seed qualified teams if entry slots are empty.
+  if (existingBracket.length > 0) {
+    await seedExistingKnockoutBracket(tournament, seeded);
+    if (overview.phase !== "knockout") {
+      await patchDoubleStageSettings(tournament, {
+        phase: "knockout",
+        knockoutGeneratedAt: new Date().toISOString(),
+      });
+    }
+    await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
+    return {
+      bracketMatchCount: existingBracket.length,
+      qualifiedCount: qualified.length,
+    };
   }
 
   const { matchCount } = await provisionKnockoutBracket(tournament, seeded, {

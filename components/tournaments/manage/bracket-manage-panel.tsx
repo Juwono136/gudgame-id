@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -135,6 +135,38 @@ export function BracketManagePanel({
 
   const placedTeamCount = placedTeamIds.size;
   const matchScoringHint = getTournamentMatchScoringHint(tournament);
+
+  const knockoutEntryEmpty = useMemo(() => {
+    if (!isDoubleStage || !generated) return false;
+    const entry = matches.filter(
+      (m) =>
+        (m.roundNumber === 0 || m.roundNumber === 1) &&
+        m.matchNumber !== 999 &&
+        !m.seriesParentId,
+    );
+    if (entry.length === 0) return false;
+    return !entry.some((m) => m.teamAId || m.teamBId);
+  }, [generated, isDoubleStage, matches]);
+
+  const [syncingKnockout, setSyncingKnockout] = useState(false);
+
+  const syncKnockoutFromGroups = useCallback(async () => {
+    setSyncingKnockout(true);
+    try {
+      const res = await fetch(
+        `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/manage/double-stage/advance`,
+        { method: "POST" },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message ?? "Failed to sync knockout");
+      await refetch();
+    } catch (e) {
+      const { toast } = await import("sonner");
+      toast.error(e instanceof Error ? e.message : "Failed to sync knockout");
+    } finally {
+      setSyncingKnockout(false);
+    }
+  }, [refetch, tournament.slug, tournament.sportSlug]);
 
   const seedingLocked =
     isDoubleStage || isBracketSeedingLocked(matches, tournament.status);
@@ -389,6 +421,30 @@ export function BracketManagePanel({
               onOpenLiveScoring={onOpenLiveScoring}
               variant={isOfficial ? "official" : "fun"}
             />
+            {isDoubleStage && knockoutEntryEmpty ? (
+              <div className="mt-4 rounded-xl border border-amber-600/25 bg-amber-500/10 px-4 py-4 text-sm text-amber-950 dark:text-amber-100">
+                <p className="font-medium">Knockout bracket needs qualified teams</p>
+                <p className="mt-1 text-amber-900/90 dark:text-amber-100/90">
+                  The draw exists but slots are empty. Sync from group standings — only qualified
+                  teams are placed automatically.
+                </p>
+                <Button
+                  type="button"
+                  className="mt-3"
+                  disabled={syncingKnockout}
+                  onClick={() => void syncKnockoutFromGroups()}
+                >
+                  {syncingKnockout ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing…
+                    </>
+                  ) : (
+                    "Sync qualified teams"
+                  )}
+                </Button>
+              </div>
+            ) : null}
             {!seedingLocked ? (
               <div className="mt-4 flex flex-col gap-3 rounded-xl border border-cp-border/80 bg-cp-elevated/20 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
