@@ -49,20 +49,39 @@ describe("rankingDeltaForMatch", () => {
     ).toBe(0);
   });
 
-  it("falls back to legacy ±5 when skill tier is missing", () => {
+  it("returns 0 for No Rank / open skill tournaments", () => {
+    expect(
+      rankingDeltaForMatch({
+        isOfficial: true,
+        statsTier: "official_paid",
+        skillTier: "open",
+        resultType: "win",
+      }),
+    ).toBe(0);
+    expect(
+      rankingDeltaForMatch({
+        isOfficial: true,
+        statsTier: "official_free",
+        skillTier: "no_rank",
+        resultType: "loss",
+      }),
+    ).toBe(0);
+  });
+
+  it("returns 0 when Official skill tier is missing (no silent Gold fallback)", () => {
     expect(
       rankingDeltaForMatch({
         isOfficial: true,
         statsTier: "official_free",
         resultType: "win",
       }),
-    ).toBe(5);
+    ).toBe(0);
     expect(
       rankingDeltaForMatch({
         isOfficial: true,
-        statsTier: "official_free",
+        statsTier: "official_paid",
         resultType: "loss",
       }),
-    ).toBe(-5);
+    ).toBe(0);
   });
 });

@@ -1,20 +1,30 @@
 import type { DoubleStageSettings } from "@/lib/tournaments/scoring/config";
 import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import {
+  formatHasGroupStage,
+  formatHasKnockout,
+  formatHasLobbyRounds,
+} from "@/lib/tournaments/match-config";
+import { parseTournamentSettings } from "@/lib/tournaments/settings";
 
 export type FormatCapabilities = {
   isAmericano: boolean;
   isSingleElimination: boolean;
   isDoubleStage: boolean;
+  isMexicano: boolean;
+  isGroupOnly: boolean;
   hasBracket: boolean;
   hasGroupStage: boolean;
   hasLobbyRounds: boolean;
   manageScoringMode: "rounds" | "bracket" | "groups";
   showBracketTab: boolean;
   showGroupsTab: boolean;
+  canGenerateKnockout: boolean;
 };
 
 export function getDoubleStagePhase(tournament: TournamentDetail): "group" | "knockout" {
+  if (tournament.format === "group_only") return "group";
   const settings = tournament.settings as Record<string, unknown> | null | undefined;
   const ds = parseDoubleStageSettings(settings?.doubleStage);
   return ds.phase;
@@ -25,26 +35,34 @@ export function getFormatCapabilities(tournament: TournamentDetail): FormatCapab
   const isAmericano = format === "americano";
   const isDoubleStage = format === "double_stage";
   const isSingleElimination = format === "single_elimination";
+  const isMexicano = format === "mexicano";
+  const isGroupOnly = format === "group_only";
   const phase = isDoubleStage ? getDoubleStagePhase(tournament) : null;
 
-  const hasGroupStage = isDoubleStage && phase === "group";
+  const hasGroupStage =
+    (isDoubleStage && phase === "group") || isGroupOnly || formatHasGroupStage(format);
   const hasBracket =
-    isSingleElimination || (isDoubleStage && phase === "knockout") || format === "double_elimination";
+    isSingleElimination ||
+    (isDoubleStage && phase === "knockout") ||
+    format === "double_elimination";
 
   let manageScoringMode: FormatCapabilities["manageScoringMode"] = "rounds";
-  if (isDoubleStage && phase === "group") manageScoringMode = "groups";
-  else if (!isAmericano) manageScoringMode = "bracket";
+  if (isGroupOnly || (isDoubleStage && phase === "group")) manageScoringMode = "groups";
+  else if (!isAmericano && !isMexicano) manageScoringMode = "bracket";
 
   return {
     isAmericano,
     isSingleElimination,
     isDoubleStage,
+    isMexicano,
+    isGroupOnly,
     hasBracket,
-    hasGroupStage,
-    hasLobbyRounds: isAmericano,
+    hasGroupStage: hasGroupStage && !isAmericano && !isMexicano,
+    hasLobbyRounds: formatHasLobbyRounds(format),
     manageScoringMode,
-    showBracketTab: !isAmericano,
-    showGroupsTab: isDoubleStage,
+    showBracketTab: formatHasKnockout(format) && !isGroupOnly && !isAmericano && !isMexicano,
+    showGroupsTab: isDoubleStage || isGroupOnly,
+    canGenerateKnockout: formatHasKnockout(format) && !isGroupOnly,
   };
 }
 
@@ -55,4 +73,17 @@ export function shouldProvisionBracketOnCreate(format: string): boolean {
 export function getDoubleStageSettings(tournament: TournamentDetail): DoubleStageSettings {
   const settings = tournament.settings as Record<string, unknown> | null | undefined;
   return parseDoubleStageSettings(settings?.doubleStage);
+}
+
+export function getGroupMeetingsPerPair(tournament: TournamentDetail): number {
+  const settings = parseTournamentSettings(tournament.settings);
+  // Original family always plays each pair once (ignore leftover customMatch JSON).
+  if ((settings.formatFamily ?? "original") !== "custom") return 1;
+  return settings.customMatch?.groupMeetingsPerPair ?? 1;
+}
+
+export function getKnockoutLegsPerSlot(tournament: TournamentDetail): number {
+  const settings = parseTournamentSettings(tournament.settings);
+  if ((settings.formatFamily ?? "original") !== "custom") return 1;
+  return settings.customMatch?.knockoutLegsPerSlot ?? 1;
 }

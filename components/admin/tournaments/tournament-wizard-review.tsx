@@ -6,6 +6,7 @@ import {
   FileText,
   Pencil,
   Shield,
+  SlidersHorizontal,
   Trophy,
   Users,
 } from "lucide-react";
@@ -45,6 +46,16 @@ type TournamentWizardReviewProps = {
   scoringTypeLabel: string;
   pointsPerMatch: string;
   courtCount: string;
+  /** When true, Capacity hides legacy Scoring type / Point per match (Official uses Format & scoring). */
+  hideLegacyScoringInCapacity?: boolean;
+  officialBillingLabel?: string;
+  /** Official format / scoring overhaul — omitted for Fun Match. */
+  formatFamilyLabel?: string;
+  rankingTierLabel?: string;
+  matchScoringLabel?: string;
+  meetingsSummary?: string;
+  mexicanoLabel?: string;
+  lobbyClockLabel?: string;
   onEditStep?: (stepIndex: number) => void;
 };
 
@@ -130,9 +141,29 @@ export function TournamentWizardReview({
   scoringTypeLabel,
   pointsPerMatch,
   courtCount,
+  hideLegacyScoringInCapacity = false,
+  officialBillingLabel,
+  formatFamilyLabel,
+  rankingTierLabel,
+  matchScoringLabel,
+  meetingsSummary,
+  mexicanoLabel,
+  lobbyClockLabel,
   onEditStep,
 }: TournamentWizardReviewProps) {
   const isOfficial = tournamentType === "official";
+  const isPaidOfficial =
+    isOfficial &&
+    (officialBillingLabel === "Paid" ||
+      Boolean(registrationFeeIdr && Number(registrationFeeIdr) > 0));
+  const showFormatSection = Boolean(
+    formatFamilyLabel ||
+      rankingTierLabel ||
+      matchScoringLabel ||
+      meetingsSummary ||
+      mexicanoLabel ||
+      lobbyClockLabel,
+  );
   const feeDisplay =
     registrationFeeIdr && Number(registrationFeeIdr) > 0
       ? `Rp ${formatIdrDisplay(Number(registrationFeeIdr))}`
@@ -141,6 +172,7 @@ export function TournamentWizardReview({
     prizePoolIdr && Number(prizePoolIdr) > 0
       ? `Rp ${formatIdrDisplay(Number(prizePoolIdr))}`
       : "Not set";
+  const billingDisplay = officialBillingLabel ?? (isPaidOfficial ? "Paid" : isOfficial ? "Free" : "");
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -193,22 +225,61 @@ export function TournamentWizardReview({
             <ReviewItem label="Max teams" value={maxTeams || "—"} />
             <ReviewItem label="Players per team" value={playersPerTeam || "—"} />
             <ReviewItem label="Match type" value={matchTypeLabel} />
-            <ReviewItem label="Scoring type" value={scoringTypeLabel} />
-            <ReviewItem
-              label={
-                pointsPerMatch.includes("min") ? "Round duration" : "Point per match"
-              }
-              value={pointsPerMatch || "—"}
-            />
+            {!hideLegacyScoringInCapacity ? (
+              <>
+                <ReviewItem label="Scoring type" value={scoringTypeLabel} />
+                <ReviewItem
+                  label={
+                    pointsPerMatch.includes("min") ? "Round duration" : "Point per match"
+                  }
+                  value={pointsPerMatch || "—"}
+                />
+              </>
+            ) : matchScoringLabel ? (
+              <ReviewItem label="Match scoring" value={matchScoringLabel} />
+            ) : null}
             <ReviewItem label="Courts" value={courtCount || "—"} />
             {isOfficial ? (
               <>
+                {billingDisplay ? (
+                  <ReviewItem label="Registration billing" value={billingDisplay} />
+                ) : null}
                 <ReviewItem label="Registration fee" value={feeDisplay} />
                 <ReviewItem label="Prize pool" value={prizeDisplay} />
               </>
             ) : null}
           </dl>
         </ReviewSection>
+
+        {showFormatSection ? (
+          <ReviewSection
+            title="Format & scoring"
+            icon={SlidersHorizontal}
+            stepIndex={0}
+            onEditStep={onEditStep}
+            className="lg:col-span-2"
+          >
+            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {formatFamilyLabel ? (
+                <ReviewItem label="Match family" value={formatFamilyLabel} />
+              ) : null}
+              <ReviewItem label="Format" value={matchTypeLabel} />
+              {rankingTierLabel ? (
+                <ReviewItem label="Tournament tier" value={rankingTierLabel} />
+              ) : null}
+              {matchScoringLabel ? (
+                <ReviewItem label="Match scoring" value={matchScoringLabel} />
+              ) : null}
+              {meetingsSummary ? (
+                <ReviewItem label="Meetings & legs" value={meetingsSummary} />
+              ) : null}
+              {mexicanoLabel ? <ReviewItem label="Mexicano" value={mexicanoLabel} /> : null}
+              {lobbyClockLabel ? (
+                <ReviewItem label="Lobby clock" value={lobbyClockLabel} />
+              ) : null}
+            </dl>
+          </ReviewSection>
+        ) : null}
 
         <ReviewSection
           title="Schedule"
@@ -263,7 +334,7 @@ export function TournamentWizardReview({
             className="lg:col-span-2"
           >
             <div className="grid gap-3 lg:grid-cols-2">
-              <TournamentReviewRichBlock label="Match format" html={matchFormatRules} />
+              <TournamentReviewRichBlock label="Match notes" html={matchFormatRules} />
               <TournamentReviewRichBlock label="Equipment standards" html={equipmentStandardsRules} />
             </div>
           </ReviewSection>
@@ -279,7 +350,7 @@ export function TournamentWizardReview({
           </ReviewSection>
         )}
 
-        {isOfficial ? (
+        {isPaidOfficial ? (
           <div className="flex items-start gap-3 rounded-xl border border-cp-primary/25 bg-cp-primary/5 p-4 sm:p-5 lg:col-span-2">
             <Coins className="mt-0.5 h-5 w-5 shrink-0 text-cp-primary" />
             <div className="text-sm">
@@ -287,6 +358,17 @@ export function TournamentWizardReview({
               <p className="mt-1 leading-relaxed text-cp-muted">
                 Players will pay {feeDisplay} at registration. Payouts and receipts are handled
                 through your host payments ledger after teams complete payment.
+              </p>
+            </div>
+          </div>
+        ) : isOfficial ? (
+          <div className="flex items-start gap-3 rounded-xl border border-cp-border bg-cp-elevated/40 p-4 sm:p-5 lg:col-span-2">
+            <Coins className="mt-0.5 h-5 w-5 shrink-0 text-cp-primary" />
+            <div className="text-sm">
+              <p className="font-semibold text-foreground">Official free tournament</p>
+              <p className="mt-1 leading-relaxed text-cp-muted">
+                Registration is free. Confirmed teams appear on the public tournament page; manage
+                scoring and brackets from the host workspace when the event goes live.
               </p>
             </div>
           </div>

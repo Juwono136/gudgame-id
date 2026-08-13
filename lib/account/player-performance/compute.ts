@@ -30,7 +30,7 @@ function aggregateRows(
     tournamentId: string | null;
     playedAt: Date;
   }[],
-  skillByTournament: Map<string, PlayerTierLevel>,
+  skillByTournament: Map<string, PlayerTierLevel | "open">,
 ): PlayerMatchAggregate {
   let wins = 0;
   let losses = 0;

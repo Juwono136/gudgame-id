@@ -36,14 +36,16 @@ export function supportsPlayerInvites(input: {
   return isOfficialType(input.tournamentType) && input.officialBilling === "free";
 }
 
-/** Round-robin lobby scoring (Fun Match or Official Americano). */
+/** Round-robin lobby scoring (Fun Match, Official Americano, Official Mexicano). */
 export function supportsRoundBasedPlay(input: {
   tournamentType: string | null | undefined;
   format: string | null | undefined;
 }): boolean {
+  const format = input.format;
   return (
     isFunMatchType(input.tournamentType) ||
-    (isOfficialType(input.tournamentType) && input.format === "americano")
+    (isOfficialType(input.tournamentType) &&
+      (format === "americano" || format === "mexicano"))
   );
 }
 

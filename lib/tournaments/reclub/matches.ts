@@ -409,6 +409,7 @@ export async function completeReclubRound(
     await syncOfficialMatchToPlayerHistory({
       tournament,
       roundLabel: `Round ${updated.roundNumber}`,
+      fixtureId: updated.id,
       teamAName: updated.teamAName,
       teamBName: updated.teamBName,
       teamAId: updated.teamAId,

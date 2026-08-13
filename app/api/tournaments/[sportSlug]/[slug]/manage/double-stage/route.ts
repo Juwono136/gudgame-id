@@ -7,6 +7,7 @@ import {
   reconcileDoubleStageGroups,
   saveManualDoubleStageAssignments,
 } from "@/lib/tournaments/double-stage/service";
+import { assertGroupStageTournament } from "@/lib/tournaments/format-guards";
 import { assertTournamentManagePageAccess } from "@/lib/tournaments/manage-access";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { z } from "zod";
@@ -26,12 +27,7 @@ export async function GET(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (tournament.format !== "double_stage") {
-      throw new AppError("Not a double stage tournament", {
-        code: "INVALID_TOURNAMENT_TYPE",
-        statusCode: 400,
-      });
-    }
+    assertGroupStageTournament(tournament);
 
     await assertTournamentManagePageAccess(tournament, userId, roles);
     if (tournament.status === "live") {
@@ -69,12 +65,7 @@ export async function POST(
     if (!tournament) {
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
-    if (tournament.format !== "double_stage") {
-      throw new AppError("Not a double stage tournament", {
-        code: "INVALID_TOURNAMENT_TYPE",
-        statusCode: 400,
-      });
-    }
+    assertGroupStageTournament(tournament);
 
     await assertTournamentManagePageAccess(tournament, userId, roles);
     const body = assignmentSchema.parse(await request.json());

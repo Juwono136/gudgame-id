@@ -12,6 +12,7 @@ import {
   type TournamentDisplayConfig,
   type TournamentDisplayLayout,
 } from "@/lib/tournaments/settings";
+import { clampDisplayRotationIntervalSec } from "@/lib/tournaments/live/poll-intervals";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
 
@@ -53,7 +54,7 @@ export async function patchTournamentDisplayConfig(
   const previous = getTournamentDisplayConfig(tournament);
   const rotationLayouts = (patch.rotationLayouts ?? []).filter((l) => VALID_LAYOUTS.includes(l));
   const autoRotate = patch.autoRotate ?? false;
-  const interval = Math.min(120, Math.max(5, patch.rotationIntervalSec ?? 15));
+  const interval = clampDisplayRotationIntervalSec(patch.rotationIntervalSec);
 
   const displayConfig: TournamentDisplayConfig = {
     layout: autoRotate ? "rotation" : patch.layout,

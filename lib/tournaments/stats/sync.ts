@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   playerMatches,
@@ -12,6 +12,10 @@ import { tournamentTeamMembers } from "@/db/schema/tournament-registration";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { deriveStatsTier } from "@/lib/tournaments/stats/tier";
+import {
+  buildPlayerMatchRoundKey,
+  PLAYER_MATCH_FIXTURE_MARKER,
+} from "@/lib/tournaments/stats/history-fixture-key";
 import { syncPlayerWikiPerformanceSafe } from "@/lib/account/player-performance/sync-wiki";
 
 type ReclubMatchRow = typeof tournamentReclubMatches.$inferSelect;
@@ -53,6 +57,37 @@ async function replacePlayerMatchHistoryEntry(input: PlayerMatchHistoryInsert): 
   await db.insert(playerMatches).values(input);
 }
 
+/**
+ * Drop career rows for a fixture after rematch / void so stale W-L and points
+ * do not linger until the rematch is finalized again.
+ */
+export async function removePlayerMatchHistoryForFixture(input: {
+  tournamentId: string;
+  fixtureId: string;
+  participantUserIds: string[];
+  sportId: string;
+}): Promise<void> {
+  const { tournamentId, fixtureId, participantUserIds, sportId } = input;
+  if (!participantUserIds.length || !fixtureId) return;
+
+  const db = getDb();
+  const pattern = `%${PLAYER_MATCH_FIXTURE_MARKER}${fixtureId}%`;
+
+  await db
+    .delete(playerMatches)
+    .where(
+      and(
+        eq(playerMatches.tournamentId, tournamentId),
+        inArray(playerMatches.userId, participantUserIds),
+        like(playerMatches.round, pattern),
+      ),
+    );
+
+  for (const userId of participantUserIds) {
+    await syncPlayerWikiPerformanceSafe(userId, sportId);
+  }
+}
+
 export async function syncReclubMatchToPlayerHistory(input: {
   tournament: TournamentDetail;
   match: ReclubMatchRow;
@@ -68,6 +103,7 @@ export async function syncReclubMatchToPlayerHistory(input: {
   const scoreLabel = `${match.scoreA ?? 0}–${match.scoreB ?? 0}`;
   const opponents = [match.teamAName, match.teamBName].filter(Boolean).join(" vs ");
   const playedAt = match.endedAt ?? match.startedAt ?? new Date();
+  const round = buildPlayerMatchRoundKey(`Round ${match.roundNumber}`, match.id);
 
   const teamIds = [match.teamAId, match.teamBId].filter((id): id is string => id != null);
   const membership =
@@ -106,7 +142,7 @@ export async function syncReclubMatchToPlayerHistory(input: {
       opponents: opponents || "Fun Match session",
       resultType,
       score: scoreLabel,
-      round: `Round ${match.roundNumber}`,
+      round,
       playedAt,
     });
     await syncPlayerWikiPerformanceSafe(userId, tournament.sportId);
@@ -116,6 +152,8 @@ export async function syncReclubMatchToPlayerHistory(input: {
 export async function syncOfficialMatchToPlayerHistory(input: {
   tournament: TournamentDetail;
   roundLabel: string;
+  /** Stable match / fixture id — required so legs & meetings do not collide. */
+  fixtureId: string;
   teamAName: string | null;
   teamBName: string | null;
   teamAId: string | null;
@@ -127,6 +165,7 @@ export async function syncOfficialMatchToPlayerHistory(input: {
   const {
     tournament,
     roundLabel,
+    fixtureId,
     teamAName,
     teamBName,
     teamAId,
@@ -140,6 +179,7 @@ export async function syncOfficialMatchToPlayerHistory(input: {
   }
   // Partner white-label events never feed Gud Game career rankings.
   if (tournament.partnerId) return;
+  if (!fixtureId) return;
 
   const db = getDb();
   const tier = statsTierFor(tournament);
@@ -148,6 +188,7 @@ export async function syncOfficialMatchToPlayerHistory(input: {
   const playedAt = new Date();
   const teamAWin = scoreA > scoreB;
   const teamBWin = scoreB > scoreA;
+  const round = buildPlayerMatchRoundKey(roundLabel, fixtureId);
 
   const membership =
     teamAId != null || teamBId != null
@@ -185,7 +226,7 @@ export async function syncOfficialMatchToPlayerHistory(input: {
       opponents: opponents || "Bracket match",
       resultType,
       score: scoreLabel,
-      round: roundLabel,
+      round,
       playedAt,
     });
     await syncPlayerWikiPerformanceSafe(userId, tournament.sportId);
@@ -241,6 +282,7 @@ export async function syncReclubParticipation(input: {
 export async function syncReclubBracketResult(input: {
   tournament: TournamentDetail;
   roundLabel: string;
+  fixtureId: string;
   teamAName: string | null;
   teamBName: string | null;
   teamAId: string | null;
@@ -253,6 +295,7 @@ export async function syncReclubBracketResult(input: {
   const {
     tournament,
     roundLabel,
+    fixtureId,
     teamAName,
     teamBName,
     teamAId,
@@ -265,6 +308,7 @@ export async function syncReclubBracketResult(input: {
   if (!participantUserIds.length) return;
   // Partner white-label knockout results must not appear in Gud Game career history.
   if (tournament.partnerId) return;
+  if (!fixtureId) return;
 
   const db = getDb();
   const tier = statsTierFor(tournament);
@@ -273,6 +317,7 @@ export async function syncReclubBracketResult(input: {
   const playedAt = new Date();
   const teamAWin = scoreA > scoreB;
   const teamBWin = scoreB > scoreA;
+  const round = buildPlayerMatchRoundKey(roundLabel, fixtureId);
 
   const membership =
     teamAId != null || teamBId != null
@@ -310,7 +355,7 @@ export async function syncReclubBracketResult(input: {
       opponents: opponents || "Bracket match",
       resultType,
       score: scoreLabel,
-      round: roundLabel,
+      round,
       playedAt,
     });
     await syncPlayerWikiPerformanceSafe(userId, tournament.sportId);
@@ -376,12 +421,41 @@ export async function syncOfficialPlacement(input: {
 }): Promise<void> {
   const { tournament, userId, placement, placementRank, wikiEntityId } = input;
   if (tournament.partnerId) return;
+  const db = getDb();
   const tier = statsTierFor(tournament);
   const year = tournament.startsAt
     ? new Date(tournament.startsAt).getFullYear()
     : new Date().getFullYear();
+  const playedAt = tournament.endsAt ? new Date(tournament.endsAt) : new Date();
 
-  await getDb().insert(playerTournamentResults).values({
+  const [existing] = await db
+    .select({ id: playerTournamentResults.id })
+    .from(playerTournamentResults)
+    .where(
+      and(
+        eq(playerTournamentResults.userId, userId),
+        eq(playerTournamentResults.tournamentId, tournament.id),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(playerTournamentResults)
+      .set({
+        placement,
+        placementRank,
+        wikiEntityId: wikiEntityId ?? null,
+        statsTier: tier,
+        tournamentName: tournament.name,
+        category: tournament.categoryLabel,
+        playedAt,
+      })
+      .where(eq(playerTournamentResults.id, existing.id));
+    return;
+  }
+
+  await db.insert(playerTournamentResults).values({
     userId,
     wikiEntityId: wikiEntityId ?? null,
     sportId: tournament.sportId,
@@ -393,6 +467,6 @@ export async function syncOfficialPlacement(input: {
     category: tournament.categoryLabel,
     placement,
     placementRank,
-    playedAt: tournament.endsAt ? new Date(tournament.endsAt) : new Date(),
+    playedAt,
   });
 }

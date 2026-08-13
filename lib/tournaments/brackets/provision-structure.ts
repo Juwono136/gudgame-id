@@ -17,7 +17,14 @@ function nextPowerOfTwo(n: number): number {
  * Safe to call multiple times — no-op when rows already exist.
  */
 export async function ensureBracketStructure(tournament: TournamentDetail): Promise<boolean> {
-  if (tournament.format === "americano" || tournament.format === "double_stage") return false;
+  if (
+    tournament.format === "americano" ||
+    tournament.format === "mexicano" ||
+    tournament.format === "double_stage" ||
+    tournament.format === "group_only"
+  ) {
+    return false;
+  }
 
   const db = getDb();
   const existing = await db
@@ -27,6 +34,11 @@ export async function ensureBracketStructure(tournament: TournamentDetail): Prom
     .limit(1);
 
   if (existing.length > 0) return true;
+
+  const { expandSlotWithSeriesLegs, tournamentKnockoutLegs } = await import(
+    "@/lib/tournaments/brackets/series-legs"
+  );
+  const legs = tournamentKnockoutLegs(tournament);
 
   const capacity = Math.max(2, tournament.maxTeams ?? 8);
   const bracketSize = nextPowerOfTwo(capacity);
@@ -51,7 +63,16 @@ export async function ensureBracketStructure(tournament: TournamentDetail): Prom
           status: "pending",
         })
         .returning({ id: tournamentBracketMatches.id });
-      if (created) roundIds.push(created.id);
+      if (created) {
+        roundIds.push(created.id);
+        await expandSlotWithSeriesLegs({
+          tournamentId: tournament.id,
+          parentId: created.id,
+          roundNumber: round,
+          matchNumber: m,
+          legsRequired: legs,
+        });
+      }
     }
     allMatchIds.push(roundIds);
   }

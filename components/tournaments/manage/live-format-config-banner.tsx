@@ -4,6 +4,7 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   getTournamentCourtCount,
   getTournamentMatchScoringHint,
+  getTournamentMexicanoSettings,
   getTournamentPointsPerMatch,
   getMaxRounds,
 } from "@/lib/tournaments/settings";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 type LiveFormatConfigBannerProps = {
   tournament: TournamentDetail;
-  mode: "americano" | "elimination";
+  mode: "americano" | "mexicano" | "elimination";
   className?: string;
 };
 
@@ -27,6 +28,7 @@ export function LiveFormatConfigBanner({
   const points = getTournamentPointsPerMatch(tournament);
   const maxRounds = getMaxRounds(tournament);
   const isOfficial = isOfficialType(tournament.tournamentType);
+  const mexicano = getTournamentMexicanoSettings(tournament);
 
   const chips =
     mode === "americano"
@@ -39,17 +41,32 @@ export function LiveFormatConfigBanner({
           isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
           tournament.categoryLabel ?? null,
         ] as const)
-      : ([
-          "Single elimination",
-          matchHint,
-          `${courtCount} ${courtCount === 1 ? "court" : "courts"}`,
-          `First to ${points}`,
-          "Assign ready bracket matches to courts",
-          isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
-          tournament.categoryLabel ?? null,
-        ] as const);
+      : mode === "mexicano"
+        ? ([
+            `Mexicano · ${mexicano?.mode === "individual" ? "Individual" : "Team"}`,
+            matchHint,
+            `${courtCount} ${courtCount === 1 ? "court" : "courts"}`,
+            maxRounds != null ? `${maxRounds} rounds` : null,
+            "Later rounds seed from leaderboard",
+            isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
+            tournament.categoryLabel ?? null,
+          ] as const)
+        : ([
+            "Single elimination",
+            matchHint,
+            `${courtCount} ${courtCount === 1 ? "court" : "courts"}`,
+            `First to ${points}`,
+            "Assign ready bracket matches to courts",
+            isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
+            tournament.categoryLabel ?? null,
+          ] as const);
 
-  const title = mode === "americano" ? "Americano live settings" : "Elimination live settings";
+  const title =
+    mode === "americano"
+      ? "Americano live settings"
+      : mode === "mexicano"
+        ? "Mexicano live settings"
+        : "Elimination live settings";
 
   return (
     <div

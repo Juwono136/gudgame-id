@@ -2,6 +2,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { jsonError, jsonSuccess } from "@/lib/api/response";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { AppError } from "@/lib/errors";
+import { assertGroupStageTournament } from "@/lib/tournaments/format-guards";
 import { assertTournamentLiveForScoring } from "@/lib/tournaments/lifecycle-guards";
 import { assertTournamentManagePageAccess } from "@/lib/tournaments/manage-access";
 import {
@@ -74,12 +75,7 @@ export async function POST(
       throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
     }
 
-    if (tournament.format !== "double_stage") {
-      throw new AppError("Not a double stage tournament", {
-        code: "INVALID_TOURNAMENT_TYPE",
-        statusCode: 400,
-      });
-    }
+    assertGroupStageTournament(tournament);
 
     await assertTournamentManagePageAccess(tournament, userId, roles);
     assertTournamentLiveForScoring(tournament);

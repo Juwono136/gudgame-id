@@ -35,14 +35,14 @@ export async function advanceWinnerToNextMatch(
   if (!next) return;
 
   const slotA = next.teamAId == null;
-  await db
-    .update(tournamentBracketMatches)
-    .set(
-      slotA
-        ? { teamAId: winnerTeamId, teamAName: winnerName }
-        : { teamBId: winnerTeamId, teamBName: winnerName },
-    )
-    .where(eq(tournamentBracketMatches.id, next.id));
+  const patch = slotA
+    ? { teamAId: winnerTeamId, teamAName: winnerName }
+    : { teamBId: winnerTeamId, teamBName: winnerName };
+  await db.update(tournamentBracketMatches).set(patch).where(eq(tournamentBracketMatches.id, next.id));
+
+  // Keep series legs in sync with the parent slot teams.
+  const { syncSeriesTeams } = await import("@/lib/tournaments/brackets/series-legs");
+  await syncSeriesTeams(tournamentId, next.id, patch);
 }
 
 export async function applyRoundOneSeeding(
@@ -91,6 +91,14 @@ export async function applyRoundOneSeeding(
         status: "pending",
       })
       .where(eq(tournamentBracketMatches.id, matchId));
+
+    const { syncSeriesTeams } = await import("@/lib/tournaments/brackets/series-legs");
+    await syncSeriesTeams(tournamentId, matchId, {
+      teamAId: teamA.id,
+      teamAName: teamA.name,
+      teamBId: teamB.id,
+      teamBName: teamB.name,
+    });
   }
 }
 
@@ -108,6 +116,8 @@ export async function processRoundOneByesFromSlots(tournamentId: string): Promis
     .orderBy(tournamentBracketMatches.matchNumber);
 
   for (const match of round1) {
+    const meta = match.metadata as Record<string, unknown> | null;
+    if (meta && typeof meta.seriesParentId === "string") continue;
     if (match.status === "bye" || match.status === "completed") continue;
 
     const hasA = match.teamAId != null;

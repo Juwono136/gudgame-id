@@ -74,6 +74,13 @@ export type BracketMatchView = {
   gameState?: MatchGameState | null;
   playOrder: number | null;
   callStatus: string | null;
+  /** Series / multi-leg knockout metadata. */
+  legIndex?: number | null;
+  legsRequired?: number | null;
+  seriesParentId?: string | null;
+  isSeriesSlot?: boolean;
+  /** Child legs when this row is the series parent (leg 1). */
+  legs?: BracketMatchView[];
 };
 
 function buildScoringRules(tournament: TournamentDetail): ScoringRules {
@@ -116,6 +123,10 @@ async function mapBracketRowToView(
     gameState,
     playOrder: row.playOrder ?? null,
     callStatus: row.callStatus ?? "queued",
+    legIndex: meta.legIndex ?? null,
+    legsRequired: meta.legsRequired ?? null,
+    seriesParentId: meta.seriesParentId ?? null,
+    isSeriesSlot: meta.isSeriesSlot ?? false,
   };
 }
 
@@ -162,7 +173,27 @@ export async function listBracketMatches(tournamentId: string): Promise<BracketM
   ];
   const playersByTeam = await getBracketTeamPlayers(teamIds);
 
-  return Promise.all(rows.map((r) => mapBracketRowToView(r, playersByTeam)));
+  const views = await Promise.all(rows.map((r) => mapBracketRowToView(r, playersByTeam)));
+  const childrenByParent = new Map<string, BracketMatchView[]>();
+  for (const view of views) {
+    if (!view.seriesParentId) continue;
+    const list = childrenByParent.get(view.seriesParentId) ?? [];
+    list.push(view);
+    childrenByParent.set(view.seriesParentId, list);
+  }
+
+  // Bracket tree uses series parents only; legs nest under each parent.
+  return views
+    .filter((view) => !view.seriesParentId)
+    .map((view) => {
+      const legs = childrenByParent.get(view.id) ?? [];
+      if (!legs.length && (view.legsRequired ?? 1) <= 1) return view;
+      const allLegs = [
+        { ...view, legs: undefined },
+        ...legs.sort((a, b) => (a.legIndex ?? 0) - (b.legIndex ?? 0)),
+      ];
+      return { ...view, legs: allLegs };
+    });
 }
 
 export async function submitBracketMatchScore(
@@ -172,8 +203,12 @@ export async function submitBracketMatchScore(
   scoreA: number,
   scoreB: number,
 ): Promise<BracketMatchView> {
-  if (tournament.format === "americano") {
-    throw new AppError("Americano tournaments do not use bracket scoring", {
+  if (
+    tournament.format === "americano" ||
+    tournament.format === "mexicano" ||
+    tournament.format === "group_only"
+  ) {
+    throw new AppError("This tournament format does not use bracket scoring", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
@@ -219,11 +254,6 @@ export async function submitBracketMatchScore(
   }
 
   const winnerTeamId = scoreA > scoreB ? match.teamAId : match.teamBId;
-  const [winner] = await db
-    .select({ name: tournamentTeams.name })
-    .from(tournamentTeams)
-    .where(eq(tournamentTeams.id, winnerTeamId))
-    .limit(1);
 
   const prevMeta = parseBracketMatchMetadata(match.metadata);
   const finalizeMeta = appendBracketScoreEvent(prevMeta, {
@@ -253,25 +283,33 @@ export async function submitBracketMatchScore(
     throw new AppError("Could not update match", { code: "DATABASE_ERROR", statusCode: 500 });
   }
 
-  const isFinal = !match.nextMatchId;
+  const {
+    resolveSeriesAfterLegComplete,
+    seriesParentIdOf,
+  } = await import("@/lib/tournaments/brackets/series-legs");
+  const { advanceWinnerToNextMatch } = await import("@/lib/tournaments/brackets/round-one");
 
-  if (match.nextMatchId && winner) {
-    const [next] = await db
-      .select()
-      .from(tournamentBracketMatches)
-      .where(eq(tournamentBracketMatches.id, match.nextMatchId))
+  const series = await resolveSeriesAfterLegComplete({
+    tournament,
+    completedLeg: updated,
+  });
+
+  const parentId = seriesParentIdOf(updated);
+  const isFinal = series.seriesComplete && !series.parent.nextMatchId;
+
+  if (series.seriesComplete && series.seriesWinnerTeamId && series.parent.nextMatchId) {
+    const [seriesWinner] = await db
+      .select({ name: tournamentTeams.name })
+      .from(tournamentTeams)
+      .where(eq(tournamentTeams.id, series.seriesWinnerTeamId))
       .limit(1);
-
-    if (next) {
-      const slotA = next.teamAId == null;
-      await db
-        .update(tournamentBracketMatches)
-        .set(
-          slotA
-            ? { teamAId: winnerTeamId, teamAName: winner.name }
-            : { teamBId: winnerTeamId, teamBName: winner.name },
-        )
-        .where(eq(tournamentBracketMatches.id, next.id));
+    if (seriesWinner) {
+      await advanceWinnerToNextMatch(
+        tournament.id,
+        parentId,
+        series.seriesWinnerTeamId,
+        seriesWinner.name,
+      );
     }
   }
 
@@ -292,6 +330,7 @@ export async function submitBracketMatchScore(
     await syncReclubBracketResult({
       tournament,
       roundLabel,
+      fixtureId: match.id,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       teamAId: match.teamAId,
@@ -314,9 +353,19 @@ export async function submitBracketMatchScore(
       .from(tournamentBracketMatches)
       .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
     const maxRound = Math.max(...totalRounds.map((r) => r.roundNumber), 1);
+    const { readSeriesMeta } = await import("@/lib/tournaments/brackets/series-legs");
+    const seriesMeta = readSeriesMeta(match.metadata);
+    const baseLabel = getBracketRoundLabel(match.roundNumber, maxRound);
+    const roundLabel =
+      seriesMeta.legsRequired != null &&
+      seriesMeta.legsRequired > 1 &&
+      seriesMeta.legIndex != null
+        ? `${baseLabel} · Leg ${seriesMeta.legIndex}/${seriesMeta.legsRequired}`
+        : baseLabel;
     await syncOfficialMatchToPlayerHistory({
       tournament,
-      roundLabel: getBracketRoundLabel(match.roundNumber, maxRound),
+      roundLabel,
+      fixtureId: match.id,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       teamAId: match.teamAId,

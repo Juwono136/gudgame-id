@@ -222,6 +222,7 @@ export function OfficialTournamentPage({
     caps.isDoubleStage &&
     (liveDoubleStagePhase === "knockout" ||
       (liveDoubleStagePhase == null && !caps.hasGroupStage));
+  const isGroupStagePublic = caps.hasGroupStage && !isDoubleStageKnockout;
   const isDoubleStageGroup = caps.isDoubleStage && !isDoubleStageKnockout;
   const isElimination = caps.hasBracket || isDoubleStageKnockout;
   const bracketHasTree = hasPublicBracketTree(
@@ -230,7 +231,7 @@ export function OfficialTournamentPage({
   const visibleTabs = useMemo((): OfficialTab[] => {
     return TABS.filter((item) => {
       if (item === "Groups" && !caps.showGroupsTab) return false;
-      if (item === "Matches" && !caps.isDoubleStage) return false;
+      if (item === "Matches" && !(caps.isDoubleStage || caps.isGroupOnly)) return false;
       if (item === "Bracket") {
         if (!caps.showBracketTab) return false;
         if (caps.isDoubleStage && !isDoubleStageKnockout && !bracketHasTree) return false;
@@ -340,7 +341,7 @@ export function OfficialTournamentPage({
   const { data: americanoLobby } = useTournamentLobby(
     tournament.sportSlug,
     tournament.slug,
-    false,
+    caps.hasLobbyRounds && !isElimination && !isGroupStagePublic,
   );
   const { data: participantsData, isLoading: participantsLoading } = useTournamentParticipants(
     tournament.sportSlug,
@@ -348,7 +349,7 @@ export function OfficialTournamentPage({
     1,
     200,
     {
-      enabled: isElimination || isDoubleStageGroup || tab === "Players",
+      enabled: isElimination || isGroupStagePublic || tab === "Players",
       refetchInterval: tab === "Players" || tab === "History & stats" ? 30_000 : false,
     },
   );
@@ -450,7 +451,7 @@ export function OfficialTournamentPage({
   ]);
 
   const officialTeams = useMemo(() => {
-    const useRegisteredTeams = isElimination || caps.isDoubleStage;
+    const useRegisteredTeams = isElimination || caps.hasGroupStage;
     if (!useRegisteredTeams) {
       return americanoLobby?.teams ?? [];
     }
@@ -470,14 +471,14 @@ export function OfficialTournamentPage({
   }, [
     americanoLobby?.teams,
     bracket?.matches,
-    caps.isDoubleStage,
+    caps.hasGroupStage,
     isElimination,
     liveData?.players,
     participantsData?.items,
   ]);
 
   const officialReclubMatches = useMemo(() => {
-    if (caps.isDoubleStage) {
+    if (caps.hasGroupStage) {
       const fromHistory = (liveData?.matchHistory ?? [])
         .filter((entry) => entry.playType === "group_stage")
         .map(groupHistoryEntryToReclubView);
@@ -490,14 +491,20 @@ export function OfficialTournamentPage({
       return dedupeReclubMatchViews([...fromHistory, ...fromLive]);
     }
     if (isElimination) return [];
-    return americanoLobby?.matches ?? [];
-  }, [americanoLobby?.matches, caps.isDoubleStage, isElimination, liveData]);
+    if (americanoLobby?.matches?.length) return americanoLobby.matches;
+    return liveData
+      ? liveMatchesToReclubViews({
+          ...liveData,
+          matches: (liveData.matches ?? []).filter((m) => m.type === "lobby_round"),
+        })
+      : [];
+  }, [americanoLobby?.matches, caps.hasGroupStage, isElimination, liveData]);
 
   const sessionStats = useMemo(() => {
     if (liveData?.playerStats) {
       return liveData.playerStats;
     }
-    if (caps.isDoubleStage) {
+    if (caps.hasGroupStage) {
       return computeReclubSessionStatsWithBracket({
         reclubMatches: officialReclubMatches,
         bracketMatches: bracket?.matches ?? [],
@@ -528,7 +535,7 @@ export function OfficialTournamentPage({
     americanoLobby?.teams,
     bracket?.leaderboard,
     bracket?.matches,
-    caps.isDoubleStage,
+    caps.hasGroupStage,
     isElimination,
     liveData?.playerStats,
     officialReclubMatches,
@@ -540,7 +547,7 @@ export function OfficialTournamentPage({
   ]);
 
   const recentMatchRows = useMemo(() => {
-    if (caps.isDoubleStage) {
+    if (caps.hasGroupStage) {
       const groupRows = mapReclubMatchesToRecentRows(
         officialReclubMatches,
         displayStatus,
@@ -563,7 +570,7 @@ export function OfficialTournamentPage({
   }, [
     americanoLobby?.matches,
     bracket?.matches,
-    caps.isDoubleStage,
+    caps.hasGroupStage,
     displayStatus,
     isElimination,
     liveData,
@@ -587,7 +594,7 @@ export function OfficialTournamentPage({
     );
   }, [americanoLobby?.matches, bracket?.matches, historyItems]);
 
-  const liveScoreMode = caps.isDoubleStage && !isDoubleStageKnockout ? "group_stage" : "rounds";
+  const liveScoreMode = isGroupStagePublic ? "group_stage" : "rounds";
 
   const handleRegister = async () => {
     if (!isAuthenticated) {
@@ -855,12 +862,16 @@ export function OfficialTournamentPage({
                 rows={recentMatchRows}
                 alwaysShow
                 emptyMessage={
-                  caps.isDoubleStage
-                    ? isDoubleStageKnockout
-                      ? "Group and knockout results will appear here as matches are recorded."
-                      : "Group stage results will appear here as rounds are recorded."
-                    : !isElimination
-                    ? "Americano results will appear after rounds are recorded."
+                  caps.hasGroupStage
+                    ? caps.isGroupOnly
+                      ? "Group results will appear here as fixtures are recorded."
+                      : isDoubleStageKnockout
+                        ? "Group and knockout results will appear here as matches are recorded."
+                        : "Group stage results will appear here as rounds are recorded."
+                    : caps.hasLobbyRounds
+                    ? caps.isMexicano
+                      ? "Mexicano results will appear after rounds are recorded."
+                      : "Americano results will appear after rounds are recorded."
                     : bracketReady
                     ? "No match results yet. Seeded bracket matches will appear here as play progresses."
                     : "The host will publish the bracket after registration closes. Results will show here once matches are played."

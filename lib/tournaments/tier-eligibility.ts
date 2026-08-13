@@ -12,7 +12,7 @@ import {
   tournamentUsesTierRestrictions,
   type TournamentTierEligibilityView,
 } from "@/lib/tournaments/tier-restrictions";
-import { getTournamentAllowedTierLevels } from "@/lib/tournaments/settings";
+import { getTournamentAllowedTierLevels, parseTournamentSettings } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type TournamentTierEligibility = TournamentTierEligibilityView;
@@ -40,17 +40,19 @@ export async function evaluateTournamentTierEligibility(
       message: null,
     };
   }
+
+  const rankingMode = parseTournamentSettings(tournament.settings).rankingMode;
   const restricted = tournamentUsesTierRestrictions(
     tournament.tournamentType,
     tournament.officialBilling,
+    rankingMode,
   );
   const allowedTierLevels = getTournamentAllowedTierLevels(tournament);
   const playerTierLevel = restricted
     ? await getPlayerTierForSport(userId, tournament.sportId)
     : null;
   const eligible =
-    !restricted ||
-    isPlayerTierAllowed(playerTierLevel, allowedTierLevels);
+    !restricted || isPlayerTierAllowed(playerTierLevel, allowedTierLevels);
 
   return {
     restricted,
@@ -75,8 +77,13 @@ export async function assertUserEligibleForTournamentTier(
   tournament: TournamentDetail,
 ): Promise<void> {
   if (tournament.partnerId) return;
+  const rankingMode = parseTournamentSettings(tournament.settings).rankingMode;
   if (
-    !tournamentUsesTierRestrictions(tournament.tournamentType, tournament.officialBilling)
+    !tournamentUsesTierRestrictions(
+      tournament.tournamentType,
+      tournament.officialBilling,
+      rankingMode,
+    )
   ) {
     return;
   }

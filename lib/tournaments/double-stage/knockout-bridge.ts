@@ -17,6 +17,11 @@ import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { eq } from "drizzle-orm";
 import { AppError } from "@/lib/errors";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import {
+  expandSlotWithSeriesLegs,
+  syncSeriesTeams,
+  tournamentKnockoutLegs,
+} from "@/lib/tournaments/brackets/series-legs";
 
 export { buildQualifiedTeamsFromStandings } from "@/lib/tournaments/double-stage/qualification";
 export type { BuildQualifiedOptions } from "@/lib/tournaments/double-stage/qualification";
@@ -53,6 +58,7 @@ export async function provisionKnockoutBracket(
   if (plan.playInMatchCount > 0) {
     const playInIds: string[] = [];
     const playInPairs = pairPlayInTeams(plan.playInTeams);
+    const legs = tournamentKnockoutLegs(tournament);
     for (let m = 1; m <= plan.playInMatchCount; m++) {
       const pair = playInPairs[m - 1];
       const [created] = await db
@@ -69,15 +75,31 @@ export async function provisionKnockoutBracket(
           metadata: { phase: "play_in" },
         })
         .returning({ id: tournamentBracketMatches.id });
-      if (created) playInIds.push(created.id);
+      if (created) {
+        playInIds.push(created.id);
+        await expandSlotWithSeriesLegs({
+          tournamentId: tournament.id,
+          parentId: created.id,
+          roundNumber: 0,
+          matchNumber: m,
+          legsRequired: legs,
+          teamAId: pair?.[0]?.teamId ?? null,
+          teamAName: pair?.[0]?.teamName ?? null,
+          teamBId: pair?.[1]?.teamId ?? null,
+          teamBName: pair?.[1]?.teamName ?? null,
+          baseMetadata: { phase: "play_in" },
+        });
+      }
     }
     allMatchIds.push(playInIds);
   }
 
+  const legs = tournamentKnockoutLegs(tournament);
   for (let round = 1; round <= totalRounds; round++) {
     const count = matchCountPerRound[round - 1]!;
     const roundIds: string[] = [];
     for (let m = 1; m <= count; m++) {
+      const phase = round === totalRounds ? "final" : "knockout";
       const [created] = await db
         .insert(tournamentBracketMatches)
         .values({
@@ -85,10 +107,20 @@ export async function provisionKnockoutBracket(
           roundNumber: round,
           matchNumber: m,
           status: "pending",
-          metadata: { phase: round === totalRounds ? "final" : "knockout" },
+          metadata: { phase },
         })
         .returning({ id: tournamentBracketMatches.id });
-      if (created) roundIds.push(created.id);
+      if (created) {
+        roundIds.push(created.id);
+        await expandSlotWithSeriesLegs({
+          tournamentId: tournament.id,
+          parentId: created.id,
+          roundNumber: round,
+          matchNumber: m,
+          legsRequired: legs,
+          baseMetadata: { phase },
+        });
+      }
     }
     allMatchIds.push(roundIds);
   }
@@ -159,6 +191,12 @@ export async function provisionKnockoutBracket(
           status: "pending",
         })
         .where(eq(tournamentBracketMatches.id, matchId));
+      await syncSeriesTeams(tournament.id, matchId, {
+        teamAId: teamA.id,
+        teamAName: teamA.name,
+        teamBId: teamB.id,
+        teamBName: teamB.name,
+      });
     } else if (aValid && !bValid) {
       if (awaitsPlayIn) {
         // Keep pending — play-in winner fills the open side.

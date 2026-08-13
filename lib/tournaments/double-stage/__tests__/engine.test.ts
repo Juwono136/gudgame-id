@@ -62,10 +62,23 @@ describe("generateRoundRobinFixtures", () => {
     ];
     const fixtures = generateRoundRobinFixtures(teams);
     expect(fixtures.filter((f) => f.round === 1)).toEqual([
-      { teamA: teams[0], teamB: teams[1], round: 1 },
-      { teamA: teams[2], teamB: teams[3], round: 1 },
+      { teamA: teams[0], teamB: teams[1], round: 1, meetingIndex: 1 },
+      { teamA: teams[2], teamB: teams[3], round: 1, meetingIndex: 1 },
     ]);
     expect(fixtures.map((f) => f.round)).toEqual([1, 1, 2, 2, 3, 3]);
+  });
+
+  it("repeats the round-robin for each meeting", () => {
+    const teams = [
+      { id: "a", name: "A" },
+      { id: "b", name: "B" },
+      { id: "c", name: "C" },
+      { id: "d", name: "D" },
+    ];
+    const fixtures = generateRoundRobinFixtures(teams, 2);
+    expect(fixtures).toHaveLength(12);
+    expect(fixtures.filter((f) => f.meetingIndex === 1)).toHaveLength(6);
+    expect(fixtures.filter((f) => f.meetingIndex === 2)).toHaveLength(6);
   });
 });
 

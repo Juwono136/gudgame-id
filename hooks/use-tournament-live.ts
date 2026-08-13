@@ -4,23 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
+import { resolveLiveRefetchIntervalMs } from "@/lib/tournaments/live/poll-intervals";
 import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
-import { softDevPollMs } from "@/lib/dev/soft-poll";
-
-function resolveLiveRefetchInterval(data: TournamentLivePayload | undefined): number {
-  const tournamentStatus = data?.tournament.status;
-  const matches = data?.matches ?? [];
-  const anyInProgress = matches.some((m) => m.status === "in_progress");
-
-  // Floor intervals protect Postgres under many concurrent spectators.
-  if (anyInProgress) return softDevPollMs(4000);
-  if (data?.phase === "live" || tournamentStatus === "live") return softDevPollMs(6000);
-  if (data?.phase === "not_started" || tournamentStatus === "draft" || tournamentStatus === "open") {
-    return softDevPollMs(10000);
-  }
-  if (data?.phase === "completed" || tournamentStatus === "completed") return softDevPollMs(20000);
-  return softDevPollMs(8000);
-}
 
 export function useTournamentLive(sportSlug: string, slug: string, enabled = true) {
   return useQuery({
@@ -39,7 +24,7 @@ export function useTournamentLive(sportSlug: string, slug: string, enabled = tru
     },
     enabled: Boolean(sportSlug && slug && enabled),
     staleTime: 0,
-    refetchInterval: (query) => resolveLiveRefetchInterval(query.state.data),
+    refetchInterval: (query) => resolveLiveRefetchIntervalMs(query.state.data),
     refetchIntervalInBackground: false,
   });
 }

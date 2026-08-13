@@ -177,7 +177,9 @@ export async function buildTournamentLivePayload(
   const isFunMatch = isFunMatchType(tournament.tournamentType);
   const includeBracket = shouldExposeBracketPublicData(tournament);
   const includeGroupStage = shouldExposeGroupStagePublicData(tournament);
-  const includeLobbyRounds = supportsRoundBasedPlay(tournament);
+  // Prefer format capabilities so Mexicano / Americano Official stay on lobby rounds.
+  const includeLobbyRounds =
+    caps.hasLobbyRounds || supportsRoundBasedPlay(tournament);
 
   if (includeGroupStage) {
     await reconcileDoubleStageGroups(tournament);

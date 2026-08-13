@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Medal } from "lucide-react";
+import { Check, Medal, ShieldOff } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import {
@@ -9,6 +9,7 @@ import {
   TOURNAMENT_TIER_MATCH_POINTS,
   type PlayerTierLevel,
 } from "@/lib/player/tier";
+import type { TournamentRankingMode } from "@/lib/tournaments/match-config";
 import { cn } from "@/lib/utils";
 
 const TIER_META: Record<
@@ -62,6 +63,9 @@ type AllowedTierLevelsSelectProps = {
   description?: string;
   /** Official tournaments use a single skill tier (exact eligibility). */
   mode?: "single" | "multi";
+  /** When provided, shows No Rank (open) alongside skill tiers. */
+  rankingMode?: TournamentRankingMode;
+  onRankingModeChange?: (mode: TournamentRankingMode) => void;
 };
 
 export function AllowedTierLevelsSelect({
@@ -73,9 +77,15 @@ export function AllowedTierLevelsSelect({
   error,
   description = "Players may only join tournaments that match their current skill tier. Win/loss ranking points follow this tier.",
   mode = "single",
+  rankingMode = "tiered",
+  onRankingModeChange,
 }: AllowedTierLevelsSelectProps) {
+  const supportsNoRank = typeof onRankingModeChange === "function";
+  const isOpen = supportsNoRank && rankingMode === "open";
+
   const select = (tier: PlayerTierLevel) => {
     if (disabled) return;
+    onRankingModeChange?.("tiered");
     if (mode === "single") {
       onChange([tier]);
       return;
@@ -88,6 +98,12 @@ export function AllowedTierLevelsSelect({
     onChange(PLAYER_TIER_LEVELS.filter((item) => value.includes(item) || item === tier));
   };
 
+  const selectNoRank = () => {
+    if (disabled || !onRankingModeChange) return;
+    onRankingModeChange("open");
+    onChange([]);
+  };
+
   return (
     <div className={cn("space-y-2", className)}>
       <Label className="flex items-center gap-2">
@@ -95,7 +111,11 @@ export function AllowedTierLevelsSelect({
         {mode === "single" ? "Tournament tier" : "Allowed player tiers"}
         {required ? <RequiredMark /> : null}
       </Label>
-      <p className="text-xs leading-relaxed text-cp-muted">{description}</p>
+      <p className="text-xs leading-relaxed text-cp-muted">
+        {isOpen
+          ? "No Rank: any player may join. Match results do not change ranking points."
+          : description}
+      </p>
       <div
         className={cn(
           "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3",
@@ -106,9 +126,50 @@ export function AllowedTierLevelsSelect({
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? "allowed-tier-levels-error" : undefined}
       >
+        {supportsNoRank ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={selectNoRank}
+            aria-pressed={isOpen}
+            className={cn(
+              "rounded-xl border p-4 text-left transition-colors",
+              isOpen
+                ? "border-emerald-600/50 bg-emerald-100 text-emerald-950 ring-1 ring-emerald-500/40 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-50"
+                : "border-emerald-300/70 bg-emerald-50/80 text-emerald-950 hover:border-cp-primary/40 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100",
+              disabled && "cursor-not-allowed opacity-60",
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  <ShieldOff className="h-3.5 w-3.5" aria-hidden />
+                  No Rank
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed opacity-90">
+                  Open to all skill levels · ranking delta 0
+                </p>
+                <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide opacity-80">
+                  Win +0 · Loss −0
+                </p>
+              </span>
+              <span
+                className={cn(
+                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                  isOpen
+                    ? "border-current bg-current/10 text-current"
+                    : "border-cp-border/80 text-transparent",
+                )}
+                aria-hidden
+              >
+                <Check className="h-3 w-3" />
+              </span>
+            </div>
+          </button>
+        ) : null}
         {PLAYER_TIER_LEVELS.map((tier) => {
           const meta = TIER_META[tier];
-          const selected = value.includes(tier);
+          const selected = !isOpen && value.includes(tier);
           const pts = TOURNAMENT_TIER_MATCH_POINTS[tier];
           return (
             <button

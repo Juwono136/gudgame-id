@@ -44,7 +44,10 @@ export async function GET(
 
     await assertTournamentManagePageAccess(tournament, userId, roles);
 
-    if (tournament.format === "double_stage" && tournament.status === "live") {
+    if (
+      (tournament.format === "double_stage" || tournament.format === "group_only") &&
+      tournament.status === "live"
+    ) {
       await initializeDoubleStageGroups(tournament);
       await reconcileDoubleStageGroups(tournament);
     }
@@ -62,9 +65,13 @@ export async function GET(
         !caps.hasLobbyRounds ? Promise.resolve([]) : listReclubMatches(tournament.id),
         !caps.hasLobbyRounds ? Promise.resolve([]) : getActiveReclubMatches(tournament.id),
         showBracket ? listBracketMatches(tournament.id) : Promise.resolve([]),
-        inGroupPhase || caps.isDoubleStage ? listGroupMatches(tournament.id) : Promise.resolve([]),
+        inGroupPhase || caps.isDoubleStage || caps.isGroupOnly
+          ? listGroupMatches(tournament.id)
+          : Promise.resolve([]),
         inGroupPhase ? getActiveGroupMatches(tournament.id) : Promise.resolve([]),
-        caps.isDoubleStage ? buildDoubleStageOverview(tournament) : Promise.resolve(null),
+        caps.isDoubleStage || caps.isGroupOnly
+          ? buildDoubleStageOverview(tournament)
+          : Promise.resolve(null),
         getRegistrationSummary(
           tournament.id,
           tournament.maxTeams,

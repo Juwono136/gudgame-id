@@ -19,6 +19,11 @@ import {
 } from "@/components/tournaments/form/category-select";
 import { AllowedTierLevelsSelect } from "@/components/tournaments/form/allowed-tier-levels-select";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
+import { FormatFamilySelect } from "@/components/tournaments/form/format-family-select";
+import { CustomMeetingsFields } from "@/components/tournaments/form/custom-meetings-fields";
+import { MatchScoringFields } from "@/components/tournaments/form/match-scoring-fields";
+import { MexicanoSettingsFields } from "@/components/tournaments/form/mexicano-settings-fields";
+import { OfficialFormatSummary } from "@/components/tournaments/form/official-format-summary";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import { CurrencyInput } from "@/components/tournaments/form/currency-input";
 import { FieldCharCounter } from "@/components/tournaments/form/field-char-counter";
@@ -59,18 +64,41 @@ import {
   getTournamentRuleSections,
   getTournamentAllowedTierLevels,
   getTournamentCourtCount,
+  getTournamentCustomMatchSettings,
+  getTournamentFormatFamily,
   getTournamentFormatLabel,
   getTournamentMatchScoreMode,
+  getTournamentMatchScoring,
+  getTournamentMexicanoSettings,
   getTournamentPointsPerMatch,
-  getTournamentRaceToGames,
+  getTournamentRaceToTarget,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   getScoringTypeLabel,
   getVenueMapsUrl,
+  isTournamentRankingOpen,
   type TournamentScoringType,
 } from "@/lib/tournaments/settings";
 import {
+  defaultCustomMatchSettings,
+  defaultMatchScoring,
+  defaultMexicanoSettings,
+  formatHasGroupStage,
+  formatHasKnockout,
+  formatHasLobbyRounds,
+  isFormatAllowedForFamily,
+  OFFICIAL_CREATABLE_FORMATS,
+  summarizeMatchScoring,
+  type CustomMatchSettings,
+  type MatchScoringConfig,
+  type MexicanoSettings,
+  type TournamentFormatFamily,
+  type TournamentRankingMode,
+} from "@/lib/tournaments/match-config";
+import {
   RACE_TO_GAMES_COMMON_OPTIONS,
+  RACE_TO_GAMES_OPTIONS,
+  type MatchScoreMode,
   type RaceToGames,
 } from "@/lib/tournaments/scoring/game-mode";
 import { getDefaultStandingsScoringForSport } from "@/lib/tournaments/scoring/config";
@@ -87,7 +115,11 @@ import {
 } from "@/lib/domain/tournaments";
 import type { TournamentUpsertInput } from "@/lib/validations/tournaments";
 import { slugifyWikiName } from "@/lib/wiki/slug";
-import { matchPointsForTournamentTier, type PlayerTierLevel } from "@/lib/player/tier";
+import {
+  matchPointsForTournamentTier,
+  PLAYER_TIER_LABELS,
+  type PlayerTierLevel,
+} from "@/lib/player/tier";
 import { parseDoubleStageSettings, parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import { cn } from "@/lib/utils";
 import { useDashboardSportOptional } from "@/providers/dashboard-sport-provider";
@@ -113,6 +145,16 @@ const MATCH_TYPE_OPTIONS = [
   { value: "americano", label: "Americano" },
   { value: "single_elimination", label: "Elimination" },
 ] as const;
+
+/** Keeps legacy / unsupported stored formats out of the wizard select. */
+function resolveCreatableFormat(
+  format: string | null | undefined,
+): TournamentUpsertInput["format"] | "" {
+  if (!format) return "";
+  return (OFFICIAL_CREATABLE_FORMATS as readonly string[]).includes(format)
+    ? (format as TournamentUpsertInput["format"])
+    : "";
+}
 
 function toLocalDatetime(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -228,9 +270,8 @@ export function TournamentCreateWizard({
     toLocalDatetime(initial?.registrationClosesAt),
   );
   const [matchType, setMatchType] = useState<TournamentUpsertInput["format"] | "">(() => {
-    if (initial?.format === "americano") return "americano";
-    if (initial?.format === "double_stage") return "double_stage";
-    if (initial?.format === "single_elimination") return "single_elimination";
+    const existing = resolveCreatableFormat(initial?.format);
+    if (existing) return existing;
     // Create Official: require an explicit format choice (no silent default).
     if (isOfficialType(initialTournamentType ?? "official")) return "";
     return sportDefaults.defaultFormat === "americano" ? "americano" : "single_elimination";
@@ -284,7 +325,7 @@ export function TournamentCreateWizard({
         : "points",
   );
   const [raceToGames, setRaceToGames] = useState(
-    String(initial ? getTournamentRaceToGames(initial) : sportPrefersGames ? 4 : 4),
+    String(initial ? getTournamentRaceToTarget(initial) : 4),
   );
   const [courtCount, setCourtCount] = useState(
     String(initial ? getTournamentCourtCount(initial) : 1),
@@ -292,13 +333,68 @@ export function TournamentCreateWizard({
   const [roundDurationMinutes, setRoundDurationMinutes] = useState(
     String(initial ? getTournamentRoundDurationMinutes(initial) : 15),
   );
+  const [rankingMode, setRankingMode] = useState<TournamentRankingMode>(
+    initial && isTournamentRankingOpen(initial) ? "open" : "tiered",
+  );
   const [allowedTierLevels, setAllowedTierLevels] = useState<PlayerTierLevel[]>(
     () => {
+      if (initial && isTournamentRankingOpen(initial)) return [];
       const existing = initial ? getTournamentAllowedTierLevels(initial) : null;
       if (existing?.length) return [existing[0]!];
       return ["bronze"];
     },
   );
+  const [formatFamily, setFormatFamily] = useState<TournamentFormatFamily>(
+    initial ? getTournamentFormatFamily(initial) : "original",
+  );
+  const [matchScoring, setMatchScoring] = useState<MatchScoringConfig>(
+    () => (initial ? getTournamentMatchScoring(initial) : undefined) ?? defaultMatchScoring(),
+  );
+  const [customMatch, setCustomMatch] = useState<CustomMatchSettings>(() =>
+    initial ? getTournamentCustomMatchSettings(initial) : defaultCustomMatchSettings(),
+  );
+  const [mexicano, setMexicano] = useState<MexicanoSettings>(
+    () =>
+      (initial ? getTournamentMexicanoSettings(initial) : undefined) ??
+      defaultMexicanoSettings(),
+  );
+
+  const isOfficial = isOfficialType(tournamentType);
+  const rankingTier = rankingMode === "open" ? null : (allowedTierLevels[0] ?? null);
+  // Official events are driven by matchScoring; the clock/points pair only matters for
+  // lobby-round formats (Americano / Mexicano) where rounds are timed or capped.
+  const showLegacyClockFields = !isOfficial || formatHasLobbyRounds(matchType);
+
+  const meetingsSummary = (() => {
+    if (!isOfficial || formatFamily !== "custom" || !matchType) return undefined;
+    const parts: string[] = [];
+    if (formatHasGroupStage(matchType)) {
+      parts.push(`${customMatch.groupMeetingsPerPair}× per pair in groups`);
+    }
+    if (formatHasKnockout(matchType)) {
+      const legs = customMatch.knockoutLegsPerSlot;
+      parts.push(`${legs} knockout leg${legs === 1 ? "" : "s"} per slot`);
+    }
+    return parts.length ? parts.join(" · ") : undefined;
+  })();
+
+  const handleRankingModeChange = (mode: TournamentRankingMode) => {
+    clearFieldError("tiers");
+    setRankingMode(mode);
+    setAllowedTierLevels((prev) => {
+      if (mode === "open") return [];
+      return prev.length ? prev.slice(0, 1) : ["bronze"];
+    });
+  };
+
+  const handleFormatFamilyChange = (family: TournamentFormatFamily) => {
+    setFormatFamily(family);
+    // Mexicano only exists under Original — drop an incompatible pick.
+    if (matchType && !isFormatAllowedForFamily(family, matchType)) {
+      clearFieldError("format");
+      setMatchType("");
+    }
+  };
 
   useEffect(() => {
     if (isEdit) return;
@@ -317,6 +413,17 @@ export function TournamentCreateWizard({
     setPlayersPerTeam(String(defaults.playersPerTeam));
     setMaxTeams(String(defaults.maxTeams));
   }, [resolvedSportSlug, isEdit]);
+
+  // Official race-to keeps the legacy race-to-games fields in sync (dual-write).
+  useEffect(() => {
+    if (!isOfficial || matchScoring.mode !== "race_to") return;
+    const target = matchScoring.raceTo?.value;
+    if (!target) return;
+    setMatchScoreMode("games");
+    if ((RACE_TO_GAMES_COMMON_OPTIONS as readonly number[]).includes(target)) {
+      setRaceToGames(String(target));
+    }
+  }, [isOfficial, matchScoring]);
 
   useEffect(() => {
     if (!initial) return;
@@ -352,24 +459,25 @@ export function TournamentCreateWizard({
     setPlayersPerTeam(String(initial.playersPerTeam ?? sportDefaults.playersPerTeam));
     setCategoryLabel((initial.categoryLabel as TournamentCategoryOption | "") ?? "");
     setRegistrationClosesAt(toLocalDatetime(initial.registrationClosesAt));
-    setMatchType(
-      initial.format === "americano"
-        ? "americano"
-        : initial.format === "double_stage"
-          ? "double_stage"
-          : "single_elimination",
-    );
+    setMatchType(resolveCreatableFormat(initial.format) || "single_elimination");
     setScoringType(getTournamentScoringType(initial));
     setPointsPerMatch(String(getTournamentPointsPerMatch(initial)));
     setMatchScoreMode(getTournamentMatchScoreMode(initial));
-    setRaceToGames(String(getTournamentRaceToGames(initial)));
+    setRaceToGames(String(getTournamentRaceToTarget(initial)));
     setCourtCount(String(getTournamentCourtCount(initial)));
     setRoundDurationMinutes(String(getTournamentRoundDurationMinutes(initial)));
+    const rankingOpen = isTournamentRankingOpen(initial);
+    setRankingMode(rankingOpen ? "open" : "tiered");
     setAllowedTierLevels(() => {
+      if (rankingOpen) return [];
       const existing = getTournamentAllowedTierLevels(initial);
       if (existing?.length) return [existing[0]!];
       return ["bronze"];
     });
+    setFormatFamily(getTournamentFormatFamily(initial));
+    setMatchScoring(getTournamentMatchScoring(initial) ?? defaultMatchScoring());
+    setCustomMatch(getTournamentCustomMatchSettings(initial));
+    setMexicano(getTournamentMexicanoSettings(initial) ?? defaultMexicanoSettings());
   }, [initial, sportDefaults.maxTeams, sportDefaults.playersPerTeam]);
 
   const resolvedSlug = slug.trim() || slugifyWikiName(name);
@@ -380,16 +488,53 @@ export function TournamentCreateWizard({
       const d = new Date(local);
       return Number.isNaN(d.getTime()) ? "" : d.toISOString();
     };
-    if (
-      matchType !== "americano" &&
-      matchType !== "single_elimination" &&
-      matchType !== "double_stage"
-    ) {
+    if (!matchType || !resolveCreatableFormat(matchType)) {
       throw new Error("Match format is required");
     }
     if (isOfficialType(tournamentType) && (officialBilling !== "paid" && officialBilling !== "free")) {
       throw new Error("Registration billing is required");
     }
+    const groupWinPoints =
+      isOfficialType(tournamentType) && rankingMode === "open"
+        ? 3
+        : isOfficialType(tournamentType)
+          ? matchPointsForTournamentTier(allowedTierLevels[0] ?? "bronze")
+          : 3;
+
+    // Official matchScoring is the source of truth; dual-write legacy fields for engines that still read them.
+    type OfficialLegacyScoring = {
+      matchScoreMode?: MatchScoreMode;
+      raceToGames?: RaceToGames;
+      gameDecider?: "golden_point" | "star_point" | "advantage";
+    };
+    const officialLegacyScoring: OfficialLegacyScoring = (() => {
+      if (!isOfficialType(tournamentType)) return {};
+      if (matchScoring.mode === "race_to") {
+        const target = matchScoring.raceTo?.value ?? 4;
+        const legacyRace = RACE_TO_GAMES_OPTIONS.includes(target as RaceToGames)
+          ? (target as RaceToGames)
+          : undefined;
+        return {
+          matchScoreMode: "games" as const,
+          ...(legacyRace != null ? { raceToGames: legacyRace } : {}),
+          gameDecider: "golden_point" as const,
+        };
+      }
+      if (matchScoring.mode === "best_of" || matchScoring.mode === "total") {
+        const fallback = Number(raceToGames);
+        return {
+          matchScoreMode: "games" as const,
+          raceToGames: RACE_TO_GAMES_OPTIONS.includes(fallback as RaceToGames)
+            ? (fallback as RaceToGames)
+            : 4,
+          gameDecider: "golden_point" as const,
+        };
+      }
+      return {
+        matchScoreMode: "points" as const,
+      };
+    })();
+
     return {
       name: name.trim(),
       slug: resolvedSlug,
@@ -419,9 +564,10 @@ export function TournamentCreateWizard({
             : undefined,
       prizePoolIdr: prizePoolIdr ? Number(prizePoolIdr) : undefined,
       categoryLabel: categoryLabel || undefined,
-      allowedTierLevels: isOfficialType(tournamentType)
-        ? allowedTierLevels.slice(0, 1)
-        : undefined,
+      allowedTierLevels:
+        isOfficialType(tournamentType) && rankingMode !== "open"
+          ? allowedTierLevels.slice(0, 1)
+          : undefined,
       registrationClosesAt: toIso(registrationClosesAt),
       startsAt: toIso(startsAt),
       endsAt: toIso(endsAt),
@@ -435,19 +581,59 @@ export function TournamentCreateWizard({
             maxTeamsPerGroup: Number(maxTeamsPerGroup) || 4,
             teamsAdvancePerGroup: Number(teamsAdvancePerGroup) || 2,
             allowDraw,
-            // Standings PTS follow official skill tier (Gold=5, …); sport default otherwise.
-            winPoints: isOfficialType(tournamentType)
-              ? matchPointsForTournamentTier(allowedTierLevels[0] ?? "bronze")
-              : 3,
+            winPoints: groupWinPoints,
             drawPoints: allowDraw ? 1 : 0,
             lossPoints: 0,
             thirdPlaceEnabled,
-            matchScoreMode,
+            matchScoreMode:
+              officialLegacyScoring.matchScoreMode ?? matchScoreMode,
             raceToGames:
-              matchScoreMode === "games"
+              officialLegacyScoring.raceToGames ??
+              (matchScoreMode === "games"
                 ? (Number(raceToGames) as RaceToGames)
-                : undefined,
-            gameDecider: matchScoreMode === "games" ? "golden_point" : undefined,
+                : undefined),
+            gameDecider:
+              officialLegacyScoring.gameDecider ??
+              (matchScoreMode === "games" ? "golden_point" : undefined),
+          }
+        : {}),
+      ...(matchType === "group_only"
+        ? {
+            maxTeamsPerGroup: Number(maxTeamsPerGroup) || 4,
+            allowDraw,
+            winPoints: groupWinPoints,
+            drawPoints: allowDraw ? 1 : 0,
+            lossPoints: 0,
+            matchScoreMode:
+              officialLegacyScoring.matchScoreMode ?? matchScoreMode,
+            raceToGames:
+              officialLegacyScoring.raceToGames ??
+              (matchScoreMode === "games"
+                ? (Number(raceToGames) as RaceToGames)
+                : undefined),
+            gameDecider:
+              officialLegacyScoring.gameDecider ??
+              (matchScoreMode === "games" ? "golden_point" : undefined),
+          }
+        : {}),
+      ...(isOfficialType(tournamentType)
+        ? {
+            rankingMode,
+            formatFamily,
+            matchScoring,
+            ...(formatFamily === "custom" ? { customMatch } : {}),
+            ...(matchType === "mexicano"
+              ? { mexicano, maxRounds: mexicano.roundCount }
+              : {}),
+            ...(!matchType ||
+            matchType === "double_stage" ||
+            matchType === "group_only"
+              ? {}
+              : {
+                  matchScoreMode: officialLegacyScoring.matchScoreMode,
+                  raceToGames: officialLegacyScoring.raceToGames,
+                  gameDecider: officialLegacyScoring.gameDecider,
+                }),
           }
         : {}),
     };
@@ -481,15 +667,16 @@ export function TournamentCreateWizard({
         if (!CATEGORY_OPTIONS.includes(categoryLabel as TournamentCategoryOption)) {
           nextErrors.category = "Choose a category: Male, Female, or Mix";
         }
-        if (allowedTierLevels.length !== 1) {
-          nextErrors.tiers = "Select exactly one tournament skill tier";
+        if (rankingMode !== "open" && allowedTierLevels.length !== 1) {
+          nextErrors.tiers = "Select one tournament skill tier, or No Rank";
         }
-        if (
-          matchType !== "americano" &&
-          matchType !== "single_elimination" &&
-          matchType !== "double_stage"
-        ) {
+        if (!matchType || !resolveCreatableFormat(matchType)) {
           nextErrors.format = "Choose a match format";
+        } else if (!isFormatAllowedForFamily(formatFamily, matchType)) {
+          nextErrors.format =
+            formatFamily === "custom"
+              ? "Custom match does not support Mexicano — pick another format"
+              : "Selected format is not available for this match family";
         }
       } else if (
         matchType !== "americano" &&
@@ -505,8 +692,11 @@ export function TournamentCreateWizard({
       }
 
       if (!TOURNAMENT_POINTS_PER_MATCH_OPTIONS.includes(Number(pointsPerMatch) as (typeof TOURNAMENT_POINTS_PER_MATCH_OPTIONS)[number])) {
-        toast.error("Choose a supported point per match value");
-        return false;
+        // Official scoring is driven by matchScoring; legacy points only matter for lobby clock UIs.
+        if (!isOfficial || showLegacyClockFields) {
+          toast.error("Choose a supported point per match value");
+          return false;
+        }
       }
       const courts = Number(courtCount);
       if (!Number.isFinite(courts) || courts < 1 || courts > 12) {
@@ -549,8 +739,24 @@ export function TournamentCreateWizard({
       }
     }
     if (stepId === "schedule") {
+      if (!startsAt.trim()) {
+        toast.error("Start date is required");
+        return false;
+      }
+      if (!endsAt.trim()) {
+        toast.error("End date is required");
+        return false;
+      }
       if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) {
         toast.error("End date must be after start date");
+        return false;
+      }
+      if (
+        registrationClosesAt &&
+        endsAt &&
+        new Date(registrationClosesAt) > new Date(endsAt)
+      ) {
+        toast.error("Registration must close on or before the tournament end");
         return false;
       }
       if (tournamentType === "official") {
@@ -833,7 +1039,15 @@ export function TournamentCreateWizard({
                       required
                       mode="single"
                       error={fieldErrors.tiers}
+                      rankingMode={rankingMode}
+                      onRankingModeChange={handleRankingModeChange}
                       description="Official tournaments (paid and free) use one skill tier. Only players at that exact tier can register. Ranking points: win adds / loss subtracts the tier value."
+                    />
+                    <FormatFamilySelect
+                      value={formatFamily}
+                      onChange={handleFormatFamilyChange}
+                      className="sm:col-span-2"
+                      required
                     />
                   </>
                 ) : null}
@@ -845,12 +1059,43 @@ export function TournamentCreateWizard({
                       setMatchType(v);
                     }}
                     sportSlug={resolvedSportSlug}
-                    officialOnly={isOfficialType(tournamentType)}
-                    required={isOfficialType(tournamentType)}
+                    officialOnly={isOfficial}
+                    formatFamily={isOfficial ? formatFamily : undefined}
+                    required={isOfficial}
                     error={fieldErrors.format}
                   />
                 </div>
-                {matchType === "double_stage" ? (
+                {isOfficial && formatFamily === "custom" && matchType ? (
+                  <CustomMeetingsFields
+                    className="sm:col-span-2"
+                    showGroupMeetings={formatHasGroupStage(matchType)}
+                    showKnockoutLegs={formatHasKnockout(matchType)}
+                    groupMeetingsPerPair={customMatch.groupMeetingsPerPair}
+                    knockoutLegsPerSlot={customMatch.knockoutLegsPerSlot}
+                    onGroupMeetingsChange={(groupMeetingsPerPair) =>
+                      setCustomMatch((prev) => ({ ...prev, groupMeetingsPerPair }))
+                    }
+                    onKnockoutLegsChange={(knockoutLegsPerSlot) =>
+                      setCustomMatch((prev) => ({ ...prev, knockoutLegsPerSlot }))
+                    }
+                  />
+                ) : null}
+                {isOfficial && matchType === "mexicano" ? (
+                  <MexicanoSettingsFields
+                    className="sm:col-span-2"
+                    value={mexicano}
+                    onChange={setMexicano}
+                  />
+                ) : null}
+                {isOfficial ? (
+                  <MatchScoringFields
+                    className="sm:col-span-2"
+                    value={matchScoring}
+                    onChange={setMatchScoring}
+                    showStageOverrides={matchType === "double_stage"}
+                  />
+                ) : null}
+                {matchType === "double_stage" || matchType === "group_only" ? (
                   <>
                     <div className="space-y-2">
                       <Label>Max teams per group</Label>
@@ -863,17 +1108,19 @@ export function TournamentCreateWizard({
                         className="border-cp-border bg-cp-elevated"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Teams advancing per group</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={4}
-                        value={teamsAdvancePerGroup}
-                        onChange={(e) => setTeamsAdvancePerGroup(e.target.value)}
-                        className="border-cp-border bg-cp-elevated"
-                      />
-                    </div>
+                    {matchType === "double_stage" ? (
+                      <div className="space-y-2">
+                        <Label>Teams advancing per group</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={4}
+                          value={teamsAdvancePerGroup}
+                          onChange={(e) => setTeamsAdvancePerGroup(e.target.value)}
+                          className="border-cp-border bg-cp-elevated"
+                        />
+                      </div>
+                    ) : null}
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <input
                         id="allow-draw"
@@ -889,6 +1136,10 @@ export function TournamentCreateWizard({
                         </span>
                       </Label>
                     </div>
+                  </>
+                ) : null}
+                {matchType === "double_stage" ? (
+                  <>
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <input
                         id="third-place"
@@ -904,101 +1155,109 @@ export function TournamentCreateWizard({
                         </span>
                       </Label>
                     </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Match score format</Label>
-                      <p className="text-xs text-cp-muted">
-                        For racket sports like padel, use Race to N games (games score like 4–1).
-                        Point scoring keeps a flat race-to-points total.
-                      </p>
-                      <Select
-                        value={matchScoreMode}
-                        onValueChange={(v) => setMatchScoreMode(v as "points" | "games")}
-                      >
-                        <SelectTrigger className="border-cp-border bg-cp-elevated">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="games">Race to games (e.g. padel 4 / 6)</SelectItem>
-                          <SelectItem value="points">Flat points (Americano-style)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {matchScoreMode === "games" ? (
-                      <div className="space-y-2">
-                        <Label>Race to</Label>
-                        <Select value={raceToGames} onValueChange={setRaceToGames}>
-                          <SelectTrigger className="border-cp-border bg-cp-elevated">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {RACE_TO_GAMES_COMMON_OPTIONS.map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                Race to {n} games
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[11px] text-cp-muted">
-                          Points rise +1 through 15 → 30 → 40. First to 40 wins the game (score
-                          stays until Next game); first to {raceToGames} games wins the match.
-                        </p>
-                      </div>
+                    {!isOfficial ? (
+                      <>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Match score format</Label>
+                          <p className="text-xs text-cp-muted">
+                            For racket sports like padel, use Race to N games (games score like
+                            4–1). Point scoring keeps a flat race-to-points total.
+                          </p>
+                          <Select
+                            value={matchScoreMode}
+                            onValueChange={(v) => setMatchScoreMode(v as "points" | "games")}
+                          >
+                            <SelectTrigger className="border-cp-border bg-cp-elevated">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="games">Race to games (e.g. padel 4 / 6)</SelectItem>
+                              <SelectItem value="points">Flat points (Americano-style)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {matchScoreMode === "games" ? (
+                          <div className="space-y-2">
+                            <Label>Race to</Label>
+                            <Select value={raceToGames} onValueChange={setRaceToGames}>
+                              <SelectTrigger className="border-cp-border bg-cp-elevated">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {RACE_TO_GAMES_COMMON_OPTIONS.map((n) => (
+                                  <SelectItem key={n} value={String(n)}>
+                                    Race to {n} games
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-cp-muted">
+                              Points rise +1 through 15 → 30 → 40. First to 40 wins the game (score
+                              stays until Next game); first to {raceToGames} games wins the match.
+                            </p>
+                          </div>
+                        ) : null}
+                      </>
                     ) : null}
                   </>
                 ) : null}
-                <div className="space-y-2">
-                  <Label>Scoring type</Label>
-                  <Select
-                    value={scoringType}
-                    onValueChange={(v) => setScoringType(v as TournamentScoringType)}
-                  >
-                    <SelectTrigger className="border-cp-border bg-cp-elevated">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="points">Points</SelectItem>
-                      <SelectItem value="timed">Timed rounds</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  {scoringType === "timed" ? (
-                    <>
-                      <Label>Round duration</Label>
+                {showLegacyClockFields ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Scoring type</Label>
                       <Select
-                        value={roundDurationMinutes}
-                        onValueChange={setRoundDurationMinutes}
+                        value={scoringType}
+                        onValueChange={(v) => setScoringType(v as TournamentScoringType)}
                       >
                         <SelectTrigger className="border-cp-border bg-cp-elevated">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {TOURNAMENT_ROUND_DURATION_OPTIONS.map((minutes) => (
-                            <SelectItem key={minutes} value={String(minutes)}>
-                              {minutes} minutes
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="points">Points</SelectItem>
+                          <SelectItem value="timed">Timed rounds</SelectItem>
                         </SelectContent>
                       </Select>
-                    </>
-                  ) : (
-                    <>
-                      <Label>Point per match</Label>
-                      <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
-                        <SelectTrigger className="border-cp-border bg-cp-elevated">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
-                            <SelectItem key={points} value={String(points)}>
-                              {points} points
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </>
-                  )}
-                </div>
+                    </div>
+                    <div className="space-y-2">
+                      {scoringType === "timed" ? (
+                        <>
+                          <Label>Round duration</Label>
+                          <Select
+                            value={roundDurationMinutes}
+                            onValueChange={setRoundDurationMinutes}
+                          >
+                            <SelectTrigger className="border-cp-border bg-cp-elevated">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TOURNAMENT_ROUND_DURATION_OPTIONS.map((minutes) => (
+                                <SelectItem key={minutes} value={String(minutes)}>
+                                  {minutes} minutes
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </>
+                      ) : (
+                        <>
+                          <Label>Point per match</Label>
+                          <Select value={pointsPerMatch} onValueChange={setPointsPerMatch}>
+                            <SelectTrigger className="border-cp-border bg-cp-elevated">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TOURNAMENT_POINTS_PER_MATCH_OPTIONS.map((points) => (
+                                <SelectItem key={points} value={String(points)}>
+                                  {points} points
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </>
+                      )}
+                    </div>
+                  </>
+                ) : null}
                 <div className="space-y-2">
                   <Label>Number of courts</Label>
                   <Select value={courtCount} onValueChange={setCourtCount}>
@@ -1115,16 +1374,29 @@ export function TournamentCreateWizard({
 
               {tournamentType === "official" ? (
                 <div className="space-y-6">
+                  <OfficialFormatSummary
+                    formatFamily={formatFamily}
+                    format={matchType}
+                    rankingMode={rankingMode}
+                    allowedTier={rankingTier}
+                    matchScoring={matchScoring}
+                    customMatch={customMatch}
+                    mexicano={matchType === "mexicano" ? mexicano : null}
+                  />
                   <div>
-                    <Label>Match format</Label>
+                    <Label>
+                      Additional match notes
+                      <span className="ml-1 font-normal text-cp-muted">(optional)</span>
+                    </Label>
                     <p className="mb-2 text-xs text-cp-muted">
-                      Scoring, sets, tie-breaks, scheduling, and match flow.
+                      Structured scoring comes from Basics. Use this for host remarks only — warm-up
+                      time, ball brand, walkover policy.
                     </p>
                     <RichTextEditor
                       value={matchFormatRules}
                       onChange={setMatchFormatRules}
-                      placeholder="Match format and scoring rules…"
-                      minHeight={160}
+                      placeholder="Optional notes for players…"
+                      minHeight={120}
                       maxLength={TOURNAMENT_FIELD_LIMITS.matchFormatRules}
                     />
                   </div>
@@ -1194,6 +1466,42 @@ export function TournamentCreateWizard({
                     : `${pointsPerMatch} points`
               }
               courtCount={courtCount}
+              hideLegacyScoringInCapacity={isOfficial}
+              officialBillingLabel={
+                isOfficial
+                  ? officialBilling === "paid"
+                    ? "Paid"
+                    : officialBilling === "free"
+                      ? "Free"
+                      : "—"
+                  : undefined
+              }
+              formatFamilyLabel={
+                isOfficial ? (formatFamily === "custom" ? "Custom" : "Original") : undefined
+              }
+              rankingTierLabel={
+                isOfficial
+                  ? rankingMode === "open"
+                    ? "No Rank (open)"
+                    : rankingTier
+                      ? PLAYER_TIER_LABELS[rankingTier]
+                      : "—"
+                  : undefined
+              }
+              matchScoringLabel={isOfficial ? summarizeMatchScoring(matchScoring) : undefined}
+              meetingsSummary={meetingsSummary}
+              mexicanoLabel={
+                isOfficial && matchType === "mexicano"
+                  ? `${mexicano.mode === "individual" ? "Individual" : "Team"} · ${mexicano.roundCount} rounds`
+                  : undefined
+              }
+              lobbyClockLabel={
+                isOfficial && showLegacyClockFields
+                  ? scoringType === "timed"
+                    ? `${roundDurationMinutes} min rounds`
+                    : `${pointsPerMatch} points per match`
+                  : undefined
+              }
               onEditStep={goToStep}
             />
               ) : null}

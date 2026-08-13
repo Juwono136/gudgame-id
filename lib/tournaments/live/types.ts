@@ -4,7 +4,6 @@ import type {
   IntraGamePointStyle,
   MatchGameState,
   MatchScoreMode,
-  RaceToGames,
 } from "@/lib/tournaments/scoring/game-mode";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 
@@ -72,7 +71,8 @@ export type TournamentLivePayload = {
   /** Scoring shape for venue display / public live boards. */
   scoring?: {
     matchScoreMode: MatchScoreMode;
-    raceToGames?: RaceToGames;
+    /** Race-to target (supports custom N from Official matchScoring). */
+    raceToGames?: number;
     pointsToWinGame?: number;
     pointStyle?: IntraGamePointStyle;
   };

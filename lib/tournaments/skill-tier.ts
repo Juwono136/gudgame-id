@@ -4,13 +4,17 @@ import { inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournaments } from "@/db/schema";
 import type { PlayerTierLevel } from "@/lib/player/tier";
+import { parseRankingMode } from "@/lib/tournaments/match-config";
 import { normalizeAllowedTierLevels } from "@/lib/tournaments/tier-restrictions";
+
+/** Skill tier or "open" (No Rank) keyed by tournament id. */
+export type TournamentSkillLookup = PlayerTierLevel | "open";
 
 /** Tournament skill tier (from `allowedTierLevels`) keyed by tournament id. */
 export async function loadSkillTierByTournamentIds(
   tournamentIds: string[],
-): Promise<Map<string, PlayerTierLevel>> {
-  const map = new Map<string, PlayerTierLevel>();
+): Promise<Map<string, TournamentSkillLookup>> {
+  const map = new Map<string, TournamentSkillLookup>();
   if (!tournamentIds.length) return map;
 
   const db = getDb();
@@ -24,6 +28,10 @@ export async function loadSkillTierByTournamentIds(
       row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)
         ? (row.settings as Record<string, unknown>)
         : {};
+    if (parseRankingMode(settings.rankingMode) === "open") {
+      map.set(row.id, "open");
+      continue;
+    }
     const allowed = normalizeAllowedTierLevels(settings.allowedTierLevels);
     if (allowed?.[0]) map.set(row.id, allowed[0]);
   }
@@ -33,7 +41,7 @@ export async function loadSkillTierByTournamentIds(
 
 export async function loadSkillTierForTournament(
   tournamentId: string,
-): Promise<PlayerTierLevel | null> {
+): Promise<TournamentSkillLookup | null> {
   const map = await loadSkillTierByTournamentIds([tournamentId]);
   return map.get(tournamentId) ?? null;
 }

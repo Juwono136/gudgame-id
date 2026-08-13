@@ -37,6 +37,8 @@ import {
   type ScoringRules,
 } from "@/lib/tournaments/scoring/engine";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
+import { getGroupMeetingsPerPair } from "@/lib/tournaments/format-capabilities";
+import { formatHasGroupStage } from "@/lib/tournaments/match-config";
 import {
   assertDoubleStageAdvanceAllowed,
   assertDoubleStageGroupScoringAllowed,
@@ -233,8 +235,8 @@ export async function initializeDoubleStageGroups(
   tournament: TournamentDetail,
   options: { requireTeams?: boolean } = {},
 ): Promise<{ groupCount: number; matchCount: number }> {
-  if (tournament.format !== "double_stage") {
-    throw new AppError("Not a double stage tournament", {
+  if (!formatHasGroupStage(tournament.format)) {
+    throw new AppError("Not a group-stage tournament", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
@@ -290,7 +292,8 @@ export async function initializeDoubleStageGroups(
       });
     }
 
-    const fixtures = generateRoundRobinFixtures(g.teams);
+    const meetings = getGroupMeetingsPerPair(tournament);
+    const fixtures = generateRoundRobinFixtures(g.teams, meetings);
     for (let mi = 0; mi < fixtures.length; mi++) {
       const f = fixtures[mi]!;
       await db.insert(tournamentGroupMatches).values({
@@ -303,6 +306,10 @@ export async function initializeDoubleStageGroups(
         teamBName: f.teamB.name,
         status: "pending",
         playOrder: f.round != null ? f.round * 100 + (mi % 2) + 1 : mi + 1,
+        metadata: {
+          meetingIndex: f.meetingIndex ?? 1,
+          meetingsPerPair: meetings,
+        },
       });
       matchCount++;
     }
@@ -456,7 +463,8 @@ async function replaceGroupStructure(
         });
       }
 
-      const fixtures = generateRoundRobinFixtures(teams);
+      const meetings = getGroupMeetingsPerPair(tournament);
+      const fixtures = generateRoundRobinFixtures(teams, meetings);
       for (let matchIndex = 0; matchIndex < fixtures.length; matchIndex++) {
         const fixture = fixtures[matchIndex]!;
         await tx.insert(tournamentGroupMatches).values({
@@ -472,6 +480,10 @@ async function replaceGroupStructure(
             fixture.round != null
               ? fixture.round * 100 + (matchIndex % 2) + 1
               : matchIndex + 1,
+          metadata: {
+            meetingIndex: fixture.meetingIndex ?? 1,
+            meetingsPerPair: meetings,
+          },
         });
         matchCount++;
       }
@@ -492,7 +504,7 @@ async function replaceGroupStructure(
 export async function reconcileDoubleStageGroups(
   tournament: TournamentDetail,
 ): Promise<{ changed: boolean; groupCount: number; matchCount: number }> {
-  if (tournament.format !== "double_stage") {
+  if (!formatHasGroupStage(tournament.format)) {
     return { changed: false, groupCount: 0, matchCount: 0 };
   }
 
@@ -541,8 +553,8 @@ export async function saveManualDoubleStageAssignments(
   tournament: TournamentDetail,
   assignments: { groupName: string; teamIds: string[] }[],
 ): Promise<{ groupCount: number; matchCount: number }> {
-  if (tournament.format !== "double_stage") {
-    throw new AppError("Not a double stage tournament", {
+  if (!formatHasGroupStage(tournament.format)) {
+    throw new AppError("Not a group-stage tournament", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
@@ -1319,18 +1331,20 @@ export async function recordGroupStageScore(
     reason: "Paper / batch final score",
   });
 
-  // Auto-generate knockout when the last group fixture is finalized.
-  try {
-    const overview = await buildDoubleStageOverview(tournament);
-    if (
-      overview.allGroupMatchesCompleted &&
-      overview.phase === "group" &&
-      overview.qualifiedCount >= 2
-    ) {
-      await advanceDoubleStageToElimination(tournament);
+  // Auto-generate knockout when the last group fixture is finalized (double_stage only).
+  if (tournament.format === "double_stage") {
+    try {
+      const overview = await buildDoubleStageOverview(tournament);
+      if (
+        overview.allGroupMatchesCompleted &&
+        overview.phase === "group" &&
+        overview.qualifiedCount >= 2
+      ) {
+        await advanceDoubleStageToElimination(tournament);
+      }
+    } catch {
+      // Host can still generate manually if auto-advance fails.
     }
-  } catch {
-    // Host can still generate manually if auto-advance fails.
   }
 
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
@@ -1349,13 +1363,23 @@ export async function recordGroupStageScore(
         .from(tournamentGroups)
         .where(eq(tournamentGroups.id, match.groupId))
         .limit(1))[0]?.name ?? "Group";
-    const roundLabel = `Group stage: ${groupName}`;
+    const meetingRaw =
+      match.metadata && typeof match.metadata === "object"
+        ? (match.metadata as Record<string, unknown>).meetingIndex
+        : undefined;
+    const meetingIndex =
+      typeof meetingRaw === "number" && meetingRaw > 0 ? Math.floor(meetingRaw) : 1;
+    const roundLabel =
+      meetingIndex > 1
+        ? `Group stage: ${groupName} (meet ${meetingIndex})`
+        : `Group stage: ${groupName}`;
 
     if (participantUserIds.length > 0 && !tournament.partnerId) {
       const { syncOfficialMatchToPlayerHistory } = await import("@/lib/tournaments/stats/sync");
       await syncOfficialMatchToPlayerHistory({
         tournament,
         roundLabel,
+        fixtureId: match.id,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
         teamAId: match.teamAId,
@@ -1440,6 +1464,12 @@ async function syncGroupQualificationStatus(tournament: TournamentDetail): Promi
 export async function advanceDoubleStageToElimination(
   tournament: TournamentDetail,
 ): Promise<{ bracketMatchCount: number; qualifiedCount: number }> {
+  if (tournament.format === "group_only") {
+    throw new AppError("Group-only tournaments do not have a knockout stage.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
   await assertDoubleStageAdvanceAllowed(tournament);
   const overview = await buildDoubleStageOverview(tournament);
   const dsSettings = overview.settings;

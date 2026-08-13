@@ -34,6 +34,21 @@ import {
   coerceRichHtmlField,
   sanitizeTournamentRichField,
 } from "@/lib/wiki/sanitize-rich-text";
+import {
+  deriveMatchScoringFromLegacy,
+  parseCustomMatchSettings,
+  parseFormatFamily,
+  parseMatchScoringConfig,
+  parseMexicanoSettings,
+  parseRankingMode,
+  resolveMatchScoringForStage,
+  summarizeMatchScoring,
+  type CustomMatchSettings,
+  type MatchScoringConfig,
+  type MexicanoSettings,
+  type TournamentFormatFamily,
+  type TournamentRankingMode,
+} from "@/lib/tournaments/match-config";
 
 export type TournamentRuleSections = {
   eligibilityHtml?: string;
@@ -82,6 +97,18 @@ export type TournamentSettings = TournamentRuleSections & {
   venueMapsUrl?: string;
   /** Skill tiers allowed to register (official free + fun match). */
   allowedTierLevels?: PlayerTierLevel[];
+  /**
+   * tiered = exact skill tier gate; open = No Rank (any player may register, no ranking pts).
+   */
+  rankingMode?: TournamentRankingMode;
+  /** Original vs Custom match family (Official create flow). */
+  formatFamily?: TournamentFormatFamily;
+  /** Unified Official match scoring (Best of / Race to / Total / Custom). */
+  matchScoring?: MatchScoringConfig;
+  /** Custom family: repeated group fixtures + KO series legs. */
+  customMatch?: CustomMatchSettings;
+  /** Mexicano planner config (Original family only). */
+  mexicano?: MexicanoSettings;
   /** Max playable rounds for reclub sessions (set at creation). */
   maxRounds?: number;
   scoringType?: TournamentScoringType;
@@ -234,7 +261,10 @@ function parseDisplayBrandTheme(raw: unknown): TournamentDisplayBrandTheme | und
 
 export function getTournamentFormatLabel(format: string | null | undefined): string {
   if (format === "americano") return "Americano";
-  if (format === "double_stage") return "Double Stage";
+  if (format === "double_stage") return "Group stage + knockout";
+  if (format === "mexicano") return "Mexicano";
+  if (format === "group_only") return "Group only";
+  if (format === "single_elimination") return "Knockout / Elimination";
   return "Elimination";
 }
 
@@ -247,8 +277,10 @@ export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): 
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min rounds`;
   }
+  const stored = getStoredMatchScoring(tournament);
+  if (stored) return summarizeMatchScoring(stored);
   if (getTournamentMatchScoreMode(tournament) === "games") {
-    return formatRaceToLabel(getTournamentRaceToGames(tournament));
+    return formatRaceToLabel(getTournamentRaceToTarget(tournament));
   }
   return `${getTournamentPointsPerMatch(tournament)} points`;
 }
@@ -263,7 +295,7 @@ export function getTournamentScoringDetailLabel(tournament: TournamentDetail): s
   const courts = `${courtCount} ${courtCount === 1 ? "court" : "courts"}`;
   const mode =
     getTournamentMatchScoreMode(tournament) === "games"
-      ? formatRaceToLabel(getTournamentRaceToGames(tournament))
+      ? formatRaceToLabel(getTournamentRaceToTarget(tournament))
       : getScoringTypeLabel(getTournamentScoringType(tournament));
   return `${mode} · ${courts}`;
 }
@@ -273,8 +305,10 @@ export function getTournamentMatchScoringHint(tournament: TournamentDetail): str
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min per round`;
   }
+  const stored = getStoredMatchScoring(tournament);
+  if (stored) return summarizeMatchScoring(stored);
   if (getTournamentMatchScoreMode(tournament) === "games") {
-    return `First to ${getTournamentRaceToGames(tournament)} games`;
+    return `First to ${getTournamentRaceToTarget(tournament)} games`;
   }
   return `First to ${getTournamentPointsPerMatch(tournament)} pts`;
 }
@@ -322,6 +356,11 @@ export function parseTournamentSettings(
   const matchFormat = raw.matchFormat;
   const classicSetRulesRaw = raw.classicSetRules;
   const allowedTierLevels = raw.allowedTierLevels;
+  const rankingMode = parseRankingMode(raw.rankingMode);
+  const formatFamily = parseFormatFamily(raw.formatFamily);
+  const matchScoringParsed = parseMatchScoringConfig(raw.matchScoring);
+  const customMatch = parseCustomMatchSettings(raw.customMatch);
+  const mexicano = parseMexicanoSettings(raw.mexicano);
 
   const parsedPoints =
     typeof pointsPerMatch === "number" && Number.isFinite(pointsPerMatch) && pointsPerMatch > 0
@@ -345,6 +384,29 @@ export function parseTournamentSettings(
         .filter((id) => isUuid(id))
     : undefined;
 
+  const matchScoreModeParsed =
+    typeof matchScoreMode === "string" &&
+    MATCH_SCORE_MODES.includes(matchScoreMode as MatchScoreMode)
+      ? (matchScoreMode as MatchScoreMode)
+      : undefined;
+
+  const matchFormatParsed =
+    typeof matchFormat === "string" && MATCH_FORMATS.includes(matchFormat as MatchFormat)
+      ? (matchFormat as MatchFormat)
+      : undefined;
+
+  const classicSetRules = parseClassicSetRules(classicSetRulesRaw) ?? undefined;
+
+  const matchScoring =
+    matchScoringParsed ??
+    deriveMatchScoringFromLegacy({
+      matchScoreMode: matchScoreModeParsed,
+      raceToGames: parsedRaceTo,
+      pointsPerMatch: parsedPoints,
+      matchFormat: matchFormatParsed,
+      classicBestOf: classicSetRules?.bestOfSets,
+    });
+
   return {
     venueMapsUrl:
       typeof venueMapsUrl === "string" && venueMapsUrl.trim() ? venueMapsUrl : undefined,
@@ -358,6 +420,11 @@ export function parseTournamentSettings(
       typeof equipmentStandardsHtml === "string" ? equipmentStandardsHtml : null,
     ) ?? undefined,
     gearEntityIds: parsedGearIds?.length ? parsedGearIds : undefined,
+    rankingMode,
+    formatFamily,
+    matchScoring,
+    customMatch,
+    mexicano,
     maxRounds:
       typeof maxRounds === "number" && Number.isFinite(maxRounds) && maxRounds > 0
         ? Math.floor(maxRounds)
@@ -365,23 +432,15 @@ export function parseTournamentSettings(
     scoringType:
       scoringType === "points" || scoringType === "timed" ? scoringType : undefined,
     pointsPerMatch: parsedPoints,
-    matchScoreMode:
-      typeof matchScoreMode === "string" &&
-      MATCH_SCORE_MODES.includes(matchScoreMode as MatchScoreMode)
-        ? (matchScoreMode as MatchScoreMode)
-        : undefined,
+    matchScoreMode: matchScoreModeParsed,
     raceToGames: parsedRaceTo,
     raceToGamesGroup: parseRaceOpt(raceToGamesGroup),
     raceToGamesKnockout: parseRaceOpt(raceToGamesKnockout),
     gameDecider: normalizeGameDecider(
       typeof gameDecider === "string" ? gameDecider : undefined,
     ),
-    matchFormat:
-      typeof matchFormat === "string" &&
-      MATCH_FORMATS.includes(matchFormat as MatchFormat)
-        ? (matchFormat as MatchFormat)
-        : undefined,
-    classicSetRules: parseClassicSetRules(classicSetRulesRaw) ?? undefined,
+    matchFormat: matchFormatParsed,
+    classicSetRules,
     scoreEntryMode:
       scoreEntryMode === "live" || scoreEntryMode === "paper"
         ? scoreEntryMode
@@ -459,12 +518,49 @@ export function getOfficialTournamentStaff(
 export function getTournamentAllowedTierLevels(
   tournament: TournamentDetail,
 ): PlayerTierLevel[] | null {
-  const configured = parseTournamentSettings(tournament.settings).allowedTierLevels;
+  const settings = parseTournamentSettings(tournament.settings);
+  if (settings.rankingMode === "open") return null;
+  const configured = settings.allowedTierLevels;
   return resolveAllowedTierLevels(
     tournament.tournamentType,
     tournament.officialBilling,
     configured,
+    settings.rankingMode,
   );
+}
+
+/** No Rank / open ranking — any player may register; no career ranking points. */
+export function isTournamentRankingOpen(tournament: TournamentDetail): boolean {
+  return parseTournamentSettings(tournament.settings).rankingMode === "open";
+}
+
+export function getTournamentFormatFamily(
+  tournament: TournamentDetail,
+): TournamentFormatFamily {
+  return parseTournamentSettings(tournament.settings).formatFamily ?? "original";
+}
+
+export function getTournamentMatchScoring(
+  tournament: TournamentDetail,
+): MatchScoringConfig | undefined {
+  return parseTournamentSettings(tournament.settings).matchScoring;
+}
+
+export function getTournamentCustomMatchSettings(
+  tournament: TournamentDetail,
+): CustomMatchSettings {
+  return (
+    parseTournamentSettings(tournament.settings).customMatch ?? {
+      groupMeetingsPerPair: 1,
+      knockoutLegsPerSlot: 1,
+    }
+  );
+}
+
+export function getTournamentMexicanoSettings(
+  tournament: TournamentDetail,
+): MexicanoSettings | undefined {
+  return parseTournamentSettings(tournament.settings).mexicano;
 }
 
 /** Single Official skill tier used for ranking ±points and eligibility. */
@@ -484,7 +580,11 @@ export function isOfficialTournamentStaff(
 }
 
 export function getMaxRounds(tournament: TournamentDetail): number | null {
-  return parseTournamentSettings(tournament.settings).maxRounds ?? null;
+  const settings = parseTournamentSettings(tournament.settings);
+  if (tournament.format === "mexicano" && settings.mexicano?.roundCount) {
+    return settings.mexicano.roundCount;
+  }
+  return settings.maxRounds ?? null;
 }
 
 export function getVenueMapsUrl(tournament: TournamentDetail): string | null {
@@ -503,7 +603,8 @@ export function getTournamentPointsPerMatch(tournament: TournamentDetail): numbe
  * Match scoring shape.
  * Prefer explicit settings (matchScoreMode / raceToGames) so legacy flat-point
  * padel tournaments are not forced into games mode mid-event.
- * New double-stage creates set matchScoreMode via buildFormatSpecificSettingsFromUpsert.
+ * Stored Official `matchScoring` overrides only when present in settings JSON
+ * (derived dual-read configs must not flip Fun Match points → games).
  */
 export function getTournamentMatchScoreMode(
   tournament: TournamentDetail,
@@ -511,16 +612,58 @@ export function getTournamentMatchScoreMode(
   const settings = parseTournamentSettings(tournament.settings);
   if (settings.matchScoreMode) return settings.matchScoreMode;
   if (settings.raceToGames) return "games";
+
+  const stored = getStoredMatchScoring(tournament);
+  if (stored?.mode === "custom_score") return "points";
+  if (
+    stored?.mode === "race_to" ||
+    stored?.mode === "best_of" ||
+    stored?.mode === "total"
+  ) {
+    return "games";
+  }
   return "points";
+}
+
+/** Explicit `settings.matchScoring` only (ignores derive-from-legacy dual-read). */
+function getStoredMatchScoring(
+  tournament: TournamentDetail,
+): MatchScoringConfig | undefined {
+  const raw = tournament.settings;
+  if (!raw || typeof raw !== "object") return undefined;
+  return parseMatchScoringConfig((raw as Record<string, unknown>).matchScoring);
+}
+
+/**
+ * Effective race-to target for a match/leg.
+ * Prefers Official `matchScoring.raceTo` (supports custom N like 8) over legacy raceToGames.
+ */
+export function getTournamentRaceToTarget(
+  tournament: TournamentDetail,
+  stage: TournamentRaceStage = "default",
+): number {
+  const resolved = resolveMatchScoringForStage(
+    getStoredMatchScoring(tournament),
+    stage === "default" ? "default" : stage,
+  );
+  if (resolved?.mode === "race_to" && resolved.raceTo?.value) {
+    return resolved.raceTo.value;
+  }
+  return getTournamentRaceToGames(tournament);
 }
 
 export function getTournamentRaceToGames(tournament: TournamentDetail): RaceToGames {
   const settings = parseTournamentSettings(tournament.settings);
+  const stored = getStoredMatchScoring(tournament);
+  if (stored?.mode === "race_to" && stored.raceTo?.value) {
+    const v = stored.raceTo.value;
+    if (RACE_TO_GAMES_OPTIONS.includes(v as RaceToGames)) return v as RaceToGames;
+  }
   if (settings.raceToGames) return settings.raceToGames;
   const unit = settings.standingsScoring?.scoreUnit
     ?? getDefaultStandingsScoringForSport(tournament.sportSlug).scoreUnit;
-  if (unit === "sets") return 2 as RaceToGames; // best of 3 ≈ race to 2 (stored; UI still offers 4/6 for games)
-  return DEFAULT_GAME_RULES_BY_UNIT.games.raceToGames;
+  if (unit === "sets") return 2;
+  return 4;
 }
 
 export type TournamentRaceStage = "group" | "knockout" | "default";
@@ -531,6 +674,14 @@ export function getTournamentRaceToGamesForStage(
   stage: TournamentRaceStage = "default",
 ): RaceToGames {
   const settings = parseTournamentSettings(tournament.settings);
+  const resolved = resolveMatchScoringForStage(
+    getStoredMatchScoring(tournament),
+    stage === "default" ? "default" : stage,
+  );
+  if (resolved?.mode === "race_to" && resolved.raceTo?.value) {
+    const v = resolved.raceTo.value;
+    if (RACE_TO_GAMES_OPTIONS.includes(v as RaceToGames)) return v as RaceToGames;
+  }
   if (stage === "group" && settings.raceToGamesGroup) return settings.raceToGamesGroup;
   if (stage === "knockout" && settings.raceToGamesKnockout) {
     return settings.raceToGamesKnockout;
@@ -549,8 +700,7 @@ export function getTournamentGameRules(
     unit === "sets" ? DEFAULT_GAME_RULES_BY_UNIT.sets : DEFAULT_GAME_RULES_BY_UNIT.games;
   return {
     ...base,
-    raceToGames: getTournamentRaceToGamesForStage(tournament, stage),
-    // Sequential 0→40 (+1 per point). Never use tennis 15/30/40 jumps for operators.
+    raceToGames: getTournamentRaceToTarget(tournament, stage),
     pointsToWinGame: base.pointsToWinGame,
     pointStyle: "simple",
     gameDecider: settings.gameDecider ?? base.gameDecider,
@@ -645,6 +795,11 @@ export type TournamentSettingsInput = {
   matchFormatHtml?: string;
   equipmentStandardsHtml?: string;
   gearEntityIds?: string[];
+  rankingMode?: TournamentRankingMode;
+  formatFamily?: TournamentFormatFamily;
+  matchScoring?: MatchScoringConfig;
+  customMatch?: CustomMatchSettings;
+  mexicano?: MexicanoSettings;
   maxRounds?: number;
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
@@ -673,6 +828,11 @@ export type TournamentSettingsUpsertFields = {
   equipmentStandardsRules?: string;
   gearEntityIds?: string[];
   rules?: string;
+  rankingMode?: TournamentRankingMode;
+  formatFamily?: TournamentFormatFamily;
+  matchScoring?: MatchScoringConfig;
+  customMatch?: CustomMatchSettings;
+  mexicano?: MexicanoSettings;
   maxRounds?: number;
   scoringType?: TournamentScoringType;
   pointsPerMatch?: number;
@@ -716,30 +876,46 @@ export function buildFormatSpecificSettingsFromUpsert(
   | "matchFormat"
   | "classicSetRules"
 > {
-  if (input.format !== "double_stage") return {};
+  if (input.format !== "double_stage" && input.format !== "group_only") return {};
 
   const sportDefaults = getDefaultStandingsScoringForSport(sportSlug);
   const usesGames = sportDefaults.scoreUnit === "games" || sportDefaults.scoreUnit === "sets";
-  const defaultRace =
-    input.raceToGames ??
-    (sportDefaults.scoreUnit === "sets"
-      ? DEFAULT_GAME_RULES_BY_UNIT.sets.raceToGames
-      : DEFAULT_GAME_RULES_BY_UNIT.games.raceToGames);
+  const defaultRace: RaceToGames =
+    input.raceToGames != null &&
+    RACE_TO_GAMES_OPTIONS.includes(input.raceToGames as RaceToGames)
+      ? (input.raceToGames as RaceToGames)
+      : sportDefaults.scoreUnit === "sets"
+        ? 2
+        : 4;
 
   // Official skill tier drives standings PTS per win (Gold=5, Platinum=8, …).
-  const tierForPoints = input.allowedTierLevels?.[0];
+  // No Rank (open) uses sport defaults.
+  const tierForPoints =
+    input.rankingMode === "open" ? undefined : input.allowedTierLevels?.[0];
   const tierWinPoints =
     tierForPoints != null ? matchPointsForTournamentTier(tierForPoints) : undefined;
 
+  const doubleStage =
+    input.format === "group_only"
+      ? {
+          ...DEFAULT_DOUBLE_STAGE_SETTINGS,
+          phase: "group" as const,
+          maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
+          teamsAdvancePerGroup: 0,
+          bestRunnerUpSlots: 0,
+          thirdPlaceEnabled: false,
+        }
+      : {
+          ...DEFAULT_DOUBLE_STAGE_SETTINGS,
+          maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
+          teamsAdvancePerGroup:
+            input.teamsAdvancePerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
+          bestRunnerUpSlots: input.bestRunnerUpSlots ?? 0,
+          thirdPlaceEnabled: input.thirdPlaceEnabled ?? false,
+        };
+
   return {
-    doubleStage: {
-      ...DEFAULT_DOUBLE_STAGE_SETTINGS,
-      maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
-      teamsAdvancePerGroup:
-        input.teamsAdvancePerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
-      bestRunnerUpSlots: input.bestRunnerUpSlots ?? 0,
-      thirdPlaceEnabled: input.thirdPlaceEnabled ?? false,
-    },
+    doubleStage,
     standingsScoring: {
       ...sportDefaults,
       allowDraw: input.allowDraw ?? sportDefaults.allowDraw,
@@ -773,6 +949,9 @@ export function settingsInputFromUpsert(
     matchFormatHtml: input.matchFormatRules || input.rules,
     equipmentStandardsHtml: input.equipmentStandardsRules,
     gearEntityIds: input.gearEntityIds,
+    rankingMode: input.rankingMode,
+    formatFamily: input.formatFamily,
+    matchScoring: input.matchScoring,
     maxRounds: input.maxRounds,
     scoringType: input.scoringType,
     pointsPerMatch: input.pointsPerMatch,
@@ -789,8 +968,28 @@ export function settingsInputFromUpsert(
     suddenDeathExtensionMinutes: input.suddenDeathExtensionMinutes,
     doubleStage: input.doubleStage ?? formatSpecific.doubleStage,
     standingsScoring: input.standingsScoring ?? formatSpecific.standingsScoring,
-    allowedTierLevels: input.allowedTierLevels,
+    allowedTierLevels:
+      input.rankingMode === "open" ? [] : input.allowedTierLevels,
   };
+
+  // Custom meetings/legs only persist under Custom family; Original clears leftovers.
+  if (input.formatFamily === "custom") {
+    next.customMatch = input.customMatch;
+  } else if (input.formatFamily === "original") {
+    next.customMatch = undefined;
+  } else if (input.customMatch) {
+    next.customMatch = input.customMatch;
+  }
+
+  // Mexicano settings only when format is mexicano; known other formats clear it.
+  if (input.format === "mexicano") {
+    next.mexicano = input.mexicano;
+  } else if (input.format) {
+    next.mexicano = undefined;
+  } else if (input.mexicano) {
+    next.mexicano = input.mexicano;
+  }
+
   if (input.scoreEntryMode === "live" || input.scoreEntryMode === "paper") {
     next.scoreEntryMode = input.scoreEntryMode;
   }
@@ -964,6 +1163,43 @@ export function buildTournamentSettings(
     next.allowedTierLevels = input.allowedTierLevels;
   } else if ("allowedTierLevels" in input) {
     delete next.allowedTierLevels;
+  }
+
+  if (input.rankingMode === "tiered" || input.rankingMode === "open") {
+    next.rankingMode = input.rankingMode;
+    if (input.rankingMode === "open") {
+      delete next.allowedTierLevels;
+    }
+  } else if ("rankingMode" in input) {
+    delete next.rankingMode;
+  }
+
+  if (input.formatFamily === "original" || input.formatFamily === "custom") {
+    next.formatFamily = input.formatFamily;
+  } else if ("formatFamily" in input) {
+    delete next.formatFamily;
+  }
+
+  if (input.matchScoring) {
+    next.matchScoring = input.matchScoring;
+  } else if ("matchScoring" in input) {
+    delete next.matchScoring;
+  }
+
+  // Original family never carries Custom meetings/legs — clear leftover JSON on save.
+  if (input.formatFamily === "original") {
+    delete next.customMatch;
+  } else if (input.customMatch) {
+    next.customMatch = input.customMatch;
+  } else if ("customMatch" in input) {
+    delete next.customMatch;
+  }
+
+  // Mexicano config only when provided; explicit undefined clears (format switch).
+  if (input.mexicano) {
+    next.mexicano = input.mexicano;
+  } else if ("mexicano" in input) {
+    delete next.mexicano;
   }
 
   return next;

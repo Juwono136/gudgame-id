@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, GitBranch, LayoutGrid, Shuffle } from "lucide-react";
+import { Check, GitBranch, LayoutGrid, Shuffle, Users, Waves } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
 import {
@@ -8,12 +8,15 @@ import {
   getAllowedFormatsForSport,
 } from "@/lib/tournaments/form/format-options";
 import type { TournamentFormat } from "@/lib/domain/tournaments";
+import type { TournamentFormatFamily } from "@/lib/tournaments/match-config";
 import { cn } from "@/lib/utils";
 
 const FORMAT_ICONS = {
   americano: Shuffle,
   single_elimination: GitBranch,
   double_stage: LayoutGrid,
+  mexicano: Waves,
+  group_only: Users,
 } as const;
 
 type FormatTypeSelectProps = {
@@ -26,6 +29,8 @@ type FormatTypeSelectProps = {
   officialOnly?: boolean;
   /** Partner white-label — same format set as Official (no skill tiers). */
   partnerTenant?: boolean;
+  /** Filters Official formats by Original vs Custom family. */
+  formatFamily?: TournamentFormatFamily;
   required?: boolean;
   error?: string | null;
 };
@@ -38,10 +43,15 @@ export function FormatTypeSelect({
   className,
   officialOnly,
   partnerTenant,
+  formatFamily,
   required = false,
   error,
 }: FormatTypeSelectProps) {
-  const allowed = getAllowedFormatsForSport(sportSlug, { officialOnly, partnerTenant });
+  const allowed = getAllowedFormatsForSport(sportSlug, {
+    officialOnly,
+    partnerTenant,
+    formatFamily,
+  });
 
   const gridClass =
     allowed.length <= 1
@@ -58,7 +68,9 @@ export function FormatTypeSelect({
       </Label>
       <p className="text-xs leading-relaxed text-cp-muted">
         {partnerTenant || officialOnly
-          ? "Choose knockout, group stage + knockout, or Americano. Pool rules stay editable after you pick a format."
+          ? formatFamily === "custom"
+            ? "Custom family: pick a format, then set meetings/legs. Mexicano is Original-only."
+            : "Choose Group+KO, Americano, Mexicano, Knockout, or Group only."
           : "Choose how players compete. Options depend on the sport — some sports favor rotation formats, others use knockout brackets."}
       </p>
       <div

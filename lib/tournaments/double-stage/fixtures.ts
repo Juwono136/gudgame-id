@@ -15,7 +15,39 @@ export type GroupFixturePair = {
  * For other sizes, uses circle (Berger) method when even/odd n ≥ 3;
  * falls back to combinatorial order for n < 3.
  */
-export function generateRoundRobinFixtures(teams: TeamRef[]): GroupFixturePair[] {
+export type GroupFixturePairWithMeeting = GroupFixturePair & {
+  /** 1-based meeting index when the same pair plays multiple independent fixtures. */
+  meetingIndex?: number;
+};
+
+/**
+ * Round-robin fixtures. When `meetingsPerPair` > 1, each unordered pair produces
+ * that many independent fixtures (each counts in standings).
+ */
+export function generateRoundRobinFixtures(
+  teams: TeamRef[],
+  meetingsPerPair = 1,
+): GroupFixturePairWithMeeting[] {
+  const base = generateRoundRobinFixturesOnce(teams);
+  const meetings = Math.max(1, Math.floor(meetingsPerPair) || 1);
+  if (meetings === 1) {
+    return base.map((f) => ({ ...f, meetingIndex: 1 }));
+  }
+  const out: GroupFixturePairWithMeeting[] = [];
+  for (let meeting = 1; meeting <= meetings; meeting++) {
+    for (const f of base) {
+      out.push({
+        ...f,
+        meetingIndex: meeting,
+        // Offset rounds so meeting 2+ don't collide with meeting 1 day labels.
+        round: f.round != null ? f.round + (meeting - 1) * 100 : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+function generateRoundRobinFixturesOnce(teams: TeamRef[]): GroupFixturePair[] {
   if (teams.length < 2) return [];
   if (teams.length === 2) {
     return [{ teamA: teams[0]!, teamB: teams[1]!, round: 1 }];
@@ -69,9 +101,13 @@ function generateCircleMethod(teams: TeamRef[]): GroupFixturePair[] {
   return fixtures;
 }
 
-export function fixtureCountForGroupSize(teamCount: number): number {
+export function fixtureCountForGroupSize(
+  teamCount: number,
+  meetingsPerPair = 1,
+): number {
   if (teamCount < 2) return 0;
-  return (teamCount * (teamCount - 1)) / 2;
+  const meetings = Math.max(1, Math.floor(meetingsPerPair) || 1);
+  return ((teamCount * (teamCount - 1)) / 2) * meetings;
 }
 
 /**

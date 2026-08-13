@@ -6,12 +6,14 @@ import {
   type PlayerTierLevel,
 } from "@/lib/player/tier";
 
-/** Official (paid + free) use exact tier eligibility. Fun Match does not. */
 export function tournamentUsesTierRestrictions(
   tournamentType: string | null | undefined,
   _officialBilling?: string | null | undefined,
+  rankingMode?: string | null | undefined,
 ): boolean {
-  return tournamentType === "official";
+  if (tournamentType !== "official") return false;
+  if (rankingMode === "open") return false;
+  return true;
 }
 
 export function normalizeAllowedTierLevels(
@@ -28,13 +30,15 @@ export function normalizeAllowedTierLevels(
   return ordered.length > 0 ? ordered : undefined;
 }
 
-/** Single tournament skill tier (Official). Fun Match → null. */
 export function resolveTournamentSkillTier(
   tournamentType: string | null | undefined,
   officialBilling: string | null | undefined,
   configured: PlayerTierLevel[] | undefined,
+  rankingMode?: string | null | undefined,
 ): PlayerTierLevel | null {
-  if (!tournamentUsesTierRestrictions(tournamentType, officialBilling)) return null;
+  if (!tournamentUsesTierRestrictions(tournamentType, officialBilling, rankingMode)) {
+    return null;
+  }
   if (configured?.length) return configured[0] ?? null;
   return "bronze";
 }
@@ -44,8 +48,14 @@ export function resolveAllowedTierLevels(
   tournamentType: string | null | undefined,
   officialBilling: string | null | undefined,
   configured: PlayerTierLevel[] | undefined,
+  rankingMode?: string | null | undefined,
 ): PlayerTierLevel[] | null {
-  const skill = resolveTournamentSkillTier(tournamentType, officialBilling, configured);
+  const skill = resolveTournamentSkillTier(
+    tournamentType,
+    officialBilling,
+    configured,
+    rankingMode,
+  );
   return skill ? [skill] : null;
 }
 

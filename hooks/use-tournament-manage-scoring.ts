@@ -14,7 +14,7 @@ import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 import type { DoubleStageOverview } from "@/lib/tournaments/double-stage/service";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
-import { softDevPollMs } from "@/lib/dev/soft-poll";
+import { resolveManageScoringRefetchIntervalMs } from "@/lib/tournaments/live/poll-intervals";
 
 export type ManageScoringPayload = {
   mode: "rounds" | "bracket" | "groups";
@@ -71,11 +71,11 @@ export function useTournamentManageScoring(
       if (isManageScoringWriteInFlight(sportSlug, slug)) return false;
       const data = query.state.data;
       if (!data) return false;
-      const hasLive =
-        data.activeReclubMatches.length > 0 ||
-        data.activeBracketMatches.length > 0 ||
-        (data.activeGroupMatches?.length ?? 0) > 0;
-      return hasLive ? softDevPollMs(5000) : softDevPollMs(15000);
+      return resolveManageScoringRefetchIntervalMs({
+        hasActiveReclub: data.activeReclubMatches.length > 0,
+        hasActiveBracket: data.activeBracketMatches.length > 0,
+        hasActiveGroup: (data.activeGroupMatches?.length ?? 0) > 0,
+      });
     },
     staleTime: 0,
     refetchOnMount: "always",

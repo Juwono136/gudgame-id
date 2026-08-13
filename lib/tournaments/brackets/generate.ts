@@ -41,10 +41,17 @@ export async function generateTournamentBracket(
 ): Promise<{ matchCount: number; seedMode: "random" | "manual" }> {
   assertBracketInitialGenerationAllowed(tournament);
 
-  if (tournament.format === "americano") {
-    throw new AppError("Americano tournaments do not use brackets", {
+  if (tournament.format === "americano" || tournament.format === "mexicano") {
+    throw new AppError("This tournament format does not use brackets", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
+    });
+  }
+
+  if (tournament.format === "group_only") {
+    throw new AppError("Group-only tournaments do not have a knockout bracket.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
     });
   }
 
@@ -65,6 +72,7 @@ export async function generateTournamentBracket(
       id: tournamentBracketMatches.id,
       teamAId: tournamentBracketMatches.teamAId,
       teamBId: tournamentBracketMatches.teamBId,
+      metadata: tournamentBracketMatches.metadata,
     })
     .from(tournamentBracketMatches)
     .where(
@@ -73,7 +81,13 @@ export async function generateTournamentBracket(
         eq(tournamentBracketMatches.roundNumber, 1),
       ),
     )
-    .orderBy(tournamentBracketMatches.matchNumber);
+    .orderBy(tournamentBracketMatches.matchNumber)
+    .then((rows) =>
+      rows.filter((row) => {
+        const meta = row.metadata as Record<string, unknown> | null;
+        return !meta || typeof meta.seriesParentId !== "string";
+      }),
+    );
 
   const structureExists = existingRound1.length > 0;
   const round1HasTeams = existingRound1.some((m) => m.teamAId || m.teamBId);

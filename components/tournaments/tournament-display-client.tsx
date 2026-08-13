@@ -27,6 +27,7 @@ import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import type { MatchGameState } from "@/lib/tournaments/scoring/game-mode";
 import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
+import { resolveGamesDisplayMode } from "@/lib/tournaments/live/display-scoring";
 import {
   parseCallStatus,
   type ScheduleMatchRow,
@@ -57,28 +58,6 @@ type LiveMatchView = {
   courtId?: string | null;
   gameState?: MatchGameState | null;
 };
-
-function resolveGamesDisplayMode(
-  scoring: TournamentLivePayload["scoring"] | undefined,
-  match: LiveMatchView | null | undefined,
-):
-  | {
-      pointsA: number;
-      pointsB: number;
-      raceToGames: number;
-      pointsToWinGame: number;
-    }
-  | undefined {
-  if (!scoring || scoring.matchScoreMode !== "games" || !scoring.raceToGames) {
-    return undefined;
-  }
-  return {
-    pointsA: match?.gameState?.currentPointsA ?? 0,
-    pointsB: match?.gameState?.currentPointsB ?? 0,
-    raceToGames: scoring.raceToGames,
-    pointsToWinGame: scoring.pointsToWinGame ?? 40,
-  };
-}
 
 const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
   "multi_court",

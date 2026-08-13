@@ -37,6 +37,7 @@ import {
   getBusyPlayerIds,
   isAmericanoPairKey,
 } from "@/lib/tournaments/americano/court-assignments";
+import { planMexicanoRound } from "@/lib/tournaments/mexicano/round-planner";
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import {
   getMaxRounds,
@@ -47,6 +48,7 @@ import {
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentMatchScoringHint,
+  getTournamentMexicanoSettings,
   getTournamentPointsPerMatch,
   getTournamentScoreEntryMode,
   getTournamentScoringType,
@@ -253,6 +255,8 @@ export function FunMatchScoringWorkspace({
   );
 
   const isAmericanoMode = !isBracketMode && tournament.format === "americano";
+  const isMexicanoMode = !isBracketMode && tournament.format === "mexicano";
+  const isLobbyRoundsMode = isAmericanoMode || isMexicanoMode;
   const americanoPlayers = useMemo(() => flattenAmericanoPlayers(teams), [teams]);
   const busyPlayerIds = useMemo(
     () => getBusyPlayerIds(activeMatches, teams),
@@ -264,9 +268,9 @@ export function FunMatchScoringWorkspace({
       computeFunMatchStandings(
         allMatchesForDisplay.filter((m) => m.status === "completed"),
         teams,
-        { americano: isAmericanoMode },
+        { americano: isLobbyRoundsMode },
       ),
-    [allMatchesForDisplay, teams, isAmericanoMode],
+    [allMatchesForDisplay, teams, isLobbyRoundsMode],
   );
 
   const allowGroupDraw = useMemo(() => {
@@ -524,16 +528,46 @@ export function FunMatchScoringWorkspace({
   );
 
   const roundPlan = useMemo(() => {
-    if (!isAmericanoMode || allPlayers.length < 4) return null;
+    if (!isLobbyRoundsMode || allPlayers.length < 4) return null;
     const availablePlayers = americanoPlayers.filter((p) => !busyPlayerIds.has(p.id));
     if (availablePlayers.length < 4) return null;
+    const courtCount =
+      courts.filter((c) => !matchByCourt.get(c.id)).length || courts.length || 1;
+
+    if (isMexicanoMode) {
+      const pointsById = new Map(
+        playerStandings.map((p) => [p.userId, p.points] as const),
+      );
+      const mexicano = getTournamentMexicanoSettings(tournament);
+      const planned = planMexicanoRound({
+        players: availablePlayers.map((p) => ({
+          id: p.id,
+          name: p.name,
+          points: pointsById.get(p.id) ?? 0,
+          teamId: p.squadId,
+        })),
+        courtCount,
+        roundNumber: currentRound,
+        mode: mexicano?.mode ?? "team",
+      });
+      return {
+        roundNumber: planned.roundNumber,
+        pairings: planned.pairings.map((pairing) => ({
+          courtIndex: pairing.courtIndex,
+          teamA: pairing.teamA,
+          teamB: pairing.teamB,
+        })),
+        resting: planned.resting,
+      };
+    }
+
     return planAmericanoRound({
       players: availablePlayers.map((p) => ({
         id: p.id,
         name: p.name,
         squadId: p.squadId,
       })),
-      courtCount: courts.filter((c) => !matchByCourt.get(c.id)).length || courts.length || 1,
+      courtCount,
       roundNumber: currentRound,
       seed: tournament.id.charCodeAt(0) + reshuffleSeed,
     });
@@ -543,10 +577,12 @@ export function FunMatchScoringWorkspace({
     busyPlayerIds,
     courts,
     currentRound,
-    isAmericanoMode,
+    isLobbyRoundsMode,
+    isMexicanoMode,
     matchByCourt,
+    playerStandings,
     reshuffleSeed,
-    tournament.id,
+    tournament,
   ]);
 
   const applyRoundPlanToCourts = useCallback(() => {
@@ -571,7 +607,7 @@ export function FunMatchScoringWorkspace({
   // Auto-apply Americano plan when idle courts have no pairings yet (no separate Apply plan step).
   const autoPlanKeyRef = useRef("");
   useEffect(() => {
-    if (!isAmericanoMode || !canScore || !roundPlan) return;
+    if (!isLobbyRoundsMode || !canScore || !roundPlan) return;
     const idleCourtIds = courts.filter((c) => !matchByCourt.get(c.id)).map((c) => c.id);
     if (!idleCourtIds.length) return;
     const key = `${currentRound}:${reshuffleSeed}:${idleCourtIds.join(",")}`;
@@ -594,7 +630,7 @@ export function FunMatchScoringWorkspace({
     canScore,
     courts,
     currentRound,
-    isAmericanoMode,
+    isLobbyRoundsMode,
     matchByCourt,
     reshuffleSeed,
     roundPlan,
@@ -793,7 +829,7 @@ export function FunMatchScoringWorkspace({
       return;
     }
 
-    if (isAmericanoMode) {
+    if (isLobbyRoundsMode) {
       const payload = resolveAmericanoStart(courtId);
       if (!payload) {
         toast.error("Reshuffle idle courts or manage pairings first");
@@ -851,7 +887,7 @@ export function FunMatchScoringWorkspace({
           continue;
         }
 
-        if (isAmericanoMode) {
+        if (isLobbyRoundsMode) {
           const payload = resolveAmericanoStart(court.id);
           if (!payload) continue;
           await startRound.mutateAsync({
@@ -1228,8 +1264,11 @@ export function FunMatchScoringWorkspace({
             </div>
           ) : null}
         </>
-      ) : isAmericanoMode ? (
-        <LiveFormatConfigBanner tournament={tournament} mode="americano" />
+      ) : isLobbyRoundsMode ? (
+        <LiveFormatConfigBanner
+          tournament={tournament}
+          mode={isMexicanoMode ? "mexicano" : "americano"}
+        />
       ) : isBracketMode ? (
         <LiveFormatConfigBanner tournament={tournament} mode="elimination" />
       ) : null}
@@ -1284,7 +1323,7 @@ export function FunMatchScoringWorkspace({
         startingAll={startingAllCourts}
         maxRounds={maxRounds}
         onReshuffle={
-          canManageCourts && (!isOfficialWorkspace || isAmericanoMode || isGroupStageMode)
+          canManageCourts && (!isOfficialWorkspace || isLobbyRoundsMode || isGroupStageMode)
             ? handleReshuffle
             : undefined
         }
@@ -1293,10 +1332,10 @@ export function FunMatchScoringWorkspace({
         hasActiveMatches={hasActive}
         toolbar={toolbar}
         accentVariant={accentVariant}
-        isAmericanoMode={isAmericanoMode}
+        isAmericanoMode={isLobbyRoundsMode}
         americanoPlayers={americanoPlayers}
         onManageAmericanoPairings={
-          canScore && isAmericanoMode
+          canScore && isLobbyRoundsMode
             ? (courtId) => setManagePairingsCourtId(courtId)
             : undefined
         }
@@ -1315,7 +1354,7 @@ export function FunMatchScoringWorkspace({
         />
       ) : null}
 
-      {managePairingsCourt && isAmericanoMode ? (
+      {managePairingsCourt && isLobbyRoundsMode ? (
         <AmericanoManagePairingsDialog
           open={Boolean(managePairingsCourtId)}
           onOpenChange={(open) => {

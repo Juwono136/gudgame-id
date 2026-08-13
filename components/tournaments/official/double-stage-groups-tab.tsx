@@ -42,20 +42,38 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
       <DoubleStageConfigBanner tournament={tournament} />
 
       <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
-        <span className="font-medium text-foreground">Group stage</span> — teams play round-robin
-        within each group. Top {cfg.teamsAdvancePerGroup} per group advance to knockout when the
-        stage completes.
+        {tournament.format === "group_only" ? (
+          <>
+            <span className="font-medium text-foreground">Group only</span> — teams play
+            round-robin within each group. Final standings decide the winner; there is no
+            knockout stage.
+          </>
+        ) : (
+          <>
+            <span className="font-medium text-foreground">Group stage</span> — teams play
+            round-robin within each group. Top {cfg.teamsAdvancePerGroup} per group advance to
+            knockout when the stage completes.
+          </>
+        )}
         <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-2.5" />
       </div>
 
-      {doubleStage?.knockoutReady && doubleStage.phase === "group" ? (
+      {tournament.format !== "group_only" &&
+      doubleStage?.knockoutReady &&
+      doubleStage.phase === "group" ? (
         <div className="rounded-xl border border-emerald-600/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
           Group stage complete — knockout bracket is generating automatically. Open the Bracket or
           Matches tab once it appears.
         </div>
       ) : null}
 
-      {doubleStage?.phase === "knockout" ? (
+      {tournament.format === "group_only" && doubleStage?.allGroupMatchesCompleted ? (
+        <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-4 py-3 text-sm text-foreground">
+          All group fixtures are complete — final standings above decide the ranking.
+        </div>
+      ) : null}
+
+      {tournament.format !== "group_only" && doubleStage?.phase === "knockout" ? (
         <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-4 py-3 text-sm text-foreground">
           Knockout stage is underway. Final group standings are shown below — see Matches for the
           full schedule.

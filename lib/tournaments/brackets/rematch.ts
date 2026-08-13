@@ -159,9 +159,24 @@ export async function rematchBracketMatch(
   if (match.status === "completed" && winnerTeamId) {
     await rollbackWinnerFromSubtree(tournament.id, match.id, winnerTeamId);
 
+    const { getTeamMemberUserIds } = await import("@/lib/tournaments/brackets/leaderboard");
+    const teamAIds = match.teamAId ? await getTeamMemberUserIds(match.teamAId) : [];
+    const teamBIds = match.teamBId ? await getTeamMemberUserIds(match.teamBId) : [];
+    const participantUserIds = [...new Set([...teamAIds, ...teamBIds])];
+    if (participantUserIds.length > 0 && !tournament.partnerId) {
+      const { removePlayerMatchHistoryForFixture } = await import(
+        "@/lib/tournaments/stats/sync"
+      );
+      await removePlayerMatchHistoryForFixture({
+        tournamentId: tournament.id,
+        fixtureId: match.id,
+        participantUserIds,
+        sportId: tournament.sportId,
+      });
+    }
+
     const isFinal = !match.nextMatchId;
     if (isFinal && isOfficialType(tournament.tournamentType)) {
-      const { getTeamMemberUserIds } = await import("@/lib/tournaments/brackets/leaderboard");
       const memberIds = await getTeamMemberUserIds(winnerTeamId);
       const { removeOfficialPlacement } = await import("@/lib/tournaments/stats/sync");
       for (const uid of memberIds) {

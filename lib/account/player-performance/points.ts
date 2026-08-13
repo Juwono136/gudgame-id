@@ -22,7 +22,7 @@ export type RankingPointsInput = {
   isOfficial: boolean;
   /** Billing category on the match row (official_paid | official_free | fun_match). */
   statsTier?: StatsTier | string | null;
-  /** Tournament skill tier that determined the ± ranking delta. */
+  /** Tournament skill tier that determined the ± ranking delta. "open" = No Rank. */
   skillTier?: PlayerTierLevel | string | null;
   resultType: "win" | "loss";
 };
@@ -58,6 +58,9 @@ export function rankingDeltaForMatch(input: RankingPointsInput): number {
   if (!input.isOfficial) return 0;
   if (input.statsTier === "fun_match") return 0;
 
+  // No Rank / open ranking tournaments contribute 0 career points.
+  if (input.skillTier === "open" || input.skillTier === "no_rank") return 0;
+
   const skill = normalizePlayerTier(
     typeof input.skillTier === "string" ? input.skillTier : input.skillTier ?? null,
   );
@@ -67,11 +70,9 @@ export function rankingDeltaForMatch(input: RankingPointsInput): number {
     return input.resultType === "win" ? amount : -amount;
   }
 
-  // Historical rows without skill tier: treat as Gold (±5) for official
-  const legacy = LEGACY_MATCH_POINTS_BY_STATS_TIER[
-    (input.statsTier as StatsTier) ?? "official_free"
-  ] ?? LEGACY_MATCH_POINTS_BY_STATS_TIER.official_free;
-  return input.resultType === "win" ? legacy.win : legacy.loss;
+  // Official without a resolvable skill tier (misconfigured / legacy) → 0.
+  // Do not invent Gold ±5; No Rank and incomplete settings must not award points.
+  return 0;
 }
 
 /** @deprecated Prefer rankingDeltaForMatch — kept for import compatibility */

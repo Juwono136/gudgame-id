@@ -8,6 +8,7 @@ import {
   tournamentTeamMembers,
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
+import { isBracketSeriesChildLeg } from "@/lib/tournaments/brackets/bracket-metadata";
 
 export type LeaderboardEntry = {
   rank: number;
@@ -92,6 +93,8 @@ export async function buildTournamentLeaderboard(
   });
 
   for (const m of sortedMatches) {
+    // Multi-leg series: only the parent slot counts once the series resolves.
+    if (isBracketSeriesChildLeg(m.metadata)) continue;
     if (!m.winnerTeamId || !m.teamAId || !m.teamBId) continue;
     const loserId = m.winnerTeamId === m.teamAId ? m.teamBId : m.teamAId;
     const winner = stats.get(m.winnerTeamId);

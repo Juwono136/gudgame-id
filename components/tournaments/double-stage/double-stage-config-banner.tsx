@@ -1,7 +1,7 @@
 "use client";
 
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
-import { getTournamentRaceToGames } from "@/lib/tournaments/settings";
+import { getTournamentRaceToTarget } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ type DoubleStageConfigBannerProps = {
 export function DoubleStageConfigBanner({ tournament, className }: DoubleStageConfigBannerProps) {
   const cfg = getDoubleStageConfigSummary(tournament);
   const raceTo =
-    cfg.matchScoreMode === "games" ? getTournamentRaceToGames(tournament) : null;
+    cfg.matchScoreMode === "games" ? getTournamentRaceToTarget(tournament) : null;
 
   const chips = [
     `Up to ${cfg.maxTeamsPerGroup} teams / group`,

@@ -585,7 +585,7 @@ export function DoubleStageManagePanel({
         </div>
       )}
 
-      {overview.knockoutReady ? (
+      {overview.knockoutReady && tournament.format !== "group_only" ? (
         <Card className="border-emerald-600/30 bg-emerald-500/5">
           <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -605,6 +605,15 @@ export function DoubleStageManagePanel({
                 "Generate knockout bracket"
               )}
             </Button>
+          </CardContent>
+        </Card>
+      ) : overview.knockoutReady && tournament.format === "group_only" ? (
+        <Card className="border-cp-primary/25 bg-cp-primary/5">
+          <CardContent className="py-5">
+            <p className="font-semibold text-foreground">Group stage complete</p>
+            <p className="mt-1 text-sm text-cp-muted">
+              Group-only format — final standings decide the winner. There is no knockout stage.
+            </p>
           </CardContent>
         </Card>
       ) : openMatches > 0 ? (

@@ -1,4 +1,9 @@
 import type { TournamentFormat } from "@/db/schema/tournaments";
+import {
+  CUSTOM_FORMATS,
+  ORIGINAL_FORMATS,
+  type TournamentFormatFamily,
+} from "@/lib/tournaments/match-config";
 import { getSportTournamentDefaults } from "@/lib/tournaments/sport-config";
 
 export type FormatOption = {
@@ -24,8 +29,8 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
   },
   single_elimination: {
     value: "single_elimination",
-    label: "Elimination",
-    shortLabel: "Elimination",
+    label: "Knockout / Elimination",
+    shortLabel: "Knockout",
     description:
       "Classic knockout bracket — winners advance, losers are out. Common for official events.",
     bullets: [
@@ -41,9 +46,33 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
     description:
       "Round-robin pools, then a knockout bracket for qualifiers — FIP-style field structure.",
     bullets: [
-      "Configurable pairs per pool and advancement (1st / 1st+2nd)",
+      "Configurable pairs per pool and advancement",
       "Best runner-up slots to fill knockout brackets",
       "Automatic standings, seeding, and bracket generation",
+    ],
+  },
+  mexicano: {
+    value: "mexicano",
+    label: "Mexicano",
+    shortLabel: "Mexicano",
+    description:
+      "Round-based play seeded from the live leaderboard. Round 1 is random; later rounds pair by rank.",
+    bullets: [
+      "Individual (rotating partners) or Team (fixed pairs)",
+      "Configurable number of rounds",
+      "Leaderboard decides the champion",
+    ],
+  },
+  group_only: {
+    value: "group_only",
+    label: "Group only",
+    shortLabel: "Group only",
+    description:
+      "Pure round-robin — every team meets every other team. Final standings decide the winner; no knockout.",
+    bullets: [
+      "All combinations generated automatically",
+      "Standings update after every result",
+      "No bracket or knockout stage",
     ],
   },
 };
@@ -51,11 +80,24 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
 /** Formats enabled for a sport (defaults to both; extend via sport admin config later). */
 export function getAllowedFormatsForSport(
   sportSlug: string,
-  options?: { officialOnly?: boolean; partnerTenant?: boolean },
+  options?: {
+    officialOnly?: boolean;
+    partnerTenant?: boolean;
+    formatFamily?: TournamentFormatFamily;
+  },
 ): TournamentFormat[] {
   const defaults = getSportTournamentDefaults(sportSlug);
-  // Official + partner white-label both support group→knockout (double_stage).
   if (options?.officialOnly || options?.partnerTenant) {
+    if (options.formatFamily === "custom") {
+      return [...CUSTOM_FORMATS];
+    }
+    if (options.formatFamily === "original") {
+      return [...ORIGINAL_FORMATS];
+    }
+    // Legacy / unspecified: keep previous three + new formats for Official
+    if (options.officialOnly && !options.partnerTenant) {
+      return [...ORIGINAL_FORMATS];
+    }
     return ["double_stage", "single_elimination", "americano"];
   }
   if (defaults.defaultFormat === "americano") {

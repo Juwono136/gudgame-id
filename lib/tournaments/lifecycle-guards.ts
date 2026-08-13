@@ -58,7 +58,8 @@ export function assertBracketSeedingResetAllowed(tournament: TournamentDetail): 
 }
 
 export function shouldExposeBracketPublicData(tournament: TournamentDetail): boolean {
-  if (tournament.format === "americano") return false;
+  if (tournament.format === "americano" || tournament.format === "mexicano") return false;
+  if (tournament.format === "group_only") return false;
   if (tournament.format === "double_stage") {
     return getDoubleStagePhase(tournament) === "knockout";
   }
@@ -66,17 +67,18 @@ export function shouldExposeBracketPublicData(tournament: TournamentDetail): boo
 }
 
 export function shouldExposeGroupStagePublicData(tournament: TournamentDetail): boolean {
-  return tournament.format === "double_stage";
+  return tournament.format === "double_stage" || tournament.format === "group_only";
 }
 
 export function assertDoubleStageGroupScoringAllowed(tournament: TournamentDetail): void {
   assertTournamentLiveForScoring(tournament);
-  if (tournament.format !== "double_stage") {
-    throw new AppError("Not a double stage tournament", {
+  if (tournament.format !== "double_stage" && tournament.format !== "group_only") {
+    throw new AppError("Not a group-stage tournament", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
   }
+  if (tournament.format === "group_only") return;
   const phase = getDoubleStagePhase(tournament);
   if (phase !== "group") {
     throw new AppError("Group stage scoring is only allowed during the group phase.", {
@@ -90,6 +92,12 @@ export async function assertDoubleStageAdvanceAllowed(
   tournament: TournamentDetail,
 ): Promise<void> {
   assertTournamentLiveForScoring(tournament);
+  if (tournament.format === "group_only") {
+    throw new AppError("Group-only tournaments do not have a knockout stage.", {
+      code: "FORBIDDEN",
+      statusCode: 403,
+    });
+  }
   if (tournament.format !== "double_stage") {
     throw new AppError("Not a double stage tournament", {
       code: "INVALID_TOURNAMENT_TYPE",

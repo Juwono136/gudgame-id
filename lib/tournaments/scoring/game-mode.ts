@@ -26,7 +26,8 @@ export type IntraGamePointStyle = "tennis" | "simple";
 export const GAME_RALLY_MILESTONES = [15, 30, 40] as const;
 
 export type MatchGameRules = {
-  raceToGames: RaceToGames;
+  /** First side to win this many games wins the match (supports custom targets from matchScoring). */
+  raceToGames: number;
   /** Points needed to win a game (default 40: through rallies at 15 / 30 / 40). */
   pointsToWinGame: number;
   /**
