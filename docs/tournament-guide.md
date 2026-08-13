@@ -342,7 +342,17 @@ Tie-breaker: sesuai sport (points sports vs padel/tennis ITF-ish).
 | --- | --- |
 | `best_of` | Best of 3/5; set race-to `setTarget` |
 | `race_to` | First to N (points/games flat) |
-| `total` | Semua N games dimainkan (`gamesA+gamesB===N`); menang yang games-nya lebih banyak. Live tablet memakai board games yang sama seperti race-to, dengan `lengthMode: total`. |
+Mode selain race-to / total di live tablet:
+
+| Mode | Live path |
+| --- | --- |
+| `race_to` | Games board · first to N |
+| `total` | Games board · exactly N games (`lengthMode: total`) |
+| `best_of` | Classic sets engine (ITF/FIP-style) |
+| `custom_score` | Flat points entry; large_score needs host Complete |
+
+Finalize live (non-paper) divalidasi server lewat `assertOfficialLiveGamesMatchComplete` untuk **group** dan **knockout**.
+
 | `custom_score` | `large_score` / `one_match_winner`; `allowDraw` default false; `tiePolicy` |
 
 Resolver: `lib/tournaments/scoring/match-scoring.ts`. Series knockout: `resolveSeriesMajority`.

@@ -253,6 +253,14 @@ export async function submitBracketMatchScore(
     );
   }
 
+  const { assertOfficialLiveGamesMatchComplete } = await import(
+    "@/lib/tournaments/scoring/assert-live-games-complete"
+  );
+  assertOfficialLiveGamesMatchComplete(tournament, "knockout", {
+    scoreA,
+    scoreB,
+  });
+
   const winnerTeamId = scoreA > scoreB ? match.teamAId : match.teamBId;
 
   const prevMeta = parseBracketMatchMetadata(match.metadata);

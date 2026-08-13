@@ -66,7 +66,6 @@ import {
   applyGamePointDelta,
   applyGamePointSet,
   emptyMatchGameState,
-  isRaceToGamesMatchComplete,
   reconcileMatchGamesScores,
   startNextGameAfterWin,
   withCurrentServer,
@@ -75,7 +74,6 @@ import {
 import {
   applyClassicSetPointDelta,
   classicStatsFromMatchMeta,
-  isClassicMatchComplete,
   startNextClassicAfterWin,
   sumClassicGames,
 } from "@/lib/tournaments/scoring/classic-sets";
@@ -84,7 +82,6 @@ import {
   getTournamentDeuceConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
-  getTournamentScoreEntryMode,
   getTournamentPointsPerMatch,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
@@ -1235,39 +1232,10 @@ export async function recordGroupStageScore(
     });
   }
 
-  if (getTournamentMatchScoreMode(tournament, "group") === "games") {
-    const paperMode = getTournamentScoreEntryMode(tournament) === "paper";
-    if (!paperMode) {
-      if (isClassicSetsFormat(tournament, "group")) {
-        const setRules = getTournamentClassicSetRules(tournament, "group");
-        const classic = isClassicMatchComplete(
-          scores.scoreA,
-          scores.scoreB,
-          setRules,
-        );
-        if (!classic.complete) {
-          const need = Math.ceil(setRules.bestOfSets / 2);
-          throw new AppError(
-            `Match is not complete — first to ${need} sets wins (best of ${setRules.bestOfSets}).`,
-            { code: "VALIDATION_ERROR", statusCode: 422 },
-          );
-        }
-      } else {
-        const gameRules = getTournamentGameRules(tournament, "group");
-        const race = isRaceToGamesMatchComplete(scores.scoreA, scores.scoreB, gameRules);
-        if (!race.complete) {
-          const hint =
-            (gameRules.lengthMode ?? "race_to") === "total"
-              ? `all ${gameRules.raceToGames} games must be played (most games won wins)`
-              : `first team to ${gameRules.raceToGames} games wins`;
-          throw new AppError(`Match is not complete — ${hint}.`, {
-            code: "VALIDATION_ERROR",
-            statusCode: 422,
-          });
-        }
-      }
-    }
-  }
+  const { assertOfficialLiveGamesMatchComplete } = await import(
+    "@/lib/tournaments/scoring/assert-live-games-complete"
+  );
+  assertOfficialLiveGamesMatchComplete(tournament, "group", scores);
 
   let winnerTeamId: string | null = null;
   if (scores.scoreA > scores.scoreB) winnerTeamId = match.teamAId;
