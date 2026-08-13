@@ -618,6 +618,7 @@ describe("smoke · live + fullscreen display realtime wiring", () => {
         {
           matchScoreMode: "games",
           raceToGames: 8,
+          lengthMode: "total",
           pointsToWinGame: 40,
           pointStyle: "simple",
         },
@@ -628,6 +629,7 @@ describe("smoke · live + fullscreen display realtime wiring", () => {
       pointsB: 10,
       raceToGames: 8,
       pointsToWinGame: 40,
+      lengthMode: "total",
     });
   });
 });

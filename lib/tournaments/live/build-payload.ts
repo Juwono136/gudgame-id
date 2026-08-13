@@ -435,6 +435,7 @@ export async function buildTournamentLivePayload(
       return {
         matchScoreMode,
         raceToGames: rules.raceToGames,
+        lengthMode: rules.lengthMode ?? "race_to",
         pointsToWinGame: rules.pointsToWinGame,
         pointStyle: rules.pointStyle,
       };

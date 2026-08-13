@@ -1256,10 +1256,14 @@ export async function recordGroupStageScore(
         const gameRules = getTournamentGameRules(tournament, "group");
         const race = isRaceToGamesMatchComplete(scores.scoreA, scores.scoreB, gameRules);
         if (!race.complete) {
-          throw new AppError(
-            `Match is not complete — first team to ${gameRules.raceToGames} games wins.`,
-            { code: "VALIDATION_ERROR", statusCode: 422 },
-          );
+          const hint =
+            (gameRules.lengthMode ?? "race_to") === "total"
+              ? `all ${gameRules.raceToGames} games must be played (most games won wins)`
+              : `first team to ${gameRules.raceToGames} games wins`;
+          throw new AppError(`Match is not complete — ${hint}.`, {
+            code: "VALIDATION_ERROR",
+            statusCode: 422,
+          });
         }
       }
     }

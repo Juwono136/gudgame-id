@@ -26,8 +26,17 @@ export type IntraGamePointStyle = "tennis" | "simple";
 export const GAME_RALLY_MILESTONES = [15, 30, 40] as const;
 
 export type MatchGameRules = {
-  /** First side to win this many games wins the match (supports custom targets from matchScoring). */
+  /**
+   * Target N for the match length:
+   * - race_to: first side to win N games
+   * - total: exactly N games are played; most games won wins
+   */
   raceToGames: number;
+  /**
+   * Official matchScoring `total` vs `race_to` (default race_to for legacy).
+   * `best_of` uses classic sets engine separately.
+   */
+  lengthMode?: "race_to" | "total";
   /** Points needed to win a game (default 40: through rallies at 15 / 30 / 40). */
   pointsToWinGame: number;
   /**
@@ -405,6 +414,9 @@ export function isRaceToGamesMatchComplete(
   gamesB: number,
   rules: MatchGameRules,
 ): GameCompletion {
+  if ((rules.lengthMode ?? "race_to") === "total") {
+    return isTotalGamesMatchComplete(gamesA, gamesB, rules.raceToGames);
+  }
   if (gamesA === gamesB) return { complete: false, winner: null };
   const max = Math.max(gamesA, gamesB);
   const min = Math.min(gamesA, gamesB);
@@ -412,6 +424,32 @@ export function isRaceToGamesMatchComplete(
   if (max !== rules.raceToGames) return { complete: false, winner: null };
   if (min >= rules.raceToGames) return { complete: false, winner: null };
   return { complete: true, winner: gamesA > gamesB ? "a" : "b" };
+}
+
+/**
+ * Total-N games: play exactly N games (gamesA + gamesB === N), then most games wins.
+ * Tied after N is still "complete" so the host can finalize (draw allowed) or override.
+ */
+export function isTotalGamesMatchComplete(
+  gamesA: number,
+  gamesB: number,
+  totalGames: number,
+): GameCompletion {
+  if (
+    !Number.isFinite(gamesA) ||
+    !Number.isFinite(gamesB) ||
+    !Number.isFinite(totalGames) ||
+    totalGames < 1
+  ) {
+    return { complete: false, winner: null };
+  }
+  const a = Math.floor(gamesA);
+  const b = Math.floor(gamesB);
+  const n = Math.floor(totalGames);
+  if (a < 0 || b < 0) return { complete: false, winner: null };
+  if (a + b !== n) return { complete: false, winner: null };
+  if (a === b) return { complete: true, winner: null };
+  return { complete: true, winner: a > b ? "a" : "b" };
 }
 
 export type GameScoreApplyResult = {
@@ -663,6 +701,21 @@ export function startNextGameAfterWin(
 
 export function formatRaceToGamesLabel(raceTo: number): string {
   return `Race to ${raceTo}`;
+}
+
+/** Label for live scoreboard / finalize hints (Total N vs Race to N). */
+export function formatGamesMatchLengthLabel(rules: MatchGameRules): string {
+  if ((rules.lengthMode ?? "race_to") === "total") {
+    return `Total ${rules.raceToGames}`;
+  }
+  return formatRaceToGamesLabel(rules.raceToGames);
+}
+
+export function formatGamesMatchLengthHint(rules: MatchGameRules): string {
+  if ((rules.lengthMode ?? "race_to") === "total") {
+    return `All ${rules.raceToGames} games are played — most games won wins`;
+  }
+  return `First to ${rules.raceToGames} games wins`;
 }
 
 export function formatMatchGamesScore(gamesA: number, gamesB: number): string {

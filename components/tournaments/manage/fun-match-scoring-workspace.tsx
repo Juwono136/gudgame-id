@@ -1090,7 +1090,11 @@ export function FunMatchScoringWorkspace({
       } else if (gameRules && scoreEntryMode !== "paper") {
         const race = isRaceToGamesMatchComplete(scoreA, scoreB, gameRules);
         if (!race.complete) {
-          toast.error(`Match incomplete — first to ${gameRules.raceToGames} games wins`);
+          const hint =
+            (gameRules.lengthMode ?? "race_to") === "total"
+              ? `all ${gameRules.raceToGames} games must be played`
+              : `first to ${gameRules.raceToGames} games wins`;
+          toast.error(`Match incomplete — ${hint}`);
           return;
         }
       }

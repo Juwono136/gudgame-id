@@ -645,8 +645,8 @@ function getStoredMatchScoring(
 }
 
 /**
- * Effective race-to target for a match/leg.
- * Prefers Official `matchScoring.raceTo` (supports custom N like 8) over legacy raceToGames.
+ * Effective games target for a match/leg (race-to N or total N).
+ * Prefers Official `matchScoring` over legacy raceToGames.
  */
 export function getTournamentRaceToTarget(
   tournament: TournamentDetail,
@@ -658,6 +658,9 @@ export function getTournamentRaceToTarget(
   );
   if (resolved?.mode === "race_to" && resolved.raceTo?.value) {
     return resolved.raceTo.value;
+  }
+  if (resolved?.mode === "total" && resolved.totalSets != null && resolved.totalSets > 0) {
+    return resolved.totalSets;
   }
   // Fall back to legacy per-stage raceToGamesGroup / raceToGamesKnockout.
   return getTournamentRaceToGamesForStage(tournament, stage);
@@ -707,9 +710,15 @@ export function getTournamentGameRules(
     ?? getDefaultStandingsScoringForSport(tournament.sportSlug).scoreUnit;
   const base =
     unit === "sets" ? DEFAULT_GAME_RULES_BY_UNIT.sets : DEFAULT_GAME_RULES_BY_UNIT.games;
+  const resolved = resolveMatchScoringForStage(
+    getStoredMatchScoring(tournament),
+    stage === "default" ? "default" : stage,
+  );
+  const lengthMode = resolved?.mode === "total" ? "total" : "race_to";
   return {
     ...base,
     raceToGames: getTournamentRaceToTarget(tournament, stage),
+    lengthMode,
     pointsToWinGame: base.pointsToWinGame,
     pointStyle: "simple",
     gameDecider: settings.gameDecider ?? base.gameDecider,

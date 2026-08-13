@@ -759,6 +759,7 @@ export function TournamentDisplayClient({
                 pointsB={gamesMode.pointsB}
                 raceToGames={gamesMode.raceToGames}
                 pointsToWinGame={gamesMode.pointsToWinGame}
+                lengthMode={gamesMode.lengthMode}
                 subtitle={subtitle}
                 className="bg-transparent"
               />

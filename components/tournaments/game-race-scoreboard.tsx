@@ -5,7 +5,8 @@ import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   GAME_RALLY_MILESTONES,
-  formatRaceToGamesLabel,
+  formatGamesMatchLengthHint,
+  formatGamesMatchLengthLabel,
   serveHistoryFromCompletedGames,
   type MatchGameRules,
   type MatchGameState,
@@ -83,7 +84,9 @@ export function GameRaceScoreboard({
   const needSets = setsToWin ?? Math.max(1, Math.ceil((rules.raceToGames || 2)));
   const matchComplete = classicSets
     ? Math.max(gamesA, gamesB) >= needSets
-    : Math.max(gamesA, gamesB) >= rules.raceToGames;
+    : (rules.lengthMode ?? "race_to") === "total"
+      ? gamesA + gamesB >= rules.raceToGames
+      : Math.max(gamesA, gamesB) >= rules.raceToGames;
   const phase = gameState.phase ?? "game";
   const inTiebreak =
     classicSets && (phase === "set_tiebreak" || phase === "super_tiebreak");
@@ -115,7 +118,7 @@ export function GameRaceScoreboard({
         ? "Super tiebreak"
         : "Set tiebreak"
       : "Classic sets · ITF/FIP"
-    : `Match · ${formatRaceToGamesLabel(rules.raceToGames)}`;
+    : `Match · ${formatGamesMatchLengthLabel(rules)}`;
 
   const scoreUnitLabel = classicSets ? "sets" : "games won";
   const pointsSectionLabel = inTiebreak
@@ -336,7 +339,7 @@ export function GameRaceScoreboard({
               <p className="text-xs text-cp-muted">
                 {classicSets
                   ? `First to ${needSets} sets — finish the match when ready.`
-                  : `Race to ${rules.raceToGames} reached — finish the match when ready.`}
+                  : `${formatGamesMatchLengthLabel(rules)} reached — finish the match when ready.`}
               </p>
             ) : (
               <Button
@@ -385,7 +388,7 @@ export function GameRaceScoreboard({
         {" · "}
         {classicSets
           ? `First to ${needSets} sets wins`
-          : `First to ${rules.raceToGames} games wins`}
+          : formatGamesMatchLengthHint(rules)}
       </p>
     </div>
   );
@@ -654,6 +657,7 @@ export function LiveGameRaceDisplay({
   pointsB,
   raceToGames,
   pointsToWinGame = 40,
+  lengthMode = "race_to",
   subtitle,
   className,
 }: {
@@ -665,6 +669,7 @@ export function LiveGameRaceDisplay({
   pointsB: number;
   raceToGames: number;
   pointsToWinGame?: number;
+  lengthMode?: "race_to" | "total";
   /** @deprecated Unused — sequential points only. */
   pointStyle?: "tennis" | "simple";
   subtitle?: string;
@@ -675,6 +680,13 @@ export function LiveGameRaceDisplay({
       ? GAME_RALLY_MILESTONES
       : ([pointsToWinGame] as readonly number[]);
   const lead = Math.max(pointsA, pointsB);
+  const lengthLabel = formatGamesMatchLengthLabel({
+    raceToGames,
+    lengthMode,
+    pointsToWinGame,
+    gameDecider: "golden_point",
+    pointStyle: "simple",
+  });
 
   return (
     <div
@@ -691,7 +703,7 @@ export function LiveGameRaceDisplay({
 
       <div className="mb-6 rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-center backdrop-blur-sm sm:mb-8 sm:px-10">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
-          {formatRaceToGamesLabel(raceToGames)} · Games won
+          {lengthLabel} · Games won
         </p>
         <p className="mt-1 text-4xl font-bold tabular-nums sm:text-5xl">
           {gamesA}

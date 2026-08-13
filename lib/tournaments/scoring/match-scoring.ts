@@ -97,6 +97,39 @@ function resolveTotal(
   };
 }
 
+/** Live tablet Total-N: scoreA/scoreB are games won; play exactly N games. */
+function resolveTotalFlatGames(
+  gamesA: number,
+  gamesB: number,
+  totalGames: number,
+): MatchScoringVerdict {
+  if (gamesA < 0 || gamesB < 0) {
+    return { status: "incomplete", winner: null, reason: "Negative score" };
+  }
+  const played = gamesA + gamesB;
+  if (played < totalGames) {
+    return {
+      status: "incomplete",
+      winner: null,
+      reason: `Need ${totalGames} games played (${played} so far)`,
+    };
+  }
+  if (played > totalGames) {
+    return {
+      status: "incomplete",
+      winner: null,
+      reason: `Too many games for Total ${totalGames}`,
+    };
+  }
+  if (gamesA > gamesB) return { status: "complete", winner: "a" };
+  if (gamesB > gamesA) return { status: "complete", winner: "b" };
+  return {
+    status: "draw",
+    winner: null,
+    reason: "Equal games after Total",
+  };
+}
+
 function resolveRaceTo(pointsA: number, pointsB: number, target: number): MatchScoringVerdict {
   if (pointsA < 0 || pointsB < 0) {
     return { status: "incomplete", winner: null, reason: "Negative score" };
@@ -168,7 +201,15 @@ export function resolveMatchScoring(input: {
 
   if (config.mode === "total") {
     const sets = sideA.sets ?? [];
-    return resolveTotal(sets, config.totalSets ?? 3);
+    if (sets.length > 0) {
+      return resolveTotal(sets, config.totalSets ?? 3);
+    }
+    // Live / paper flat games won (scoreA/scoreB columns).
+    return resolveTotalFlatGames(
+      nonNegInt(sideA.points) ?? 0,
+      nonNegInt(sideB.points) ?? 0,
+      config.totalSets ?? 3,
+    );
   }
 
   if (config.mode === "race_to") {

@@ -18,6 +18,7 @@ export function resolveGamesDisplayMode(
       pointsB: number;
       raceToGames: number;
       pointsToWinGame: number;
+      lengthMode: "race_to" | "total";
     }
   | undefined {
   if (!scoring || scoring.matchScoreMode !== "games") return undefined;
@@ -28,5 +29,6 @@ export function resolveGamesDisplayMode(
     pointsB: match?.gameState?.currentPointsB ?? 0,
     raceToGames,
     pointsToWinGame: scoring.pointsToWinGame ?? 40,
+    lengthMode: scoring.lengthMode ?? "race_to",
   };
 }

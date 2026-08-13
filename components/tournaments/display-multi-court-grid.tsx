@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { GAME_RALLY_MILESTONES } from "@/lib/tournaments/scoring/game-mode";
+import { formatGamesMatchLengthLabel, GAME_RALLY_MILESTONES } from "@/lib/tournaments/scoring/game-mode";
 import { cn } from "@/lib/utils";
 
 type MultiCourtDisplayCardProps = {
@@ -10,7 +10,7 @@ type MultiCourtDisplayCardProps = {
   teamBName: string;
   teamAPlayers?: string[];
   teamBPlayers?: string[];
-  /** Games won (race-to-N) or flat match points. */
+  /** Games won (race-to-N / total-N) or flat match points. */
   scoreA: number;
   scoreB: number;
   subtitle?: string;
@@ -20,6 +20,7 @@ type MultiCourtDisplayCardProps = {
     pointsB: number;
     raceToGames: number;
     pointsToWinGame?: number;
+    lengthMode?: "race_to" | "total";
   };
 };
 
@@ -68,7 +69,14 @@ export function MultiCourtDisplayCard({
         <div className="mb-1.5 shrink-0 space-y-1 sm:mb-2 sm:space-y-1.5">
           <div className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 sm:rounded-xl sm:px-3 sm:py-1.5">
             <span className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px]">
-              Race to {gamesMode.raceToGames} · Games
+              {formatGamesMatchLengthLabel({
+                raceToGames: gamesMode.raceToGames,
+                lengthMode: gamesMode.lengthMode ?? "race_to",
+                pointsToWinGame: gamesMode.pointsToWinGame ?? 40,
+                gameDecider: "golden_point",
+                pointStyle: "simple",
+              })}{" "}
+              · Games
             </span>
             <span className="text-base font-bold tabular-nums text-white sm:text-lg">
               {scoreA}

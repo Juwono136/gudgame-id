@@ -160,7 +160,10 @@ function PublicGroupStageLiveCourts({
 
               {gameRules ? (
                 <p className="mt-2 text-center text-[10px] text-cp-muted sm:text-[11px]">
-                  Race to {gameRules.raceToGames} · first to {gameRules.pointsToWinGame} pts
+                  {(gameRules.lengthMode ?? "race_to") === "total"
+                    ? `Total ${gameRules.raceToGames}`
+                    : `Race to ${gameRules.raceToGames}`}{" "}
+                  · first to {gameRules.pointsToWinGame} pts
                 </p>
               ) : null}
             </li>

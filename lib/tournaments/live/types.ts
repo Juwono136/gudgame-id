@@ -71,8 +71,10 @@ export type TournamentLivePayload = {
   /** Scoring shape for venue display / public live boards. */
   scoring?: {
     matchScoreMode: MatchScoreMode;
-    /** Race-to target (supports custom N from Official matchScoring). */
+    /** Race-to / Total target N (supports custom N from Official matchScoring). */
     raceToGames?: number;
+    /** Official total vs race_to length (default race_to). */
+    lengthMode?: "race_to" | "total";
     pointsToWinGame?: number;
     pointStyle?: IntraGamePointStyle;
   };
