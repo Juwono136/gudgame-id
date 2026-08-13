@@ -111,22 +111,26 @@ export function BracketManagePanel({
     return new Set(workspace?.bracketEligibleTeamIds ?? []);
   }, [isOfficial, workspace?.bracketEligibleTeamIds]);
 
-  const seedableTeams = useMemo(() => {
-    const withMembers = allTeams.filter((t) => t.memberCount > 0);
-    if (!eligibleIdSet) return withMembers;
-    return withMembers.filter((t) => eligibleIdSet.has(t.id));
-  }, [allTeams, eligibleIdSet]);
-
   const placedTeamIds = useMemo(() => {
     const ids = new Set<string>();
     for (const m of matches) {
-      if (m.roundNumber === 1) {
-        if (m.teamAId) ids.add(m.teamAId);
-        if (m.teamBId) ids.add(m.teamBId);
-      }
+      const entryRound =
+        m.roundNumber === 1 || (isDoubleStage && m.roundNumber === 0);
+      if (!entryRound || m.matchNumber === 999 || m.seriesParentId) continue;
+      if (m.teamAId) ids.add(m.teamAId);
+      if (m.teamBId) ids.add(m.teamBId);
     }
     return ids;
-  }, [matches]);
+  }, [isDoubleStage, matches]);
+
+  const seedableTeams = useMemo(() => {
+    if (isDoubleStage) {
+      return allTeams.filter((t) => t.memberCount > 0 && placedTeamIds.has(t.id));
+    }
+    const withMembers = allTeams.filter((t) => t.memberCount > 0);
+    if (!eligibleIdSet) return withMembers;
+    return withMembers.filter((t) => eligibleIdSet.has(t.id));
+  }, [allTeams, eligibleIdSet, isDoubleStage, placedTeamIds]);
 
   const unplacedTeams = useMemo(
     () => seedableTeams.filter((t) => !placedTeamIds.has(t.id)),
@@ -168,11 +172,12 @@ export function BracketManagePanel({
     }
   }, [refetch, tournament.slug, tournament.sportSlug]);
 
-  const seedingLocked =
-    isDoubleStage || isBracketSeedingLocked(matches, tournament.status);
+  const seedingLocked = isBracketSeedingLocked(matches, tournament.status, {
+    format: tournament.format,
+  });
   const seedingUi = useMemo(
-    () => getBracketSeedingUiState(matches, tournament.status),
-    [matches, tournament.status],
+    () => getBracketSeedingUiState(matches, tournament.status, { format: tournament.format }),
+    [matches, tournament.format, tournament.status],
   );
   const resetLocked = !canResetBracketTree(matches, tournament.status);
   const canRandomReseed =
@@ -305,9 +310,11 @@ export function BracketManagePanel({
     if (!seedSlot || !selectedTeamId) return;
     const team = seedableTeams.find((t) => t.id === selectedTeamId);
     const ok = await confirm({
-      title: "Assign team to bracket slot?",
-      description: `Place ${team?.name ?? "this team"} in the selected round-one slot. The public bracket updates immediately.`,
-      confirmLabel: "Place team",
+      title: isDoubleStage ? "Swap knockout pairing?" : "Assign team to bracket slot?",
+      description: isDoubleStage
+        ? `Move ${team?.name ?? "this team"} into the selected slot. The team currently there (if any) swaps into this team's previous slot. Public and live scoring update immediately.`
+        : `Place ${team?.name ?? "this team"} in the selected round-one slot. The public bracket updates immediately.`,
+      confirmLabel: isDoubleStage ? "Swap teams" : "Place team",
     });
     if (!ok) return;
     await runBracketMutation(async () => {
@@ -339,8 +346,10 @@ export function BracketManagePanel({
               Bracket setup
             </h2>
             <p className="mt-1 max-w-xl text-sm text-cp-muted">
-              Place teams in round-one slots as they join — the public bracket updates live.
-              {isOfficial
+              {isDoubleStage
+                ? "Knockout pairings come from qualified group teams. You can swap round-one slots until a knockout match starts."
+                : "Place teams in round-one slots as they join — the public bracket updates live."}
+              {isOfficial && !isDoubleStage
                 ? " Only confirmed teams (paid when required) appear in the seeding list."
                 : null}
             </p>
@@ -467,7 +476,7 @@ export function BracketManagePanel({
                       Random seed
                     </Button>
                   ) : null}
-                  {!seedingFinalized && placedTeamCount >= 1 ? (
+                  {!seedingFinalized && !isDoubleStage && placedTeamCount >= 1 ? (
                     <Button
                       type="button"
                       size="sm"
@@ -495,8 +504,9 @@ export function BracketManagePanel({
                   ) : null}
                 </div>
                 <p className="text-xs text-cp-muted">
-                  Manual edit: scroll to the bracket tree below → click a round-one slot → choose a
-                  team in the picker that appears.
+                  {isDoubleStage
+                    ? "Click a filled round-one slot in the tree, then pick the qualified team to swap into that slot."
+                    : "Manual edit: scroll to the bracket tree below → click a round-one slot → choose a team in the picker that appears."}
                 </p>
               </div>
             ) : null}
@@ -515,14 +525,18 @@ export function BracketManagePanel({
                 </h3>
                 {!seedingLocked ? (
                   <p className="mt-1 text-sm text-cp-muted">
-                    Click a round-one slot labeled &ldquo;Drop squad here&rdquo;, then choose a team below.
-                    {unplacedTeams.length > 0
+                    {isDoubleStage
+                      ? "Click a round-one name to swap it with another qualified team. The final fills as winners advance."
+                      : "Click a round-one slot labeled “Drop squad here”, then choose a team below."}
+                    {!isDoubleStage && unplacedTeams.length > 0
                       ? ` ${unplacedTeams.length} eligible team${unplacedTeams.length === 1 ? "" : "s"} ready to place.`
-                      : placedTeamCount > 0
+                      : !isDoubleStage && placedTeamCount > 0
                         ? " All eligible teams are placed."
-                        : isOfficial
+                        : !isDoubleStage && isOfficial
                           ? " No confirmed teams yet."
-                          : " No squads with players yet."}
+                          : !isDoubleStage
+                            ? " No squads with players yet."
+                            : ""}
                   </p>
                 ) : null}
               </div>
@@ -534,7 +548,8 @@ export function BracketManagePanel({
                 className="mb-4 rounded-xl border border-cp-primary/35 bg-cp-primary/5 p-4"
               >
                 <p className="text-sm font-medium text-foreground">
-                  Place team in {selectedMatchLabel}
+                  {isDoubleStage ? "Swap team in " : "Place team in "}
+                  {selectedMatchLabel}
                 </p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div className="min-w-0 flex-1 space-y-1">
@@ -568,7 +583,7 @@ export function BracketManagePanel({
                     {assign.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
-                    Place team
+                    {isDoubleStage ? "Swap teams" : "Place team"}
                   </Button>
                   <Button type="button" variant="ghost" onClick={() => setSeedSlot(null)}>
                     Cancel

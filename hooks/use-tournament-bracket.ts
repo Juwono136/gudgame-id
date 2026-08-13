@@ -209,20 +209,10 @@ export function useAssignBracketTeam(sportSlug: string, slug: string) {
       }
       return json.data.match;
     },
-    onSuccess: (match) => {
-      qc.setQueryData(
-        tournamentQueryKeys.bracket(sportSlug, slug),
-        (prev: { matches: BracketMatchView[]; leaderboard: LeaderboardEntry[]; generated: boolean } | undefined) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            matches: prev.matches.map((m) => (m.id === match.id ? match : m)),
-            seedingFinalized: false,
-          };
-        },
-      );
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.bracket(sportSlug, slug) });
       invalidateTournamentQueries(qc, sportSlug, slug);
-      toast.success("Squad placed");
+      toast.success("Bracket pairing updated");
     },
     onError: (e: Error) => toast.error(e.message),
   });

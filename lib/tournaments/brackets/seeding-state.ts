@@ -26,9 +26,15 @@ export function countEditableRoundOneSlots(
 export function isBracketSeedingLocked(
   matches: Pick<BracketMatchView, "status">[],
   tournamentStatus: string,
+  options?: { format?: string },
 ): boolean {
   if (tournamentStatus === "completed") return true;
-  return countScoredBracketMatches(matches) > 0;
+  if (countScoredBracketMatches(matches) > 0) return true;
+  // Double-stage walkovers already advanced a winner — don't reshuffle around them.
+  if (options?.format === "double_stage") {
+    return matches.some((m) => m.status === "bye");
+  }
+  return false;
 }
 
 export type BracketSeedingUiState = {
@@ -42,10 +48,12 @@ export type BracketSeedingUiState = {
 export function getBracketSeedingUiState(
   matches: BracketMatchView[],
   tournamentStatus: string,
+  options?: { format?: string },
 ): BracketSeedingUiState {
-  const locked = isBracketSeedingLocked(matches, tournamentStatus);
+  const locked = isBracketSeedingLocked(matches, tournamentStatus, options);
   const scoredMatchCount = countScoredBracketMatches(matches);
   const editableRoundOneSlots = countEditableRoundOneSlots(matches);
+  const isDoubleStage = options?.format === "double_stage";
 
   if (tournamentStatus === "completed") {
     return {
@@ -63,11 +71,25 @@ export function getBracketSeedingUiState(
       locked: true,
       scoredMatchCount,
       editableRoundOneSlots,
-      title: "Seeding locked — matches already scored",
-      description:
-        scoredMatchCount === 1
+      title: isDoubleStage
+        ? "Knockout pairings locked"
+        : "Seeding locked — matches already scored",
+      description: isDoubleStage
+        ? "A knockout match is live, finished, or already walked over. Pairings cannot be changed — score remaining matches in Live scoring. Reset is only available before any knockout result."
+        : scoredMatchCount === 1
           ? "1 bracket match has been scored or is live. Round-one slots cannot be changed anymore — use Live scoring for the remaining matches."
           : `${scoredMatchCount} bracket matches have been scored or are live. Round-one slots cannot be changed anymore — use Live scoring for the remaining matches.`,
+    };
+  }
+
+  if (isDoubleStage) {
+    return {
+      locked: false,
+      scoredMatchCount,
+      editableRoundOneSlots,
+      title: "Qualified teams placed — you can still swap pairings",
+      description:
+        "Knockout is generated from group standings, not a random draw. Click a round-one slot to swap two qualified teams. Pairings lock once any knockout match starts. To rebuild the whole draw, use Reset bracket.",
     };
   }
 
