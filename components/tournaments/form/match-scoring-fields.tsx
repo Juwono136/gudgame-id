@@ -1,7 +1,6 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -9,10 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BoundedNumberInput } from "@/components/tournaments/form/bounded-number-input";
 import {
   type MatchScoringConfig,
   type MatchScoringLeaf,
   type MatchScoringMode,
+  RACE_TO_CUSTOM_MAX,
+  RACE_TO_CUSTOM_MIN,
   asMatchScoringLeaf,
   composeDoubleStageMatchScoring,
   getMatchScoringModeLabel,
@@ -35,10 +37,6 @@ type MatchScoringFieldsProps = {
 
 const MODES: MatchScoringMode[] = ["best_of", "race_to", "total", "custom_score"];
 const RACE_PRESETS = [4, 6] as const;
-
-function clampRace(n: number): number {
-  return Math.min(99, Math.max(1, Math.floor(n) || 1));
-}
 
 function RaceToPicker({
   id,
@@ -76,14 +74,13 @@ function RaceToPicker({
           </button>
         ))}
       </div>
-      <Input
+      <BoundedNumberInput
         id={id}
-        type="number"
-        min={1}
-        max={99}
+        min={RACE_TO_CUSTOM_MIN}
+        max={RACE_TO_CUSTOM_MAX}
         disabled={disabled}
         value={value}
-        onChange={(e) => onChange(clampRace(Number(e.target.value)))}
+        onValueChange={onChange}
       />
       {hint ? <p className="text-[11px] text-cp-muted">{hint}</p> : null}
     </div>
@@ -149,16 +146,13 @@ function ScoringLeafFields({
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-set-target`}>Set race to</Label>
-            <Input
+            <BoundedNumberInput
               id={`${idPrefix}-set-target`}
-              type="number"
-              min={1}
-              max={99}
+              min={RACE_TO_CUSTOM_MIN}
+              max={RACE_TO_CUSTOM_MAX}
               disabled={disabled}
               value={value.setTarget?.value ?? 4}
-              onChange={(e) =>
-                patch({ setTarget: { value: clampRace(Number(e.target.value)) } })
-              }
+              onValueChange={(n) => patch({ setTarget: { value: n } })}
             />
           </div>
         </div>
@@ -177,21 +171,17 @@ function ScoringLeafFields({
       {value.mode === "total" ? (
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-total-sets`}>Total sets</Label>
-          <Input
+          <BoundedNumberInput
             id={`${idPrefix}-total-sets`}
-            type="number"
-            min={1}
-            max={99}
+            min={RACE_TO_CUSTOM_MIN}
+            max={RACE_TO_CUSTOM_MAX}
             disabled={disabled}
             value={value.totalSets ?? 3}
-            onChange={(e) =>
-              patch({
-                totalSets: Math.max(1, Math.floor(Number(e.target.value) || 1)),
-              })
-            }
+            onValueChange={(n) => patch({ totalSets: n })}
           />
           <p className="text-[11px] text-cp-muted">
-            All sets are played; most sets won wins.
+            All sets are played; most sets won wins. ({RACE_TO_CUSTOM_MIN}–
+            {RACE_TO_CUSTOM_MAX})
           </p>
         </div>
       ) : null}

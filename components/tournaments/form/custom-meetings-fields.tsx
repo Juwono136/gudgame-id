@@ -1,7 +1,7 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { BoundedNumberInput } from "@/components/tournaments/form/bounded-number-input";
 import {
   GROUP_MEETINGS_PER_PAIR_MAX,
   GROUP_MEETINGS_PER_PAIR_MIN,
@@ -48,54 +48,38 @@ export function CustomMeetingsFields({
         {showGroupMeetings ? (
           <div className="space-y-2">
             <Label htmlFor="group-meetings">Meetings per pair (group)</Label>
-            <Input
+            <BoundedNumberInput
               id="group-meetings"
-              type="number"
               min={GROUP_MEETINGS_PER_PAIR_MIN}
               max={GROUP_MEETINGS_PER_PAIR_MAX}
               disabled={disabled}
               value={groupMeetingsPerPair}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                onGroupMeetingsChange(
-                  Math.min(
-                    GROUP_MEETINGS_PER_PAIR_MAX,
-                    Math.max(GROUP_MEETINGS_PER_PAIR_MIN, Math.floor(n)),
-                  ),
-                );
-              }}
+              onValueChange={onGroupMeetingsChange}
             />
             <p className="text-[11px] text-cp-muted">
               Each unordered pair plays this many independent matches.
+              {" "}
+              ({GROUP_MEETINGS_PER_PAIR_MIN}–{GROUP_MEETINGS_PER_PAIR_MAX})
             </p>
           </div>
         ) : null}
         {showKnockoutLegs ? (
           <div className="space-y-2">
             <Label htmlFor="ko-legs">Legs per knockout slot</Label>
-            <Input
+            <BoundedNumberInput
               id="ko-legs"
-              type="number"
               min={KNOCKOUT_LEGS_PER_SLOT_MIN}
               max={KNOCKOUT_LEGS_PER_SLOT_MAX}
               disabled={disabled}
               value={knockoutLegsPerSlot}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                onKnockoutLegsChange(
-                  Math.min(
-                    KNOCKOUT_LEGS_PER_SLOT_MAX,
-                    Math.max(KNOCKOUT_LEGS_PER_SLOT_MIN, Math.floor(n)),
-                  ),
-                );
-              }}
+              onValueChange={onKnockoutLegsChange}
             />
             <p className="text-[11px] text-cp-muted">
               {legsEven
                 ? "Even leg counts can tie — odd values (3, 5, 7) are recommended."
                 : "First side to win a majority of legs advances."}
+              {" "}
+              ({KNOCKOUT_LEGS_PER_SLOT_MIN}–{KNOCKOUT_LEGS_PER_SLOT_MAX})
             </p>
           </div>
         ) : null}
