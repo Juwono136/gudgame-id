@@ -238,7 +238,11 @@ export function FunMatchRoundsPanel({
 
         {filteredGroups.length === 0 && showPlanningSlots ? (
           <p className="rounded-xl border border-dashed border-cp-border/80 bg-cp-elevated/30 px-3 py-2.5 text-center text-xs text-cp-muted sm:text-sm">
-            Assign group fixtures to the idle courts below, then start scoring.
+            {isGroupStageMode
+              ? "Assign group fixtures to the idle courts below, then start scoring."
+              : isBracketMode
+                ? "Assign knockout matches to the idle courts below, then start scoring."
+                : "Assign squads or pairings to the idle courts below, then start scoring."}
           </p>
         ) : null}
 
@@ -302,7 +306,11 @@ export function FunMatchRoundsPanel({
         {showPlanningSlots ? (
           <div>
             <h4 className={cn("mb-2 text-xs font-bold uppercase tracking-wider", accentLabel)}>
-              {isGroupStageMode ? "Idle courts · assign fixtures" : `Round #${currentRound} · Up next`}
+              {isGroupStageMode
+                ? "Idle courts · assign fixtures"
+                : isBracketMode
+                  ? "Idle courts · assign knockout"
+                  : `Round #${currentRound} · Up next`}
             </h4>
             <div className="space-y-3">
               {courts
@@ -322,6 +330,7 @@ export function FunMatchRoundsPanel({
                     startableGroupMatches={isGroupStageMode ? startableGroupMatches : []}
                     activeGroupMatches={isGroupStageMode ? activeGroupMatches : []}
                     isGroupStageMode={isGroupStageMode}
+                    isBracketMode={isBracketMode}
                     onGroupPickChange={(v) => onGroupPickChange?.(court.id, v)}
                     onTeamAChange={(v) => onTeamAChange(court.id, v)}
                     onTeamBChange={(v) => onTeamBChange(court.id, v)}

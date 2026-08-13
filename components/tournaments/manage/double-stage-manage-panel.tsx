@@ -388,7 +388,7 @@ export function DoubleStageManagePanel({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message ?? "Failed to generate bracket");
       await refetch();
-      toast.success("Knockout bracket generated");
+      toast.success("Knockout bracket ready");
       window.location.href = `${manageUrls.manageUrl}?section=bracket`;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to generate bracket");

@@ -74,6 +74,8 @@ type FunMatchRoundMatchCardProps = {
   /** Idle-court fixture picks keyed by court id — used to reserve teams across courts. */
   groupPickByCourt?: Record<string, string>;
   isGroupStageMode?: boolean;
+  /** When true, idle courts must pick a bracket fixture — never squad A/B. */
+  isBracketMode?: boolean;
   onGroupPickChange?: (v: string) => void;
   onTeamAChange?: (v: string) => void;
   onTeamBChange?: (v: string) => void;
@@ -238,6 +240,7 @@ export function FunMatchRoundMatchCard({
   activeGroupMatches = [],
   groupPickByCourt = {},
   isGroupStageMode = false,
+  isBracketMode = false,
   onGroupPickChange,
   onTeamAChange,
   onTeamBChange,
@@ -272,8 +275,21 @@ export function FunMatchRoundMatchCard({
   const [overrideOpen, setOverrideOpen] = useState(false);
   const isPlanning = !match && canManage && !readOnly;
   const useGroupPicker = isPlanning && isGroupStageMode && startableGroupMatches.length > 0;
+  const showGroupEmpty = isPlanning && isGroupStageMode && startableGroupMatches.length === 0;
   const useBracketPicker =
-    isPlanning && !useGroupPicker && startableBracketMatches.length > 0;
+    isPlanning &&
+    !isGroupStageMode &&
+    (isBracketMode || startableBracketMatches.length > 0) &&
+    startableBracketMatches.length > 0;
+  const showBracketEmpty =
+    isPlanning && isBracketMode && !isGroupStageMode && startableBracketMatches.length === 0;
+  const useSquadPickers =
+    isPlanning &&
+    !isGroupStageMode &&
+    !isBracketMode &&
+    !isAmericanoMode &&
+    !useGroupPicker &&
+    !useBracketPicker;
   const groupLock = useMemo(() => {
     const reservedPicks = Object.entries(groupPickByCourt)
       .filter(([id, matchId]) => Boolean(matchId) && id !== courtId)
@@ -641,9 +657,7 @@ export function FunMatchRoundMatchCard({
   const canStartBracket = useBracketPicker && Boolean(bracketMatchId);
   const canStartAmericano = isAmericanoMode && Boolean(americanoLabels);
   const canStartSquads =
-    !useBracketPicker &&
-    !isAmericanoMode &&
-    Boolean(teamAId && teamBId && teamAId !== teamBId);
+    useSquadPickers && Boolean(teamAId && teamBId && teamAId !== teamBId);
 
   const scoreReadOnly = readOnly || !isLive;
   const gamesLiveBoard = Boolean(gameRules && isLive && !readOnly && !paperMode);
@@ -917,6 +931,10 @@ export function FunMatchRoundMatchCard({
                     })}
                   </SelectContent>
                 </Select>
+              ) : showGroupEmpty ? (
+                <span className="max-w-[14rem] text-[11px] leading-snug text-cp-muted">
+                  No pending group fixtures — finish live matches or open the Groups tab.
+                </span>
               ) : useBracketPicker ? (
                 <Select
                   value={bracketMatchId || SELECT_NONE}
@@ -938,6 +956,10 @@ export function FunMatchRoundMatchCard({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : showBracketEmpty ? (
+                <span className="max-w-[14rem] text-[11px] leading-snug text-cp-muted">
+                  No startable knockout matches yet — open the Bracket tab or wait for both teams.
+                </span>
               ) : isAmericanoMode ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] text-cp-muted">
@@ -956,7 +978,7 @@ export function FunMatchRoundMatchCard({
                     </Button>
                   ) : null}
                 </div>
-              ) : (
+              ) : useSquadPickers ? (
                 <>
                   <Select
                     value={teamAId || SELECT_NONE}
@@ -995,17 +1017,22 @@ export function FunMatchRoundMatchCard({
                     </SelectContent>
                   </Select>
                 </>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 gap-1"
-                disabled={(!canStartGroup && !canStartBracket && !canStartSquads && !canStartAmericano) || isStarting}
-                onClick={onStart}
-              >
-                <Play className="h-3.5 w-3.5" />
-                Start
-              </Button>
+              ) : null}
+              {!showGroupEmpty && !showBracketEmpty ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1"
+                  disabled={
+                    (!canStartGroup && !canStartBracket && !canStartSquads && !canStartAmericano) ||
+                    isStarting
+                  }
+                  onClick={onStart}
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  Start
+                </Button>
+              ) : null}
             </>
           ) : null}
 

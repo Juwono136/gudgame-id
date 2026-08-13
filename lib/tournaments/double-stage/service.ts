@@ -7,6 +7,7 @@ import {
   tournamentGroupTeams,
   tournamentGroups,
 } from "@/db/schema/tournament-groups";
+import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { tournaments } from "@/db/schema/tournaments";
 import { AppError } from "@/lib/errors";
 import { listBracketEligibleTeamsForGenerate } from "@/lib/tournaments/brackets/eligible-teams";
@@ -717,6 +718,17 @@ export async function buildDoubleStageOverview(
     dsSettings.knockoutReadyAt = new Date().toISOString();
   }
 
+  // Heal orphan bracket: matches were provisioned (auto-advance race / partial
+  // failure) but phase never flipped — otherwise Generate stays stuck on CONFLICT.
+  if (tournament.format === "double_stage" && dsSettings.phase === "group") {
+    const healed = await healOrphanedDoubleStageKnockoutPhase(tournament);
+    if (healed) {
+      dsSettings.phase = "knockout";
+      dsSettings.knockoutGeneratedAt =
+        dsSettings.knockoutGeneratedAt ?? new Date().toISOString();
+    }
+  }
+
   return {
     phase: dsSettings.phase,
     settings: dsSettings,
@@ -729,6 +741,31 @@ export async function buildDoubleStageOverview(
     unassignedEligibleTeams,
     canManageAssignments,
   };
+}
+
+/**
+ * If knockout rows already exist while phase is still `group`, adopt them and
+ * flip phase so manage/public scoring can enter bracket mode.
+ */
+export async function healOrphanedDoubleStageKnockoutPhase(
+  tournament: TournamentDetail,
+): Promise<boolean> {
+  if (tournament.format !== "double_stage") return false;
+
+  const db = getDb();
+  const existing = await db
+    .select({ id: tournamentBracketMatches.id })
+    .from(tournamentBracketMatches)
+    .where(eq(tournamentBracketMatches.tournamentId, tournament.id))
+    .limit(1);
+
+  if (existing.length === 0) return false;
+
+  await patchDoubleStageSettings(tournament, {
+    phase: "knockout",
+    knockoutGeneratedAt: new Date().toISOString(),
+  });
+  return true;
 }
 
 export async function startGroupStageMatch(
@@ -1458,9 +1495,29 @@ export async function advanceDoubleStageToElimination(
     });
   }
 
+  const db = getDb();
+  const existingBracket = await db
+    .select({ id: tournamentBracketMatches.id })
+    .from(tournamentBracketMatches)
+    .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+
+  // Idempotent: bracket already exists (auto-gen race / retry after partial write).
+  if (existingBracket.length > 0) {
+    if (overview.phase !== "knockout") {
+      await patchDoubleStageSettings(tournament, {
+        phase: "knockout",
+        knockoutGeneratedAt: new Date().toISOString(),
+      });
+    }
+    return {
+      bracketMatchCount: existingBracket.length,
+      qualifiedCount: qualified.length,
+    };
+  }
+
   const seeded = seedQualifiedTeams(qualified);
   for (const s of seeded) {
-    await getDb()
+    await db
       .update(tournamentGroupTeams)
       .set({ globalSeed: s.globalSeed })
       .where(eq(tournamentGroupTeams.teamId, s.teamId));

@@ -823,7 +823,11 @@ export function FunMatchScoringWorkspace({
       return;
     }
     const groupMatchId = groupPickByCourt[courtId];
-    if (isGroupStageMode && groupMatchId) {
+    if (isGroupStageMode) {
+      if (!groupMatchId) {
+        toast.error("Select a group fixture first");
+        return;
+      }
       await startGroupOnCourt.mutateAsync({ matchId: groupMatchId, courtId });
       setGroupPickByCourt((p) => ({ ...p, [courtId]: "" }));
       void refetch();
@@ -831,14 +835,26 @@ export function FunMatchScoringWorkspace({
     }
 
     const bracketMatchId = bracketPickByCourt[courtId];
-    if (isBracketMode && bracketMatchId) {
+    if (isBracketMode) {
+      if (!bracketMatchId) {
+        toast.error("Select a bracket match first");
+        return;
+      }
       await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId });
       setBracketPickByCourt((p) => ({ ...p, [courtId]: "" }));
       void refetch();
       return;
     }
 
-    if (isLobbyRoundsMode) {
+    // Americano / Mexicano (and Fun Match round play) only — never for group/KO.
+    if (!isLobbyRoundsMode) {
+      toast.error("Live scoring is not ready for this tournament format", {
+        description: "Refresh the page. If this persists, check Groups / Bracket tabs.",
+      });
+      return;
+    }
+
+    if (isAmericanoMode) {
       const payload = resolveAmericanoStart(courtId);
       if (!payload) {
         toast.error("Reshuffle idle courts or manage pairings first");
@@ -881,7 +897,8 @@ export function FunMatchScoringWorkspace({
       let started = 0;
       for (const court of idleCourts) {
         const groupMatchId = groupPickByCourt[court.id];
-        if (isGroupStageMode && groupMatchId) {
+        if (isGroupStageMode) {
+          if (!groupMatchId) continue;
           await startGroupOnCourt.mutateAsync({ matchId: groupMatchId, courtId: court.id });
           setGroupPickByCourt((p) => ({ ...p, [court.id]: "" }));
           started++;
@@ -889,14 +906,17 @@ export function FunMatchScoringWorkspace({
         }
 
         const bracketMatchId = bracketPickByCourt[court.id];
-        if (isBracketMode && bracketMatchId) {
+        if (isBracketMode) {
+          if (!bracketMatchId) continue;
           await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId: court.id });
           setBracketPickByCourt((p) => ({ ...p, [court.id]: "" }));
           started++;
           continue;
         }
 
-        if (isLobbyRoundsMode) {
+        if (!isLobbyRoundsMode) continue;
+
+        if (isAmericanoMode) {
           const payload = resolveAmericanoStart(court.id);
           if (!payload) continue;
           await startRound.mutateAsync({
@@ -927,9 +947,11 @@ export function FunMatchScoringWorkspace({
         toast.message(
           isGroupStageMode
             ? "Assign group fixtures on idle courts first"
-            : isAmericanoMode
-              ? "Reshuffle idle courts or manage pairings first"
-              : "Assign squads or bracket matches on idle courts first",
+            : isBracketMode
+              ? "Assign bracket matches on idle courts first"
+              : isAmericanoMode
+                ? "Reshuffle idle courts or manage pairings first"
+                : "Assign squads on idle courts first",
           {
             description: parallelCapacity.blockReason ?? undefined,
           },
@@ -1204,7 +1226,28 @@ export function FunMatchScoringWorkspace({
   if (isGroupStageMode && doubleStageOverview?.phase === "knockout") {
     return (
       <div className="rounded-xl border border-cp-primary/30 bg-cp-primary/5 p-6 text-sm text-cp-muted">
-        Group stage is complete. Score knockout matches here (bracket mode) or use the Bracket tab.
+        Group stage is complete. Refresh to load knockout scoring, or open the Bracket tab.
+      </div>
+    );
+  }
+
+  if (
+    !isGroupStageMode &&
+    !isBracketMode &&
+    !isLobbyRoundsMode &&
+    (tournament.format === "double_stage" ||
+      tournament.format === "group_only" ||
+      tournament.format === "single_elimination")
+  ) {
+    return (
+      <div className="rounded-xl border border-amber-600/25 bg-amber-500/10 p-6 text-sm text-cp-muted">
+        <p className="font-medium text-foreground">Scoring workspace is catching up</p>
+        <p className="mt-1">
+          Refresh this page to load the correct group or knockout scoring mode for this tournament.
+        </p>
+        <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => void refetch()}>
+          Refresh now
+        </Button>
       </div>
     );
   }

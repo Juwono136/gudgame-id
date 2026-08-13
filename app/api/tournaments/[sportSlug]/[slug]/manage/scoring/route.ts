@@ -8,7 +8,7 @@ import { assertTournamentManagePageAccess } from "@/lib/tournaments/manage-acces
 import { getRegistrationSummary } from "@/lib/tournaments/registration/service";
 import { getActiveReclubMatches, listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
-import { isFunMatchType, normalizeTournamentType } from "@/lib/tournaments/core/types";
+import { normalizeTournamentType } from "@/lib/tournaments/core/types";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { AppError } from "@/lib/errors";
 import {
@@ -54,21 +54,23 @@ export async function GET(
 
     const courts = await provisionTournamentCourts(tournament);
 
-    const caps = getFormatCapabilities(tournament);
-    const isFunMatch = isFunMatchType(tournament.tournamentType);
-    const inGroupPhase = caps.hasGroupStage;
-    const showBracket = caps.hasBracket;
+    let caps = getFormatCapabilities(tournament);
+    const showBracket = caps.hasBracket || caps.isDoubleStage;
 
     const [teams, reclubMatchesRaw, activeReclubMatchesRaw, bracketMatchesRaw, groupMatchesRaw, activeGroupMatchesRaw, doubleStageOverview, summary, teamsInActiveBracket, bracketEligibleTeamIds] =
       await Promise.all([
         listLobbyTeamsDetailed(tournament.id),
         !caps.hasLobbyRounds ? Promise.resolve([]) : listReclubMatches(tournament.id),
         !caps.hasLobbyRounds ? Promise.resolve([]) : getActiveReclubMatches(tournament.id),
-        showBracket ? listBracketMatches(tournament.id) : Promise.resolve([]),
-        inGroupPhase || caps.isDoubleStage || caps.isGroupOnly
+        showBracket || caps.canGenerateKnockout
+          ? listBracketMatches(tournament.id)
+          : Promise.resolve([]),
+        caps.hasGroupStage || caps.isDoubleStage || caps.isGroupOnly
           ? listGroupMatches(tournament.id)
           : Promise.resolve([]),
-        inGroupPhase ? getActiveGroupMatches(tournament.id) : Promise.resolve([]),
+        caps.hasGroupStage || caps.isDoubleStage || caps.isGroupOnly
+          ? getActiveGroupMatches(tournament.id)
+          : Promise.resolve([]),
         caps.isDoubleStage || caps.isGroupOnly
           ? buildDoubleStageOverview(tournament)
           : Promise.resolve(null),
@@ -85,11 +87,28 @@ export async function GET(
           normalizeTournamentType(tournament.tournamentType),
           tournament.officialBilling,
         ),
-        showBracket ? getTeamsInActiveBracketMatches(tournament.id) : Promise.resolve([]),
+        showBracket || caps.canGenerateKnockout
+          ? getTeamsInActiveBracketMatches(tournament.id)
+          : Promise.resolve([]),
         showBracket || caps.isDoubleStage
           ? listBracketEligibleTeamIds(tournament).then((ids) => [...ids])
           : Promise.resolve([] as string[]),
       ]);
+
+    // Orphan-bracket heal may flip phase to knockout — re-resolve scoring mode.
+    if (
+      doubleStageOverview &&
+      tournament.format === "double_stage" &&
+      doubleStageOverview.phase === "knockout"
+    ) {
+      caps = getFormatCapabilities({
+        ...tournament,
+        settings: {
+          ...((tournament.settings as Record<string, unknown> | null) ?? {}),
+          doubleStage: doubleStageOverview.settings,
+        },
+      });
+    }
 
     const reclubMatches = normalizeReclubMatchesForDisplay(
       reclubMatchesRaw,

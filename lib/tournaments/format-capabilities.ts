@@ -39,15 +39,17 @@ export function getFormatCapabilities(tournament: TournamentDetail): FormatCapab
   const isGroupOnly = format === "group_only";
   const phase = isDoubleStage ? getDoubleStagePhase(tournament) : null;
 
-  const hasGroupStage =
-    (isDoubleStage && phase === "group") || isGroupOnly || formatHasGroupStage(format);
+  // Active group-stage workspace only (not "format supports groups someday").
+  // Double-stage in knockout must flip this off so Bracket + live scoring use
+  // elimination paths instead of the awaiting/group UI.
+  const hasGroupStage = isGroupOnly || (isDoubleStage && phase === "group");
   const hasBracket =
     isSingleElimination ||
     (isDoubleStage && phase === "knockout") ||
     format === "double_elimination";
 
   let manageScoringMode: FormatCapabilities["manageScoringMode"] = "rounds";
-  if (isGroupOnly || (isDoubleStage && phase === "group")) manageScoringMode = "groups";
+  if (hasGroupStage) manageScoringMode = "groups";
   else if (!isAmericano && !isMexicano) manageScoringMode = "bracket";
 
   return {
@@ -57,11 +59,11 @@ export function getFormatCapabilities(tournament: TournamentDetail): FormatCapab
     isMexicano,
     isGroupOnly,
     hasBracket,
-    hasGroupStage: hasGroupStage && !isAmericano && !isMexicano,
+    hasGroupStage,
     hasLobbyRounds: formatHasLobbyRounds(format),
     manageScoringMode,
     showBracketTab: formatHasKnockout(format) && !isGroupOnly && !isAmericano && !isMexicano,
-    showGroupsTab: isDoubleStage || isGroupOnly,
+    showGroupsTab: isDoubleStage || isGroupOnly || formatHasGroupStage(format),
     canGenerateKnockout: formatHasKnockout(format) && !isGroupOnly,
   };
 }

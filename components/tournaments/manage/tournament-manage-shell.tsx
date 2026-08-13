@@ -42,9 +42,13 @@ import type { TournamentRegistrationSummary } from "@/lib/tournaments/registrati
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { useManageTournamentDetail } from "@/hooks/use-manage-tournament-detail";
+import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
 import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/ui/labels";
 import { cpBadgeSuccessClass, cpBadgeWarningClass } from "@/lib/styles/surface-classes";
-import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
+import {
+  getDoubleStagePhase,
+  getFormatCapabilities,
+} from "@/lib/tournaments/format-capabilities";
 import { getTournamentFormatLabel } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 
@@ -145,7 +149,41 @@ export function TournamentManageShell({
       initialTournament.slug,
       initialTournament,
     );
-  const caps = getFormatCapabilities(tournament);
+  const { data: manageScoring } = useTournamentManageScoring(
+    tournament.sportSlug,
+    tournament.slug,
+  );
+  const liveDoubleStagePhase =
+    manageScoring?.doubleStage?.phase ??
+    (tournament.format === "double_stage" ? getDoubleStagePhase(tournament) : null);
+  const caps = getFormatCapabilities(
+    liveDoubleStagePhase && tournament.format === "double_stage"
+      ? {
+          ...tournament,
+          settings: {
+            ...((tournament.settings as Record<string, unknown> | null) ?? {}),
+            doubleStage: {
+              ...(((tournament.settings as Record<string, unknown> | null)
+                ?.doubleStage as Record<string, unknown> | undefined) ?? {}),
+              ...(manageScoring?.doubleStage?.settings ?? {}),
+              phase: liveDoubleStagePhase,
+            },
+          },
+        }
+      : tournament,
+  );
+  const showDoubleStageBracketAwaiting =
+    caps.isDoubleStage && liveDoubleStagePhase === "group";
+
+  useEffect(() => {
+    if (
+      tournament.format === "double_stage" &&
+      liveDoubleStagePhase === "knockout" &&
+      getDoubleStagePhase(tournament) === "group"
+    ) {
+      void refetchTournament();
+    }
+  }, [liveDoubleStagePhase, refetchTournament, tournament]);
   const isOfficial = isOfficialType(tournament.tournamentType);
   const isFunMatch = isFunMatchType(tournament.tournamentType);
   const isPartnerEvent = Boolean(tournament.partnerId);
@@ -482,7 +520,7 @@ export function TournamentManageShell({
             ) : null}
 
             {section === "bracket" && caps.showBracketTab && access.canManageBracket ? (
-              caps.isDoubleStage && caps.hasGroupStage ? (
+              showDoubleStageBracketAwaiting ? (
                 <DoubleStageBracketAwaitingPanel
                   tournament={tournament}
                   onOpenGroups={() => navigateSection("groups")}

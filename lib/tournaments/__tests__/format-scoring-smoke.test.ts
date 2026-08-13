@@ -214,6 +214,21 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
     expect(caps.canGenerateKnockout).toBe(row.expect.canGenerateKnockout);
   });
 
+  it("double_stage knockout phase clears hasGroupStage so bracket scoring unlocks", () => {
+    const groupCaps = getFormatCapabilities(
+      stubTournament("double_stage", { doubleStage: { phase: "group" } }),
+    );
+    const koCaps = getFormatCapabilities(
+      stubTournament("double_stage", { doubleStage: { phase: "knockout" } }),
+    );
+    expect(groupCaps.hasGroupStage).toBe(true);
+    expect(groupCaps.hasBracket).toBe(false);
+    expect(groupCaps.manageScoringMode).toBe("groups");
+    expect(koCaps.hasGroupStage).toBe(false);
+    expect(koCaps.hasBracket).toBe(true);
+    expect(koCaps.manageScoringMode).toBe("bracket");
+  });
+
   it("lobby round play is enabled for Official Americano & Mexicano", () => {
     expect(
       supportsRoundBasedPlay({ tournamentType: "official", format: "americano" }),
