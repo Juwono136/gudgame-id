@@ -35,10 +35,10 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
   const overview = data?.doubleStage;
   const cfg = getDoubleStageConfigSummary(tournament);
   const maxScore = cfg.pointsPerMatch;
-  const gamesMode = getTournamentMatchScoreMode(tournament) === "games";
+  const gamesMode = getTournamentMatchScoreMode(tournament, "group") === "games";
   const gameRules = gamesMode ? getTournamentGameRules(tournament, "group") : null;
-  const classicSetRules = isClassicSetsFormat(tournament)
-    ? getTournamentClassicSetRules(tournament)
+  const classicSetRules = isClassicSetsFormat(tournament, "group")
+    ? getTournamentClassicSetRules(tournament, "group")
     : null;
   const scoreEntryMode = getTournamentScoreEntryMode(tournament);
 

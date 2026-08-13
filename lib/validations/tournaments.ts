@@ -57,8 +57,13 @@ const matchScoringLeafSchema = z.object({
 });
 
 const matchScoringSchema = matchScoringLeafSchema.extend({
-  group: matchScoringLeafSchema.partial().optional(),
-  knockout: matchScoringLeafSchema.partial().optional(),
+  /** Full leaf preferred; partial kept for legacy race-only stage overrides. */
+  group: matchScoringLeafSchema.partial().extend({
+    mode: z.enum(MATCH_SCORING_MODES).optional(),
+  }).optional(),
+  knockout: matchScoringLeafSchema.partial().extend({
+    mode: z.enum(MATCH_SCORING_MODES).optional(),
+  }).optional(),
 });
 
 export const tournamentUpsertSchema = z

@@ -21,9 +21,9 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
   const doubleStage = live?.doubleStage;
   const groups = (doubleStage?.groups ?? []) as GroupOverview[];
   const cfg = getDoubleStageConfigSummary(tournament);
-  const scoreDisplay = isClassicSetsFormat(tournament)
+  const scoreDisplay = isClassicSetsFormat(tournament, "group")
     ? "sets"
-    : getTournamentMatchScoreMode(tournament) === "games"
+    : getTournamentMatchScoreMode(tournament, "group") === "games"
       ? "games"
       : "diff";
 

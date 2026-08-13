@@ -659,7 +659,7 @@ export async function buildDoubleStageOverview(
           m.metadata && typeof m.metadata === "object"
             ? (m.metadata as Record<string, unknown>)
             : undefined;
-        const classic = isClassicSetsFormat(tournament)
+        const classic = isClassicSetsFormat(tournament, "group")
           ? classicStatsFromMatchMeta(rawMeta, m.scoreA ?? 0, m.scoreB ?? 0)
           : null;
         return {
@@ -848,7 +848,7 @@ export async function updateGroupStageLiveScore(
 ): Promise<GroupMatchView> {
   assertDoubleStageGroupScoringAllowed(tournament);
   const rules = buildScoringRules(tournament);
-  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
+  const useGamesMode = getTournamentMatchScoreMode(tournament, "group") === "games";
   const db = getDb();
 
   const updated = await db.transaction(async (tx) => {
@@ -924,8 +924,8 @@ export async function updateGroupStageLiveScore(
           statusCode: 422,
         });
       }
-      if (isClassicSetsFormat(tournament)) {
-        const setRules = getTournamentClassicSetRules(tournament);
+      if (isClassicSetsFormat(tournament, "group")) {
+        const setRules = getTournamentClassicSetRules(tournament, "group");
         const advanced = startNextClassicAfterWin(
           scoreA,
           scoreB,
@@ -964,9 +964,9 @@ export async function updateGroupStageLiveScore(
       }
       const delta = scoreAction === "decrement" ? (-1 as const) : (1 as const);
 
-      if (useGamesMode && isClassicSetsFormat(tournament)) {
+      if (useGamesMode && isClassicSetsFormat(tournament, "group")) {
         const gameRules = getTournamentGameRules(tournament, "group");
-        const setRules = getTournamentClassicSetRules(tournament);
+        const setRules = getTournamentClassicSetRules(tournament, "group");
         const applied = applyClassicSetPointDelta(
           scoreA,
           scoreB,
@@ -1118,7 +1118,7 @@ export async function updateGroupStageLiveScore(
     // Point log is scoring-only — do not persist score reductions in JSONB.
     const withEvent =
       scoreAction === "decrement" ? prevMeta : appendScoreEvent(prevMeta, event);
-    const classicExtras = isClassicSetsFormat(tournament)
+    const classicExtras = isClassicSetsFormat(tournament, "group")
       ? (() => {
           const totals = sumClassicGames(
             nextGameState.setScores,
@@ -1235,11 +1235,11 @@ export async function recordGroupStageScore(
     });
   }
 
-  if (getTournamentMatchScoreMode(tournament) === "games") {
+  if (getTournamentMatchScoreMode(tournament, "group") === "games") {
     const paperMode = getTournamentScoreEntryMode(tournament) === "paper";
     if (!paperMode) {
-      if (isClassicSetsFormat(tournament)) {
-        const setRules = getTournamentClassicSetRules(tournament);
+      if (isClassicSetsFormat(tournament, "group")) {
+        const setRules = getTournamentClassicSetRules(tournament, "group");
         const classic = isClassicMatchComplete(
           scores.scoreA,
           scores.scoreB,
@@ -1281,7 +1281,7 @@ export async function recordGroupStageScore(
           scoreB: scores.scoreB,
           action: "set",
         });
-  const classicFinalize = isClassicSetsFormat(tournament)
+  const classicFinalize = isClassicSetsFormat(tournament, "group")
     ? (() => {
         const gs = baseMeta.gameState;
         const totals = sumClassicGames(

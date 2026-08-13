@@ -479,7 +479,7 @@ export async function updateBracketLiveScore(
   }
 
   const rules = buildScoringRules(tournament);
-  const useGamesMode = getTournamentMatchScoreMode(tournament) === "games";
+  const useGamesMode = getTournamentMatchScoreMode(tournament, "knockout") === "games";
   const prevMeta = parseBracketMatchMetadata(match.metadata);
   const scoreABefore = Math.max(0, match.scoreA ?? 0);
   const scoreBBefore = Math.max(0, match.scoreB ?? 0);
@@ -522,8 +522,8 @@ export async function updateBracketLiveScore(
         statusCode: 422,
       });
     }
-    if (isClassicSetsFormat(tournament)) {
-      const setRules = getTournamentClassicSetRules(tournament);
+    if (isClassicSetsFormat(tournament, "knockout")) {
+      const setRules = getTournamentClassicSetRules(tournament, "knockout");
       const advanced = startNextClassicAfterWin(
         scoreA,
         scoreB,
@@ -561,9 +561,9 @@ export async function updateBracketLiveScore(
       });
     }
     const delta = input.action === "decrement" ? (-1 as const) : (1 as const);
-    if (useGamesMode && isClassicSetsFormat(tournament)) {
+    if (useGamesMode && isClassicSetsFormat(tournament, "knockout")) {
       const gameRules = getTournamentGameRules(tournament, "knockout");
-      const setRules = getTournamentClassicSetRules(tournament);
+      const setRules = getTournamentClassicSetRules(tournament, "knockout");
       const applied = applyClassicSetPointDelta(
         scoreA,
         scoreB,
@@ -712,7 +712,7 @@ export async function updateBracketLiveScore(
     scorerName: input.scorerName,
     scorerUserId: input.scorerUserId,
   });
-  const classicExtras = isClassicSetsFormat(tournament)
+  const classicExtras = isClassicSetsFormat(tournament, "knockout")
     ? (() => {
         const totals = sumClassicGames(
           nextGameState.setScores,

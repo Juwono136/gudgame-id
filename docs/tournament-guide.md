@@ -349,19 +349,20 @@ Resolver: `lib/tournaments/scoring/match-scoring.ts`. Series knockout: `resolveS
 
 #### Stage overrides (Double Stage) — group ≠ knockout
 
-Mirip partner **Short race-to-N**, Official Double Stage bisa set **Group stage race-to** dan **Knockout race-to** berbeda (contoh: group first-to-4, KO first-to-6).
+Mirip partner **Short race-to-N**, Official Double Stage menyimpan **scoring leaf independen** untuk group dan knockout. Setiap stage bisa memilih **tipe** sendiri: Best of, Race to, Total, atau Custom — lengkap dengan opsi mode-nya.
 
 | Field | Storage |
 | --- | --- |
-| Shared / default | `matchScoring.mode` + `matchScoring.raceTo` |
-| Group | `matchScoring.group.raceTo` (+ dual-write `raceToGamesGroup` jika N ∈ {2,3,4,6}) |
-| Knockout | `matchScoring.knockout.raceTo` (+ dual-write `raceToGamesKnockout`) |
+| Root (default = group) | `matchScoring.mode` + field mode |
+| Group | `matchScoring.group` (full leaf: mode + options) |
+| Knockout | `matchScoring.knockout` (full leaf: mode + options) |
+| Legacy race dual-write | `raceToGamesGroup` / `raceToGamesKnockout` hanya jika stage tersebut mode `race_to` dan N ∈ {2,3,4,6} |
 
-Runtime: `resolveMatchScoringForStage` → `getTournamentRaceToTarget(tournament, "group" \| "knockout")` → live scoring, manage panels (group vs bracket), walkover/retirement race target, fullscreen display, game rules.
+Runtime: `resolveMatchScoringForStage` → `getTournamentMatchScoreMode(t, stage)` / `getTournamentGameRules(t, stage)` / `isClassicSetsFormat(t, stage)` → live scoring, manage panels (group vs bracket), walkover/retirement, fullscreen display.
 
-Stage leaves **hanya** untuk Double Stage: format lain di-strip saat create/edit (`matchScoringForFormat`) agar switch format tidak membocorkan race target group/KO ke Elimination / Group only / lobby.
+Stage leaves **hanya** untuk Double Stage: format lain di-strip saat create/edit (`matchScoringForFormat`) agar switch format tidak membocorkan scoring group/KO ke Elimination / Group only / lobby.
 
-Mode selain **Race to** memakai satu aturan bersama untuk kedua stage (override stage race-to hanya aktif di Race to).
+Contoh: Group Race to 4 + Knockout Best of 3; atau Group Custom + Knockout Race to 6.
 
 Legacy Official tanpa `matchScoring` di-derive dari race-to / points / `raceToGamesGroup`+`Knockout` (`deriveMatchScoringFromLegacy`).
 
@@ -596,7 +597,7 @@ Status verifikasi terakhir: **2026-08-13** (`vitest` tournaments + player-perfor
 | Billing | Paid + fee; Free tanpa fee; Free+fee ditolak; Paid tanpa fee ditolak |
 | Family | Original semua format; Custom tanpa Mexicano; Mexicano+Custom ditolak |
 | Format | DS / Group only / Elimination / Americano / Mexicano capabilities + manage mode |
-| Scoring | Race to 8, Best of, Total, Custom large, ±1 intra-game, labels live; **group vs KO race-to** |
+| Scoring | Race to 8, Best of, Total, Custom large, ±1 intra-game, labels live; **group vs KO independent modes** |
 | Meetings / legs | RR × N; series majority; Original paksa 1; save Original hapus customMatch |
 | Leaderboard | Series child di-skip; Mexicano sort poin |
 | Ranking | Tier ±poin; No Rank = 0; Fun Match = 0; skill hilang = 0 (bukan fallback Gold) |

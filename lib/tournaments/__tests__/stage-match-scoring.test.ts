@@ -1,23 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
+  composeDoubleStageMatchScoring,
   deriveMatchScoringFromLegacy,
-  ensureDoubleStageRaceOverrides,
+  ensureDoubleStageScoringLeaves,
+  matchScoreModeFromScoring,
   matchScoringForFormat,
+  matchScoringLeafFromMode,
   parseMatchScoringConfig,
   raceToValueForStage,
   resolveMatchScoringForStage,
   summarizeMatchScoring,
+  summarizeMatchScoringLeaf,
+  type MatchScoringMode,
 } from "@/lib/tournaments/match-config";
 import {
   buildTournamentSettings,
+  getTournamentClassicSetRules,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentMatchScoringHint,
   getTournamentRaceToTarget,
+  isClassicSetsFormat,
   parseTournamentSettings,
   settingsInputFromUpsert,
 } from "@/lib/tournaments/settings";
 import { isRaceToGamesMatchComplete } from "@/lib/tournaments/scoring/game-mode";
+import { resolveMatchScoring } from "@/lib/tournaments/scoring/match-scoring";
 import { tournamentUpsertSchema } from "@/lib/validations/tournaments";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
@@ -34,7 +42,9 @@ function stub(settings: Record<string, unknown>): TournamentDetail {
   } as TournamentDetail;
 }
 
-describe("stage-specific match scoring (group vs knockout)", () => {
+const MODES: MatchScoringMode[] = ["best_of", "race_to", "total", "custom_score"];
+
+describe("stage-specific match scoring (full mode per stage)", () => {
   it("resolves different race-to targets per stage from matchScoring", () => {
     const config = parseMatchScoringConfig({
       mode: "race_to",
@@ -44,35 +54,86 @@ describe("stage-specific match scoring (group vs knockout)", () => {
     });
     expect(raceToValueForStage(config, "group")).toBe(4);
     expect(raceToValueForStage(config, "knockout")).toBe(6);
-    expect(summarizeMatchScoring(config)).toBe("Group race to 4 · KO race to 6");
+    expect(summarizeMatchScoring(config)).toBe(
+      "Group: Race to 4 · KO: Race to 6",
+    );
   });
 
-  it("merges stage leaf overrides via resolveMatchScoringForStage", () => {
-    const config = {
-      mode: "race_to" as const,
-      raceTo: { value: 4 },
-      knockout: { mode: "race_to" as const, raceTo: { value: 8 } },
-    };
-    const ko = resolveMatchScoringForStage(config, "knockout");
-    expect(ko?.raceTo?.value).toBe(8);
+  it("allows independent scoring modes for group vs knockout", () => {
+    const config = composeDoubleStageMatchScoring(
+      { mode: "race_to", raceTo: { value: 4 } },
+      { mode: "best_of", bestOf: 3, setTarget: { value: 6 } },
+    );
     const group = resolveMatchScoringForStage(config, "group");
+    const ko = resolveMatchScoringForStage(config, "knockout");
+    expect(group?.mode).toBe("race_to");
     expect(group?.raceTo?.value).toBe(4);
+    expect(ko?.mode).toBe("best_of");
+    expect(ko?.bestOf).toBe(3);
+    expect(ko?.raceTo).toBeUndefined();
+    expect(summarizeMatchScoring(config)).toContain("Group: Race to 4");
+    expect(summarizeMatchScoring(config)).toContain("KO: Best of 3");
   });
 
-  it("drives live game rules from stored stage overrides", () => {
+  it.each(MODES)("compose + resolve keeps %s leaf clean (no stale fields)", (mode) => {
+    const leaf = matchScoringLeafFromMode(mode);
+    const other = matchScoringLeafFromMode(
+      mode === "race_to" ? "best_of" : "race_to",
+    );
+    const config = composeDoubleStageMatchScoring(leaf, other);
+    const resolved = resolveMatchScoringForStage(config, "group");
+    expect(resolved?.mode).toBe(mode);
+    if (mode === "race_to") {
+      expect(resolved?.bestOf).toBeUndefined();
+      expect(resolved?.customScore).toBeUndefined();
+    }
+    if (mode === "best_of") {
+      expect(resolved?.raceTo).toBeUndefined();
+    }
+    if (mode === "custom_score") {
+      expect(resolved?.raceTo).toBeUndefined();
+      expect(resolved?.bestOf).toBeUndefined();
+    }
+  });
+
+  it("drives live game rules / classic / points mode from stage leaves", () => {
     const t = stub({
       matchScoreMode: "games",
-      matchScoring: {
-        mode: "race_to",
-        raceTo: { value: 4 },
-        group: { mode: "race_to", raceTo: { value: 4 } },
-        knockout: { mode: "race_to", raceTo: { value: 6 } },
-      },
+      matchScoring: composeDoubleStageMatchScoring(
+        { mode: "race_to", raceTo: { value: 4 } },
+        { mode: "best_of", bestOf: 3, setTarget: { value: 6 } },
+      ),
     });
+    expect(getTournamentMatchScoreMode(t, "group")).toBe("games");
+    expect(getTournamentMatchScoreMode(t, "knockout")).toBe("games");
+    expect(isClassicSetsFormat(t, "group")).toBe(false);
+    expect(isClassicSetsFormat(t, "knockout")).toBe(true);
     expect(getTournamentRaceToTarget(t, "group")).toBe(4);
-    expect(getTournamentRaceToTarget(t, "knockout")).toBe(6);
     expect(getTournamentGameRules(t, "group").raceToGames).toBe(4);
-    expect(getTournamentGameRules(t, "knockout").raceToGames).toBe(6);
+    expect(getTournamentClassicSetRules(t, "knockout").bestOfSets).toBe(3);
+    expect(getTournamentClassicSetRules(t, "knockout").gamesToWinSet).toBe(6);
+  });
+
+  it("maps custom_score stage to points entry mode", () => {
+    const t = stub({
+      matchScoring: composeDoubleStageMatchScoring(
+        {
+          mode: "custom_score",
+          customScore: {
+            variant: "large_score",
+            allowDraw: false,
+            tiePolicy: "host_manual",
+          },
+        },
+        { mode: "race_to", raceTo: { value: 6 } },
+      ),
+    });
+    expect(getTournamentMatchScoreMode(t, "group")).toBe("points");
+    expect(getTournamentMatchScoreMode(t, "knockout")).toBe("games");
+    expect(matchScoreModeFromScoring(resolveMatchScoringForStage(
+      parseMatchScoringConfig(t.settings.matchScoring),
+      "group",
+    ))).toBe("points");
   });
 
   it("derives stage overrides from legacy raceToGamesGroup / Knockout", () => {
@@ -85,56 +146,41 @@ describe("stage-specific match scoring (group vs knockout)", () => {
     expect(derived.group?.raceTo?.value).toBe(4);
     expect(derived.knockout?.raceTo?.value).toBe(6);
   });
-
-  it("accepts custom race targets beyond legacy presets", () => {
-    const t = stub({
-      matchScoreMode: "games",
-      matchScoring: {
-        mode: "race_to",
-        raceTo: { value: 5 },
-        group: { mode: "race_to", raceTo: { value: 5 } },
-        knockout: { mode: "race_to", raceTo: { value: 8 } },
-      },
-    });
-    expect(getTournamentRaceToTarget(t, "group")).toBe(5);
-    expect(getTournamentRaceToTarget(t, "knockout")).toBe(8);
-  });
 });
 
 describe("stage scoring · format isolation (no regression)", () => {
   it("strips stage leaves for non-double-stage formats", () => {
-    const dual = {
-      mode: "race_to" as const,
-      raceTo: { value: 4 },
-      group: { mode: "race_to" as const, raceTo: { value: 4 } },
-      knockout: { mode: "race_to" as const, raceTo: { value: 6 } },
-    };
+    const dual = composeDoubleStageMatchScoring(
+      { mode: "race_to", raceTo: { value: 4 } },
+      { mode: "best_of", bestOf: 5, setTarget: { value: 6 } },
+    );
     const se = matchScoringForFormat(dual, "single_elimination");
     expect(se.group).toBeUndefined();
     expect(se.knockout).toBeUndefined();
+    expect(se.mode).toBe("race_to");
     expect(se.raceTo?.value).toBe(4);
-
-    const kept = matchScoringForFormat(dual, "double_stage");
-    expect(kept.knockout?.raceTo?.value).toBe(6);
   });
 
-  it("seeds group 4 / KO 6 when entering Double Stage race-to", () => {
-    const seeded = ensureDoubleStageRaceOverrides({
+  it("seeds group race-to 4 / KO race-to 6 when entering Double Stage", () => {
+    const seeded = ensureDoubleStageScoringLeaves({
       mode: "race_to",
       raceTo: { value: 4 },
     });
+    expect(seeded.group?.mode).toBe("race_to");
     expect(seeded.group?.raceTo?.value).toBe(4);
+    expect(seeded.knockout?.mode).toBe("race_to");
     expect(seeded.knockout?.raceTo?.value).toBe(6);
   });
 
-  it("does not rewrite best_of / total / custom when ensuring DS overrides", () => {
-    expect(
-      ensureDoubleStageRaceOverrides({
-        mode: "best_of",
-        bestOf: 3,
-        setTarget: { value: 6 },
-      }).mode,
-    ).toBe("best_of");
+  it("clones non-race group mode into knockout when KO leaf missing", () => {
+    const seeded = ensureDoubleStageScoringLeaves({
+      mode: "best_of",
+      bestOf: 3,
+      setTarget: { value: 6 },
+    });
+    expect(seeded.group?.mode).toBe("best_of");
+    expect(seeded.knockout?.mode).toBe("best_of");
+    expect(seeded.knockout?.bestOf).toBe(3);
   });
 
   it("single race_to (no stage leaves) still works for all Official formats", () => {
@@ -154,8 +200,6 @@ describe("stage scoring · format isolation (no regression)", () => {
       } as TournamentDetail;
       expect(getTournamentMatchScoreMode(t)).toBe("games");
       expect(getTournamentRaceToTarget(t)).toBe(8);
-      expect(getTournamentRaceToTarget(t, "group")).toBe(8);
-      expect(getTournamentRaceToTarget(t, "knockout")).toBe(8);
       expect(getTournamentGameRules(t).raceToGames).toBe(8);
     }
   });
@@ -172,19 +216,14 @@ describe("stage scoring · format isolation (no regression)", () => {
     expect(getTournamentMatchScoreMode(t)).toBe("points");
   });
 
-  it("walkover / special-result race targets follow match kind stage", () => {
+  it("walkover race targets follow match kind stage for race_to", () => {
     const t = stub({
       matchScoreMode: "games",
-      matchScoring: {
-        mode: "race_to",
-        raceTo: { value: 4 },
-        group: { mode: "race_to", raceTo: { value: 4 } },
-        knockout: { mode: "race_to", raceTo: { value: 6 } },
-      },
+      matchScoring: composeDoubleStageMatchScoring(
+        { mode: "race_to", raceTo: { value: 4 } },
+        { mode: "race_to", raceTo: { value: 6 } },
+      ),
     });
-    // Mirrors match-special-result.ts: kind group → group, bracket → knockout
-    expect(getTournamentGameRules(t, "group").raceToGames).toBe(4);
-    expect(getTournamentGameRules(t, "knockout").raceToGames).toBe(6);
     expect(isRaceToGamesMatchComplete(4, 0, getTournamentGameRules(t, "group")).complete).toBe(
       true,
     );
@@ -197,23 +236,107 @@ describe("stage scoring · format isolation (no regression)", () => {
   });
 });
 
+describe("stage scoring · all mode matrix (resolve + upsert)", () => {
+  const matrix: Array<{
+    group: ReturnType<typeof matchScoringLeafFromMode>;
+    knockout: ReturnType<typeof matchScoringLeafFromMode>;
+  }> = [];
+  for (const g of MODES) {
+    for (const k of MODES) {
+      matrix.push({
+        group: matchScoringLeafFromMode(g),
+        knockout: matchScoringLeafFromMode(k),
+      });
+    }
+  }
+
+  it.each(matrix)(
+    "group $group.mode + KO $knockout.mode resolves and validates",
+    ({ group, knockout }) => {
+      const config = composeDoubleStageMatchScoring(group, knockout);
+      expect(resolveMatchScoringForStage(config, "group")?.mode).toBe(group.mode);
+      expect(resolveMatchScoringForStage(config, "knockout")?.mode).toBe(knockout.mode);
+      expect(summarizeMatchScoringLeaf(group).length).toBeGreaterThan(0);
+
+      const startsAt = new Date("2026-08-13T02:00:00.000Z").toISOString();
+      const endsAt = new Date("2026-08-21T02:00:00.000Z").toISOString();
+      const parsed = tournamentUpsertSchema.safeParse({
+        name: "DS Matrix",
+        slug: `ds-${group.mode.replace(/_/g, "-")}-${knockout.mode.replace(/_/g, "-")}`,
+        status: "upcoming",
+        tournamentType: "official",
+        officialBilling: "free",
+        registrationFeeIdr: 0,
+        categoryLabel: "Mix",
+        format: "double_stage",
+        formatFamily: "custom",
+        rankingMode: "tiered",
+        allowedTierLevels: ["bronze"],
+        matchScoring: config,
+        customMatch: { groupMeetingsPerPair: 1, knockoutLegsPerSlot: 1 },
+        maxTeamsPerGroup: 4,
+        teamsAdvancePerGroup: 2,
+        venue: "GBK SENAYAN",
+        startsAt,
+        endsAt,
+        scoringType: "points",
+        pointsPerMatch: 21,
+        courtCount: 2,
+        playersPerTeam: 2,
+        maxTeams: 16,
+      });
+      expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+
+      const t = stub({ matchScoring: config });
+      expect(getTournamentMatchScoreMode(t, "group")).toBe(
+        matchScoreModeFromScoring(group),
+      );
+      expect(getTournamentMatchScoreMode(t, "knockout")).toBe(
+        matchScoreModeFromScoring(knockout),
+      );
+    },
+  );
+
+  it("best_of and race_to resolveMatchScoring complete correctly per stage config", () => {
+    expect(
+      resolveMatchScoring({
+        config: { mode: "best_of", bestOf: 3, setTarget: { value: 6 } },
+        sideA: { sets: [[6, 4], [6, 3]] },
+        sideB: { sets: [] },
+      }).status,
+    ).toBe("complete");
+    expect(
+      resolveMatchScoring({
+        config: { mode: "race_to", raceTo: { value: 4 } },
+        sideA: { points: 4 },
+        sideB: { points: 2 },
+      }).status,
+    ).toBe("complete");
+    expect(
+      resolveMatchScoring({
+        config: { mode: "total", totalSets: 3 },
+        sideA: { sets: [[6, 4], [3, 6], [6, 2]] },
+        sideB: { sets: [] },
+      }).status,
+    ).toBe("complete");
+  });
+});
+
 describe("stage scoring · create → store → read round-trip", () => {
-  it("persists group/knockout race-to through settings build + parse", () => {
+  it("persists independent group/knockout modes through settings build + parse", () => {
+    const matchScoring = composeDoubleStageMatchScoring(
+      { mode: "race_to", raceTo: { value: 4 } },
+      { mode: "best_of", bestOf: 3, setTarget: { value: 6 } },
+    );
     const input = settingsInputFromUpsert(
       {
         formatFamily: "custom",
         format: "double_stage",
-        matchScoring: {
-          mode: "race_to",
-          raceTo: { value: 4 },
-          group: { mode: "race_to", raceTo: { value: 4 } },
-          knockout: { mode: "race_to", raceTo: { value: 6 } },
-        },
+        matchScoring,
         customMatch: { groupMeetingsPerPair: 1, knockoutLegsPerSlot: 1 },
         matchScoreMode: "games",
         raceToGames: 4,
         raceToGamesGroup: 4,
-        raceToGamesKnockout: 6,
         rankingMode: "tiered",
         allowedTierLevels: ["bronze"],
         maxTeamsPerGroup: 4,
@@ -223,53 +346,14 @@ describe("stage scoring · create → store → read round-trip", () => {
     );
     const stored = buildTournamentSettings({}, input);
     const parsed = parseTournamentSettings(stored);
-    expect(parsed.matchScoring?.group?.raceTo?.value).toBe(4);
-    expect(parsed.matchScoring?.knockout?.raceTo?.value).toBe(6);
-    expect(parsed.raceToGamesGroup).toBe(4);
-    expect(parsed.raceToGamesKnockout).toBe(6);
+    expect(parsed.matchScoring?.group?.mode).toBe("race_to");
+    expect(parsed.matchScoring?.knockout?.mode).toBe("best_of");
 
     const t = stub(stored as Record<string, unknown>);
-    expect(getTournamentRaceToTarget(t, "group")).toBe(4);
-    expect(getTournamentRaceToTarget(t, "knockout")).toBe(6);
-    expect(getTournamentMatchScoringHint(t)).toBe("Group race to 4 · KO race to 6");
-  });
-
-  it("upsert schema accepts Double Stage with different group/KO race targets", () => {
-    const startsAt = new Date("2026-08-13T02:00:00.000Z").toISOString();
-    const endsAt = new Date("2026-08-21T02:00:00.000Z").toISOString();
-    const parsed = tournamentUpsertSchema.safeParse({
-      name: "DS Stage Race",
-      slug: "ds-stage-race",
-      status: "upcoming",
-      tournamentType: "official",
-      officialBilling: "free",
-      registrationFeeIdr: 0,
-      categoryLabel: "Mix",
-      format: "double_stage",
-      formatFamily: "custom",
-      rankingMode: "tiered",
-      allowedTierLevels: ["bronze"],
-      matchScoring: {
-        mode: "race_to",
-        raceTo: { value: 4 },
-        group: { mode: "race_to", raceTo: { value: 4 } },
-        knockout: { mode: "race_to", raceTo: { value: 6 } },
-      },
-      customMatch: { groupMeetingsPerPair: 2, knockoutLegsPerSlot: 1 },
-      maxTeamsPerGroup: 4,
-      teamsAdvancePerGroup: 2,
-      raceToGamesGroup: 4,
-      raceToGamesKnockout: 6,
-      venue: "GBK SENAYAN",
-      startsAt,
-      endsAt,
-      scoringType: "points",
-      pointsPerMatch: 21,
-      courtCount: 2,
-      playersPerTeam: 2,
-      maxTeams: 16,
-    });
-    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    expect(getTournamentMatchScoreMode(t, "group")).toBe("games");
+    expect(isClassicSetsFormat(t, "knockout")).toBe(true);
+    expect(getTournamentMatchScoringHint(t)).toContain("Group: Race to 4");
+    expect(getTournamentMatchScoringHint(t)).toContain("KO: Best of 3");
   });
 
   it("legacy partner-only raceToGamesGroup/Knockout still resolve without matchScoring", () => {

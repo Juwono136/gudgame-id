@@ -59,7 +59,7 @@ export function DoubleStageScheduleManage({
   bracketMatches = [],
   onUpdated,
 }: DoubleStageScheduleManageProps) {
-  const gamesScoreMode = getTournamentMatchScoreMode(tournament) === "games";
+  const gamesScoreMode = getTournamentMatchScoreMode(tournament, "group") === "games";
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<ScheduleMatchRow | null>(null);
   const [draft, setDraft] = useState("");

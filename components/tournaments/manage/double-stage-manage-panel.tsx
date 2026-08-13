@@ -370,8 +370,8 @@ export function DoubleStageManagePanel({
   const [advancing, setAdvancing] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const gamesScoreMode = getTournamentMatchScoreMode(tournament) === "games";
-  const scoreDisplay = isClassicSetsFormat(tournament)
+  const gamesScoreMode = getTournamentMatchScoreMode(tournament, "group") === "games";
+  const scoreDisplay = isClassicSetsFormat(tournament, "group")
     ? "sets"
     : gamesScoreMode
       ? "games"

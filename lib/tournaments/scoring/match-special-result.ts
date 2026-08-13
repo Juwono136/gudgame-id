@@ -50,7 +50,10 @@ export async function recordSpecialMatchResult(
     });
   }
 
-  const setRules = getTournamentClassicSetRules(tournament);
+  const setRules = getTournamentClassicSetRules(
+    tournament,
+    input.kind === "group" ? "group" : "knockout",
+  );
   const db = getDb();
   const table =
     input.kind === "group" ? tournamentGroupMatches : tournamentBracketMatches;
@@ -75,6 +78,7 @@ export async function recordSpecialMatchResult(
     (match as { metadata?: unknown }).metadata,
   );
   const gs = meta.gameState ?? emptyClassicMatchGameState();
+  const raceStage = input.kind === "group" ? "group" : "knockout";
 
   let scoreA: number;
   let scoreB: number;
@@ -84,7 +88,10 @@ export async function recordSpecialMatchResult(
 
   if (input.method === "walkover" || input.method === "withdrawal") {
     // Withdrawal before play treated as walkover for score convention.
-    if (isClassicSetsFormat(tournament) || getTournamentMatchFormat(tournament) === "classic_sets") {
+    if (
+      isClassicSetsFormat(tournament, raceStage) ||
+      getTournamentMatchFormat(tournament) === "classic_sets"
+    ) {
       const wo = computeWalkoverScore(input.winnerSide, setRules);
       scoreA = wo.setsA;
       scoreB = wo.setsB;
@@ -92,7 +99,6 @@ export async function recordSpecialMatchResult(
       gamesForB = wo.gamesForB;
       setScores = wo.setScores;
     } else {
-      const raceStage = input.kind === "group" ? "group" : "knockout";
       const race = getTournamentGameRules(tournament, raceStage).raceToGames;
       scoreA = input.winnerSide === "a" ? race : 0;
       scoreB = input.winnerSide === "b" ? race : 0;
@@ -102,7 +108,7 @@ export async function recordSpecialMatchResult(
     }
   } else {
     // retirement
-    if (isClassicSetsFormat(tournament)) {
+    if (isClassicSetsFormat(tournament, raceStage)) {
       const ret = computeRetirementScore(
         input.winnerSide,
         {
@@ -120,7 +126,6 @@ export async function recordSpecialMatchResult(
       gamesForB = ret.gamesForB;
       setScores = ret.setScores;
     } else {
-      const raceStage = input.kind === "group" ? "group" : "knockout";
       const race = getTournamentGameRules(tournament, raceStage).raceToGames;
       scoreA = input.winnerSide === "a" ? race : Math.min(match.scoreA ?? 0, race - 1);
       scoreB = input.winnerSide === "b" ? race : Math.min(match.scoreB ?? 0, race - 1);

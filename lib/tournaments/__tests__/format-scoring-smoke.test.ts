@@ -439,8 +439,22 @@ describe("smoke · match scoring schemas (live + resolve)", () => {
     expect(getTournamentRaceToTarget(t, "knockout")).toBe(6);
     expect(getTournamentGameRules(t, "group").raceToGames).toBe(4);
     expect(getTournamentGameRules(t, "knockout").raceToGames).toBe(6);
-    expect(getTournamentMatchScoringHint(t)).toBe("Group race to 4 · KO race to 6");
-    expect(getTournamentScoringPrimaryLabel(t)).toBe("Group race to 4 · KO race to 6");
+    expect(getTournamentMatchScoringHint(t)).toBe("Group: Race to 4 · KO: Race to 6");
+    expect(getTournamentScoringPrimaryLabel(t)).toBe("Group: Race to 4 · KO: Race to 6");
+  });
+
+  it("Double Stage can mix Best of group with Race to knockout", () => {
+    const t = stubTournament("double_stage", {
+      matchScoring: {
+        mode: "race_to",
+        raceTo: { value: 4 },
+        group: { mode: "race_to", raceTo: { value: 4 } },
+        knockout: { mode: "best_of", bestOf: 3, setTarget: { value: 6 } },
+      },
+    });
+    expect(getTournamentMatchScoreMode(t, "group")).toBe("games");
+    expect(getTournamentMatchScoreMode(t, "knockout")).toBe("games");
+    expect(getTournamentMatchScoringHint(t)).toContain("Best of 3");
   });
 
   it("does not flip Fun Match points into games via derived matchScoring", () => {

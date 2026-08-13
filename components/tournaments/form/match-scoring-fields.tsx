@@ -11,9 +11,14 @@ import {
 } from "@/components/ui/select";
 import {
   type MatchScoringConfig,
+  type MatchScoringLeaf,
   type MatchScoringMode,
-  defaultMatchScoring,
+  asMatchScoringLeaf,
+  composeDoubleStageMatchScoring,
   getMatchScoringModeLabel,
+  matchScoringLeafFromMode,
+  normalizeMatchScoringLeaf,
+  resolveMatchScoringForStage,
 } from "@/lib/tournaments/match-config";
 import { cn } from "@/lib/utils";
 
@@ -21,8 +26,7 @@ type MatchScoringFieldsProps = {
   value: MatchScoringConfig;
   onChange: (value: MatchScoringConfig) => void;
   /**
-   * Double Stage: allow different group vs knockout targets
-   * (same idea as partner Short race-to-N stage fields).
+   * Double Stage: independent scoring mode + options for group vs knockout.
    */
   showStageOverrides?: boolean;
   disabled?: boolean;
@@ -31,28 +35,6 @@ type MatchScoringFieldsProps = {
 
 const MODES: MatchScoringMode[] = ["best_of", "race_to", "total", "custom_score"];
 const RACE_PRESETS = [4, 6] as const;
-
-function leafFromMode(mode: MatchScoringMode): MatchScoringConfig {
-  switch (mode) {
-    case "best_of":
-      return { mode: "best_of", bestOf: 3, setTarget: { value: 4 } };
-    case "race_to":
-      return { mode: "race_to", raceTo: { value: 4 } };
-    case "total":
-      return { mode: "total", totalSets: 3 };
-    case "custom_score":
-      return {
-        mode: "custom_score",
-        customScore: {
-          variant: "one_match_winner",
-          allowDraw: false,
-          tiePolicy: "continue",
-        },
-      };
-    default:
-      return defaultMatchScoring();
-  }
-}
 
 function clampRace(n: number): number {
   return Math.min(99, Math.max(1, Math.floor(n) || 1));
@@ -108,66 +90,31 @@ function RaceToPicker({
   );
 }
 
-export function MatchScoringFields({
+function ScoringLeafFields({
+  idPrefix,
   value,
-  onChange,
-  showStageOverrides = false,
   disabled,
-  className,
-}: MatchScoringFieldsProps) {
-  const patch = (partial: Partial<MatchScoringConfig>) => {
-    onChange({ ...value, ...partial });
+  onChange,
+}: {
+  idPrefix: string;
+  value: MatchScoringLeaf;
+  disabled?: boolean;
+  onChange: (next: MatchScoringLeaf) => void;
+}) {
+  const patch = (partial: Partial<MatchScoringLeaf>) => {
+    onChange(normalizeMatchScoringLeaf({ ...value, ...partial }));
   };
-
-  const groupRace =
-    value.group?.raceTo?.value ?? value.raceTo?.value ?? 4;
-  const knockoutRace =
-    value.knockout?.raceTo?.value ?? value.raceTo?.value ?? 6;
-
-  const applyStageRaceTargets = (groupN: number, knockoutN: number) => {
-    onChange({
-      ...value,
-      mode: "race_to",
-      raceTo: { value: groupN },
-      group: { mode: "race_to", raceTo: { value: groupN } },
-      knockout: { mode: "race_to", raceTo: { value: knockoutN } },
-    });
-  };
-
-  const handleModeChange = (mode: MatchScoringMode) => {
-    const next = leafFromMode(mode);
-    if (showStageOverrides && mode === "race_to") {
-      onChange({
-        ...next,
-        raceTo: { value: 4 },
-        group: { mode: "race_to", raceTo: { value: 4 } },
-        knockout: { mode: "race_to", raceTo: { value: 6 } },
-      });
-      return;
-    }
-    onChange({ ...next, group: undefined, knockout: undefined });
-  };
-
-  const stageRaceActive = showStageOverrides && value.mode === "race_to";
 
   return (
-    <div className={cn("space-y-4 rounded-2xl border border-cp-border bg-cp-elevated/30 p-4", className)}>
-      <div>
-        <p className="text-sm font-semibold text-foreground">Match scoring</p>
-        <p className="mt-1 text-xs leading-relaxed text-cp-muted">
-          How a single match or knockout leg is decided. Separate from how many times teams meet.
-          {showStageOverrides
-            ? " Double Stage can use different race-to targets for group vs knockout."
-            : null}
-        </p>
-      </div>
-
+    <div className="space-y-3">
       <div className="space-y-2">
         <Label>Scoring mode</Label>
         <Select
           value={value.mode}
           disabled={disabled}
-          onValueChange={(mode) => handleModeChange(mode as MatchScoringMode)}
+          onValueChange={(mode) =>
+            onChange(matchScoringLeafFromMode(mode as MatchScoringMode))
+          }
         >
           <SelectTrigger>
             <SelectValue />
@@ -183,7 +130,7 @@ export function MatchScoringFields({
       </div>
 
       {value.mode === "best_of" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Best of</Label>
             <Select
@@ -201,9 +148,9 @@ export function MatchScoringFields({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="set-target">Set race to</Label>
+            <Label htmlFor={`${idPrefix}-set-target`}>Set race to</Label>
             <Input
-              id="set-target"
+              id={`${idPrefix}-set-target`}
               type="number"
               min={1}
               max={99}
@@ -217,9 +164,9 @@ export function MatchScoringFields({
         </div>
       ) : null}
 
-      {value.mode === "race_to" && !stageRaceActive ? (
+      {value.mode === "race_to" ? (
         <RaceToPicker
-          id="race-to"
+          id={`${idPrefix}-race-to`}
           label="Race to"
           value={value.raceTo?.value ?? 4}
           disabled={disabled}
@@ -227,57 +174,30 @@ export function MatchScoringFields({
         />
       ) : null}
 
-      {stageRaceActive ? (
-        <div className="space-y-4 rounded-xl border border-cp-border/80 bg-cp-card/40 p-3 sm:p-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-cp-muted">
-              Stage race-to targets
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
-              Example: groups race to 4, knockout race to 6 — same pattern as partner Short race-to-N.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <RaceToPicker
-              id="race-to-group"
-              label="Group stage race-to"
-              hint="First to N games for every group fixture / meeting."
-              value={groupRace}
-              disabled={disabled}
-              onChange={(n) => applyStageRaceTargets(n, knockoutRace)}
-            />
-            <RaceToPicker
-              id="race-to-knockout"
-              label="Knockout race-to"
-              hint="First to N games for each knockout leg / slot."
-              value={knockoutRace}
-              disabled={disabled}
-              onChange={(n) => applyStageRaceTargets(groupRace, n)}
-            />
-          </div>
-        </div>
-      ) : null}
-
       {value.mode === "total" ? (
         <div className="space-y-2">
-          <Label htmlFor="total-sets">Total sets</Label>
+          <Label htmlFor={`${idPrefix}-total-sets`}>Total sets</Label>
           <Input
-            id="total-sets"
+            id={`${idPrefix}-total-sets`}
             type="number"
             min={1}
             max={99}
             disabled={disabled}
             value={value.totalSets ?? 3}
             onChange={(e) =>
-              patch({ totalSets: Math.max(1, Math.floor(Number(e.target.value) || 1)) })
+              patch({
+                totalSets: Math.max(1, Math.floor(Number(e.target.value) || 1)),
+              })
             }
           />
-          <p className="text-[11px] text-cp-muted">All sets are played; most sets won wins.</p>
+          <p className="text-[11px] text-cp-muted">
+            All sets are played; most sets won wins.
+          </p>
         </div>
       ) : null}
 
       {value.mode === "custom_score" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Variant</Label>
             <Select
@@ -332,14 +252,110 @@ export function MatchScoringFields({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
 
-      {showStageOverrides && value.mode !== "race_to" ? (
-        <p className="text-[11px] text-cp-muted">
-          Stage-specific group / knockout targets apply when Scoring mode is{" "}
-          <span className="font-medium text-foreground">Race to</span>. Other modes use one shared
-          rule for both stages.
+export function MatchScoringFields({
+  value,
+  onChange,
+  showStageOverrides = false,
+  disabled,
+  className,
+}: MatchScoringFieldsProps) {
+  if (showStageOverrides) {
+    const groupLeaf = asMatchScoringLeaf(
+      resolveMatchScoringForStage(value, "group") ?? value,
+    );
+    const knockoutLeaf = asMatchScoringLeaf(
+      resolveMatchScoringForStage(value, "knockout") ?? {
+        mode: "race_to",
+        raceTo: { value: 6 },
+      },
+    );
+
+    return (
+      <div
+        className={cn(
+          "space-y-4 rounded-2xl border border-cp-border bg-cp-elevated/30 p-4",
+          className,
+        )}
+      >
+        <div>
+          <p className="text-sm font-semibold text-foreground">Match scoring</p>
+          <p className="mt-1 text-xs leading-relaxed text-cp-muted">
+            How a single match or knockout leg is decided. Separate from how many times
+            teams meet. Double Stage can use a different scoring type for group vs
+            knockout (Best of, Race to, Total, or Custom).
+          </p>
+        </div>
+
+        <div className="space-y-4 rounded-xl border border-cp-border/80 bg-cp-card/40 p-3 sm:p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-cp-muted">
+              Stage match scoring
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
+              Example: groups Race to 4, knockout Best of 3 — each stage keeps its own
+              mode and options.
+            </p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 rounded-lg border border-cp-border/70 bg-cp-elevated/40 p-3">
+              <p className="text-sm font-semibold text-foreground">Group stage</p>
+              <p className="text-[11px] text-cp-muted">
+                Applied to every group fixture / meeting.
+              </p>
+              <ScoringLeafFields
+                idPrefix="group"
+                value={groupLeaf}
+                disabled={disabled}
+                onChange={(group) =>
+                  onChange(composeDoubleStageMatchScoring(group, knockoutLeaf))
+                }
+              />
+            </div>
+            <div className="space-y-3 rounded-lg border border-cp-border/70 bg-cp-elevated/40 p-3">
+              <p className="text-sm font-semibold text-foreground">Knockout stage</p>
+              <p className="text-[11px] text-cp-muted">
+                Applied to each knockout leg / bracket slot.
+              </p>
+              <ScoringLeafFields
+                idPrefix="knockout"
+                value={knockoutLeaf}
+                disabled={disabled}
+                onChange={(knockout) =>
+                  onChange(composeDoubleStageMatchScoring(groupLeaf, knockout))
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "space-y-4 rounded-2xl border border-cp-border bg-cp-elevated/30 p-4",
+        className,
+      )}
+    >
+      <div>
+        <p className="text-sm font-semibold text-foreground">Match scoring</p>
+        <p className="mt-1 text-xs leading-relaxed text-cp-muted">
+          How a single match or knockout leg is decided. Separate from how many times
+          teams meet.
         </p>
-      ) : null}
+      </div>
+
+      <ScoringLeafFields
+        idPrefix="root"
+        value={asMatchScoringLeaf(value)}
+        disabled={disabled}
+        onChange={(leaf) => onChange(leaf)}
+      />
     </div>
   );
 }

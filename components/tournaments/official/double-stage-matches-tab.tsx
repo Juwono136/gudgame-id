@@ -50,7 +50,7 @@ export function DoubleStageMatchesTab({
   const { data: live } = useTournamentLive(tournament.sportSlug, tournament.slug);
   const groups = (live?.doubleStage?.groups ?? []) as GroupOverview[];
   const bracketMatches = (live?.bracket?.matches ?? []) as BracketLiveRow[];
-  const gamesScoreMode = getTournamentMatchScoreMode(tournament) === "games";
+  const gamesScoreMode = getTournamentMatchScoreMode(tournament, "group") === "games";
   const brandPrimary =
     getTournamentDisplayConfig(tournament).brandTheme?.primaryColor ?? "#0d9488";
 

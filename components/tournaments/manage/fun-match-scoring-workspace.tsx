@@ -180,7 +180,10 @@ export function FunMatchScoringWorkspace({
 
   const gameRules = useMemo(
     () =>
-      getTournamentMatchScoreMode(tournament) === "games"
+      getTournamentMatchScoreMode(
+        tournament,
+        isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
+      ) === "games"
         ? getTournamentGameRules(
             tournament,
             isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
@@ -190,10 +193,16 @@ export function FunMatchScoringWorkspace({
   );
   const classicSetRules = useMemo(
     () =>
-      isClassicSetsFormat(tournament)
-        ? getTournamentClassicSetRules(tournament)
+      isClassicSetsFormat(
+        tournament,
+        isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
+      )
+        ? getTournamentClassicSetRules(
+            tournament,
+            isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
+          )
         : null,
-    [tournament],
+    [tournament, isBracketMode, isGroupStageMode],
   );
   const scoreEntryMode = getTournamentScoreEntryMode(tournament);
 

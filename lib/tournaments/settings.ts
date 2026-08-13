@@ -36,6 +36,7 @@ import {
 } from "@/lib/wiki/sanitize-rich-text";
 import {
   deriveMatchScoringFromLegacy,
+  matchScoreModeFromScoring,
   parseCustomMatchSettings,
   parseFormatFamily,
   parseMatchScoringConfig,
@@ -601,29 +602,36 @@ export function getTournamentPointsPerMatch(tournament: TournamentDetail): numbe
   return parseTournamentSettings(tournament.settings).pointsPerMatch ?? 21;
 }
 
+export type TournamentRaceStage = "group" | "knockout" | "default";
+
 /**
  * Match scoring shape.
  * Prefer explicit settings (matchScoreMode / raceToGames) so legacy flat-point
  * padel tournaments are not forced into games mode mid-event.
  * Stored Official `matchScoring` overrides only when present in settings JSON
  * (derived dual-read configs must not flip Fun Match points → games).
+ *
+ * For Double Stage with independent group/knockout leaves, pass `stage` so
+ * manage/live scoring follows that stage's mode (e.g. group race_to, KO custom).
  */
 export function getTournamentMatchScoreMode(
   tournament: TournamentDetail,
+  stage: TournamentRaceStage = "default",
 ): MatchScoreMode {
+  const stored = getStoredMatchScoring(tournament);
+  const hasStageLeaves = Boolean(stored?.group || stored?.knockout);
+  if (stage !== "default" && hasStageLeaves) {
+    const resolved = resolveMatchScoringForStage(stored, stage);
+    const fromScoring = matchScoreModeFromScoring(resolved);
+    if (fromScoring) return fromScoring;
+  }
+
   const settings = parseTournamentSettings(tournament.settings);
   if (settings.matchScoreMode) return settings.matchScoreMode;
   if (settings.raceToGames) return "games";
 
-  const stored = getStoredMatchScoring(tournament);
-  if (stored?.mode === "custom_score") return "points";
-  if (
-    stored?.mode === "race_to" ||
-    stored?.mode === "best_of" ||
-    stored?.mode === "total"
-  ) {
-    return "games";
-  }
+  const fromRoot = matchScoreModeFromScoring(stored);
+  if (fromRoot) return fromRoot;
   return "points";
 }
 
@@ -668,8 +676,6 @@ export function getTournamentRaceToGames(tournament: TournamentDetail): RaceToGa
   if (unit === "sets") return 2;
   return 4;
 }
-
-export type TournamentRaceStage = "group" | "knockout" | "default";
 
 /** Resolve race-to-N for a match stage (double-stage group vs knockout). */
 export function getTournamentRaceToGamesForStage(
@@ -747,13 +753,41 @@ export function getTournamentMatchFormat(
 
 export function getTournamentClassicSetRules(
   tournament: TournamentDetail,
+  stage: TournamentRaceStage = "default",
 ): ClassicSetRules {
   const settings = parseTournamentSettings(tournament.settings);
-  return settings.classicSetRules ?? classicDefaultsForSport(tournament.sportSlug);
+  const base = settings.classicSetRules ?? classicDefaultsForSport(tournament.sportSlug);
+  const resolved = resolveMatchScoringForStage(
+    getStoredMatchScoring(tournament),
+    stage === "default" ? "default" : stage,
+  );
+  if (resolved?.mode === "best_of") {
+    const gamesToWinSet = resolved.setTarget?.value ?? base.gamesToWinSet;
+    return {
+      ...base,
+      bestOfSets: resolved.bestOf === 5 ? 5 : 3,
+      gamesToWinSet,
+      setTiebreakAt: Math.max(gamesToWinSet, 1),
+      walkoverGamesPerSet: gamesToWinSet,
+    };
+  }
+  return base;
 }
 
-export function isClassicSetsFormat(tournament: TournamentDetail): boolean {
-  return getTournamentMatchFormat(tournament) === "classic_sets";
+/**
+ * Classic sets engine when partner `matchFormat` is classic_sets, or when the
+ * resolved Official stage scoring mode is `best_of`.
+ */
+export function isClassicSetsFormat(
+  tournament: TournamentDetail,
+  stage: TournamentRaceStage = "default",
+): boolean {
+  if (getTournamentMatchFormat(tournament) === "classic_sets") return true;
+  const resolved = resolveMatchScoringForStage(
+    getStoredMatchScoring(tournament),
+    stage === "default" ? "default" : stage,
+  );
+  return resolved?.mode === "best_of";
 }
 
 export function getBracketSeedMode(

@@ -3,7 +3,9 @@
 import {
   formatHasGroupStage,
   formatHasKnockout,
+  resolveMatchScoringForStage,
   summarizeMatchScoring,
+  summarizeMatchScoringLeaf,
   type CustomMatchSettings,
   type MatchScoringConfig,
   type MexicanoSettings,
@@ -50,18 +52,18 @@ export function OfficialFormatSummary({
     { label: "Match scoring", value: summarizeMatchScoring(matchScoring) },
   ];
 
-  if (
-    format === "double_stage" &&
-    matchScoring.mode === "race_to" &&
-    (matchScoring.group?.raceTo?.value != null || matchScoring.knockout?.raceTo?.value != null)
-  ) {
+  if (format === "double_stage" && (matchScoring.group || matchScoring.knockout)) {
     rows.push({
-      label: "Group race-to",
-      value: `First to ${matchScoring.group?.raceTo?.value ?? matchScoring.raceTo?.value ?? 4}`,
+      label: "Group scoring",
+      value: summarizeMatchScoringLeaf(
+        resolveMatchScoringForStage(matchScoring, "group") ?? matchScoring,
+      ),
     });
     rows.push({
-      label: "Knockout race-to",
-      value: `First to ${matchScoring.knockout?.raceTo?.value ?? matchScoring.raceTo?.value ?? 4}`,
+      label: "Knockout scoring",
+      value: summarizeMatchScoringLeaf(
+        resolveMatchScoringForStage(matchScoring, "knockout") ?? matchScoring,
+      ),
     });
   }
 

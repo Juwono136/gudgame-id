@@ -322,18 +322,103 @@ export function parseFormatFamily(raw: unknown): TournamentFormatFamily | undefi
   return raw === "original" || raw === "custom" ? raw : undefined;
 }
 
+/** Leaf scoring config without nested stage overrides. */
+export type MatchScoringLeaf = Omit<MatchScoringConfig, "group" | "knockout">;
+
+export function matchScoringLeafFromMode(mode: MatchScoringMode): MatchScoringLeaf {
+  switch (mode) {
+    case "best_of":
+      return { mode: "best_of", bestOf: 3, setTarget: { value: 4 } };
+    case "race_to":
+      return { mode: "race_to", raceTo: { value: 4 } };
+    case "total":
+      return { mode: "total", totalSets: 3 };
+    case "custom_score":
+      return {
+        mode: "custom_score",
+        customScore: {
+          variant: "one_match_winner",
+          allowDraw: false,
+          tiePolicy: "continue",
+        },
+      };
+    default:
+      return { mode: "race_to", raceTo: { value: 4 } };
+  }
+}
+
+/** Drop fields that do not belong to the active mode (avoids stale merge leftovers). */
+export function normalizeMatchScoringLeaf(leaf: MatchScoringLeaf): MatchScoringLeaf {
+  const fallback = matchScoringLeafFromMode(leaf.mode);
+  switch (leaf.mode) {
+    case "best_of":
+      return {
+        mode: "best_of",
+        bestOf: leaf.bestOf === 5 ? 5 : 3,
+        setTarget: leaf.setTarget ?? fallback.setTarget,
+      };
+    case "race_to":
+      return {
+        mode: "race_to",
+        raceTo: leaf.raceTo ?? fallback.raceTo,
+      };
+    case "total":
+      return {
+        mode: "total",
+        totalSets: leaf.totalSets ?? fallback.totalSets,
+      };
+    case "custom_score":
+      return {
+        mode: "custom_score",
+        customScore: leaf.customScore ?? fallback.customScore,
+      };
+    default:
+      return fallback;
+  }
+}
+
+export function asMatchScoringLeaf(
+  config: MatchScoringConfig | MatchScoringLeaf,
+): MatchScoringLeaf {
+  const { group: _group, knockout: _knockout, ...leaf } = config as MatchScoringConfig;
+  return normalizeMatchScoringLeaf(leaf);
+}
+
+export function composeDoubleStageMatchScoring(
+  group: MatchScoringLeaf,
+  knockout: MatchScoringLeaf,
+): MatchScoringConfig {
+  const groupLeaf = normalizeMatchScoringLeaf(group);
+  const knockoutLeaf = normalizeMatchScoringLeaf(knockout);
+  return {
+    ...groupLeaf,
+    group: groupLeaf,
+    knockout: knockoutLeaf,
+  };
+}
+
 export function resolveMatchScoringForStage(
   config: MatchScoringConfig | undefined,
   stage: "group" | "knockout" | "default",
 ): MatchScoringConfig | undefined {
   if (!config) return undefined;
   if (stage === "group" && config.group) {
-    return { ...config, ...config.group, group: undefined, knockout: undefined };
+    const merged: MatchScoringLeaf = {
+      ...asMatchScoringLeaf(config),
+      ...config.group,
+      mode: config.group.mode ?? config.mode,
+    };
+    return normalizeMatchScoringLeaf(merged);
   }
   if (stage === "knockout" && config.knockout) {
-    return { ...config, ...config.knockout, group: undefined, knockout: undefined };
+    const merged: MatchScoringLeaf = {
+      ...asMatchScoringLeaf(config),
+      ...config.knockout,
+      mode: config.knockout.mode ?? config.mode,
+    };
+    return normalizeMatchScoringLeaf(merged);
   }
-  return config;
+  return asMatchScoringLeaf(config);
 }
 
 export function getMatchScoringModeLabel(mode: MatchScoringMode): string {
@@ -351,29 +436,36 @@ export function getMatchScoringModeLabel(mode: MatchScoringMode): string {
   }
 }
 
-export function summarizeMatchScoring(config: MatchScoringConfig | undefined): string {
-  if (!config) return "Legacy scoring";
-  switch (config.mode) {
+export function summarizeMatchScoringLeaf(
+  leaf: MatchScoringLeaf | MatchScoringConfig | undefined,
+): string {
+  if (!leaf) return "Legacy scoring";
+  switch (leaf.mode) {
     case "best_of":
-      return `Best of ${config.bestOf ?? 3} · set race to ${config.setTarget?.value ?? 4}`;
-    case "race_to": {
-      const base = config.raceTo?.value ?? 4;
-      const group = config.group?.raceTo?.value;
-      const knockout = config.knockout?.raceTo?.value;
-      if (group != null || knockout != null) {
-        return `Group race to ${group ?? base} · KO race to ${knockout ?? base}`;
-      }
-      return `Race to ${base}`;
-    }
+      return `Best of ${leaf.bestOf ?? 3} · set race to ${leaf.setTarget?.value ?? 4}`;
+    case "race_to":
+      return `Race to ${leaf.raceTo?.value ?? 4}`;
     case "total":
-      return `Total ${config.totalSets ?? 3}`;
+      return `Total ${leaf.totalSets ?? 3}`;
     case "custom_score":
-      return config.customScore?.variant === "large_score"
+      return leaf.customScore?.variant === "large_score"
         ? "Custom · large score"
         : "Custom · one-match winner";
     default:
-      return getMatchScoringModeLabel(config.mode);
+      return getMatchScoringModeLabel(leaf.mode);
   }
+}
+
+export function summarizeMatchScoring(config: MatchScoringConfig | undefined): string {
+  if (!config) return "Legacy scoring";
+  if (config.group || config.knockout) {
+    const group = resolveMatchScoringForStage(config, "group");
+    const knockout = resolveMatchScoringForStage(config, "knockout");
+    if (group && knockout) {
+      return `Group: ${summarizeMatchScoringLeaf(group)} · KO: ${summarizeMatchScoringLeaf(knockout)}`;
+    }
+  }
+  return summarizeMatchScoringLeaf(config);
 }
 
 /** Effective race-to N for a stage (Official matchScoring + stage overrides). */
@@ -390,8 +482,8 @@ export function raceToValueForStage(
 
 /**
  * Stage leaves (group/knockout) only apply to Double Stage.
- * Strip them for other formats so a format switch cannot leak stale race targets
- * into single-elim / group-only / lobby scoring.
+ * Strip them for other formats so a format switch cannot leak stale scoring
+ * into single-elim / group-only / lobby.
  */
 export function matchScoringForFormat(
   config: MatchScoringConfig,
@@ -399,26 +491,59 @@ export function matchScoringForFormat(
 ): MatchScoringConfig {
   if (format === "double_stage") return config;
   if (!config.group && !config.knockout) return config;
-  const { group: _group, knockout: _knockout, ...leaf } = config;
-  return leaf;
+  return asMatchScoringLeaf(config);
 }
 
-/** Seed partner-style group 4 / KO 6 when entering Double Stage race-to without overrides. */
+/**
+ * Ensure Double Stage always stores independent group + knockout leaves.
+ * Defaults: group race-to 4, knockout race-to 6 (partner Short race-to-N pattern)
+ * when the incoming config has no stage leaves yet.
+ */
+export function ensureDoubleStageScoringLeaves(
+  config: MatchScoringConfig,
+): MatchScoringConfig {
+  const groupLeaf = config.group
+    ? normalizeMatchScoringLeaf({
+        ...asMatchScoringLeaf(config),
+        ...config.group,
+        mode: config.group.mode ?? config.mode,
+      })
+    : asMatchScoringLeaf(config);
+
+  const knockoutLeaf = config.knockout?.mode
+    ? normalizeMatchScoringLeaf({
+        ...matchScoringLeafFromMode(config.knockout.mode),
+        ...config.knockout,
+        mode: config.knockout.mode,
+      })
+    : groupLeaf.mode === "race_to"
+      ? { mode: "race_to" as const, raceTo: { value: 6 } }
+      : { ...groupLeaf };
+
+  return composeDoubleStageMatchScoring(groupLeaf, knockoutLeaf);
+}
+
+/** @deprecated Use ensureDoubleStageScoringLeaves — kept for call-site stability. */
 export function ensureDoubleStageRaceOverrides(
   config: MatchScoringConfig,
 ): MatchScoringConfig {
-  if (config.mode !== "race_to") return config;
-  if (config.group?.raceTo?.value != null && config.knockout?.raceTo?.value != null) {
-    return config;
+  return ensureDoubleStageScoringLeaves(config);
+}
+
+/** Map Official matchScoring mode → live points/games entry shape. */
+export function matchScoreModeFromScoring(
+  config: MatchScoringConfig | MatchScoringLeaf | undefined,
+): "points" | "games" | undefined {
+  if (!config) return undefined;
+  if (config.mode === "custom_score") return "points";
+  if (
+    config.mode === "race_to" ||
+    config.mode === "best_of" ||
+    config.mode === "total"
+  ) {
+    return "games";
   }
-  const groupN = config.group?.raceTo?.value ?? config.raceTo?.value ?? 4;
-  const knockoutN = config.knockout?.raceTo?.value ?? 6;
-  return {
-    ...config,
-    raceTo: { value: groupN },
-    group: { mode: "race_to", raceTo: { value: groupN } },
-    knockout: { mode: "race_to", raceTo: { value: knockoutN } },
-  };
+  return undefined;
 }
 
 export function defaultMatchScoring(): MatchScoringConfig {
