@@ -402,6 +402,8 @@ export function parseTournamentSettings(
     deriveMatchScoringFromLegacy({
       matchScoreMode: matchScoreModeParsed,
       raceToGames: parsedRaceTo,
+      raceToGamesGroup: parseRaceOpt(raceToGamesGroup),
+      raceToGamesKnockout: parseRaceOpt(raceToGamesKnockout),
       pointsPerMatch: parsedPoints,
       matchFormat: matchFormatParsed,
       classicBestOf: classicSetRules?.bestOfSets,
@@ -649,7 +651,8 @@ export function getTournamentRaceToTarget(
   if (resolved?.mode === "race_to" && resolved.raceTo?.value) {
     return resolved.raceTo.value;
   }
-  return getTournamentRaceToGames(tournament);
+  // Fall back to legacy per-stage raceToGamesGroup / raceToGamesKnockout.
+  return getTournamentRaceToGamesForStage(tournament, stage);
 }
 
 export function getTournamentRaceToGames(tournament: TournamentDetail): RaceToGames {

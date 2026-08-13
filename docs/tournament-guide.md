@@ -240,7 +240,7 @@ Tanda **\*** = wajib.
 | Meetings per pair | Custom + group-capable | 1–10 independent fixtures |
 | Legs per knockout slot | Custom + KO-capable | 1–9; warn jika genap |
 | Mexicano setup | Format Mexicano | Individual/Team + round count |
-| **Match scoring \*** | Ya (Official) | Best of / Race to / Total / Custom score |
+| **Match scoring \*** | Ya (Official) | Best of / Race to / Total / Custom; Double Stage Race to → **Group + Knockout targets** terpisah |
 | Max teams per group | Double Stage, Group only | |
 | Teams advancing / 3rd place | Double Stage saja | |
 | Allow draw | Double Stage, Group only | |
@@ -347,7 +347,23 @@ Tie-breaker: sesuai sport (points sports vs padel/tennis ITF-ish).
 
 Resolver: `lib/tournaments/scoring/match-scoring.ts`. Series knockout: `resolveSeriesMajority`.
 
-Legacy Official tanpa `matchScoring` di-derive dari race-to / points (`deriveMatchScoringFromLegacy`).
+#### Stage overrides (Double Stage) — group ≠ knockout
+
+Mirip partner **Short race-to-N**, Official Double Stage bisa set **Group stage race-to** dan **Knockout race-to** berbeda (contoh: group first-to-4, KO first-to-6).
+
+| Field | Storage |
+| --- | --- |
+| Shared / default | `matchScoring.mode` + `matchScoring.raceTo` |
+| Group | `matchScoring.group.raceTo` (+ dual-write `raceToGamesGroup` jika N ∈ {2,3,4,6}) |
+| Knockout | `matchScoring.knockout.raceTo` (+ dual-write `raceToGamesKnockout`) |
+
+Runtime: `resolveMatchScoringForStage` → `getTournamentRaceToTarget(tournament, "group" \| "knockout")` → live scoring, manage panels (group vs bracket), walkover/retirement race target, fullscreen display, game rules.
+
+Stage leaves **hanya** untuk Double Stage: format lain di-strip saat create/edit (`matchScoringForFormat`) agar switch format tidak membocorkan race target group/KO ke Elimination / Group only / lobby.
+
+Mode selain **Race to** memakai satu aturan bersama untuk kedua stage (override stage race-to hanya aktif di Race to).
+
+Legacy Official tanpa `matchScoring` di-derive dari race-to / points / `raceToGamesGroup`+`Knockout` (`deriveMatchScoringFromLegacy`).
 
 **Source of truth runtime**
 
@@ -580,7 +596,7 @@ Status verifikasi terakhir: **2026-08-13** (`vitest` tournaments + player-perfor
 | Billing | Paid + fee; Free tanpa fee; Free+fee ditolak; Paid tanpa fee ditolak |
 | Family | Original semua format; Custom tanpa Mexicano; Mexicano+Custom ditolak |
 | Format | DS / Group only / Elimination / Americano / Mexicano capabilities + manage mode |
-| Scoring | Race to 8, Best of, Total, Custom large, ±1 intra-game, labels live |
+| Scoring | Race to 8, Best of, Total, Custom large, ±1 intra-game, labels live; **group vs KO race-to** |
 | Meetings / legs | RR × N; series majority; Original paksa 1; save Original hapus customMatch |
 | Leaderboard | Series child di-skip; Mexicano sort poin |
 | Ranking | Tier ±poin; No Rank = 0; Fun Match = 0; skill hilang = 0 (bukan fallback Gold) |

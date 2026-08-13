@@ -198,7 +198,8 @@ export function PublicMultiCourtLiveScore({
   const gameRules = useMemo(() => {
     if (getTournamentMatchScoreMode(tournament) !== "games") return null;
     const phase = scopedLiveData?.doubleStage?.phase;
-    const stage = phase === "knockout" ? "knockout" : "group";
+    const stage =
+      phase === "knockout" ? "knockout" : phase === "group" ? "group" : "default";
     return getTournamentGameRules(tournament, stage);
   }, [tournament, scopedLiveData?.doubleStage?.phase]);
 

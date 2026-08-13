@@ -92,7 +92,8 @@ export async function recordSpecialMatchResult(
       gamesForB = wo.gamesForB;
       setScores = wo.setScores;
     } else {
-      const race = getTournamentGameRules(tournament).raceToGames;
+      const raceStage = input.kind === "group" ? "group" : "knockout";
+      const race = getTournamentGameRules(tournament, raceStage).raceToGames;
       scoreA = input.winnerSide === "a" ? race : 0;
       scoreB = input.winnerSide === "b" ? race : 0;
       gamesForA = scoreA;
@@ -119,7 +120,8 @@ export async function recordSpecialMatchResult(
       gamesForB = ret.gamesForB;
       setScores = ret.setScores;
     } else {
-      const race = getTournamentGameRules(tournament).raceToGames;
+      const raceStage = input.kind === "group" ? "group" : "knockout";
+      const race = getTournamentGameRules(tournament, raceStage).raceToGames;
       scoreA = input.winnerSide === "a" ? race : Math.min(match.scoreA ?? 0, race - 1);
       scoreB = input.winnerSide === "b" ? race : Math.min(match.scoreB ?? 0, race - 1);
       gamesForA = scoreA;

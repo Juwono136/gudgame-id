@@ -50,6 +50,21 @@ export function OfficialFormatSummary({
     { label: "Match scoring", value: summarizeMatchScoring(matchScoring) },
   ];
 
+  if (
+    format === "double_stage" &&
+    matchScoring.mode === "race_to" &&
+    (matchScoring.group?.raceTo?.value != null || matchScoring.knockout?.raceTo?.value != null)
+  ) {
+    rows.push({
+      label: "Group race-to",
+      value: `First to ${matchScoring.group?.raceTo?.value ?? matchScoring.raceTo?.value ?? 4}`,
+    });
+    rows.push({
+      label: "Knockout race-to",
+      value: `First to ${matchScoring.knockout?.raceTo?.value ?? matchScoring.raceTo?.value ?? 4}`,
+    });
+  }
+
   if (formatFamily === "custom" && formatHasGroupStage(format)) {
     rows.push({
       label: "Group meetings / pair",

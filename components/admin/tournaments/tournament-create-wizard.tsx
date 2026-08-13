@@ -83,10 +83,12 @@ import {
   defaultCustomMatchSettings,
   defaultMatchScoring,
   defaultMexicanoSettings,
+  ensureDoubleStageRaceOverrides,
   formatHasGroupStage,
   formatHasKnockout,
   formatHasLobbyRounds,
   isFormatAllowedForFamily,
+  matchScoringForFormat,
   OFFICIAL_CREATABLE_FORMATS,
   summarizeMatchScoring,
   type CustomMatchSettings,
@@ -502,25 +504,46 @@ export function TournamentCreateWizard({
           : 3;
 
     // Official matchScoring is the source of truth; dual-write legacy fields for engines that still read them.
+    // Stage leaves only persist for Double Stage (strip otherwise so format switches stay safe).
+    const scoringForPayload = matchScoringForFormat(
+      matchType === "double_stage"
+        ? ensureDoubleStageRaceOverrides(matchScoring)
+        : matchScoring,
+      matchType || "single_elimination",
+    );
     type OfficialLegacyScoring = {
       matchScoreMode?: MatchScoreMode;
       raceToGames?: RaceToGames;
+      raceToGamesGroup?: RaceToGames;
+      raceToGamesKnockout?: RaceToGames;
       gameDecider?: "golden_point" | "star_point" | "advantage";
     };
     const officialLegacyScoring: OfficialLegacyScoring = (() => {
       if (!isOfficialType(tournamentType)) return {};
-      if (matchScoring.mode === "race_to") {
-        const target = matchScoring.raceTo?.value ?? 4;
-        const legacyRace = RACE_TO_GAMES_OPTIONS.includes(target as RaceToGames)
-          ? (target as RaceToGames)
-          : undefined;
+      if (scoringForPayload.mode === "race_to") {
+        const groupTarget =
+          scoringForPayload.group?.raceTo?.value ??
+          scoringForPayload.raceTo?.value ??
+          4;
+        const knockoutTarget =
+          scoringForPayload.knockout?.raceTo?.value ??
+          scoringForPayload.raceTo?.value ??
+          groupTarget;
+        const toLegacy = (n: number): RaceToGames | undefined =>
+          RACE_TO_GAMES_OPTIONS.includes(n as RaceToGames) ? (n as RaceToGames) : undefined;
         return {
           matchScoreMode: "games" as const,
-          ...(legacyRace != null ? { raceToGames: legacyRace } : {}),
+          ...(toLegacy(groupTarget) != null ? { raceToGames: toLegacy(groupTarget) } : {}),
+          ...(matchType === "double_stage" && toLegacy(groupTarget) != null
+            ? { raceToGamesGroup: toLegacy(groupTarget) }
+            : {}),
+          ...(matchType === "double_stage" && toLegacy(knockoutTarget) != null
+            ? { raceToGamesKnockout: toLegacy(knockoutTarget) }
+            : {}),
           gameDecider: "golden_point" as const,
         };
       }
-      if (matchScoring.mode === "best_of" || matchScoring.mode === "total") {
+      if (scoringForPayload.mode === "best_of" || scoringForPayload.mode === "total") {
         const fallback = Number(raceToGames);
         return {
           matchScoreMode: "games" as const,
@@ -592,6 +615,8 @@ export function TournamentCreateWizard({
               (matchScoreMode === "games"
                 ? (Number(raceToGames) as RaceToGames)
                 : undefined),
+            raceToGamesGroup: officialLegacyScoring.raceToGamesGroup,
+            raceToGamesKnockout: officialLegacyScoring.raceToGamesKnockout,
             gameDecider:
               officialLegacyScoring.gameDecider ??
               (matchScoreMode === "games" ? "golden_point" : undefined),
@@ -620,7 +645,7 @@ export function TournamentCreateWizard({
         ? {
             rankingMode,
             formatFamily,
-            matchScoring,
+            matchScoring: scoringForPayload,
             ...(formatFamily === "custom" ? { customMatch } : {}),
             ...(matchType === "mexicano"
               ? { mexicano, maxRounds: mexicano.roundCount }
@@ -1057,6 +1082,14 @@ export function TournamentCreateWizard({
                     onChange={(v) => {
                       clearFieldError("format");
                       setMatchType(v);
+                      // Keep stage race-to leaves in sync with Double Stage only —
+                      // avoids leaking group/KO targets into SE / group-only / lobby.
+                      setMatchScoring((prev) => {
+                        if (v === "double_stage") {
+                          return ensureDoubleStageRaceOverrides(prev);
+                        }
+                        return matchScoringForFormat(prev, v || "single_elimination");
+                      });
                     }}
                     sportSlug={resolvedSportSlug}
                     officialOnly={isOfficial}

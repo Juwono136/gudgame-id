@@ -245,6 +245,8 @@ export function parseMatchScoringConfig(raw: unknown): MatchScoringConfig | unde
 export function deriveMatchScoringFromLegacy(input: {
   matchScoreMode?: string;
   raceToGames?: number;
+  raceToGamesGroup?: number;
+  raceToGamesKnockout?: number;
   pointsPerMatch?: number;
   matchFormat?: string;
   classicBestOf?: number;
@@ -258,11 +260,23 @@ export function deriveMatchScoringFromLegacy(input: {
       setTarget: { value: 6 },
     };
   }
-  if (input.matchScoreMode === "games" || input.raceToGames) {
-    return {
+  if (input.matchScoreMode === "games" || input.raceToGames || input.raceToGamesGroup) {
+    const base = input.raceToGames ?? input.raceToGamesGroup ?? 4;
+    const config: MatchScoringConfig = {
       mode: "race_to",
-      raceTo: { value: input.raceToGames ?? 4 },
+      raceTo: { value: base },
     };
+    if (input.raceToGamesGroup != null || input.raceToGamesKnockout != null) {
+      config.group = {
+        mode: "race_to",
+        raceTo: { value: input.raceToGamesGroup ?? base },
+      };
+      config.knockout = {
+        mode: "race_to",
+        raceTo: { value: input.raceToGamesKnockout ?? base },
+      };
+    }
+    return config;
   }
   return {
     mode: "race_to",
@@ -342,8 +356,15 @@ export function summarizeMatchScoring(config: MatchScoringConfig | undefined): s
   switch (config.mode) {
     case "best_of":
       return `Best of ${config.bestOf ?? 3} · set race to ${config.setTarget?.value ?? 4}`;
-    case "race_to":
-      return `Race to ${config.raceTo?.value ?? 4}`;
+    case "race_to": {
+      const base = config.raceTo?.value ?? 4;
+      const group = config.group?.raceTo?.value;
+      const knockout = config.knockout?.raceTo?.value;
+      if (group != null || knockout != null) {
+        return `Group race to ${group ?? base} · KO race to ${knockout ?? base}`;
+      }
+      return `Race to ${base}`;
+    }
     case "total":
       return `Total ${config.totalSets ?? 3}`;
     case "custom_score":
@@ -353,6 +374,51 @@ export function summarizeMatchScoring(config: MatchScoringConfig | undefined): s
     default:
       return getMatchScoringModeLabel(config.mode);
   }
+}
+
+/** Effective race-to N for a stage (Official matchScoring + stage overrides). */
+export function raceToValueForStage(
+  config: MatchScoringConfig | undefined,
+  stage: "group" | "knockout" | "default",
+): number | undefined {
+  const resolved = resolveMatchScoringForStage(config, stage);
+  if (resolved?.mode === "race_to" && resolved.raceTo?.value) {
+    return resolved.raceTo.value;
+  }
+  return undefined;
+}
+
+/**
+ * Stage leaves (group/knockout) only apply to Double Stage.
+ * Strip them for other formats so a format switch cannot leak stale race targets
+ * into single-elim / group-only / lobby scoring.
+ */
+export function matchScoringForFormat(
+  config: MatchScoringConfig,
+  format: string,
+): MatchScoringConfig {
+  if (format === "double_stage") return config;
+  if (!config.group && !config.knockout) return config;
+  const { group: _group, knockout: _knockout, ...leaf } = config;
+  return leaf;
+}
+
+/** Seed partner-style group 4 / KO 6 when entering Double Stage race-to without overrides. */
+export function ensureDoubleStageRaceOverrides(
+  config: MatchScoringConfig,
+): MatchScoringConfig {
+  if (config.mode !== "race_to") return config;
+  if (config.group?.raceTo?.value != null && config.knockout?.raceTo?.value != null) {
+    return config;
+  }
+  const groupN = config.group?.raceTo?.value ?? config.raceTo?.value ?? 4;
+  const knockoutN = config.knockout?.raceTo?.value ?? 6;
+  return {
+    ...config,
+    raceTo: { value: groupN },
+    group: { mode: "race_to", raceTo: { value: groupN } },
+    knockout: { mode: "race_to", raceTo: { value: knockoutN } },
+  };
 }
 
 export function defaultMatchScoring(): MatchScoringConfig {

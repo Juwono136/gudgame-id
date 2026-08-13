@@ -1,7 +1,6 @@
 "use client";
 
 import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
-import { getTournamentRaceToTarget } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
 
@@ -12,14 +11,17 @@ type DoubleStageConfigBannerProps = {
 
 export function DoubleStageConfigBanner({ tournament, className }: DoubleStageConfigBannerProps) {
   const cfg = getDoubleStageConfigSummary(tournament);
-  const raceTo =
-    cfg.matchScoreMode === "games" ? getTournamentRaceToTarget(tournament) : null;
+  // Prefer summarizeMatchScoring hint so Group vs KO race-to both show when set.
+  const scoringChip =
+    cfg.matchScoreMode === "games"
+      ? cfg.matchScoringHint
+      : `Match score: ${cfg.matchScoringHint}`;
 
   const chips = [
     `Up to ${cfg.maxTeamsPerGroup} teams / group`,
     `Top ${cfg.teamsAdvancePerGroup} advance`,
     `Standings: ${cfg.winPoints}W${cfg.allowDraw ? ` · ${cfg.drawPoints}D` : ""} · ${cfg.lossPoints}L`,
-    raceTo != null ? `Race to ${raceTo} games` : `Match score: ${cfg.matchScoringHint}`,
+    scoringChip,
     `${cfg.courtCount} ${cfg.courtCount === 1 ? "court" : "courts"}`,
     cfg.maxTeams != null ? `Max ${cfg.maxTeams} teams` : null,
     `${cfg.playersPerTeam} players / team`,

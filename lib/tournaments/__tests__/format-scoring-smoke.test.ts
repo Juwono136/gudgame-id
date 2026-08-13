@@ -423,6 +423,26 @@ describe("smoke · match scoring schemas (live + resolve)", () => {
     expect(summarizeMatchScoring(raceTo8)).toBe("Race to 8");
   });
 
+  it("Double Stage group vs knockout race-to stay isolated end-to-end", () => {
+    const t = stubTournament("double_stage", {
+      matchScoreMode: "games",
+      matchScoring: {
+        mode: "race_to",
+        raceTo: { value: 4 },
+        group: { mode: "race_to", raceTo: { value: 4 } },
+        knockout: { mode: "race_to", raceTo: { value: 6 } },
+      },
+      raceToGamesGroup: 4,
+      raceToGamesKnockout: 6,
+    });
+    expect(getTournamentRaceToTarget(t, "group")).toBe(4);
+    expect(getTournamentRaceToTarget(t, "knockout")).toBe(6);
+    expect(getTournamentGameRules(t, "group").raceToGames).toBe(4);
+    expect(getTournamentGameRules(t, "knockout").raceToGames).toBe(6);
+    expect(getTournamentMatchScoringHint(t)).toBe("Group race to 4 · KO race to 6");
+    expect(getTournamentScoringPrimaryLabel(t)).toBe("Group race to 4 · KO race to 6");
+  });
+
   it("does not flip Fun Match points into games via derived matchScoring", () => {
     const t = stubTournament("americano", {
       scoringType: "points",
