@@ -3,8 +3,9 @@
  *
  * Usage:
  *   npm run db:seed:fixtures -- --name you@example.com
- *   npm run db:seed:fixtures -- --name you@example.com --reset
- *   npm run db:seed:fixtures -- --go-live
+ * Always purges prior QA/legacy seed tournaments + dummy players, then recreates
+ * the Official FREE matrix as **upcoming** (no duplicate slugs).
+ * `--go-live` is local-only and is ignored during deploy refresh.
  */
 process.env.DB_SCRIPT_MODE = "true";
 
@@ -30,6 +31,7 @@ import {
   ensureSeedPlayers,
   insertConfirmedTeams,
   isDeployFixtureSeedMode,
+  isDeployQaFixtureRefreshMode,
   normalizeEnv,
   parseCreatorEmail,
   purgeTournamentsBySlugLike,
@@ -91,6 +93,10 @@ function parseArgs(argv: string[]): CliOptions {
   }
 
   if (opts.ensure) opts.reset = false;
+  if (isDeployQaFixtureRefreshMode()) {
+    opts.ensure = false;
+    opts.goLive = false;
+  }
   return opts;
 }
 
@@ -173,14 +179,33 @@ async function seedOneFixture(input: {
   goLive: boolean;
 }) {
   const { def } = input;
-  const startsAt = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
-  const endsAt = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
+  const leftover = await getTournamentBySlug(input.sport.slug, def.slug);
+  if (leftover) {
+    await purgeTournamentsBySlugs({
+      sportId: input.sport.id,
+      slugs: [def.slug],
+    });
+  }
+
+  const startsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const endsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
 
   const created = await createTournament(
     input.sport.id,
     input.creatorUserId,
     buildUpsertInput({ def, status: "upcoming", startsAt, endsAt }),
   );
+
+  if (created.slug !== def.slug) {
+    throw new Error(
+      `Refusing duplicate slug for ${def.key}: expected ${def.slug}, created ${created.slug}. Purge leftover fixtures first.`,
+    );
+  }
+  if (!input.goLive && created.status !== "upcoming") {
+    throw new Error(
+      `Expected upcoming status for ${def.slug}, got ${created.status}.`,
+    );
+  }
 
   await insertConfirmedTeams({
     tournamentId: created.id,
@@ -190,7 +215,7 @@ async function seedOneFixture(input: {
   });
 
   let final = created;
-  if (input.goLive) {
+  if (input.goLive && !isDeployQaFixtureRefreshMode()) {
     const liveStarts = new Date();
     const liveEnds = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
     final = await updateTournament(
@@ -274,10 +299,12 @@ async function main(): Promise<void> {
 
   console.log("[seed-qa] Official FREE matrix (Original + Custom × scoring)…");
   console.log(
-    `[seed-qa] creator=${creator.email} sport=${opts.sportSlug} events=${fixtures.length} reset=${opts.reset} goLive=${opts.goLive}`,
+    `[seed-qa] creator=${creator.email} sport=${opts.sportSlug} events=${fixtures.length} refresh=${!opts.ensure} goLive=${opts.goLive}`,
   );
 
-  if (opts.reset || !opts.ensure) {
+  if (opts.ensure) {
+    console.log("[seed-qa] Ensure mode: skip purge (create-if-missing only).");
+  } else {
     await purgePreviousSeedTournaments(sport.id);
     const playersDeleted = await deleteAllGudgameLocalSeedPlayers();
     console.log(`[seed-qa] Seed players deleted: ${playersDeleted}`);
@@ -311,6 +338,9 @@ async function main(): Promise<void> {
       });
       continue;
     }
+    if (existing && !opts.ensure) {
+      await purgeTournamentsBySlugs({ sportId: sport.id, slugs: [def.slug] });
+    }
 
     console.log(`[seed-qa] Creating ${def.key}…`);
     const seeded = await seedOneFixture({
@@ -321,6 +351,19 @@ async function main(): Promise<void> {
       goLive: opts.goLive,
     });
     results.push({ key: def.key, ...seeded });
+  }
+
+  const slugs = results.map((r) => r.slug);
+  if (new Set(slugs).size !== slugs.length) {
+    throw new Error("Duplicate tournament slugs in QA seed output.");
+  }
+  if (!opts.goLive) {
+    const notUpcoming = results.filter((r) => r.status !== "upcoming");
+    if (notUpcoming.length) {
+      throw new Error(
+        `QA fixtures must be upcoming; got: ${notUpcoming.map((r) => `${r.slug}=${r.status}`).join(", ")}`,
+      );
+    }
   }
 
   console.log("");

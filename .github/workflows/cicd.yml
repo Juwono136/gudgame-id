@@ -114,8 +114,9 @@ jobs:
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
 
       # Fresh Official FREE QA matrix on every deploy (manual prod testing).
-      # Touches only seed slugs (qa-free-*, dev-*) and dummy *@gudgame.local players.
-      # Does not delete real host/admin accounts. Runs after bootstrap-admin so the host exists.
+      # Script purges seed slugs (qa-free-*, dev-*) + dummy *@gudgame.local, then
+      # recreates 54 events as upcoming. Does not delete real host/admin accounts.
+      # --go-live is ignored when DEPLOY_QA_FIXTURE_REFRESH=true.
       - name: Refresh Official FREE QA fixtures
         run: |
           set -euo pipefail
@@ -123,10 +124,7 @@ jobs:
           if [ -z "${HOST_EMAIL}" ]; then
             HOST_EMAIL="juwonoindonesia@gmail.com"
           fi
-          echo "Refreshing Official FREE QA fixtures for host=${HOST_EMAIL}"
-
-          docker compose --profile migrate run --rm db-migrate \
-            npm run db:seed:fixtures:purge -- --players
+          echo "Refreshing Official FREE QA fixtures (upcoming) for host=${HOST_EMAIL}"
 
           docker compose --profile migrate run --rm db-migrate \
             npm run db:seed:fixtures -- --name "${HOST_EMAIL}"
