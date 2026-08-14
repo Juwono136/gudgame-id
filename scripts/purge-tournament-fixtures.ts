@@ -1,5 +1,5 @@
 /**
- * Dev-only: purge format-matrix fixtures from `db:seed:fixtures`.
+ * Dev-only: purge Official FREE QA fixtures + legacy seed tournaments/players.
  *
  * Usage:
  *   npm run db:seed:fixtures:purge
@@ -12,15 +12,20 @@ import { eq } from "drizzle-orm";
 import { closeDatabase, getDb } from "@/db/client";
 import { sports } from "@/db/schema/sports";
 import {
-  FORMAT_FIXTURES,
+  LEGACY_SEED_PLAYER_PREFIXES,
+  LEGACY_SEED_TOURNAMENT_SLUGS,
+} from "@/lib/dev/official-free-qa-fixtures";
+import {
   assertDevOnlySeed,
+  deleteAllGudgameLocalSeedPlayers,
   deleteSeedPlayersByPrefix,
+  purgeTournamentsBySlugLike,
   purgeTournamentsBySlugs,
   takeFlagValue,
 } from "@/lib/dev/seed-tournament-fixtures";
 import { logger } from "@/lib/logger";
 
-const log = logger.child({ script: "purge-tournament-fixtures" });
+const log = logger.child({ script: "purge-official-free-qa" });
 
 type CliOptions = {
   sportSlug: string;
@@ -50,7 +55,7 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 async function main(): Promise<void> {
-  assertDevOnlySeed("purge-fixtures");
+  assertDevOnlySeed("purge-official-free-qa", { allowDeployRefresh: true });
   const opts = parseArgs(process.argv.slice(2));
 
   const [sport] = await getDb()
@@ -61,33 +66,46 @@ async function main(): Promise<void> {
 
   if (!sport) throw new Error(`Sport "${opts.sportSlug}" not found.`);
 
-  const { removed, paymentsDeleted } = await purgeTournamentsBySlugs({
+  const legacy = await purgeTournamentsBySlugs({
     sportId: sport.id,
-    slugs: FORMAT_FIXTURES.map((f) => f.slug),
+    slugs: [...LEGACY_SEED_TOURNAMENT_SLUGS],
+  });
+  const qa = await purgeTournamentsBySlugLike({
+    sportId: sport.id,
+    pattern: "qa-free-%",
+  });
+  const dev = await purgeTournamentsBySlugLike({
+    sportId: sport.id,
+    pattern: "dev-%",
   });
 
-  console.log(`[purge-fixtures] Removed ${removed} tournament(s); payments=${paymentsDeleted}`);
+  const removed = legacy.removed + qa.removed + dev.removed;
+  const paymentsDeleted =
+    legacy.paymentsDeleted + qa.paymentsDeleted + dev.paymentsDeleted;
+
+  console.log(
+    `[purge-qa] Removed ${removed} tournament(s); payments=${paymentsDeleted}`,
+  );
 
   if (opts.purgeSeedPlayers) {
     let deleted = 0;
-    for (const def of FORMAT_FIXTURES) {
-      deleted += await deleteSeedPlayersByPrefix(def.emailPrefix);
+    for (const prefix of LEGACY_SEED_PLAYER_PREFIXES) {
+      deleted += await deleteSeedPlayersByPrefix(prefix);
     }
-    console.log(`[purge-fixtures] Seed players deleted: ${deleted}`);
+    deleted += await deleteAllGudgameLocalSeedPlayers();
+    console.log(`[purge-qa] Seed players deleted: ${deleted}`);
   } else {
-    console.log("  Tip: add --players to also remove fx-*@gudgame.local accounts.");
+    console.log("  Tip: add --players to also remove *@gudgame.local accounts.");
   }
 
-  log.info("Format fixtures purge complete", { removed, paymentsDeleted });
+  log.info("Official free QA purge complete", { removed, paymentsDeleted });
   await closeDatabase();
+  process.exit(0);
 }
 
 main().catch(async (err) => {
-  log.error("Purge fixtures failed", err);
-  console.error(
-    "[purge-fixtures] Failed:",
-    err instanceof Error ? err.message : String(err),
-  );
+  log.error("Purge QA fixtures failed", err);
+  console.error("[purge-qa] Failed:", err instanceof Error ? err.message : String(err));
   try {
     await closeDatabase();
   } catch {

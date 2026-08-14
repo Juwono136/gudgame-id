@@ -7,8 +7,11 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { getDb } from "@/db/client";
-import { account, user } from "@/db/schema/auth";
-import { playerMatches } from "@/db/schema/player-competition";
+import { account, session, user } from "@/db/schema/auth";
+import {
+  playerMatches,
+  playerTournamentResults,
+} from "@/db/schema/player-competition";
 import { sports } from "@/db/schema/sports";
 import {
   tournamentRegistrations,
@@ -17,6 +20,9 @@ import {
 } from "@/db/schema/tournament-registration";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
 import { tournaments } from "@/db/schema/tournaments";
+import { userRoleAssignments } from "@/db/schema/roles";
+import { notifications } from "@/db/schema/notifications";
+import { userSportInterests } from "@/db/schema/user-sport-interests";
 import {
   PLAYER_TIER_LEVELS,
   PLAYER_TIER_POINT_THRESHOLDS,
@@ -35,42 +41,56 @@ export const DOUBLE_STAGE_TEAM_COUNT = 32;
 export const FORMAT_FIXTURE_TEAM_COUNT = 16;
 export const PLAYERS_PER_TEAM = 2;
 
-/** Set by CI/CD deploy job for idempotent fixture ensure (never destructive). */
+/**
+ * CI/CD: recreate Official FREE QA fixtures on every deploy (purge seed slugs + *@gudgame.local only).
+ * Takes precedence over ALLOW_DEPLOY_FIXTURE_SEED.
+ */
+export function isDeployQaFixtureRefreshMode(): boolean {
+  return process.env.DEPLOY_QA_FIXTURE_REFRESH === "true";
+}
+
+/** CI/CD: create-if-missing only (never purge). Ignored when refresh mode is on. */
 export function isDeployFixtureSeedMode(): boolean {
+  if (isDeployQaFixtureRefreshMode()) return false;
   return process.env.ALLOW_DEPLOY_FIXTURE_SEED === "true";
+}
+
+function isRestrictedSeedAllowed(options?: {
+  allowDeployEnsure?: boolean;
+  allowDeployRefresh?: boolean;
+}): boolean {
+  if (process.env.FORCE_DEV_SEED === "true") return true;
+  if (options?.allowDeployRefresh && isDeployQaFixtureRefreshMode()) return true;
+  if (options?.allowDeployEnsure && isDeployFixtureSeedMode()) return true;
+  return false;
 }
 
 /**
  * Guard for seed/purge scripts.
  * - Local: allowed in non-production (or FORCE_DEV_SEED=true).
- * - CI/CD deploy: only when ALLOW_DEPLOY_FIXTURE_SEED=true and caller opts into ensure mode.
- * - Purge / --reset remain blocked in deploy mode.
+ * - Deploy refresh: DEPLOY_QA_FIXTURE_REFRESH=true (purge seed data + recreate).
+ * - Deploy ensure: ALLOW_DEPLOY_FIXTURE_SEED=true (create-if-missing, no purge).
  */
 export function assertDevOnlySeed(
   scriptLabel: string,
-  options?: { allowDeployEnsure?: boolean },
+  options?: { allowDeployEnsure?: boolean; allowDeployRefresh?: boolean },
 ): void {
-  const deployEnsure =
-    Boolean(options?.allowDeployEnsure) && isDeployFixtureSeedMode();
+  const allowed = isRestrictedSeedAllowed(options);
 
-  if (process.env.GITHUB_ACTIONS === "true" && !deployEnsure) {
+  if (process.env.GITHUB_ACTIONS === "true" && !allowed) {
     throw new Error(
-      `Refusing to run ${scriptLabel}: not allowed in CI unless ALLOW_DEPLOY_FIXTURE_SEED=true (idempotent ensure).`,
+      `Refusing to run ${scriptLabel} in CI. Set DEPLOY_QA_FIXTURE_REFRESH=true (fresh QA fixtures) or ALLOW_DEPLOY_FIXTURE_SEED=true (ensure-only).`,
     );
   }
 
-  if (
-    process.env.NODE_ENV === "production" &&
-    process.env.FORCE_DEV_SEED !== "true" &&
-    !deployEnsure
-  ) {
+  if (process.env.NODE_ENV === "production" && !allowed) {
     throw new Error(
-      `Refusing to run ${scriptLabel} in production. Set FORCE_DEV_SEED=true for manual fixtures, or ALLOW_DEPLOY_FIXTURE_SEED=true for deploy ensure.`,
+      `Refusing to run ${scriptLabel} in production. Set DEPLOY_QA_FIXTURE_REFRESH=true, ALLOW_DEPLOY_FIXTURE_SEED=true, or FORCE_DEV_SEED=true.`,
     );
   }
 }
 
-/** Deploy ensure must never purge or recreate existing tournaments. */
+/** Deploy ensure must never purge. Refresh mode is allowed to recreate. */
 export function assertIdempotentEnsure(scriptLabel: string, reset: boolean): void {
   if (reset && isDeployFixtureSeedMode()) {
     throw new Error(
@@ -196,6 +216,7 @@ export async function ensureCredentialUser(input: {
   name: string;
   password: string;
   roles: AppRole[];
+  gender?: "male" | "female" | null;
 }): Promise<string> {
   const db = getDb();
   const email = input.email.toLowerCase();
@@ -216,7 +237,7 @@ export async function ensureCredentialUser(input: {
         emailVerified: true,
         isActive: true,
         mustChangePassword: false,
-        gender: null,
+        gender: input.gender === undefined ? null : input.gender,
         updatedAt: now,
       })
       .where(eq(user.id, existing.id));
@@ -266,7 +287,7 @@ export async function ensureCredentialUser(input: {
     mustChangePassword: false,
     invitedByAdmin: false,
     fullNameKtp: input.name,
-    gender: null,
+    gender: input.gender ?? null,
     role: input.roles[0] ?? "player",
     createdAt: now,
     updatedAt: now,
@@ -301,6 +322,7 @@ export async function ensureSeedPlayers(input: {
       name,
       password: input.password,
       roles: ["player"],
+      gender: i % 2 === 0 ? "male" : "female",
     });
     ids.push(id);
   }
@@ -445,11 +467,30 @@ export async function purgeTournamentsBySlugs(input: {
     paymentsDeleted += deletedPayments.length;
 
     await db.delete(playerMatches).where(eq(playerMatches.tournamentId, existing.id));
+    await db
+      .delete(playerTournamentResults)
+      .where(eq(playerTournamentResults.tournamentId, existing.id));
     await deleteTournament(existing.id, input.sportId);
     removed += 1;
   }
 
   return { removed, paymentsDeleted };
+}
+
+export async function deleteUsersByIds(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  const db = getDb();
+  await db.delete(playerMatches).where(inArray(playerMatches.userId, ids));
+  await db
+    .delete(playerTournamentResults)
+    .where(inArray(playerTournamentResults.userId, ids));
+  await db.delete(notifications).where(inArray(notifications.userId, ids));
+  await db.delete(userSportInterests).where(inArray(userSportInterests.userId, ids));
+  await db.delete(userRoleAssignments).where(inArray(userRoleAssignments.userId, ids));
+  await db.delete(session).where(inArray(session.userId, ids));
+  await db.delete(account).where(inArray(account.userId, ids));
+  await db.delete(user).where(inArray(user.id, ids));
+  return ids.length;
 }
 
 export async function deleteSeedPlayersByPrefix(emailPrefix: string): Promise<number> {
@@ -459,11 +500,67 @@ export async function deleteSeedPlayersByPrefix(emailPrefix: string): Promise<nu
     .select({ id: user.id })
     .from(user)
     .where(like(user.email, pattern));
-  if (!rows.length) return 0;
-  const ids = rows.map((r) => r.id);
-  await db.delete(account).where(inArray(account.userId, ids));
-  await db.delete(user).where(inArray(user.id, ids));
-  return ids.length;
+  return deleteUsersByIds(rows.map((r) => r.id));
+}
+
+/** Deletes every dummy account on the seed domain (`*@gudgame.local`). */
+export async function deleteAllGudgameLocalSeedPlayers(): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(like(user.email, `%@${SEED_EMAIL_DOMAIN}`));
+  return deleteUsersByIds(rows.map((r) => r.id));
+}
+
+export async function purgeTournamentsBySlugLike(input: {
+  sportId: string;
+  pattern: string;
+}): Promise<{ removed: number; paymentsDeleted: number }> {
+  const db = getDb();
+  const rows = await db
+    .select({ slug: tournaments.slug })
+    .from(tournaments)
+    .where(and(eq(tournaments.sportId, input.sportId), like(tournaments.slug, input.pattern)));
+  return purgeTournamentsBySlugs({
+    sportId: input.sportId,
+    slugs: rows.map((r) => r.slug),
+  });
+}
+
+export async function resolveFirstOfficialCreator(): Promise<{
+  userId: string;
+  email: string;
+  roles: AppRole[];
+} | null> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      userId: userRoleAssignments.userId,
+      email: user.email,
+      isActive: user.isActive,
+      role: userRoleAssignments.role,
+    })
+    .from(userRoleAssignments)
+    .innerJoin(user, eq(user.id, userRoleAssignments.userId));
+
+  const byUser = new Map<string, { email: string; isActive: boolean; roles: AppRole[] }>();
+  for (const row of rows) {
+    const current = byUser.get(row.userId) ?? {
+      email: row.email,
+      isActive: row.isActive,
+      roles: [],
+    };
+    current.roles.push(row.role as AppRole);
+    byUser.set(row.userId, current);
+  }
+
+  for (const [userId, info] of byUser) {
+    if (!info.isActive) continue;
+    if (!isOfficialCreatorRole(info.roles)) continue;
+    return { userId, email: info.email, roles: info.roles };
+  }
+  return null;
 }
 
 export function doubleStageSlugForTier(tier: PlayerTierLevel): string {

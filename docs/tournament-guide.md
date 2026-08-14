@@ -581,12 +581,13 @@ Dev-only scripts (bukan CI). Creator harus sudah ada di DB.
 | `npm run db:seed:double-stage -- --name you@email --tier=gold --reset` | Satu tier |
 | `npm run db:seed:double-stage -- --name you@email --go-live` | Langsung live (groups init) |
 | `npm run db:seed:double-stage:purge -- --all` | Hapus fixture DS per-tier |
-| `npm run db:seed:fixtures -- --name you@email` | Matrix Official free/paid × Americano/Elimination + Fun Match |
-| `npm run db:seed:fixtures:purge` | Hapus matrix |
+| `npm run db:seed:fixtures -- --name you@email --reset` | Official **FREE** matrix: Original + Custom × setiap match type × scoring (Bo3/Bo5/Race 4/Race 6/Total 4/Custom). 8 tim Mix, No Rank, player `qa-p###@gudgame.local` |
+| `npm run db:seed:fixtures -- --name you@email --go-live` | Sama, status langsung live |
+| `npm run db:seed:fixtures:purge -- --players` | Hapus QA + legacy seed tournaments + semua `*@gudgame.local` |
 
-**Deploy:** job ensure idempotent (`ALLOW_DEPLOY_FIXTURE_SEED=true`) — tidak `--reset`. Host default override via `SEED_FIXTURE_HOST_EMAIL`.
+**Deploy (production):** setiap deploy CI/CD menjalankan purge + seed ulang (`DEPLOY_QA_FIXTURE_REFRESH=true`). Hanya slug `qa-free-*` / `dev-*` dan akun `*@gudgame.local`. Host override via `SEED_FIXTURE_HOST_EMAIL`.
 
-Player dummy: `*@gudgame.local`, password default `SeedPlayer1!`.
+Player dummy: `qa-p001@gudgame.local` … `qa-p016@gudgame.local`, password default `SeedPlayer1!`.
 
 **Manual smoke saat Live (setelah seed `--go-live`)**
 

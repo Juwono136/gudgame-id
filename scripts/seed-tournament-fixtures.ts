@@ -1,21 +1,10 @@
 /**
- * Dev-only: format matrix fixtures for Official (paid/free) + Fun Match.
- *
- * Creates:
- *   - Official free  · Americano
- *   - Official paid  · Americano
- *   - Official free  · Elimination
- *   - Official paid  · Elimination
- *   - Fun Match      · Americano
- *   - Fun Match      · Elimination
- *
- * Official fixtures use Gold tier (±5) with 16 confirmed teams.
- * Fun Match has no tier gate; 16 confirmed squads.
+ * Dev-only: Official FREE QA matrix (Original + Custom × formats × scoring).
  *
  * Usage:
- *   npm run db:seed:fixtures -- --name juwonoindonesia@gmail.com
+ *   npm run db:seed:fixtures -- --name you@example.com
  *   npm run db:seed:fixtures -- --name you@example.com --reset
- *   npm run db:seed:fixtures -- --name you@example.com --go-live
+ *   npm run db:seed:fixtures -- --go-live
  */
 process.env.DB_SCRIPT_MODE = "true";
 
@@ -23,26 +12,34 @@ import "dotenv/config";
 import { closeDatabase } from "@/db/client";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import {
+  LEGACY_SEED_TOURNAMENT_SLUGS,
+  QA_SEED_EMAIL_PREFIX,
+  QA_SEED_TEAM_PREFIX,
+  QA_TEAM_COUNT,
+  SCORING_LABEL,
+  buildMatchScoring,
+  listOfficialFreeQaFixtures,
+  type OfficialFreeQaFixtureDef,
+} from "@/lib/dev/official-free-qa-fixtures";
+import {
   DEFAULT_SEED_PASSWORD,
-  FORMAT_FIXTURE_TEAM_COUNT,
-  FORMAT_FIXTURES,
   PLAYERS_PER_TEAM,
   assertDevOnlySeed,
   assertIdempotentEnsure,
+  deleteAllGudgameLocalSeedPlayers,
   ensureSeedPlayers,
   insertConfirmedTeams,
   isDeployFixtureSeedMode,
   normalizeEnv,
   parseCreatorEmail,
+  purgeTournamentsBySlugLike,
   purgeTournamentsBySlugs,
   resolveCreatorUser,
+  resolveFirstOfficialCreator,
   resolveSport,
-  seedPlayerTierPoints,
   takeFlagValue,
-  type FormatFixtureDef,
 } from "@/lib/dev/seed-tournament-fixtures";
 import { logger } from "@/lib/logger";
-import type { PlayerTierLevel } from "@/lib/player/tier";
 import {
   createTournament,
   getTournamentBySlug,
@@ -50,13 +47,10 @@ import {
 } from "@/lib/tournaments/service";
 import { tournamentUpsertSchema } from "@/lib/validations/tournaments";
 
-const log = logger.child({ script: "seed-tournament-fixtures" });
+const log = logger.child({ script: "seed-official-free-qa" });
 
 const DEFAULT_SPORT_SLUG = "padel";
-const OFFICIAL_TIER: PlayerTierLevel = "gold";
-const PLAYER_COUNT = FORMAT_FIXTURE_TEAM_COUNT * PLAYERS_PER_TEAM;
-
-type FixtureDef = FormatFixtureDef;
+const PLAYER_COUNT = QA_TEAM_COUNT * PLAYERS_PER_TEAM;
 
 type CliOptions = {
   reset: boolean;
@@ -96,15 +90,12 @@ function parseArgs(argv: string[]): CliOptions {
     }
   }
 
-  if (opts.ensure) {
-    opts.reset = false;
-  }
-
+  if (opts.ensure) opts.reset = false;
   return opts;
 }
 
 function buildUpsertInput(opts: {
-  def: FixtureDef;
+  def: OfficialFreeQaFixtureDef;
   status: "upcoming" | "live";
   startsAt: Date;
   endsAt: Date;
@@ -112,49 +103,58 @@ function buildUpsertInput(opts: {
   const { def } = opts;
   const regOpen = new Date(Date.now() - 2 * 60 * 60 * 1000);
   const regClose = new Date(opts.startsAt.getTime() - 60 * 60 * 1000);
-  const isOfficial = def.tournamentType === "official";
+  const matchScoring = buildMatchScoring(def.format, def.scoringKey);
+  const isGroup = def.format === "double_stage" || def.format === "group_only";
+  const isLobby = def.format === "americano" || def.format === "mexicano";
 
-  const base = {
+  const payload = {
     name: def.name,
     slug: def.slug,
-    summary: isOfficial
-      ? `Dev fixture: official ${def.billing} · ${def.format} · Gold tier · ${FORMAT_FIXTURE_TEAM_COUNT} teams.`
-      : `Dev fixture: Fun Match · ${def.format} · open to all tiers · ${FORMAT_FIXTURE_TEAM_COUNT} squads. No ranking impact.`,
+    summary: `Official free QA · ${def.formatFamily} · ${def.format} · ${SCORING_LABEL[def.scoringKey]} · ${QA_TEAM_COUNT} teams · No Rank.`,
     description:
-      "<p>Seeded by <code>npm run db:seed:fixtures</code> for format / billing / Fun Match QA.</p>",
+      "<p>Seeded Official <strong>free</strong> fixture for Gud Game manual QA. Shared dummy players: <code>qa-p001@gudgame.local</code> …</p>",
     status: opts.status,
-    tournamentType: def.tournamentType,
+    tournamentType: "official" as const,
+    officialBilling: "free" as const,
+    registrationFeeIdr: 0,
+    categoryLabel: "Mix" as const,
     format: def.format,
-    venue: "Gud Game Dev Courts",
-    maxTeams: FORMAT_FIXTURE_TEAM_COUNT,
+    formatFamily: def.formatFamily,
+    rankingMode: "open" as const,
+    allowedTierLevels: [] as [],
+    matchScoring,
+    venue: "Gud Game QA Courts",
+    maxTeams: QA_TEAM_COUNT,
     playersPerTeam: PLAYERS_PER_TEAM,
-    courtCount: def.format === "americano" ? 4 : 2,
+    courtCount: isLobby ? 4 : 2,
     startsAt: opts.startsAt.toISOString(),
     endsAt: opts.endsAt.toISOString(),
     registrationOpensAt: regOpen.toISOString(),
     registrationClosesAt: regClose.toISOString(),
     scoringType: "points" as const,
     pointsPerMatch: 21,
+    ...(isGroup
+      ? {
+          maxTeamsPerGroup: 4,
+          teamsAdvancePerGroup: def.format === "double_stage" ? 2 : undefined,
+        }
+      : {}),
+    ...(def.format === "mexicano"
+      ? { mexicano: { mode: "team" as const, roundCount: 4 }, maxRounds: 4 }
+      : {}),
+    ...(def.format === "americano" ? { maxRounds: 4 } : {}),
+    ...(def.formatFamily === "custom"
+      ? {
+          customMatch: {
+            groupMeetingsPerPair: isGroup ? 2 : 1,
+            knockoutLegsPerSlot:
+              def.format === "double_stage" || def.format === "single_elimination"
+                ? 3
+                : 1,
+          },
+        }
+      : {}),
   };
-
-  const payload = isOfficial
-    ? {
-        ...base,
-        officialBilling: def.billing,
-        registrationFeeIdr: def.billing === "paid" ? 125_000 : 0,
-        categoryLabel: "Mix" as const,
-        allowedTierLevels: [OFFICIAL_TIER],
-        ...(def.format === "single_elimination"
-          ? { thirdPlaceEnabled: false }
-          : {}),
-      }
-    : {
-        ...base,
-        officialBilling: null,
-        registrationFeeIdr: 0,
-        allowedTierLevels: [],
-        maxRounds: def.format === "americano" ? 4 : undefined,
-      };
 
   const parsed = tournamentUpsertSchema.safeParse(payload);
   if (!parsed.success) {
@@ -168,31 +168,11 @@ function buildUpsertInput(opts: {
 async function seedOneFixture(input: {
   sport: { id: string; slug: string };
   creatorUserId: string;
-  def: FixtureDef;
-  password: string;
+  def: OfficialFreeQaFixtureDef;
+  playerIds: string[];
   goLive: boolean;
-}): Promise<{
-  slug: string;
-  status: string;
-  manageUrl: string;
-  publicUrl: string;
-}> {
+}) {
   const { def } = input;
-  const playerIds = await ensureSeedPlayers({
-    emailPrefix: def.emailPrefix,
-    displayPrefix: def.teamPrefix.replace(/ Team| Squad/g, " P"),
-    count: PLAYER_COUNT,
-    password: input.password,
-  });
-
-  if (def.tournamentType === "official") {
-    await seedPlayerTierPoints({
-      userIds: playerIds,
-      sportId: input.sport.id,
-      targetTier: OFFICIAL_TIER,
-    });
-  }
-
   const startsAt = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
   const endsAt = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
 
@@ -204,9 +184,9 @@ async function seedOneFixture(input: {
 
   await insertConfirmedTeams({
     tournamentId: created.id,
-    playerIds,
-    teamCount: FORMAT_FIXTURE_TEAM_COUNT,
-    teamNamePrefix: def.teamPrefix,
+    playerIds: input.playerIds,
+    teamCount: QA_TEAM_COUNT,
+    teamNamePrefix: QA_SEED_TEAM_PREFIX,
   });
 
   let final = created;
@@ -233,46 +213,58 @@ async function seedOneFixture(input: {
   };
 }
 
+async function purgePreviousSeedTournaments(sportId: string): Promise<void> {
+  const legacy = await purgeTournamentsBySlugs({
+    sportId,
+    slugs: [...LEGACY_SEED_TOURNAMENT_SLUGS],
+  });
+  const qa = await purgeTournamentsBySlugLike({ sportId, pattern: "qa-free-%" });
+  const dev = await purgeTournamentsBySlugLike({ sportId, pattern: "dev-%" });
+  console.log(
+    `[seed-qa] Purged tournaments: legacy=${legacy.removed} qa=${qa.removed} dev=${dev.removed}`,
+  );
+}
+
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
-  assertDevOnlySeed("seed-fixtures", {
+  assertDevOnlySeed("seed-official-free-qa", {
     allowDeployEnsure: opts.ensure || isDeployFixtureSeedMode(),
+    allowDeployRefresh: true,
   });
-  assertIdempotentEnsure("seed-fixtures", opts.reset);
-
-  if (!opts.creatorEmail) {
-    if (opts.ensure || isDeployFixtureSeedMode()) {
-      console.warn(
-        "[seed-fixtures] Ensure mode: creator email missing — skipping fixture seed (deploy continues).",
-      );
-      await closeDatabase();
-      return;
-    }
-    throw new Error(
-      "Creator email is required.\n" +
-        "  npm run db:seed:fixtures -- --name juwonoindonesia@gmail.com",
-    );
-  }
+  assertIdempotentEnsure("seed-official-free-qa", opts.reset);
 
   const password =
     normalizeEnv(process.env.SEED_FIXTURE_PASSWORD) ||
     normalizeEnv(process.env.SEED_DOUBLE_STAGE_PASSWORD) ||
     DEFAULT_SEED_PASSWORD;
 
-  console.log("[seed-fixtures] Starting format matrix…");
-  console.log(
-    `[seed-fixtures] creator=${opts.creatorEmail} sport=${opts.sportSlug} reset=${opts.reset} ensure=${opts.ensure} goLive=${opts.goLive}`,
-  );
-
+  const fixtures = listOfficialFreeQaFixtures();
   const sport = await resolveSport(opts.sportSlug);
 
   let creator: Awaited<ReturnType<typeof resolveCreatorUser>>;
   try {
-    creator = await resolveCreatorUser(opts.creatorEmail);
+    if (opts.creatorEmail) {
+      creator = await resolveCreatorUser(opts.creatorEmail);
+    } else {
+      const fallback = await resolveFirstOfficialCreator();
+      if (!fallback) {
+        if (opts.ensure || isDeployFixtureSeedMode()) {
+          console.warn("[seed-qa] Ensure mode: no host/super_admin found — skipping.");
+          await closeDatabase();
+          return;
+        }
+        throw new Error(
+          "Creator email is required (or register a host first).\n" +
+            "  npm run db:seed:fixtures -- --name you@example.com --reset",
+        );
+      }
+      creator = fallback;
+      console.log(`[seed-qa] Using first host/super_admin: ${creator.email}`);
+    }
   } catch (err) {
     if (opts.ensure || isDeployFixtureSeedMode()) {
       console.warn(
-        `[seed-fixtures] Ensure mode: ${err instanceof Error ? err.message : String(err)} — skipping (deploy continues).`,
+        `[seed-qa] Ensure mode: ${err instanceof Error ? err.message : String(err)} — skipping.`,
       );
       await closeDatabase();
       return;
@@ -280,15 +272,23 @@ async function main(): Promise<void> {
     throw err;
   }
 
-  if (opts.reset) {
-    const { removed, paymentsDeleted } = await purgeTournamentsBySlugs({
-      sportId: sport.id,
-      slugs: FORMAT_FIXTURES.map((f) => f.slug),
-    });
-    console.log(
-      `[seed-fixtures] Reset: removed ${removed} tournament(s), payments=${paymentsDeleted}`,
-    );
+  console.log("[seed-qa] Official FREE matrix (Original + Custom × scoring)…");
+  console.log(
+    `[seed-qa] creator=${creator.email} sport=${opts.sportSlug} events=${fixtures.length} reset=${opts.reset} goLive=${opts.goLive}`,
+  );
+
+  if (opts.reset || !opts.ensure) {
+    await purgePreviousSeedTournaments(sport.id);
+    const playersDeleted = await deleteAllGudgameLocalSeedPlayers();
+    console.log(`[seed-qa] Seed players deleted: ${playersDeleted}`);
   }
+
+  const playerIds = await ensureSeedPlayers({
+    emailPrefix: QA_SEED_EMAIL_PREFIX,
+    displayPrefix: "QA Player",
+    count: PLAYER_COUNT,
+    password,
+  });
 
   const results: Array<{
     key: string;
@@ -296,70 +296,65 @@ async function main(): Promise<void> {
     status: string;
     manageUrl: string;
     publicUrl: string;
-    emailPrefix: string;
   }> = [];
 
-  for (const def of FORMAT_FIXTURES) {
+  for (const def of fixtures) {
     const existing = await getTournamentBySlug(sport.slug, def.slug);
-    if (existing && !opts.reset) {
-      console.log(`[seed-fixtures] Skip ${def.key}: already exists (${def.slug}). Use --reset.`);
+    if (existing && opts.ensure) {
+      console.log(`[seed-qa] Skip ${def.key}: already exists.`);
       results.push({
         key: def.key,
         slug: existing.slug,
         status: existing.status,
         manageUrl: publicSportRoutes.tournamentManage(sport.slug, existing.slug),
         publicUrl: publicSportRoutes.tournament(sport.slug, existing.slug),
-        emailPrefix: def.emailPrefix,
       });
       continue;
     }
 
-    console.log(`[seed-fixtures] Creating ${def.key}…`);
+    console.log(`[seed-qa] Creating ${def.key}…`);
     const seeded = await seedOneFixture({
       sport,
       creatorUserId: creator.userId,
       def,
-      password,
+      playerIds,
       goLive: opts.goLive,
     });
-    results.push({ key: def.key, emailPrefix: def.emailPrefix, ...seeded });
+    results.push({ key: def.key, ...seeded });
   }
 
   console.log("");
   console.log("────────────────────────────────────────────────────────");
-  console.log(" Format fixtures ready (Official + Fun Match)");
+  console.log(" Official FREE QA fixtures ready");
   console.log("────────────────────────────────────────────────────────");
-  console.log(` Creator:     ${creator.email}`);
-  console.log(` Player pass: ${password}`);
-  console.log(` Official tier for eligibility: Gold (±5)`);
-  console.log(` Teams per event: ${FORMAT_FIXTURE_TEAM_COUNT}`);
+  console.log(` Host:        ${creator.email}`);
+  console.log(
+    ` Players:     ${QA_SEED_EMAIL_PREFIX}001@gudgame.local … ${String(PLAYER_COUNT).padStart(3, "0")}`,
+  );
+  console.log(` Password:    ${password}`);
+  console.log(` Ranking:     No Rank (open) · billing: free`);
+  console.log(` Teams/event: ${QA_TEAM_COUNT}`);
+  console.log(` Events:      ${results.length}`);
   for (const row of results) {
-    console.log("");
-    console.log(` ${row.key}`);
-    console.log(`   status:  ${row.status}`);
-    console.log(`   players: ${row.emailPrefix}001@gudgame.local …`);
-    console.log(`   manage:  ${row.manageUrl}`);
-    console.log(`   public:  ${row.publicUrl}`);
+    console.log(`  ${row.status.padEnd(9)}  ${row.slug}`);
+    console.log(`           ${row.manageUrl}`);
   }
   console.log("");
-  console.log(" Purge: npm run db:seed:fixtures:purge");
-  console.log(" Purge+players: npm run db:seed:fixtures:purge -- --players");
+  console.log(" Purge: npm run db:seed:fixtures:purge -- --players");
   console.log("────────────────────────────────────────────────────────");
 
-  log.info("Format fixtures seed complete", {
+  log.info("Official free QA seed complete", {
     creatorEmail: creator.email,
-    keys: results.map((r) => r.key),
+    count: results.length,
   });
 
   await closeDatabase();
+  process.exit(0);
 }
 
 main().catch(async (err) => {
-  log.error("Format fixtures seed failed", err);
-  console.error(
-    "[seed-fixtures] Failed:",
-    err instanceof Error ? err.message : String(err),
-  );
+  log.error("Official free QA seed failed", err);
+  console.error("[seed-qa] Failed:", err instanceof Error ? err.message : String(err));
   try {
     await closeDatabase();
   } catch {
