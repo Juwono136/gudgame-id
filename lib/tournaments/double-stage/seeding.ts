@@ -55,6 +55,95 @@ function sameGroupConflict(a: SeededTeam, b: SeededTeam): boolean {
   return a.groupId === b.groupId;
 }
 
+/**
+ * Default double-stage R1: same group rank, different groups
+ * (1st vs 1st, then 2nd vs 2nd). Leftovers pair across ranks, still avoiding
+ * same-group when possible. Hosts can swap afterwards.
+ */
+export function pairSameRankAcrossGroups(teams: SeededTeam[]): [SeededTeam, SeededTeam][] {
+  const ranks = [...new Set(teams.map((t) => t.groupRank))].sort((a, b) => a - b);
+  const pairs: [SeededTeam, SeededTeam][] = [];
+  const leftovers: SeededTeam[] = [];
+
+  for (const rank of ranks) {
+    const pool = teams
+      .filter((t) => t.groupRank === rank)
+      .sort((a, b) => globalSeedScore(a) - globalSeedScore(b));
+    const used = new Set<string>();
+    for (let i = 0; i < pool.length; i += 1) {
+      const a = pool[i]!;
+      if (used.has(a.teamId)) continue;
+      let partner: SeededTeam | undefined;
+      for (let j = i + 1; j < pool.length; j += 1) {
+        const b = pool[j]!;
+        if (used.has(b.teamId)) continue;
+        if (b.groupId !== a.groupId) {
+          partner = b;
+          break;
+        }
+      }
+      if (partner) {
+        pairs.push([a, partner]);
+        used.add(a.teamId);
+        used.add(partner.teamId);
+      } else {
+        leftovers.push(a);
+        used.add(a.teamId);
+      }
+    }
+  }
+
+  const rest = [...leftovers];
+  while (rest.length >= 2) {
+    const a = rest.shift()!;
+    const idx = rest.findIndex((b) => b.groupId !== a.groupId);
+    const partner = idx >= 0 ? rest.splice(idx, 1)[0]! : rest.shift()!;
+    pairs.push([a, partner]);
+  }
+
+  return pairs;
+}
+
+function spreadMatchIndexes(matchCount: number): number[] {
+  const evens: number[] = [];
+  const odds: number[] = [];
+  for (let i = 0; i < matchCount; i += 1) {
+    (i % 2 === 0 ? evens : odds).push(i);
+  }
+  return [...evens, ...odds];
+}
+
+/** Slot list of length `bracketSize` (A,B per match) for round-one seeding. */
+export function buildCrossGroupRoundOneSlotOrder(
+  teams: SeededTeam[],
+  bracketSize: number,
+): (SeededTeam | null)[] {
+  const size = Math.max(2, bracketSize);
+  const slots: (SeededTeam | null)[] = Array.from({ length: size }, () => null);
+  const pairedIds = new Set<string>();
+  const pairs = pairSameRankAcrossGroups(teams);
+  const matchCount = size / 2;
+  const matchIndexes = spreadMatchIndexes(matchCount);
+
+  pairs.forEach((pair, i) => {
+    const mi = matchIndexes[i];
+    if (mi == null) return;
+    slots[mi * 2] = pair[0];
+    slots[mi * 2 + 1] = pair[1];
+    pairedIds.add(pair[0].teamId);
+    pairedIds.add(pair[1].teamId);
+  });
+
+  for (const team of teams) {
+    if (pairedIds.has(team.teamId)) continue;
+    const empty = slots.findIndex((s) => s == null);
+    if (empty < 0) break;
+    slots[empty] = team;
+  }
+
+  return slots;
+}
+
 /** Swap seeds in pairings to reduce same-group R1 matchups when possible. */
 export function optimizePairingsAvoidSameGroup(
   seeded: SeededTeam[],
@@ -147,14 +236,5 @@ export function planPlayInAndByes(seeded: SeededTeam[]): PlayInPlan {
 }
 
 export function pairPlayInTeams(teams: SeededTeam[]): [SeededTeam, SeededTeam][] {
-  const pairs: [SeededTeam, SeededTeam][] = [];
-  const sorted = [...teams].sort((a, b) => a.globalSeed - b.globalSeed);
-  let left = 0;
-  let right = sorted.length - 1;
-  while (left < right) {
-    pairs.push([sorted[left]!, sorted[right]!]);
-    left++;
-    right--;
-  }
-  return pairs;
+  return pairSameRankAcrossGroups(teams);
 }

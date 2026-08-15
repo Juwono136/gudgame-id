@@ -200,8 +200,17 @@ export function BracketTreeView({
                         m.winnerTeamId !== m.teamAId
                       }
                       highlighted={Boolean(m.teamAId && highlightTeamIds.includes(m.teamAId))}
+                      active={
+                        activeSeedSlot?.matchId === m.id && activeSeedSlot.slot === "a"
+                      }
+                      droppable={seedingMode && m.status === "pending"}
                       showEmptySlots={showEmptySlots}
                       compact
+                      onClick={
+                        onSlotClick && seedingMode && m.status === "pending"
+                          ? () => handleSlotClick(m.id, "a")
+                          : undefined
+                      }
                     />
                     <MatchSlot
                       name={m.teamBName}
@@ -214,8 +223,17 @@ export function BracketTreeView({
                         m.winnerTeamId !== m.teamBId
                       }
                       highlighted={Boolean(m.teamBId && highlightTeamIds.includes(m.teamBId))}
+                      active={
+                        activeSeedSlot?.matchId === m.id && activeSeedSlot.slot === "b"
+                      }
+                      droppable={seedingMode && m.status === "pending"}
                       showEmptySlots={showEmptySlots}
                       compact
+                      onClick={
+                        onSlotClick && seedingMode && m.status === "pending"
+                          ? () => handleSlotClick(m.id, "b")
+                          : undefined
+                      }
                     />
                   </div>
                 </article>
@@ -228,7 +246,7 @@ export function BracketTreeView({
       <div className="flex flex-wrap items-center justify-between gap-2" data-bracket-chrome="">
         <p className="text-[11px] text-cp-muted">
           {seedingMode
-            ? "Tap a first-round slot to place a team. Drag to pan the bracket."
+            ? "Tap two first-round teams to swap them, or use Arrange pairings. Drag to pan the bracket."
             : "All matches at 100% — drag to pan · use zoom if you need more detail."}
         </p>
         <div className="flex items-center gap-1">

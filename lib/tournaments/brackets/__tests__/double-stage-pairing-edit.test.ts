@@ -39,7 +39,7 @@ describe("double-stage knockout pairing editability", () => {
     ).toBe(false);
     const ui = getBracketSeedingUiState(matches, "live", { format: "double_stage" });
     expect(ui.locked).toBe(false);
-    expect(ui.title).toMatch(/swap/i);
+    expect(ui.title).toMatch(/pairings/i);
   });
 
   it("locks after a knockout match is scored", () => {
@@ -59,6 +59,6 @@ describe("double-stage knockout pairing editability", () => {
       { format: "double_stage" },
     );
     expect(ui.description.toLowerCase()).not.toContain("randomly");
-    expect(ui.description.toLowerCase()).toContain("group standings");
+    expect(ui.description.toLowerCase()).toContain("group 1st");
   });
 });

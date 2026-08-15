@@ -35,6 +35,7 @@ export type TournamentFilterState = {
   type: PublicTournamentsListQuery["type"];
   officialBilling: NonNullable<PublicTournamentsListQuery["officialBilling"]>;
   format: NonNullable<PublicTournamentsListQuery["format"]>;
+  formatFamily: NonNullable<PublicTournamentsListQuery["formatFamily"]>;
   category: NonNullable<PublicTournamentsListQuery["category"]>;
   sortBy: PublicTournamentsListQuery["sortBy"];
   sortDir: PublicTournamentsListQuery["sortDir"];
@@ -45,6 +46,7 @@ const DEFAULT_FILTER: TournamentFilterState = {
   type: "all",
   officialBilling: "all",
   format: "all",
+  formatFamily: "all",
   category: "all",
   sortBy: "startsAt",
   sortDir: "desc",
@@ -62,6 +64,7 @@ function countActiveFilters(value: TournamentFilterState): number {
   if (value.type !== "all") n++;
   if (value.officialBilling !== "all") n++;
   if (value.format !== "all") n++;
+  if (value.formatFamily !== "all") n++;
   if (value.category !== "all") n++;
   if (value.sortBy !== "startsAt" || value.sortDir !== "desc") n++;
   return n;
@@ -88,8 +91,9 @@ export function TournamentFilterMenu({ value, onChange, className }: TournamentF
   };
 
   const clearAll = () => {
-    setDraft(DEFAULT_FILTER);
-    onChange(DEFAULT_FILTER);
+    const next = { ...DEFAULT_FILTER, bucket: value.bucket };
+    setDraft(next);
+    onChange(next);
     setOpen(false);
   };
 
@@ -115,7 +119,8 @@ export function TournamentFilterMenu({ value, onChange, className }: TournamentF
         <DialogHeader>
           <DialogTitle>Filter tournaments</DialogTitle>
           <DialogDescription>
-            Refine the list by type, format, category, and sort. Status is filtered with the pills above.
+            Refine by type, match family, format, category, and sort. Status uses the pills on the
+            page.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,6 +172,25 @@ export function TournamentFilterMenu({ value, onChange, className }: TournamentF
             </FilterGroup>
           ) : null}
 
+          <FilterGroup label="Match family">
+            <Select
+              modal={false}
+              value={draft.formatFamily}
+              onValueChange={(v) =>
+                patch({ formatFamily: v as TournamentFilterState["formatFamily"] })
+              }
+            >
+              <SelectTrigger className={cn(cpSelectTriggerClass, "w-full")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className={cpSelectContentClass} position="popper">
+                <SelectItem value="all" className={cpSelectItemClass}>All</SelectItem>
+                <SelectItem value="original" className={cpSelectItemClass}>Original</SelectItem>
+                <SelectItem value="custom" className={cpSelectItemClass}>Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterGroup>
+
           <FilterGroup label="Format">
             <Select
               modal={false}
@@ -178,8 +202,15 @@ export function TournamentFilterMenu({ value, onChange, className }: TournamentF
               </SelectTrigger>
               <SelectContent className={cpSelectContentClass} position="popper">
                 <SelectItem value="all" className={cpSelectItemClass}>All</SelectItem>
+                <SelectItem value="double_stage" className={cpSelectItemClass}>
+                  Group stage + knockout
+                </SelectItem>
                 <SelectItem value="americano" className={cpSelectItemClass}>Americano</SelectItem>
-                <SelectItem value="single_elimination" className={cpSelectItemClass}>Elimination</SelectItem>
+                <SelectItem value="mexicano" className={cpSelectItemClass}>Mexicano</SelectItem>
+                <SelectItem value="single_elimination" className={cpSelectItemClass}>
+                  Knockout / Elimination
+                </SelectItem>
+                <SelectItem value="group_only" className={cpSelectItemClass}>Group only</SelectItem>
               </SelectContent>
             </Select>
           </FilterGroup>

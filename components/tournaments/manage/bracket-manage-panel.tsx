@@ -15,6 +15,7 @@ import {
 import { BracketTreeView } from "@/components/tournaments/bracket-tree-view";
 import { BracketPlayReadinessCard } from "@/components/tournaments/manage/bracket-play-readiness-card";
 import { BracketSeedingStatusBanner } from "@/components/tournaments/manage/bracket-seeding-status-banner";
+import { KnockoutPairingEditorDialog } from "@/components/tournaments/manage/knockout-pairing-editor";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
@@ -99,6 +100,7 @@ export function BracketManagePanel({
 
   const [seedSlot, setSeedSlot] = useState<{ matchId: string; slot: "a" | "b" } | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [pairingEditorOpen, setPairingEditorOpen] = useState(false);
   const seedPickerRef = useRef<HTMLDivElement>(null);
 
   const generated = hasPublicBracketTree(data);
@@ -191,12 +193,12 @@ export function BracketManagePanel({
   const teamsForPicker = useMemo(() => {
     if (!seedSlot) return unplacedTeams;
     const match = matches.find((m) => m.id === seedSlot.matchId);
-    const currentId =
-      seedSlot.slot === "a" ? match?.teamAId : match?.teamBId;
-    return seedableTeams.filter(
-      (t) => !placedTeamIds.has(t.id) || t.id === currentId,
-    );
-  }, [seedSlot, unplacedTeams, matches, seedableTeams, placedTeamIds]);
+    const currentId = seedSlot.slot === "a" ? match?.teamAId : match?.teamBId;
+    if (isDoubleStage) {
+      return seedableTeams.filter((t) => t.id !== currentId);
+    }
+    return seedableTeams.filter((t) => !placedTeamIds.has(t.id) || t.id === currentId);
+  }, [seedSlot, unplacedTeams, matches, seedableTeams, placedTeamIds, isDoubleStage]);
 
   const selectedMatchLabel = useMemo(() => {
     if (!seedSlot) return null;
@@ -207,11 +209,26 @@ export function BracketManagePanel({
 
   const openSeedSlot = (matchId: string, slot: "a" | "b") => {
     if (seedingLocked) return;
+    if (seedSlot && (seedSlot.matchId !== matchId || seedSlot.slot !== slot)) {
+      const sourceMatch = matches.find((m) => m.id === seedSlot.matchId);
+      const sourceTeamId =
+        seedSlot.slot === "a" ? sourceMatch?.teamAId : sourceMatch?.teamBId;
+      if (sourceTeamId) {
+        void runBracketMutation(async () => {
+          await assign.mutateAsync({ matchId, slot, teamId: sourceTeamId });
+          setSeedSlot(null);
+          setSelectedTeamId("");
+        });
+        return;
+      }
+    }
+    if (seedSlot?.matchId === matchId && seedSlot.slot === slot) {
+      setSeedSlot(null);
+      setSelectedTeamId("");
+      return;
+    }
     setSeedSlot({ matchId, slot });
     setSelectedTeamId("");
-    requestAnimationFrame(() => {
-      seedPickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
   };
 
   const handleGenerate = async (seedMode: "random" | "manual") => {
@@ -347,7 +364,7 @@ export function BracketManagePanel({
             </h2>
             <p className="mt-1 max-w-xl text-sm text-cp-muted">
               {isDoubleStage
-                ? "Knockout pairings come from qualified group teams. You can swap round-one slots until a knockout match starts."
+                ? "Knockout starts as group 1st vs 1st from another group. Open Arrange pairings to change opponents (for example 1st A vs 2nd B) until a knockout match starts."
                 : "Place teams in round-one slots as they join — the public bracket updates live."}
               {isOfficial && !isDoubleStage
                 ? " Only confirmed teams (paid when required) appear in the seeding list."
@@ -460,6 +477,16 @@ export function BracketManagePanel({
                   Seeding actions
                 </p>
                 <div className="flex flex-wrap gap-2">
+                  {generated && !seedingLocked ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setPairingEditorOpen(true)}
+                    >
+                      <Swords className="mr-2 h-4 w-4" />
+                      Arrange pairings
+                    </Button>
+                  ) : null}
                   {canRandomReseed ? (
                     <Button
                       type="button"
@@ -505,8 +532,8 @@ export function BracketManagePanel({
                 </div>
                 <p className="text-xs text-cp-muted">
                   {isDoubleStage
-                    ? "Click a filled round-one slot in the tree, then pick the qualified team to swap into that slot."
-                    : "Manual edit: scroll to the bracket tree below → click a round-one slot → choose a team in the picker that appears."}
+                    ? "Use Arrange pairings, or tap two teams on the tree to swap. Pairings lock once any knockout match starts."
+                    : "Use Arrange pairings, or tap two round-one slots on the tree to move a team."}
                 </p>
               </div>
             ) : null}
@@ -526,8 +553,8 @@ export function BracketManagePanel({
                 {!seedingLocked ? (
                   <p className="mt-1 text-sm text-cp-muted">
                     {isDoubleStage
-                      ? "Click a round-one name to swap it with another qualified team. The final fills as winners advance."
-                      : "Click a round-one slot labeled “Drop squad here”, then choose a team below."}
+                      ? "Tap two teams to swap, or open Arrange pairings. The final fills as winners advance."
+                      : "Tap a round-one slot, then tap another slot or pick a team below."}
                     {!isDoubleStage && unplacedTeams.length > 0
                       ? ` ${unplacedTeams.length} eligible team${unplacedTeams.length === 1 ? "" : "s"} ready to place.`
                       : !isDoubleStage && placedTeamCount > 0
@@ -605,6 +632,20 @@ export function BracketManagePanel({
               onSlotClick={openSeedSlot}
             />
           </section>
+
+          <KnockoutPairingEditorDialog
+            open={pairingEditorOpen && !seedingLocked}
+            onOpenChange={(open) => {
+              setPairingEditorOpen(open);
+              if (!open) setSeedSlot(null);
+            }}
+            matches={matches}
+            teams={allTeams}
+            selected={seedSlot}
+            busy={assign.isPending}
+            swapMode={isDoubleStage}
+            onSelectSlot={openSeedSlot}
+          />
 
           {seedingFinalized ? (
             <BracketPlayReadinessCard

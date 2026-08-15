@@ -7,8 +7,10 @@ type CompetitionListPaginationProps = {
   totalPages: number;
   total: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   disabled?: boolean;
   pageSize?: number;
+  pageSizeOptions?: readonly number[];
 };
 
 export function CompetitionListPagination({
@@ -16,8 +18,10 @@ export function CompetitionListPagination({
   totalPages,
   total,
   onPageChange,
+  onPageSizeChange,
   disabled,
   pageSize = 20,
+  pageSizeOptions,
 }: CompetitionListPaginationProps) {
   return (
     <DataTablePagination
@@ -26,6 +30,8 @@ export function CompetitionListPagination({
       total={total}
       totalPages={totalPages}
       onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
+      pageSizeOptions={pageSizeOptions}
       disabled={disabled}
     />
   );

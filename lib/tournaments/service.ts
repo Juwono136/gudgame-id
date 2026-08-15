@@ -325,31 +325,36 @@ export async function listPublicTournamentsBySport(
   );
 }
 
+function escapeIlikePattern(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function publicListStatusCondition(bucket: PublicTournamentsListQuery["bucket"]) {
+  if (bucket === "live") return eq(tournaments.status, "live");
+  if (bucket === "upcoming") return eq(tournaments.status, "upcoming");
+  if (bucket === "past") {
+    return or(eq(tournaments.status, "completed"), eq(tournaments.status, "cancelled"))!;
+  }
+  return or(
+    eq(tournaments.status, "live"),
+    eq(tournaments.status, "upcoming"),
+    eq(tournaments.status, "completed"),
+  )!;
+}
+
 export async function listPublicTournamentsPaginated(
   sportSlug: string,
   query: PublicTournamentsListQuery,
 ): Promise<TournamentsListResult> {
   const db = getDb();
-  const { page, pageSize, search, status, sortBy, sortDir, bucket, type } = query;
+  const { page, pageSize, search, sortBy, sortDir, bucket, type } = query;
 
   const conditions = [
     eq(sports.slug, sportSlug),
     eq(sports.isActive, true),
     isNull(tournaments.partnerId),
+    publicListStatusCondition(bucket),
   ];
-
-  if (status !== "all" && bucket === "all") {
-    conditions.push(eq(tournaments.status, status));
-  } else {
-    conditions.push(
-      or(
-        eq(tournaments.status, "live"),
-        eq(tournaments.status, "upcoming"),
-        eq(tournaments.status, "completed"),
-        eq(tournaments.status, "cancelled"),
-      )!,
-    );
-  }
 
   if (type !== "all") {
     const normalizedType = type === "recreational" ? "fun_match" : type;
@@ -364,9 +369,14 @@ export async function listPublicTournamentsPaginated(
   if (query.category && query.category !== "all") {
     conditions.push(eq(tournaments.categoryLabel, query.category));
   }
+  if (query.formatFamily && query.formatFamily !== "all") {
+    conditions.push(
+      sql`coalesce(${tournaments.settings}->>'formatFamily', 'original') = ${query.formatFamily}`,
+    );
+  }
 
   if (search?.trim()) {
-    const term = `%${search.trim()}%`;
+    const term = `%${escapeIlikePattern(search.trim())}%`;
     conditions.push(
       or(
         ilike(tournaments.name, term),
@@ -379,6 +389,17 @@ export async function listPublicTournamentsPaginated(
 
   const whereClause = and(...conditions);
   const orderFn = sortDir === "asc" ? asc : desc;
+
+  const [totalRow] = await db
+    .select({ count: count() })
+    .from(tournaments)
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(whereClause);
+
+  const total = Number(totalRow?.count ?? 0);
+  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  const safePage = totalPages === 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+  const offset = (safePage - 1) * pageSize;
 
   const rows = await db
     .select({
@@ -406,44 +427,22 @@ export async function listPublicTournamentsPaginated(
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
     .where(whereClause)
-    .orderBy(orderFn(sortColumn(sortBy)))
-    .limit(500);
+    .orderBy(orderFn(sortColumn(sortBy)), desc(tournaments.id))
+    .limit(pageSize)
+    .offset(offset);
 
-  let items = rows.map((row) => ({
+  const items = rows.map((row) => ({
     ...mapListRow(row),
     prizePoolIdr: row.prizePoolIdr,
     coverImageUrl: resolveTournamentCoverUrl(row.coverImageUrl, row.coverImageStorageKey),
   }));
 
-  if (bucket === "live") {
-    items = items.filter((item) => item.status === "live");
-  } else if (bucket === "upcoming") {
-    items = items.filter((item) => item.status === "upcoming");
-  } else if (bucket === "past") {
-    items = items.filter(
-      (item) => item.status === "completed" || item.status === "cancelled",
-    );
-  } else if (status !== "all") {
-    items = items.filter((item) => item.status === status);
-  } else {
-    items = items.filter(
-      (item) =>
-        item.status === "live" ||
-        item.status === "upcoming" ||
-        item.status === "completed",
-    );
-  }
-
-  const total = items.length;
-  const offset = (page - 1) * pageSize;
-  const pageItems = items.slice(offset, offset + pageSize);
-
   return {
-    items: pageItems,
+    items,
     total,
-    page,
+    page: safePage,
     pageSize,
-    totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    totalPages,
   };
 }
 

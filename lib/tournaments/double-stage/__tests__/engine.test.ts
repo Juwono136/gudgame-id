@@ -10,6 +10,7 @@ import {
 import { computeGroupStandings } from "@/lib/tournaments/double-stage/standings";
 import {
   assignGlobalSeeds,
+  pairSameRankAcrossGroups,
   planPlayInAndByes,
   standardBracketPairings,
 } from "@/lib/tournaments/double-stage/seeding";
@@ -207,5 +208,58 @@ describe("seeding and play-in", () => {
     expect(plan.playInMatchCount).toBe(0);
     expect(plan.byeTeams).toHaveLength(4);
     expect(plan.playInTeams).toHaveLength(0);
+  });
+
+  it("pairs group winners against other group winners by default", () => {
+    const seeded = assignGlobalSeeds([
+      {
+        teamId: "a1",
+        teamName: "A1",
+        groupId: "A",
+        groupName: "A",
+        groupRank: 1,
+        points: 9,
+        wins: 3,
+        scoreDiff: 6,
+        scoreFor: 12,
+      },
+      {
+        teamId: "a2",
+        teamName: "A2",
+        groupId: "A",
+        groupName: "A",
+        groupRank: 2,
+        points: 6,
+        wins: 2,
+        scoreDiff: 2,
+        scoreFor: 8,
+      },
+      {
+        teamId: "b1",
+        teamName: "B1",
+        groupId: "B",
+        groupName: "B",
+        groupRank: 1,
+        points: 8,
+        wins: 2,
+        scoreDiff: 4,
+        scoreFor: 10,
+      },
+      {
+        teamId: "b2",
+        teamName: "B2",
+        groupId: "B",
+        groupName: "B",
+        groupRank: 2,
+        points: 5,
+        wins: 1,
+        scoreDiff: 0,
+        scoreFor: 7,
+      },
+    ]);
+    const pairs = pairSameRankAcrossGroups(seeded);
+    expect(pairs).toHaveLength(2);
+    const ids = pairs.map((p) => [p[0].teamId, p[1].teamId].sort().join("-"));
+    expect(ids).toEqual(expect.arrayContaining(["a1-b1", "a2-b2"]));
   });
 });

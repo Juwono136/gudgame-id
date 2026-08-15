@@ -405,6 +405,7 @@ export const tournamentsListQuerySchema = z.object({
     ] as const)
     .optional(),
   category: z.enum(["all", ...TOURNAMENT_CATEGORIES] as const).optional(),
+  formatFamily: z.enum(["all", "original", "custom"] as const).optional(),
   sortBy: z.enum(["startsAt", "name", "updated"]).default("startsAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { TournamentsListResult } from "@/lib/tournaments/service";
@@ -22,6 +22,7 @@ export function usePublicTournamentsList(
       query.type,
       query.officialBilling ?? "all",
       query.format ?? "all",
+      query.formatFamily ?? "all",
       query.category ?? "all",
       query.sortBy,
       query.sortDir,
@@ -33,7 +34,7 @@ export function usePublicTournamentsList(
       if (query.search) params.set("search", query.search);
       params.set("bucket", query.bucket);
       params.set("type", query.type);
-      params.set("status", query.status);
+      params.set("status", "all");
       params.set("sortBy", query.sortBy);
       params.set("sortDir", query.sortDir);
       if (query.officialBilling && query.officialBilling !== "all") {
@@ -41,6 +42,9 @@ export function usePublicTournamentsList(
       }
       if (query.format && query.format !== "all") {
         params.set("format", query.format);
+      }
+      if (query.formatFamily && query.formatFamily !== "all") {
+        params.set("formatFamily", query.formatFamily);
       }
       if (query.category && query.category !== "all") {
         params.set("category", query.category);
@@ -59,5 +63,7 @@ export function usePublicTournamentsList(
       }
       return json.data;
     },
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
   });
 }

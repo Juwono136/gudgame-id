@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { TournamentFilterMenu } from "@/components/sports/tournament-filter-menu";
@@ -36,33 +36,54 @@ export function PublicTournamentsDirectory({
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [bucket, setBucket] = useState<PublicTournamentsListQuery["bucket"]>("all");
   const [type, setType] = useState<PublicTournamentsListQuery["type"]>("all");
   const [officialBilling, setOfficialBilling] = useState<
     NonNullable<PublicTournamentsListQuery["officialBilling"]>
   >("all");
   const [format, setFormat] = useState<NonNullable<PublicTournamentsListQuery["format"]>>("all");
+  const [formatFamily, setFormatFamily] = useState<
+    NonNullable<PublicTournamentsListQuery["formatFamily"]>
+  >("all");
   const [category, setCategory] = useState<NonNullable<PublicTournamentsListQuery["category"]>>(
     "all",
   );
   const [sortBy, setSortBy] = useState<PublicTournamentsListQuery["sortBy"]>("startsAt");
   const [sortDir, setSortDir] = useState<PublicTournamentsListQuery["sortDir"]>("desc");
 
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const queryParams = useMemo(
     (): PublicTournamentsListQuery => ({
       page,
-      pageSize: 12,
-      search: debouncedSearch || undefined,
+      pageSize,
+      search: debouncedSearch.trim() || undefined,
       bucket,
       type,
       officialBilling,
       format,
+      formatFamily,
       category,
       status: "all",
       sortBy,
       sortDir,
     }),
-    [page, debouncedSearch, bucket, type, officialBilling, format, category, sortBy, sortDir],
+    [
+      page,
+      pageSize,
+      debouncedSearch,
+      bucket,
+      type,
+      officialBilling,
+      format,
+      formatFamily,
+      category,
+      sortBy,
+      sortDir,
+    ],
   );
 
   const { data, isLoading, isFetching, error } = usePublicTournamentsList(
@@ -80,7 +101,7 @@ export function PublicTournamentsDirectory({
       </Link>
       <h1 className="mt-4 text-3xl font-bold text-foreground">Tournaments</h1>
       <p className="mt-2 text-cp-muted">
-        Official paid events and free Fun Match sessions for {sportName}.
+        Official and Fun Match events for {sportName}.
       </p>
 
       <div className="mt-8 space-y-4">
@@ -90,22 +111,29 @@ export function PublicTournamentsDirectory({
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
               <Input
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Search cups…"
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tournaments…"
                 className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9 text-foreground sm:h-11"
                 aria-label="Search tournaments"
               />
             </div>
             <TournamentFilterMenu
-              value={{ bucket, type, officialBilling, format, category, sortBy, sortDir }}
+              value={{
+                bucket,
+                type,
+                officialBilling,
+                format,
+                formatFamily,
+                category,
+                sortBy,
+                sortDir,
+              }}
               onChange={(next) => {
                 setBucket(next.bucket);
                 setType(next.type);
                 setOfficialBilling(next.officialBilling);
                 setFormat(next.format);
+                setFormatFamily(next.formatFamily);
                 setCategory(next.category);
                 setSortBy(next.sortBy);
                 setSortDir(next.sortDir);
@@ -162,10 +190,16 @@ export function PublicTournamentsDirectory({
         {data ? (
           <CompetitionListPagination
             page={data.page}
+            pageSize={data.pageSize}
             totalPages={data.totalPages}
             total={data.total}
             disabled={isFetching}
             onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+            pageSizeOptions={[12, 24, 48]}
           />
         ) : null}
       </div>

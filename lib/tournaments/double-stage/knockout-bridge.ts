@@ -4,10 +4,9 @@ import { asc, eq } from "drizzle-orm";
 import { nextPowerOfTwo } from "@/lib/tournaments/double-stage/allocate-groups";
 import {
   assignGlobalSeeds,
-  optimizePairingsAvoidSameGroup,
+  buildCrossGroupRoundOneSlotOrder,
   pairPlayInTeams,
   planPlayInAndByes,
-  standardBracketPairings,
   type QualifiedTeam,
   type SeededTeam,
 } from "@/lib/tournaments/double-stage/seeding";
@@ -64,18 +63,11 @@ async function applyKnockoutRoundOneSeeding(
 ): Promise<void> {
   const db = getDb();
   const bracketSize = plan.bracketSize;
-  const slotAssignments = optimizePairingsAvoidSameGroup(plan.byeTeams, bracketSize);
-  const pairings = standardBracketPairings(bracketSize);
+  const slotOrder = buildCrossGroupRoundOneSlotOrder(plan.byeTeams, bracketSize);
 
-  const teamsInSlotOrder: { id: string; name: string }[] = [];
-  for (const [s1, s2] of pairings) {
-    const t1 = slotAssignments.get(s1);
-    const t2 = slotAssignments.get(s2);
-    teamsInSlotOrder.push(
-      t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "" },
-      t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "" },
-    );
-  }
+  const teamsInSlotOrder: { id: string; name: string }[] = slotOrder.map((t) =>
+    t ? { id: t.teamId, name: t.teamName } : { id: "", name: "" },
+  );
 
   const playInFeederMatchIds = new Set<string>();
   if (plan.playInMatchCount > 0) {
@@ -445,20 +437,13 @@ export async function provisionKnockoutBracket(
   if (plan.playInMatchCount > 0 && round1MatchIds.length > 0) {
     const playInIds = allMatchIds[0] ?? [];
     const planForFeeders = planPlayInAndByes(seeded);
-    const slotAssignments = optimizePairingsAvoidSameGroup(
+    const slotOrder = buildCrossGroupRoundOneSlotOrder(
       planForFeeders.byeTeams,
       planForFeeders.bracketSize,
     );
-    const pairings = standardBracketPairings(planForFeeders.bracketSize);
-    const teamsInSlotOrder: { id: string; name: string }[] = [];
-    for (const [s1, s2] of pairings) {
-      const t1 = slotAssignments.get(s1);
-      const t2 = slotAssignments.get(s2);
-      teamsInSlotOrder.push(
-        t1 ? { id: t1.teamId, name: t1.teamName } : { id: "", name: "" },
-        t2 ? { id: t2.teamId, name: t2.teamName } : { id: "", name: "" },
-      );
-    }
+    const teamsInSlotOrder: { id: string; name: string }[] = slotOrder.map((t) =>
+      t ? { id: t.teamId, name: t.teamName } : { id: "", name: "" },
+    );
     const playInFeederMatchIds = new Set<string>();
     const halfFilled: string[] = [];
     const fullyEmpty: string[] = [];

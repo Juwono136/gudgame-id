@@ -87,9 +87,9 @@ export function getBracketSeedingUiState(
       locked: false,
       scoredMatchCount,
       editableRoundOneSlots,
-      title: "Qualified teams placed — you can still swap pairings",
+      title: "Qualified teams placed — arrange pairings",
       description:
-        "Knockout is generated from group standings, not a random draw. Click a round-one slot to swap two qualified teams. Pairings lock once any knockout match starts. To rebuild the whole draw, use Reset bracket.",
+        "Default knockout is group 1st vs 1st from another group. Open Arrange pairings or tap two teams to swap (for example 1st A vs 2nd B). Pairings lock once any knockout match starts. To rebuild from standings, use Reset bracket.",
     };
   }
 

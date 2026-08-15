@@ -114,10 +114,31 @@ export async function assignTeamToBracketSlot(
       .limit(1);
 
     if (duplicate && duplicate.id !== matchId) {
-      throw new AppError("This squad is already placed in the bracket", {
-        code: "CONFLICT",
-        statusCode: 409,
-      });
+      const [other] = await db
+        .select()
+        .from(tournamentBracketMatches)
+        .where(eq(tournamentBracketMatches.id, duplicate.id))
+        .limit(1);
+      if (!other || other.status !== "pending") {
+        throw new AppError("This squad is already placed in a match that cannot be edited", {
+          code: "CONFLICT",
+          statusCode: 409,
+        });
+      }
+      const otherSlot: "a" | "b" = other.teamAId === teamId ? "a" : "b";
+      const incoming =
+        slot === "a"
+          ? { teamId: match.teamAId, teamName: match.teamAName }
+          : { teamId: match.teamBId, teamName: match.teamBName };
+      const otherPatch =
+        otherSlot === "a"
+          ? { teamAId: incoming.teamId, teamAName: incoming.teamName }
+          : { teamBId: incoming.teamId, teamBName: incoming.teamName };
+      await db
+        .update(tournamentBracketMatches)
+        .set(otherPatch)
+        .where(eq(tournamentBracketMatches.id, other.id));
+      await syncSeriesTeams(tournament.id, other.id, otherPatch);
     }
   }
 
