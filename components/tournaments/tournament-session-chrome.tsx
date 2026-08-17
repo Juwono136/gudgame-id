@@ -2,16 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, Maximize2, Pencil, Settings, Trophy, Users } from "lucide-react";
+import { ArrowLeft, Maximize2, Pencil, Plus, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { getPhaseLabel } from "@/lib/tournaments/ui/labels";
 import { isTournamentManageMode } from "@/lib/tournaments/manage-mode";
-import {
-  getTournamentStatusBadgeClass,
-  sessionPhaseBadgeClass,
-} from "@/lib/styles/status-badges";
+import { sessionPhaseBadgeClass } from "@/lib/styles/status-badges";
 import { cn } from "@/lib/utils";
 
 type TournamentSessionChromeProps = {
@@ -36,8 +33,8 @@ type TournamentSessionChromeProps = {
   displayUrl?: string;
   manageUrl?: string;
   /**
-   * Stick flush to the top of the viewport (partner manage has no Gud Game navbar).
-   * Host/official keep offset under `--site-header-height`.
+   * Partner manage has no Gud Game navbar — kept for API compatibility.
+   * Chrome is no longer sticky; it scrolls away with the page.
    */
   flushTop?: boolean;
   className?: string;
@@ -61,7 +58,7 @@ export function TournamentSessionChrome({
   publicUrl: publicUrlProp,
   displayUrl: displayUrlProp,
   manageUrl: manageUrlProp,
-  flushTop = false,
+  flushTop: _flushTop = false,
   className,
 }: TournamentSessionChromeProps) {
   const router = useRouter();
@@ -70,6 +67,9 @@ export function TournamentSessionChrome({
   const displayUrl = displayUrlProp ?? publicSportRoutes.tournamentDisplay(sportSlug, slug);
   const manageUrl = manageUrlProp ?? publicSportRoutes.tournamentManage(sportSlug, slug);
   const displayActive = pathname.endsWith("/display");
+  const createHref = canCreateOfficial
+    ? `${dashboardRoutes.hostTournamentsNew}?sport=${sportSlug}`
+    : `${dashboardRoutes.tournamentsNew}?sport=${sportSlug}`;
 
   const handleDisplay = () => {
     if (displayActive) {
@@ -91,8 +91,7 @@ export function TournamentSessionChrome({
   return (
     <div
       className={cn(
-        "sticky z-40 border-b border-cp-border bg-cp-card/95 backdrop-blur supports-[backdrop-filter]:bg-cp-card/80",
-        flushTop ? "top-0" : "top-[var(--site-header-height,3.5rem)]",
+        "relative z-30 border-b border-cp-border bg-cp-card/95 backdrop-blur supports-[backdrop-filter]:bg-cp-card/80",
         className,
       )}
     >
@@ -152,35 +151,21 @@ export function TournamentSessionChrome({
           ) : null}
 
           {showCreateActions ? (
-            <>
-              {canCreateOfficial ? (
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 gap-1 px-2 sm:px-3"
-                  title="Create official tournament"
-                >
-                  <Link href={`${dashboardRoutes.hostTournamentsNew}?sport=${sportSlug}`}>
-                    <Trophy className="h-3.5 w-3.5 text-cp-primary" />
-                    <span className="text-xs font-semibold">Official</span>
-                  </Link>
-                </Button>
-              ) : null}
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="h-8 shrink-0 gap-1 px-2 sm:px-3"
-                title="Create Fun Match"
-              >
-                <Link href={`${dashboardRoutes.tournamentsNew}?sport=${sportSlug}`}>
-                  <Users className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-semibold">Fun</span>
-                  <span className="hidden text-xs font-semibold min-[420px]:inline">Match</span>
-                </Link>
-              </Button>
-            </>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1 px-2.5 sm:px-3"
+              title="Create a new tournament"
+            >
+              <Link href={createHref}>
+                <Plus className="h-3.5 w-3.5 text-cp-primary" />
+                <span className="text-xs font-semibold">Create</span>
+                <span className="hidden text-xs font-semibold min-[420px]:inline">
+                  tournament
+                </span>
+              </Link>
+            </Button>
           ) : null}
 
           {canManage && !hideManageButton ? (

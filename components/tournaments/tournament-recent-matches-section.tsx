@@ -141,116 +141,116 @@ export function TournamentRecentMatchesSection({
         </div>
       ) : (
         <>
-      <div className="divide-y divide-cp-border md:hidden">
-        {rows.map((row) => (
-          <article key={row.id} className="space-y-2.5 px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <span
-                className={cn(
-                  "inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider",
-                  isOfficial ? statusBadgeClass.accent : statusBadgeClass.reclub,
-                )}
-              >
-                {row.roundLabel}
-              </span>
-              <Badge variant={statusBadgeVariant(row.status)} className="capitalize">
-                {row.status.replace(/_/g, " ")}
-              </Badge>
-            </div>
-            <MatchTeams row={row} />
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <ScoreCell row={row} />
-              <div className="flex flex-wrap items-center gap-3 text-xs text-cp-muted">
-                {row.playedAt ? <span>{formatWhen(row.playedAt)}</span> : null}
-                {!isOfficial && row.durationSeconds != null ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formatDuration(row.durationSeconds)}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            {row.playersSummary ? (
-              <p className="line-clamp-2 text-xs text-cp-muted">{row.playersSummary}</p>
-            ) : null}
-            {isOfficial && row.winnerName ? (
-              <p className="text-xs text-cp-muted">
-                Winner: <span className="font-medium text-foreground">{row.winnerName}</span>
-              </p>
-            ) : null}
-          </article>
-        ))}
-      </div>
-
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-cp-border bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              <th className="min-w-[5.5rem] max-w-[8rem] px-4 py-3 sm:px-6">Round</th>
-              <th className="min-w-[10rem] px-4 py-3">Match</th>
-              {!isOfficial ? <th className="min-w-[9rem] px-4 py-3">Players</th> : null}
-              {isOfficial ? <th className="min-w-[6rem] px-4 py-3">Winner</th> : null}
-              <th className="w-20 px-4 py-3 text-center">Score</th>
-              {!isOfficial ? <th className="w-20 px-4 py-3">Duration</th> : null}
-              {isOfficial ? <th className="min-w-[6rem] px-4 py-3">Played</th> : null}
-              <th className="min-w-[5.5rem] px-4 py-3 text-right sm:px-6">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-cp-border/70">
+          <div className="divide-y divide-cp-border md:hidden">
             {rows.map((row) => (
-              <tr key={row.id} className="transition-colors hover:bg-cp-elevated/25">
-                <td className="px-4 py-3.5 align-top sm:px-6">
+              <article key={row.id} className="space-y-2.5 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
                   <span
                     className={cn(
-                      "block break-words text-xs font-bold uppercase leading-snug tracking-wide",
-                      roundAccent,
+                      "inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider",
+                      isOfficial ? statusBadgeClass.accent : statusBadgeClass.reclub,
                     )}
                   >
                     {row.roundLabel}
                   </span>
-                  {row.matchNumber != null ? (
-                    <p className="mt-0.5 text-[10px] text-cp-muted">M{row.matchNumber}</p>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3.5 align-top">
-                  <MatchTeams row={row} />
-                  {row.playedAt && !isOfficial ? (
-                    <p className="mt-1 text-xs text-cp-muted">{formatWhen(row.playedAt)}</p>
-                  ) : null}
-                </td>
-                {!isOfficial ? (
-                  <td className="px-4 py-3.5 align-top text-xs leading-relaxed text-cp-muted">
-                    {row.playersSummary ?? "—"}
-                  </td>
-                ) : null}
-                {isOfficial ? (
-                  <td className="px-4 py-3.5 text-sm text-foreground">
-                    {row.winnerName ?? "—"}
-                  </td>
-                ) : null}
-                <td className="px-4 py-3.5 text-center">
-                  <ScoreCell row={row} />
-                </td>
-                {!isOfficial ? (
-                  <td className="px-4 py-3.5 text-xs text-cp-muted">
-                    {formatDuration(row.durationSeconds)}
-                  </td>
-                ) : null}
-                {isOfficial ? (
-                  <td className="px-4 py-3.5 text-xs text-cp-muted">
-                    {row.playedAt ? formatWhen(row.playedAt) : "—"}
-                  </td>
-                ) : null}
-                <td className="px-4 py-3.5 text-right sm:px-6">
                   <Badge variant={statusBadgeVariant(row.status)} className="capitalize">
                     {row.status.replace(/_/g, " ")}
                   </Badge>
-                </td>
-              </tr>
+                </div>
+                <MatchTeams row={row} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <ScoreCell row={row} />
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-cp-muted">
+                    {row.playedAt ? <span>{formatWhen(row.playedAt)}</span> : null}
+                    {!isOfficial && row.durationSeconds != null ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatDuration(row.durationSeconds)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                {row.playersSummary ? (
+                  <p className="line-clamp-2 text-xs text-cp-muted">{row.playersSummary}</p>
+                ) : null}
+                {isOfficial && row.winnerName ? (
+                  <p className="text-xs text-cp-muted">
+                    Winner: <span className="font-medium text-foreground">{row.winnerName}</span>
+                  </p>
+                ) : null}
+              </article>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-cp-border bg-cp-elevated/40 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                  <th className="min-w-[5.5rem] max-w-[8rem] px-4 py-3 sm:px-6">Round</th>
+                  <th className="min-w-[10rem] px-4 py-3">Match</th>
+                  {!isOfficial ? <th className="min-w-[9rem] px-4 py-3">Players</th> : null}
+                  {isOfficial ? <th className="min-w-[6rem] px-4 py-3">Winner</th> : null}
+                  <th className="w-20 px-4 py-3 text-center">Score</th>
+                  {!isOfficial ? <th className="w-20 px-4 py-3">Duration</th> : null}
+                  {isOfficial ? <th className="min-w-[6rem] px-4 py-3">Played</th> : null}
+                  <th className="min-w-[5.5rem] px-4 py-3 text-right sm:px-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-cp-border/70">
+                {rows.map((row) => (
+                  <tr key={row.id} className="transition-colors hover:bg-cp-elevated/25">
+                    <td className="px-4 py-3.5 align-top sm:px-6">
+                      <span
+                        className={cn(
+                          "block break-words text-xs font-bold uppercase leading-snug tracking-wide",
+                          roundAccent,
+                        )}
+                      >
+                        {row.roundLabel}
+                      </span>
+                      {row.matchNumber != null ? (
+                        <p className="mt-0.5 text-[10px] text-cp-muted">M{row.matchNumber}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3.5 align-top">
+                      <MatchTeams row={row} />
+                      {row.playedAt && !isOfficial ? (
+                        <p className="mt-1 text-xs text-cp-muted">{formatWhen(row.playedAt)}</p>
+                      ) : null}
+                    </td>
+                    {!isOfficial ? (
+                      <td className="px-4 py-3.5 align-top text-xs leading-relaxed text-cp-muted">
+                        {row.playersSummary ?? "—"}
+                      </td>
+                    ) : null}
+                    {isOfficial ? (
+                      <td className="px-4 py-3.5 text-sm text-foreground">
+                        {row.winnerName ?? "—"}
+                      </td>
+                    ) : null}
+                    <td className="px-4 py-3.5 text-center">
+                      <ScoreCell row={row} />
+                    </td>
+                    {!isOfficial ? (
+                      <td className="px-4 py-3.5 text-xs text-cp-muted">
+                        {formatDuration(row.durationSeconds)}
+                      </td>
+                    ) : null}
+                    {isOfficial ? (
+                      <td className="px-4 py-3.5 text-xs text-cp-muted">
+                        {row.playedAt ? formatWhen(row.playedAt) : "—"}
+                      </td>
+                    ) : null}
+                    <td className="px-4 py-3.5 text-right sm:px-6">
+                      <Badge variant={statusBadgeVariant(row.status)} className="capitalize">
+                        {row.status.replace(/_/g, " ")}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </section>

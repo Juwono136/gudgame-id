@@ -61,7 +61,6 @@ import {
   getTournamentFormatLabel,
   getTournamentAllowedTierLevels,
   getTournamentMatchScoreMode,
-  getTournamentScoringDetailLabel,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
@@ -116,6 +115,15 @@ function formatIdr(amount: number | null | undefined) {
 
 function formatDateRange(starts: string | null, ends: string | null) {
   return formatTournamentScheduleRange(starts, ends);
+}
+
+/** Replace middle-dot list separators with commas for overview UI copy. */
+function withCommaSeparators(text: string): string {
+  return text
+    .replace(/\s*[·•]\s*/g, ", ")
+    .replace(/\s*,\s*,+/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 type OfficialTournamentPageProps = {
@@ -240,9 +248,12 @@ export function OfficialTournamentPage({
     });
   }, [caps, bracketHasTree, isDoubleStageKnockout]);
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
-  const scoringPrimaryLabel = getTournamentScoringPrimaryLabel(tournament);
-  const scoringDetailLabel = getTournamentScoringDetailLabel(tournament);
+  const scoringPrimaryLabel = withCommaSeparators(
+    getTournamentScoringPrimaryLabel(tournament),
+  );
   const courtCount = getTournamentCourtCount(tournament);
+  const scoringHint =
+    courtCount > 0 ? `${courtCount} court${courtCount === 1 ? "" : "s"}` : null;
   useEffect(() => {
     setPublicUrl(window.location.href);
   }, []);
@@ -800,12 +811,12 @@ export function OfficialTournamentPage({
 
           {tab === "Overview" ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 <InfoCard
                   icon={Trophy}
                   title="Prize pool"
                   value={formatIdr(tournament.prizePoolIdr)}
-                  hint="Distributed among top placements."
+                  hint="Top placements"
                 />
                 <InfoCard
                   icon={Users}
@@ -813,7 +824,7 @@ export function OfficialTournamentPage({
                   value={matchTypeLabel}
                   hint={
                     tournament.maxTeams
-                      ? `Up to ${tournament.maxTeams} teams · ${tournament.playersPerTeam} players/team`
+                      ? `Up to ${tournament.maxTeams} teams`
                       : `${tournament.playersPerTeam} players per team`
                   }
                 />
@@ -821,42 +832,84 @@ export function OfficialTournamentPage({
                   icon={Radio}
                   title="Scoring"
                   value={scoringPrimaryLabel}
-                  hint={scoringDetailLabel}
+                  hint={scoringHint}
                 />
               </div>
+
               <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <h2 className="font-semibold text-foreground">Who&apos;s playing</h2>
                     <p className="mt-1 text-sm text-cp-muted">
-                      {summary.registeredPlayers} players registered
-                      {summary.spotsRemaining != null
-                        ? ` · ${summary.spotsRemaining} team spots left`
-                        : ""}
+                      {summary.spotsRemaining == null
+                        ? "Current roster for this event."
+                        : summary.spotsRemaining === 0
+                          ? "The field is full, registration is closed for new teams."
+                          : `${summary.spotsRemaining} team spot${
+                              summary.spotsRemaining === 1 ? "" : "s"
+                            } still open.`}
                     </p>
                   </div>
-                  <span className="text-sm font-medium text-cp-primary">
-                    {summary.registeredTeams}
-                    {summary.maxTeams != null ? ` / ${summary.maxTeams}` : ""} teams
-                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full shrink-0 border-cp-border sm:w-auto"
+                    onClick={() => navigateTab("Players")}
+                  >
+                    View players
+                  </Button>
                 </div>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-cp-elevated">
-                  <div
-                    className="h-full rounded-full bg-cp-primary transition-all duration-500"
-                    style={{
-                      width: `${summary.maxTeams ? Math.min(100, (summary.registeredTeams / summary.maxTeams) * 100) : 40}%`,
-                    }}
-                  />
+
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Teams
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                      {summary.registeredTeams}
+                      {summary.maxTeams != null ? (
+                        <span className="text-base font-semibold text-cp-muted">
+                          {" "}
+                          / {summary.maxTeams}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Players
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                      {summary.registeredPlayers}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-cp-muted">
+                      {tournament.playersPerTeam} per team
+                    </p>
+                  </div>
+                  <div className="col-span-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:col-span-1 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Availability
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 text-sm font-semibold sm:text-base",
+                        summary.spotsRemaining === 0
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-cp-primary",
+                      )}
+                    >
+                      {summary.spotsRemaining == null
+                        ? "Open field"
+                        : summary.spotsRemaining === 0
+                          ? "Full"
+                          : `${summary.spotsRemaining} spot${
+                              summary.spotsRemaining === 1 ? "" : "s"
+                            } left`}
+                    </p>
+                  </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4 border-cp-border"
-                  onClick={() => navigateTab("Players")}
-                >
-                  View full player list
-                </Button>
               </section>
+
               <TournamentRecentMatchesSection
                 variant="official"
                 rows={recentMatchRows}
@@ -1066,7 +1119,9 @@ export function OfficialTournamentPage({
             ) : null}
 
             {summary.spotsRemaining != null ? (
-              <p className="mt-2 text-xs text-cp-muted">{summary.spotsRemaining} spots remaining</p>
+              <p className="mt-2 text-xs text-cp-muted">
+                {summary.spotsRemaining} spots remaining
+              </p>
             ) : null}
 
             {isOfficialEvent && allowedTierLevels ? (
@@ -1211,16 +1266,24 @@ function InfoCard({
   icon: typeof Trophy;
   title: string;
   value: string;
-  hint: string;
+  hint?: string | null;
 }) {
   return (
-    <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
+    <div className="flex h-full min-w-0 flex-col rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
       <div className="flex items-center gap-2 text-cp-primary">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>
+        <Icon className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="text-[10px] font-semibold uppercase tracking-wider sm:text-xs">
+          {title}
+        </span>
       </div>
-      <p className={cn("mt-3 text-xl font-bold text-foreground capitalize")}>{value}</p>
-      <p className="mt-1 text-xs text-cp-muted">{hint}</p>
+      <p className="mt-2.5 break-words text-base font-bold leading-snug text-foreground sm:mt-3 sm:text-lg">
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-1 break-words text-xs leading-relaxed text-cp-muted sm:text-sm">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

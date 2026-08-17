@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGoogleCalendarUrl,
+  buildOutlookCalendarUrl,
   buildTournamentIcs,
   toIcsUtc,
 } from "@/lib/tournaments/calendar";
@@ -38,5 +39,20 @@ describe("tournament calendar helpers", () => {
     expect(url).toContain("action=TEMPLATE");
     expect(url).toContain("text=Dev+Double+Stage+32");
     expect(url).toContain("20260721T020000Z%2F20260801T165000Z");
+  });
+
+  it("builds an Outlook web compose URL", () => {
+    const url = buildOutlookCalendarUrl({
+      title: "Dev Double Stage 32",
+      location: "Mr. Padel",
+      startsAt: "2026-07-21T02:00:00.000Z",
+      endsAt: "2026-08-01T16:50:00.000Z",
+      description: "Group stage then knockout",
+    });
+    expect(url).toContain("https://outlook.live.com/calendar/0/deeplink/compose?");
+    expect(url).toContain("rru=addevent");
+    expect(url).toContain("subject=Dev+Double+Stage+32");
+    expect(url).toContain("startdt=2026-07-21T02%3A00%3A00Z");
+    expect(url).toContain("location=Mr.+Padel");
   });
 });

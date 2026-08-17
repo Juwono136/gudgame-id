@@ -1,0 +1,159 @@
+          {tab === "Overview" ? (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                <InfoCard
+                  icon={Trophy}
+                  title="Prize pool"
+                  value={formatIdr(tournament.prizePoolIdr)}
+                  hint="Top placements"
+                />
+                <InfoCard
+                  icon={Users}
+                  title="Format"
+                  value={matchTypeLabel}
+                  hint={
+                    tournament.maxTeams
+                      ? `Up to ${tournament.maxTeams} teams`
+                      : `${tournament.playersPerTeam} / team`
+                  }
+                />
+                <InfoCard
+                  icon={Radio}
+                  title="Scoring"
+                  value={scoringPrimaryLabel}
+                  hint={scoringDetailLabel}
+                />
+                <InfoCard
+                  icon={isFreeOfficial ? Trophy : CreditCard}
+                  title="Entry"
+                  value={
+                    isFreeOfficial ? "Free" : formatIdr(tournament.registrationFeeIdr)
+                  }
+                  hint={
+                    courtCount > 0
+                      ? `${courtCount} court${courtCount === 1 ? "" : "s"}`
+                      : getOfficialBillingLabel(tournament.officialBilling)
+                  }
+                />
+              </div>
+
+              <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="font-semibold text-foreground">Who&apos;s playing</h2>
+                    <p className="mt-1 text-sm text-cp-muted">
+                      {summary.spotsRemaining == null
+                        ? "Current roster for this event."
+                        : summary.spotsRemaining === 0
+                          ? "The field is full — registration is closed for new teams."
+                          : `${summary.spotsRemaining} team spot${
+                              summary.spotsRemaining === 1 ? "" : "s"
+                            } still open.`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0 border-cp-border"
+                    onClick={() => navigateTab("Players")}
+                  >
+                    View players
+                  </Button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Teams
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                      {summary.registeredTeams}
+                      {summary.maxTeams != null ? (
+                        <span className="text-base font-semibold text-cp-muted">
+                          {" "}
+                          / {summary.maxTeams}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Players
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                      {summary.registeredPlayers}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-cp-muted">
+                      {tournament.playersPerTeam} per team
+                    </p>
+                  </div>
+                  <div className="col-span-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:col-span-1 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Availability
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 text-sm font-semibold sm:text-base",
+                        summary.spotsRemaining === 0
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-cp-primary",
+                      )}
+                    >
+                      {summary.spotsRemaining == null
+                        ? "Open field"
+                        : summary.spotsRemaining === 0
+                          ? "Full"
+                          : `${summary.spotsRemaining} spot${
+                              summary.spotsRemaining === 1 ? "" : "s"
+                            } left`}
+                    </p>
+                    {tournament.venue ? (
+                      <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-cp-muted">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{tournament.venue}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+
+              <TournamentRecentMatchesSection
+                variant="official"
+                rows={recentMatchRows}
+                alwaysShow
+                emptyMessage={
+                  caps.hasGroupStage
+                    ? caps.isGroupOnly
+                      ? "Group results will appear here as fixtures are recorded."
+                      : isDoubleStageKnockout
+                        ? "Group and knockout results will appear here as matches are recorded."
+                        : "Group stage results will appear here as rounds are recorded."
+                    : caps.hasLobbyRounds
+                    ? caps.isMexicano
+                      ? "Mexicano results will appear after rounds are recorded."
+                      : "Americano results will appear after rounds are recorded."
+                    : bracketReady
+                    ? "No match results yet. Seeded bracket matches will appear here as play progresses."
+                    : "The host will publish the bracket after registration closes. Results will show here once matches are played."
+                }
+                onViewAll={goToHistoryStats}
+                emptyActionLabel="View history"
+              />
+              {tournament.description ? (
+                <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+                  <h2 className="font-semibold text-foreground">About</h2>
+                  <div className="mt-3 text-sm leading-relaxed text-cp-muted">
+                    <RichHtmlContent html={tournament.description} variant="article" />
+                  </div>
+                </section>
+              ) : null}
+              {tournament.venue ? (
+                <VenueMapsPreview
+                  venue={tournament.venue}
+                  mapsUrl={venueMapsUrl}
+                />
+              ) : null}
+              <TournamentRulesAccordion
+                matchFormatHtml={ruleSections?.matchFormatHtml}
+                equipmentStandardsHtml={ruleSections?.equipmentStandardsHtml}
+                format={tournament.format}
