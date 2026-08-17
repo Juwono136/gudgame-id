@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
+  Info,
   Loader2,
   MoreVertical,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
+  Shield,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { AdminLoadingOverlay } from "@/components/admin/ui/admin-loading-overlay
 import { WikiEntityThumbnail } from "@/components/admin/wiki/wiki-entity-thumbnail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -346,12 +348,56 @@ export function WikiEntitiesPage({ context }: WikiEntitiesPageProps) {
   );
 }
 
+function WikiDirectoryBulkHint({
+  mode,
+}: {
+  mode: "protected" | "idle";
+}) {
+  if (mode === "protected") {
+    return (
+      <div
+        role="status"
+        className="flex gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-left sm:px-4"
+      >
+        <Shield className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm font-medium text-foreground">
+            No bulk actions on this page
+          </p>
+          <p className="text-xs leading-relaxed text-cp-muted">
+            Live tournaments are protected and cannot be selected. Switch filters, or open
+            another page that includes players, gear, or draft / non-live tournaments.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="note"
+      className="flex gap-3 rounded-xl border border-cp-border/80 bg-cp-elevated/40 px-3 py-3 text-left sm:px-4"
+    >
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-cp-primary" />
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm font-medium text-foreground">Bulk publish & delete</p>
+        <p className="text-xs leading-relaxed text-cp-muted">
+          Select draft wiki entities to publish. Players, gear, and non-live tournaments can
+          be deleted in bulk. Live tournaments stay locked until the event ends or is
+          cancelled.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function WikiEntitiesPageContent() {
   const { sportSlug } = useAdminSport();
   const { confirm } = useConfirmDialog();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [typeFilter, setTypeFilter] = useState<WikiDirectoryTypeFilterValue>("all");
   const [statusFilter, setStatusFilter] =
     useState<WikiEntitiesListQuery["status"]>("all");
@@ -364,7 +410,7 @@ function WikiEntitiesPageContent() {
   const queryParams: WikiEntitiesListQuery = useMemo(
     () => ({
       page,
-      pageSize: 10,
+      pageSize,
       search: debouncedSearch || undefined,
       entityType:
         typeFilter === "all"
@@ -374,15 +420,25 @@ function WikiEntitiesPageContent() {
       sortBy,
       sortDir,
     }),
-    [page, debouncedSearch, typeFilter, statusFilter, sortBy, sortDir],
+    [page, pageSize, debouncedSearch, typeFilter, statusFilter, sortBy, sortDir],
   );
 
   useEffect(() => {
     setPage(1);
+    setSearch("");
+    setTypeFilter("all");
+    setStatusFilter("all");
     setSelection(new Map());
   }, [sportSlug]);
 
-  const { data, isLoading, isFetching, error } = useWikiEntitiesList(queryParams, sportSlug);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, typeFilter, statusFilter, sortBy, sortDir, pageSize]);
+
+  const { data, isLoading, isFetching, error, refetch, isError } = useWikiEntitiesList(
+    queryParams,
+    sportSlug,
+  );
   const deleteEntity = useDeleteWikiEntity();
   const deleteTournament = useDeleteAdminTournament();
   const bulkDelete = useBulkDeleteWikiDirectory();
@@ -427,7 +483,7 @@ function WikiEntitiesPageContent() {
   // Reset selection when filters change — not when paginating.
   useEffect(() => {
     setSelection(new Map());
-  }, [debouncedSearch, typeFilter, statusFilter, sortBy, sortDir]);
+  }, [debouncedSearch, typeFilter, statusFilter, sortBy, sortDir, pageSize]);
 
   const toggleSelectItem = (item: WikiDirectoryListItem) => {
     if (!canSelectItem(item)) return;
@@ -653,7 +709,8 @@ function WikiEntitiesPageContent() {
     if (ok) deleteTournament.mutate(id);
   };
 
-  const totalPages = data ? Math.ceil(data.total / data.pageSize) : 1;
+  const totalPages =
+    data?.totalPages ?? (data ? Math.ceil(data.total / data.pageSize) : 0);
 
   return (
     <div className="relative space-y-4 sm:space-y-6">
@@ -702,12 +759,10 @@ function WikiEntitiesPageContent() {
                 <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
                 <Input
                   value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="Search wiki database…"
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, slug, venue…"
                   className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-10 text-foreground sm:h-11"
+                  maxLength={100}
                 />
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:max-w-2xl">
@@ -807,9 +862,13 @@ function WikiEntitiesPageContent() {
           ) : null}
 
           {data?.items.length ? (
-            <div className="flex flex-col gap-2 border-b border-cp-border bg-cp-elevated/25 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4 lg:px-5">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-cp-muted">
-                {selection.size > 0 ? (
+            <div className="space-y-3 border-b border-cp-border bg-cp-elevated/20 px-3 py-3 sm:px-4 lg:px-5">
+              {selection.size === 0 ? (
+                <WikiDirectoryBulkHint
+                  mode={pageHasOnlyProtectedItems ? "protected" : "idle"}
+                />
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-cp-muted">
                   <span className="font-medium text-foreground">
                     {selection.size} selected
                     {selectedPublishableCount > 0 ? (
@@ -826,20 +885,6 @@ function WikiEntitiesPageContent() {
                       </span>
                     ) : null}
                   </span>
-                ) : pageHasOnlyProtectedItems ? (
-                  <span>
-                    No bulk-delete on this page.{" "}
-                    <span className="text-cp-muted">
-                      Live tournaments are protected; players, gear, and draft tournaments can
-                      be selected.
-                    </span>
-                  </span>
-                ) : (
-                  <span>
-                    Select draft wiki entities to publish, or use bulk delete for removal.
-                  </span>
-                )}
-                {selection.size > 0 ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -849,15 +894,15 @@ function WikiEntitiesPageContent() {
                   >
                     Clear
                   </Button>
-                ) : null}
-              </div>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   disabled={selectedPublishableCount === 0 || bulkPublish.isPending}
-                  className="h-8 border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                  className="h-8 border-emerald-500/30 text-xs text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
                   onClick={() => void handleBulkPublishSelected()}
                 >
                   {bulkPublish.isPending ? (
@@ -876,7 +921,7 @@ function WikiEntitiesPageContent() {
                     !data?.stats?.wikiDraft ||
                     data.stats.wikiDraft === 0
                   }
-                  className="h-8 border-cp-border text-xs text-cp-muted hover:border-emerald-500/30 hover:text-emerald-400"
+                  className="h-8 border-cp-border text-xs text-cp-muted hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400"
                   onClick={() => void handleBulkPublishAllDrafts()}
                 >
                   Publish all drafts
@@ -886,7 +931,7 @@ function WikiEntitiesPageContent() {
                   variant="outline"
                   size="sm"
                   disabled={selectedDeletableCount === 0 || bulkDelete.isPending}
-                  className="h-8 border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="h-8 border-red-500/30 text-xs text-red-600 hover:bg-red-500/10 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                   onClick={() => void handleBulkDeleteSelected()}
                 >
                   {bulkDelete.isPending ? (
@@ -910,7 +955,7 @@ function WikiEntitiesPageContent() {
                       ? "No deletable items match your filters (live tournaments are skipped)"
                       : undefined
                   }
-                  className="h-8 border-cp-border text-xs text-cp-muted hover:border-red-500/30 hover:text-red-400"
+                  className="h-8 border-cp-border text-xs text-cp-muted hover:border-red-500/30 hover:text-red-600 dark:hover:text-red-400"
                   onClick={() => void handleBulkDeleteAll()}
                 >
                   Delete all
@@ -919,10 +964,16 @@ function WikiEntitiesPageContent() {
             </div>
           ) : null}
 
-          {error ? (
-            <p className="p-10 text-center text-sm text-red-400">
-              Failed to load entities. Try again.
-            </p>
+          {isError ? (
+            <div className="space-y-3 p-10 text-center">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {error instanceof Error ? error.message : "Failed to load entities. Try again."}
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Try again
+              </Button>
+            </div>
           ) : isLoading ? (
             <div className="space-y-2 p-4">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -1105,32 +1156,20 @@ function WikiEntitiesPageContent() {
           )}
         </div>
 
-        {data && totalPages > 1 ? (
-          <div className="flex items-center justify-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="border-cp-border"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <span className="px-2 text-sm text-cp-muted">
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-              className="border-cp-border"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        {data && data.total > 0 ? (
+          <DataTablePagination
+            page={data.page}
+            pageSize={data.pageSize}
+            total={data.total}
+            totalPages={totalPages}
+            disabled={isFetching}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+            pageSizeOptions={[10, 20, 50]}
+          />
         ) : null}
       </div>
   );

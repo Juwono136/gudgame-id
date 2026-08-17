@@ -104,6 +104,7 @@ export async function getPlayerDashboardData(userId: string): Promise<PlayerDash
       pageSize: 3,
       scope: "all",
       type: "all",
+      status: "all",
       sortBy: "year",
       sortDir: "desc",
       ...sportScope,

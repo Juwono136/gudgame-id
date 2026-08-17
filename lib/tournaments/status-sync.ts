@@ -81,6 +81,21 @@ export async function syncTournamentStatusFromSchedule(
       row.id,
       computed === "cancelled" ? "cancelled" : "completed",
     );
+
+    try {
+      const { getTournamentById } = await import(
+        "@/lib/tournaments/workspace/service"
+      );
+      const { archiveTournamentSnapshot } = await import(
+        "@/lib/tournaments/archives/service"
+      );
+      const detail = await getTournamentById(row.id);
+      if (detail) {
+        await archiveTournamentSnapshot(detail, computed === "cancelled");
+      }
+    } catch {
+      // Archive is best-effort on schedule sync — never block status transition.
+    }
   }
 
   await invalidateTournamentCaches(row.sportSlug, row.slug);

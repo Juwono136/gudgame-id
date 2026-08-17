@@ -128,7 +128,8 @@ export type WikiEntityUpsertInput = z.infer<typeof wikiEntityUpsertSchema>;
 
 export const wikiEntitiesListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).default(12),
+  /** Cap keeps admin directory responsive; bulk actions use a separate higher server limit. */
+  pageSize: z.coerce.number().int().min(5).max(50).default(10),
   search: z.string().trim().max(100).optional(),
   entityType: wikiDirectoryTypeFilterSchema.optional(),
   status: wikiEntityStatusSchema.or(z.literal("all")).default("all"),

@@ -3,11 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Gamepad2, LayoutDashboard, Pencil, Plus, Search, Swords, Trash2, Trophy } from "lucide-react";
+import {
+  Calendar,
+  Gamepad2,
+  LayoutDashboard,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Swords,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 import { DashboardWorkspaceShell } from "@/components/dashboard/dashboard-workspace-shell";
 import { PlayerMatchHistoryPanel } from "@/components/dashboard/player/competition/player-match-history-panel";
-import { OfficialRegistrationEditDialog } from "@/components/tournaments/official-registration-edit-dialog";
-import { OfficialRegistrationManageActions } from "@/components/tournaments/official-registration-manage-actions";
+import {
+  TournamentStatusBadge,
+  TournamentTypeBadge,
+} from "@/components/dashboard/host/host-tournament-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,17 +40,21 @@ import { useDeleteManageTournament } from "@/hooks/use-manage-tournament";
 import { usePlayerTournamentsList } from "@/hooks/use-player-competition";
 import { useDashboardSport } from "@/providers/dashboard-sport-provider";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
-import { Badge } from "@/components/ui/badge";
 import { dashboardRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import type { AppRole } from "@/lib/roles/constants";
 import type { PlayerTournamentsListQuery } from "@/lib/validations/player-competition";
 import type { PlayerTournamentListItem } from "@/lib/account/player-competition/types";
-import { getPublicTournamentTypeLabel } from "@/lib/tournaments/constants";
-import { getTournamentTypeBadgeClass } from "@/lib/styles/status-badges";
+import { OFFICIAL_BILLING_LABELS } from "@/lib/tournaments/constants";
+import { getTournamentFormatLabel } from "@/lib/tournaments/settings";
+import { formatTournamentListSchedule } from "@/lib/tournaments/format-schedule";
 import {
   formatPlayerTournamentResult,
-  formatTournamentStatusLabel,
 } from "@/lib/account/player-competition/format-outcome";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 import { WorkspaceScopeTabs } from "@/components/dashboard/workspace-scope-tabs";
 
@@ -45,233 +62,120 @@ type PlayerTournamentsListPageProps = {
   roles: AppRole[];
 };
 
+type PlayerTournamentsViewScope = "created" | "history";
+
 function placementTone(placement: string) {
   const lower = placement.toLowerCase();
-  if (lower.includes("winner") || lower.includes("champion")) {
-    return "text-cp-primary";
-  }
-  if (lower.includes("finalist") || lower.includes("runner")) {
-    return "text-amber-400";
-  }
-  if (lower.includes("host")) {
-    return "text-sky-400";
-  }
+  if (lower.includes("winner") || lower.includes("champion")) return "text-cp-primary";
+  if (lower.includes("finalist") || lower.includes("runner")) return "text-amber-500 dark:text-amber-400";
+  if (lower.includes("host")) return "text-sky-600 dark:text-sky-400";
   return "text-foreground";
 }
 
-const TOURNAMENT_LIST_GRID =
-  "md:grid md:grid-cols-[3.25rem_minmax(0,1.5fr)_5.25rem_minmax(0,1fr)_6.5rem_minmax(7.5rem,auto)] md:items-center md:gap-x-3 md:gap-y-1";
-
-type TournamentListRowProps = {
-  row: PlayerTournamentListItem;
-  scope: PlayerTournamentsListQuery["scope"];
-  deletePending: boolean;
-  onEditRegistration: (payload: {
-    registrationId: string;
-    sportSlug: string;
-    slug: string;
-    tournamentName: string;
-  }) => void;
-  onRefetch: () => void;
-  onDelete: (tournamentId: string) => void;
-};
-
-function TournamentListRow({
+function TournamentOrganizeRow({
   row,
-  scope,
   deletePending,
-  onEditRegistration,
-  onRefetch,
   onDelete,
-}: TournamentListRowProps) {
+}: {
+  row: PlayerTournamentListItem;
+  deletePending: boolean;
+  onDelete: (tournamentId: string) => void;
+}) {
   const href =
     row.sportSlug && row.slug
-      ? scope === "created"
-        ? publicSportRoutes.tournamentManage(row.sportSlug, row.slug)
-        : publicSportRoutes.tournament(row.sportSlug, row.slug)
-      : scope === "created" && row.tournamentId
+      ? publicSportRoutes.tournamentManage(row.sportSlug, row.slug)
+      : row.tournamentId
         ? dashboardRoutes.tournament(row.tournamentId)
         : null;
 
-  const statusLabel = row.registrationStatus
-    ? row.registrationStatus.replace(/_/g, " ")
-    : formatTournamentStatusLabel(row.status) ?? row.status;
-
-  const registrationActions =
-    scope === "joined" &&
-    row.source === "official" &&
-    row.canManageRegistration &&
-    row.registrationId &&
-    row.registrationStatus &&
-    row.sportSlug &&
-    row.slug ? (
-      <OfficialRegistrationManageActions
-        registrationId={row.registrationId}
-        sportSlug={row.sportSlug}
-        slug={row.slug}
-        teamName={row.registrationTeamName}
-        registrationStatus={row.registrationStatus}
-        layout="compact"
-        onEditTeam={() => {
-          onEditRegistration({
-            registrationId: row.registrationId!,
-            sportSlug: row.sportSlug!,
-            slug: row.slug!,
-            tournamentName: row.tournamentName,
-          });
-        }}
-        onCancelled={() => void onRefetch()}
-        redirectOnCancel={undefined}
-      />
-    ) : null;
-
-  const isFunMatchCreated =
-    scope === "created" && row.source === "fun_match" && Boolean(row.tournamentId);
-
-  const hostActions = (
-    <>
-      {isFunMatchCreated ? (
-        <Button
-          asChild
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-emerald-400 hover:text-emerald-300"
-        >
-          <Link
-            href={dashboardRoutes.tournament(row.tournamentId!)}
-            title="Open session workspace"
-            aria-label="Open session workspace"
-          >
-            <LayoutDashboard className="h-4 w-4" />
-          </Link>
-        </Button>
-      ) : null}
-      {row.canEdit && row.tournamentId ? (
-        <Button
-          asChild
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-cp-muted hover:text-foreground"
-        >
-          <Link href={dashboardRoutes.tournamentEdit(row.tournamentId)} title="Edit tournament">
-            <Pencil className="h-4 w-4" />
-          </Link>
-        </Button>
-      ) : null}
-      {row.canDelete && row.tournamentId ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-red-400 hover:text-red-300"
-          disabled={deletePending}
-          title="Delete tournament"
-          onClick={() => onDelete(row.tournamentId!)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      ) : null}
-    </>
-  );
-
-  const typeBadge = (
-    <Badge
-      className={cn(
-        "w-fit shrink-0 border-0 text-[10px] uppercase",
-        getTournamentTypeBadgeClass(row.source === "official" ? "official" : "fun_match"),
-      )}
-    >
-      {getPublicTournamentTypeLabel(row.source)}
-    </Badge>
-  );
-
-  const tournamentTitle = href ? (
-    <Link
-      href={href}
-      className="text-sm font-medium text-foreground hover:text-emerald-400 hover:underline"
-    >
-      {row.tournamentName}
-    </Link>
-  ) : (
-    <p className="text-sm font-medium text-foreground">{row.tournamentName}</p>
-  );
+  const resultLabel = formatPlayerTournamentResult(row);
+  const schedule = formatTournamentListSchedule(row.startsAt, row.endsAt);
+  const formatLabel = row.format ? getTournamentFormatLabel(row.format) : null;
+  const billingLabel =
+    row.source === "official" && row.officialBilling
+      ? OFFICIAL_BILLING_LABELS[row.officialBilling]
+      : null;
 
   return (
-    <li className="px-4 py-4 sm:px-5 md:px-6">
-      <div className="flex flex-col gap-3 md:hidden">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            {tournamentTitle}
-            {statusLabel ? (
-              <p className="mt-0.5 text-xs capitalize text-cp-muted">{statusLabel}</p>
-            ) : null}
-          </div>
-          {typeBadge}
-        </div>
-
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-          <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              Year
-            </dt>
-            <dd className="mt-0.5 text-sm font-semibold text-foreground">{row.year}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              Category
-            </dt>
-            <dd className="mt-0.5 text-sm text-cp-muted">{row.category ?? "—"}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-              Result
-            </dt>
-            <dd
-              className={cn(
-                "mt-0.5 text-sm font-semibold",
-                placementTone(formatPlayerTournamentResult(row)),
-              )}
-            >
-              {formatPlayerTournamentResult(row)}
-            </dd>
-          </div>
-        </dl>
-
-        {registrationActions || isFunMatchCreated || row.canEdit || row.canDelete ? (
-          <div className="flex flex-wrap items-center justify-end gap-1 border-t border-cp-border/60 pt-3">
-            {registrationActions}
-            {hostActions}
-          </div>
-        ) : null}
-      </div>
-
-      <div className={cn("hidden min-w-[44rem]", TOURNAMENT_LIST_GRID)}>
-        <p className="text-sm font-semibold tabular-nums text-foreground">{row.year}</p>
-        <div className="min-w-0">
-          {tournamentTitle}
-          {statusLabel ? (
-            <p className="mt-0.5 text-xs capitalize text-cp-muted">{statusLabel}</p>
+    <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5">
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <TournamentTypeBadge tournamentType={row.source} />
+          {row.status ? <TournamentStatusBadge status={row.status} /> : null}
+          {billingLabel ? (
+            <span className="rounded-full border border-cp-border bg-cp-elevated/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
+              {billingLabel}
+            </span>
           ) : null}
         </div>
-        <div className="flex justify-start">{typeBadge}</div>
-        <p className="min-w-0 truncate text-sm text-cp-muted">{row.category ?? "—"}</p>
-        <p
-          className={cn(
-            "text-right text-sm font-semibold",
-            placementTone(formatPlayerTournamentResult(row)),
-          )}
-        >
-          {formatPlayerTournamentResult(row)}
+
+        {href ? (
+          <Link
+            href={href}
+            className="block truncate font-semibold text-foreground hover:text-cp-primary"
+          >
+            {row.tournamentName}
+          </Link>
+        ) : (
+          <p className="truncate font-semibold text-foreground">{row.tournamentName}</p>
+        )}
+
+        <p className="text-xs text-cp-muted">
+          {row.year}
+          {row.category ? ` · ${row.category}` : ""}
+          {formatLabel ? ` · ${formatLabel}` : ""}
+          {row.venue ? ` · ${row.venue}` : ""}
         </p>
-        <div className="flex justify-end gap-0.5">
-          {registrationActions}
-          {hostActions}
-        </div>
+
+        {schedule ? (
+          <p className="inline-flex items-center gap-1.5 text-xs text-cp-text-dim">
+            <Calendar className="h-3.5 w-3.5 shrink-0" />
+            {schedule}
+          </p>
+        ) : null}
+
+        <p className={cn("text-sm font-semibold", placementTone(resultLabel))}>{resultLabel}</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {row.source === "fun_match" && row.tournamentId ? (
+          <Button asChild size="sm" variant="outline" className="h-9">
+            <Link href={dashboardRoutes.tournament(row.tournamentId)}>
+              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
+              Workspace
+            </Link>
+          </Button>
+        ) : href ? (
+          <Button asChild size="sm" variant="outline" className="h-9">
+            <Link href={href}>
+              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" />
+              Manage
+            </Link>
+          </Button>
+        ) : null}
+        {row.canEdit && row.tournamentId ? (
+          <Button asChild size="icon" variant="ghost" className="h-9 w-9 text-cp-muted">
+            <Link href={dashboardRoutes.tournamentEdit(row.tournamentId)} title="Edit">
+              <Pencil className="h-4 w-4" />
+            </Link>
+          </Button>
+        ) : null}
+        {row.canDelete && row.tournamentId ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-9 w-9 text-red-500 hover:text-red-400"
+            disabled={deletePending}
+            title="Delete"
+            onClick={() => onDelete(row.tournamentId!)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ) : null}
       </div>
     </li>
   );
 }
-
-type PlayerTournamentsViewScope = "created" | "history";
 
 export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPageProps) {
   const router = useRouter();
@@ -281,82 +185,79 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
   const scopeParam = searchParams.get("scope");
   const viewScope: PlayerTournamentsViewScope =
     scopeParam === "history" ? "history" : "created";
-  const scope: PlayerTournamentsListQuery["scope"] = "created";
 
   const { confirm } = useConfirmDialog();
   const deleteTournament = useDeleteManageTournament();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [year, setYear] = useState<string>("all");
   const [type, setType] = useState<PlayerTournamentsListQuery["type"]>("all");
+  const [status, setStatus] = useState<PlayerTournamentsListQuery["status"]>("all");
   const [sortBy, setSortBy] = useState<PlayerTournamentsListQuery["sortBy"]>("year");
   const [sortDir, setSortDir] = useState<PlayerTournamentsListQuery["sortDir"]>("desc");
-  const [editRegistration, setEditRegistration] = useState<{
-    registrationId: string;
-    sportSlug: string;
-    slug: string;
-    tournamentName: string;
-  } | null>(null);
+
+  useEffect(() => {
+    setPage(1);
+    setSearch("");
+    setYear("all");
+    setType("all");
+    setStatus("all");
+  }, [sportSlug, viewScope]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const queryParams: PlayerTournamentsListQuery = useMemo(
     () => ({
       page,
-      pageSize: 10,
-      scope,
+      pageSize,
+      scope: "created",
       search: debouncedSearch || undefined,
       type,
+      status,
       year: year === "all" ? undefined : Number(year),
       sortBy,
       sortDir,
     }),
-    [page, debouncedSearch, year, type, sortBy, sortDir, scope],
+    [page, pageSize, debouncedSearch, year, type, status, sortBy, sortDir],
   );
 
   const { data, isLoading, isFetching, error, refetch } = usePlayerTournamentsList(queryParams, {
     includeYears: true,
   });
 
-  useEffect(() => {
-    setPage(1);
-  }, [sportSlug]);
-
   const yearOptions = data?.years ?? [];
 
-  const scopeTabs: {
-    id: PlayerTournamentsViewScope;
-    label: string;
-    hint: string;
-    icon: typeof Trophy;
-  }[] = [
+  const scopeTabs = [
     {
-      id: "created",
+      id: "created" as const,
       label: "Events I organize",
-      hint: "Fun Match sessions you created — manage squads, scores, and invites",
+      shortLabel: "Organize",
+      hint: "Official and Fun Match events you created",
       icon: Gamepad2,
     },
     {
-      id: "history",
+      id: "history" as const,
       label: "Match history",
-      hint: "Every match you played with scores, opponents, and full statistics",
+      shortLabel: "History",
+      hint: "Matches you played with scores and career stats",
       icon: Swords,
     },
   ];
-
-  const activeTab = scopeTabs.find((t) => t.id === viewScope);
 
   const handleDeleteTournament = async (tournamentId: string) => {
     const ok = await confirm({
       title: "Delete tournament?",
       description:
-        "This cannot be undone. Tournaments with paid registrations or active brackets cannot be deleted.",
+        "This cannot be undone. Events with paid registrations or active brackets cannot be deleted.",
       confirmLabel: "Delete",
       cancelLabel: "Cancel",
       variant: "destructive",
     });
-    if (ok) {
-      deleteTournament.mutate(tournamentId);
-    }
+    if (ok) deleteTournament.mutate(tournamentId);
   };
 
   return (
@@ -365,9 +266,9 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
       variant="player"
       title={viewScope === "created" ? "My events" : "Match history"}
       description={
-        activeTab?.hint
-          ? `${sportName} — ${activeTab.hint.toLowerCase()}`
-          : `${sportName} — manage your sessions and browse matches you have played.`
+        viewScope === "created"
+          ? `${sportName} — manage events you organize, including Fun Match sessions and Official events you host.`
+          : `${sportName} — every match you played with scores, opponents, and ranking context.`
       }
       breadcrumbs={[
         { label: "Player", href: dashboardRoutes.home },
@@ -378,7 +279,7 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
           <Button
             asChild
             size="sm"
-            className="h-10 w-full bg-emerald-600 hover:bg-emerald-500 md:w-auto"
+            className="h-10 w-full bg-cp-primary hover:bg-cp-primary-light md:w-auto"
           >
             <Link href={dashboardRoutes.tournamentsNew}>
               <Plus className="mr-2 h-4 w-4" />
@@ -389,181 +290,206 @@ export function PlayerTournamentsListPage({ roles }: PlayerTournamentsListPagePr
       }
     >
       <WorkspaceScopeTabs
-        className="mb-6"
-        tabs={scopeTabs.map((t) => ({
-          id: t.id,
-          label: t.label,
-          shortLabel: t.id === "created" ? "Organize" : "History",
-          hint: t.hint,
-          icon: t.icon,
-        }))}
+        className="mb-4"
+        variant="segmented"
+        tabs={scopeTabs}
         active={viewScope}
         onChange={(id) => {
-          setPage(1);
           router.push(`${dashboardRoutes.tournaments}?scope=${id}`);
         }}
       />
 
+      <p className="mb-4 text-sm text-cp-muted">
+        {viewScope === "created"
+          ? "Search and filter events you created. Open Manage to run scoring, or Workspace for Fun Match lobbies."
+          : "Filter your career match log by type, result, and year. Open a match for the full record."}
+      </p>
+
       {viewScope === "history" ? (
         <PlayerMatchHistoryPanel />
       ) : (
-      <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
-        <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:p-5 md:flex-row md:items-stretch md:gap-4">
-          <div className="relative min-w-0 w-full flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search tournaments…"
-              className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50 pl-9"
-            />
-          </div>
-
-          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:min-w-[26rem] md:shrink-0 md:grid-cols-3">
-            <Select
-              value={type}
-              onValueChange={(v) => {
-                setType(v as PlayerTournamentsListQuery["type"]);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="official">Official</SelectItem>
-                <SelectItem value="fun_match">Fun Match</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={year}
-              onValueChange={(v) => {
-                setYear(v);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50">
-                <SelectValue placeholder="Year" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All years</SelectItem>
-                {yearOptions.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={`${sortBy}-${sortDir}`}
-              onValueChange={(v) => {
-                const [sb, sd] = v.split("-") as [
-                  PlayerTournamentsListQuery["sortBy"],
-                  PlayerTournamentsListQuery["sortDir"],
-                ];
-                setSortBy(sb);
-                setSortDir(sd);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 w-full min-w-0 border-cp-border bg-cp-elevated/50">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="year-desc">Year (newest)</SelectItem>
-                <SelectItem value="year-asc">Year (oldest)</SelectItem>
-                <SelectItem value="tournament-asc">Tournament (A–Z)</SelectItem>
-                <SelectItem value="tournament-desc">Tournament (Z–A)</SelectItem>
-                <SelectItem value="placement-asc">Placement (best)</SelectItem>
-                <SelectItem value="placement-desc">Placement (worst)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="relative overflow-x-auto overflow-y-hidden">
-          {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
-
-          {error ? (
-            <div className="p-10 text-center text-sm text-red-400">
-              {error instanceof Error ? error.message : "Failed to load tournaments"}
+        <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card cp-shadow-card">
+          <div className="flex flex-col gap-3 border-b border-cp-border p-4 sm:p-5">
+            <div className="relative min-w-0 w-full">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-cp-muted" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search events, venue, format…"
+                className="h-10 w-full border-cp-border bg-cp-elevated/50 pl-9"
+              />
             </div>
-          ) : isLoading ? (
-            <CompetitionListSkeleton />
-          ) : data?.items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-4 py-16 text-center">
-              <Trophy className="h-10 w-10 text-cp-text-dim" />
-              <p className="text-sm font-medium text-foreground">No tournaments found</p>
-              <p className="max-w-md text-xs text-cp-muted">
-                {search || year !== "all"
-                  ? "Try adjusting your search or filters."
-                  : "Create a Fun Match or join one — it will appear here. Official placements sync after ranked events."}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div
-                className={cn(
-                  "hidden min-w-[44rem] border-b border-cp-border bg-cp-elevated/50 px-6 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-cp-muted",
-                  TOURNAMENT_LIST_GRID,
-                )}
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Select
+                value={status}
+                onValueChange={(v) => {
+                  setStatus(v as PlayerTournamentsListQuery["status"]);
+                  setPage(1);
+                }}
               >
-                <span>Year</span>
-                <span>Tournament</span>
-                <span>Type</span>
-                <span>Category</span>
-                <span className="text-right">Result</span>
-                <span className="text-right">Actions</span>
-              </div>
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full")}>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All statuses
+                  </SelectItem>
+                  <SelectItem value="live" className={cpSelectItemClass}>
+                    Live
+                  </SelectItem>
+                  <SelectItem value="upcoming" className={cpSelectItemClass}>
+                    Upcoming
+                  </SelectItem>
+                  <SelectItem value="draft" className={cpSelectItemClass}>
+                    Draft
+                  </SelectItem>
+                  <SelectItem value="completed" className={cpSelectItemClass}>
+                    Completed
+                  </SelectItem>
+                  <SelectItem value="cancelled" className={cpSelectItemClass}>
+                    Cancelled
+                  </SelectItem>
+                </SelectContent>
+              </Select>
 
+              <Select
+                value={type}
+                onValueChange={(v) => {
+                  setType(v as PlayerTournamentsListQuery["type"]);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full")}>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All types
+                  </SelectItem>
+                  <SelectItem value="official" className={cpSelectItemClass}>
+                    Official
+                  </SelectItem>
+                  <SelectItem value="fun_match" className={cpSelectItemClass}>
+                    Fun Match
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={year}
+                onValueChange={(v) => {
+                  setYear(v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full")}>
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="all" className={cpSelectItemClass}>
+                    All years
+                  </SelectItem>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)} className={cpSelectItemClass}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={`${sortBy}-${sortDir}`}
+                onValueChange={(v) => {
+                  const [sb, sd] = v.split("-") as [
+                    PlayerTournamentsListQuery["sortBy"],
+                    PlayerTournamentsListQuery["sortDir"],
+                  ];
+                  setSortBy(sb);
+                  setSortDir(sd);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className={cn(cpSelectTriggerClass, "h-10 w-full")}>
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  <SelectItem value="year-desc" className={cpSelectItemClass}>
+                    Year (newest)
+                  </SelectItem>
+                  <SelectItem value="year-asc" className={cpSelectItemClass}>
+                    Year (oldest)
+                  </SelectItem>
+                  <SelectItem value="status-asc" className={cpSelectItemClass}>
+                    Status (live first)
+                  </SelectItem>
+                  <SelectItem value="tournament-asc" className={cpSelectItemClass}>
+                    Name (A–Z)
+                  </SelectItem>
+                  <SelectItem value="tournament-desc" className={cpSelectItemClass}>
+                    Name (Z–A)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="relative">
+            {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
+
+            {error ? (
+              <div className="space-y-3 p-10 text-center">
+                <p className="text-sm text-red-500 dark:text-red-400">
+                  {error instanceof Error ? error.message : "Failed to load events"}
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Try again
+                </Button>
+              </div>
+            ) : isLoading ? (
+              <CompetitionListSkeleton />
+            ) : data?.items.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-4 py-16 text-center">
+                <Trophy className="h-10 w-10 text-cp-text-dim" />
+                <p className="text-sm font-medium text-foreground">No events found</p>
+                <p className="max-w-md text-xs text-cp-muted">
+                  {search || year !== "all" || status !== "all" || type !== "all"
+                    ? "Try adjusting search or filters."
+                    : "Create a Fun Match to get started. Official events you host also appear here."}
+                </p>
+              </div>
+            ) : (
               <ul className="divide-y divide-cp-border">
                 {data?.items.map((row) => (
-                  <TournamentListRow
+                  <TournamentOrganizeRow
                     key={row.id}
                     row={row}
-                    scope={scope}
                     deletePending={deleteTournament.isPending}
-                    onEditRegistration={setEditRegistration}
-                    onRefetch={() => void refetch()}
                     onDelete={handleDeleteTournament}
                   />
                 ))}
               </ul>
-            </>
-          )}
+            )}
+          </div>
+
+          {data ? (
+            <CompetitionListPagination
+              page={data.page}
+              pageSize={data.pageSize}
+              totalPages={data.totalPages}
+              total={data.total}
+              disabled={isFetching}
+              onPageChange={setPage}
+              onPageSizeChange={(next) => {
+                setPageSize(next);
+                setPage(1);
+              }}
+              pageSizeOptions={[10, 20, 50]}
+            />
+          ) : null}
         </div>
-
-        {data ? (
-          <CompetitionListPagination
-            page={data.page}
-            totalPages={data.totalPages}
-            total={data.total}
-            disabled={isFetching}
-            onPageChange={setPage}
-          />
-        ) : null}
-      </div>
       )}
-
-      {viewScope === "created" && editRegistration ? (
-        <OfficialRegistrationEditDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setEditRegistration(null);
-          }}
-          registrationId={editRegistration.registrationId}
-          sportSlug={editRegistration.sportSlug}
-          tournamentSlug={editRegistration.slug}
-          tournamentName={editRegistration.tournamentName}
-          onSaved={() => void refetch()}
-        />
-      ) : null}
     </DashboardWorkspaceShell>
   );
 }

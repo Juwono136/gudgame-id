@@ -16,6 +16,8 @@ type WorkspaceScopeTabsProps<T extends string> = {
   active: T;
   onChange: (id: T) => void;
   className?: string;
+  /** Compact segmented control on all breakpoints (default: card tabs on desktop). */
+  variant?: "cards" | "segmented";
 };
 
 export function WorkspaceScopeTabs<T extends string>({
@@ -23,40 +25,50 @@ export function WorkspaceScopeTabs<T extends string>({
   active,
   onChange,
   className,
+  variant = "cards",
 }: WorkspaceScopeTabsProps<T>) {
+  const segmented = (
+    <div
+      className={cn(
+        "flex rounded-xl border border-cp-border bg-cp-elevated/40 p-1",
+        variant === "cards" && "sm:hidden",
+      )}
+      role="tablist"
+      aria-label="Section"
+    >
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = active === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-xs font-semibold transition-colors sm:text-sm",
+              isActive
+                ? "bg-cp-primary text-white shadow-sm"
+                : "text-cp-muted hover:text-foreground",
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{tab.shortLabel ?? tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (variant === "segmented") {
+    return <div className={cn(className)}>{segmented}</div>;
+  }
+
   return (
     <div className={cn("space-y-3", className)}>
-      {/* Mobile: compact segmented control */}
-      <div
-        className="flex rounded-xl border border-cp-border bg-cp-elevated/40 p-1 sm:hidden"
-        role="tablist"
-        aria-label="Section"
-      >
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = active === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => onChange(tab.id)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-xs font-semibold transition-colors",
-                isActive
-                  ? "bg-cp-primary text-white shadow-sm"
-                  : "text-cp-muted hover:text-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{tab.shortLabel ?? tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {segmented}
 
-      {/* Desktop: card tabs */}
       <div className="hidden gap-3 sm:grid sm:grid-cols-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;

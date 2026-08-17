@@ -25,6 +25,15 @@ function funMatchTypeCondition() {
     eq(tournaments.tournamentType, "recreational"),
   );
 }
+
+function funMatchCategory(categoryLabel: string | null | undefined): string {
+  return categoryLabel?.trim() || "Fun Match";
+}
+
+function mapBilling(value: string | null | undefined): "paid" | "free" | null {
+  if (value === "paid" || value === "free") return value;
+  return null;
+}
 import type {
   PaginatedListResult,
   PlayerTournamentListItem,
@@ -58,20 +67,32 @@ function mapOfficialRow(
     createdBy: string | null;
     startsAt: Date | null;
     endsAt: Date | null;
+    format: string | null;
+    officialBilling: string | null;
+    venue: string | null;
+    categoryLabel: string | null;
   },
 ): UnifiedTournamentRow {
+  const isOfficial = row.isOfficial;
   return {
-    id: `${row.isOfficial ? "official" : "reclub"}-${row.id}`,
-    source: row.isOfficial ? "official" : "fun_match",
+    id: `${isOfficial ? "official" : "reclub"}-${row.id}`,
+    source: isOfficial ? "official" : "fun_match",
     tournamentId: row.tournamentId,
     year: row.year,
     tournamentName: row.tournamentName,
-    category: row.category,
+    category: isOfficial
+      ? (meta?.categoryLabel ?? row.category ?? "Official")
+      : funMatchCategory(meta?.categoryLabel ?? row.category),
     placement: row.placement,
     playedAt: row.playedAt?.toISOString() ?? null,
     sportSlug: meta?.sportSlug ?? null,
     slug: meta?.slug ?? null,
     status: resolveRowStatus(meta?.status, meta?.startsAt, meta?.endsAt),
+    format: meta?.format ?? null,
+    officialBilling: isOfficial ? mapBilling(meta?.officialBilling) : null,
+    venue: meta?.venue ?? null,
+    startsAt: meta?.startsAt?.toISOString() ?? null,
+    endsAt: meta?.endsAt?.toISOString() ?? null,
     startsAtDate: meta?.startsAt ?? null,
     endsAtDate: meta?.endsAt ?? null,
     createdBy: meta?.createdBy ?? null,
@@ -125,6 +146,9 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
       categoryLabel: tournaments.categoryLabel,
+      format: tournaments.format,
+      officialBilling: tournaments.officialBilling,
+      venue: tournaments.venue,
     })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
@@ -150,6 +174,9 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
       categoryLabel: tournaments.categoryLabel,
+      format: tournaments.format,
+      officialBilling: tournaments.officialBilling,
+      venue: tournaments.venue,
     })
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
@@ -181,6 +208,11 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
       sportSlug: row.sportSlug,
       slug: row.slug,
       status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      format: row.format ?? null,
+      officialBilling: mapBilling(row.officialBilling),
+      venue: row.venue ?? null,
+      startsAt: row.startsAt?.toISOString() ?? null,
+      endsAt: row.endsAt?.toISOString() ?? null,
       startsAtDate: row.startsAt,
       endsAtDate: row.endsAt,
       createdBy: row.createdBy,
@@ -202,18 +234,23 @@ async function listOfficialParticipations(userId: string): Promise<UnifiedTourna
 async function listReclubParticipations(userId: string): Promise<UnifiedTournamentRow[]> {
   const db = getDb();
 
+  const funMatchSelect = {
+    tournamentId: tournaments.id,
+    tournamentName: tournaments.name,
+    slug: tournaments.slug,
+    sportSlug: sports.slug,
+    status: tournaments.status,
+    startsAt: tournaments.startsAt,
+    endsAt: tournaments.endsAt,
+    createdAt: tournaments.createdAt,
+    createdBy: tournaments.createdBy,
+    categoryLabel: tournaments.categoryLabel,
+    format: tournaments.format,
+    venue: tournaments.venue,
+  } as const;
+
   const memberRows = await db
-    .selectDistinct({
-      tournamentId: tournaments.id,
-      tournamentName: tournaments.name,
-      slug: tournaments.slug,
-      sportSlug: sports.slug,
-      status: tournaments.status,
-      startsAt: tournaments.startsAt,
-      endsAt: tournaments.endsAt,
-      createdAt: tournaments.createdAt,
-      createdBy: tournaments.createdBy,
-    })
+    .selectDistinct(funMatchSelect)
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
     .innerJoin(tournaments, eq(tournamentTeams.tournamentId, tournaments.id))
@@ -227,17 +264,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
     );
 
   const registrationRows = await db
-    .selectDistinct({
-      tournamentId: tournaments.id,
-      tournamentName: tournaments.name,
-      slug: tournaments.slug,
-      sportSlug: sports.slug,
-      status: tournaments.status,
-      startsAt: tournaments.startsAt,
-      endsAt: tournaments.endsAt,
-      createdAt: tournaments.createdAt,
-      createdBy: tournaments.createdBy,
-    })
+    .selectDistinct(funMatchSelect)
     .from(tournamentRegistrations)
     .innerJoin(tournaments, eq(tournamentRegistrations.tournamentId, tournaments.id))
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
@@ -251,17 +278,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
     );
 
   const hostedRows = await db
-    .select({
-      tournamentId: tournaments.id,
-      tournamentName: tournaments.name,
-      slug: tournaments.slug,
-      sportSlug: sports.slug,
-      status: tournaments.status,
-      startsAt: tournaments.startsAt,
-      endsAt: tournaments.endsAt,
-      createdAt: tournaments.createdAt,
-      createdBy: tournaments.createdBy,
-    })
+    .select(funMatchSelect)
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
     .where(
@@ -279,6 +296,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       year: playerTournamentResults.year,
       placement: playerTournamentResults.placement,
       playedAt: playerTournamentResults.playedAt,
+      category: playerTournamentResults.category,
       slug: tournaments.slug,
       sportSlug: sports.slug,
       status: tournaments.status,
@@ -286,6 +304,9 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       endsAt: tournaments.endsAt,
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
+      categoryLabel: tournaments.categoryLabel,
+      format: tournaments.format,
+      venue: tournaments.venue,
     })
     .from(playerTournamentResults)
     .leftJoin(tournaments, eq(playerTournamentResults.tournamentId, tournaments.id))
@@ -311,12 +332,17 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       tournamentId: row.tournamentId,
       year,
       tournamentName: row.tournamentName,
-      category: "Reclub",
+      category: funMatchCategory(row.categoryLabel),
       placement: isOrganizer ? "Hosted" : "Competed",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
       status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      format: row.format ?? null,
+      officialBilling: null,
+      venue: row.venue ?? null,
+      startsAt: row.startsAt?.toISOString() ?? null,
+      endsAt: row.endsAt?.toISOString() ?? null,
       startsAtDate: row.startsAt,
       endsAtDate: row.endsAt,
       createdBy: row.createdBy,
@@ -340,7 +366,7 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       tournamentId: row.tournamentId,
       year,
       tournamentName: row.tournamentName,
-      category: "Reclub",
+      category: funMatchCategory(row.categoryLabel ?? row.category),
       placement: row.placement ?? (isOrganizer ? "Hosted" : "Competed"),
       playedAt:
         row.playedAt?.toISOString() ??
@@ -350,6 +376,11 @@ async function listReclubParticipations(userId: string): Promise<UnifiedTourname
       sportSlug: row.sportSlug,
       slug: row.slug,
       status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      format: row.format ?? null,
+      officialBilling: null,
+      venue: row.venue ?? null,
+      startsAt: row.startsAt?.toISOString() ?? null,
+      endsAt: row.endsAt?.toISOString() ?? null,
       startsAtDate: row.startsAt,
       endsAtDate: row.endsAt,
       createdBy: row.createdBy,
@@ -367,9 +398,19 @@ function matchesSearch(row: UnifiedTournamentRow, search: string): boolean {
   return (
     row.tournamentName.toLowerCase().includes(term) ||
     (row.category?.toLowerCase().includes(term) ?? false) ||
+    (row.venue?.toLowerCase().includes(term) ?? false) ||
+    (row.format?.toLowerCase().includes(term) ?? false) ||
     row.placement.toLowerCase().includes(term)
   );
 }
+
+const STATUS_SORT_ORDER: Record<string, number> = {
+  live: 0,
+  upcoming: 1,
+  draft: 2,
+  completed: 3,
+  cancelled: 4,
+};
 
 function sortRows(
   rows: UnifiedTournamentRow[],
@@ -388,6 +429,11 @@ function sortRows(
           return 25;
         };
         return (rank(a.placement) - rank(b.placement)) * dir;
+      }
+      case "status": {
+        const aRank = STATUS_SORT_ORDER[a.status ?? ""] ?? 99;
+        const bRank = STATUS_SORT_ORDER[b.status ?? ""] ?? 99;
+        return (aRank - bRank) * dir;
       }
       case "year":
       default:
@@ -412,6 +458,9 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
       createdAt: tournaments.createdAt,
       createdBy: tournaments.createdBy,
       categoryLabel: tournaments.categoryLabel,
+      format: tournaments.format,
+      officialBilling: tournaments.officialBilling,
+      venue: tournaments.venue,
     })
     .from(tournaments)
     .innerJoin(sports, eq(tournaments.sportId, sports.id))
@@ -424,16 +473,23 @@ async function listCreatedTournamentsByUser(userId: string): Promise<UnifiedTour
     const isOfficial = row.tournamentType === "official";
     return {
       id: `${isOfficial ? "official" : "reclub"}-${row.tournamentId}`,
-      source: isOfficial ? "official" : "fun_match",
+      source: (isOfficial ? "official" : "fun_match") as "official" | "fun_match",
       tournamentId: row.tournamentId,
       year,
       tournamentName: row.tournamentName,
-      category: isOfficial ? (row.categoryLabel ?? "Official") : "Reclub",
+      category: isOfficial
+        ? (row.categoryLabel ?? "Official")
+        : funMatchCategory(row.categoryLabel),
       placement: "Hosted",
       playedAt: row.startsAt?.toISOString() ?? row.createdAt?.toISOString() ?? null,
       sportSlug: row.sportSlug,
       slug: row.slug,
       status: resolveRowStatus(row.status, row.startsAt, row.endsAt),
+      format: row.format ?? null,
+      officialBilling: isOfficial ? mapBilling(row.officialBilling) : null,
+      venue: row.venue ?? null,
+      startsAt: row.startsAt?.toISOString() ?? null,
+      endsAt: row.endsAt?.toISOString() ?? null,
       startsAtDate: row.startsAt,
       endsAtDate: row.endsAt,
       createdBy: row.createdBy,
@@ -489,7 +545,8 @@ export async function listPlayerTournaments(
   query: PlayerTournamentsListQuery,
 ): Promise<PaginatedListResult<PlayerTournamentListItem>> {
   const db = getDb();
-  const { page, pageSize, search, year, placement, sortBy, sortDir, scope, type } = query;
+  const { page, pageSize, search, year, placement, sortBy, sortDir, scope, type, status } =
+    query;
 
   const officialConditions = [
     eq(playerTournamentResults.userId, userId),
@@ -533,6 +590,10 @@ export async function listPlayerTournaments(
       createdBy: string | null;
       startsAt: Date | null;
       endsAt: Date | null;
+      format: string | null;
+      officialBilling: string | null;
+      venue: string | null;
+      categoryLabel: string | null;
     }
   >();
 
@@ -546,6 +607,10 @@ export async function listPlayerTournaments(
         createdBy: tournaments.createdBy,
         startsAt: tournaments.startsAt,
         endsAt: tournaments.endsAt,
+        format: tournaments.format,
+        officialBilling: tournaments.officialBilling,
+        venue: tournaments.venue,
+        categoryLabel: tournaments.categoryLabel,
       })
       .from(tournaments)
       .innerJoin(sports, eq(tournaments.sportId, sports.id))
@@ -559,6 +624,10 @@ export async function listPlayerTournaments(
         createdBy: m.createdBy,
         startsAt: m.startsAt,
         endsAt: m.endsAt,
+        format: m.format,
+        officialBilling: m.officialBilling,
+        venue: m.venue,
+        categoryLabel: m.categoryLabel,
       });
     }
   }
@@ -627,6 +696,10 @@ export async function listPlayerTournaments(
     });
   }
 
+  if (status && status !== "all") {
+    merged = merged.filter((r) => (r.status ?? "").toLowerCase() === status);
+  }
+
   if (query.sportSlug) {
     merged = merged.filter((r) => r.sportSlug === query.sportSlug);
   }
@@ -667,6 +740,7 @@ export async function listDistinctTournamentYears(
     pageSize: 500,
     scope: "all",
     type: "all",
+    status: "all",
     sortBy: "year",
     sortDir: "desc",
     sportSlug,

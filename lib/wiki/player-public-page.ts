@@ -69,6 +69,7 @@ export async function getPublicPlayerPageContent(
             pageSize: 3,
             scope: "all",
             type: "all",
+            status: "all",
             sortBy: "year",
             sortDir: "desc",
             sportSlug: entity.sportSlug,

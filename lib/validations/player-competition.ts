@@ -24,12 +24,15 @@ export type PlayerMatchesListQuery = z.infer<typeof playerMatchesListQuerySchema
 export const playerTournamentsListQuerySchema = listBaseSchema.extend({
   scope: z.enum(["all", "created", "joined"]).default("created"),
   type: z.enum(["all", "official", "recreational", "fun_match"]).default("all"),
+  status: z
+    .enum(["all", "draft", "upcoming", "live", "completed", "cancelled"])
+    .default("all"),
   year: z.preprocess(
     (val) => (val === "" || val == null ? undefined : val),
     z.coerce.number().int().min(1990).max(2100).optional(),
   ),
   placement: z.string().trim().max(80).optional().or(z.literal("")),
-  sortBy: z.enum(["year", "tournament", "placement"]).default("year"),
+  sortBy: z.enum(["year", "tournament", "placement", "status"]).default("year"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   /** Injected server-side from dashboard sport cookie — not accepted from client URL */
   sportSlug: z.string().trim().min(1).max(50).optional(),

@@ -1,42 +1,20 @@
 import "server-only";
 
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { getDb } from "@/db/client";
+import { sports } from "@/db/schema/sports";
+import { tournaments } from "@/db/schema/tournaments";
 import type { WikiEntityType } from "@/db/schema/wiki";
-import { getTournamentStats, listTournaments, type TournamentListItem } from "@/lib/tournaments/service";
-import type { TournamentsListQuery } from "@/lib/validations/tournaments";
+import { wikiEntities } from "@/db/schema/wiki";
+import { toTotalPages } from "@/lib/pagination/constants";
+import { resolveTournamentCoverUrl } from "@/lib/tournaments/resolve-cover";
+import { getTournamentStats } from "@/lib/tournaments/service";
 import type { WikiEntitiesListQuery } from "@/lib/validations/wiki-entities";
+import { adminWikiEntityVisibilityCondition } from "@/lib/wiki/admin-entity-access";
 import type { WikiDirectoryListItem } from "@/lib/wiki/directory-types";
-import { getWikiEntityStats, listWikiEntities, type WikiEntityListItem } from "@/lib/wiki/service";
+import { getWikiEntityStats, listWikiEntities } from "@/lib/wiki/service";
 
 export type { WikiDirectoryListItem, WikiDirectoryTypeFilter } from "@/lib/wiki/directory-types";
-
-const MERGED_FETCH_CAP = 500;
-
-function mapTournamentRow(row: TournamentListItem): WikiDirectoryListItem {
-  return {
-    recordKind: "tournament",
-    id: row.id,
-    sportId: row.sportId,
-    sportSlug: row.sportSlug,
-    sportName: row.sportName,
-    entityType: "tournament",
-    slug: row.slug,
-    displayName: row.name,
-    nickname: null,
-    summary: row.summary,
-    status: row.status,
-    primaryImageUrl: row.coverImageUrl ?? null,
-    sourceType: "manual",
-    updatedAt: row.updatedAt,
-    createdAt: row.updatedAt,
-  };
-}
-
-function mapWikiRow(row: WikiEntityListItem): WikiDirectoryListItem {
-  return {
-    ...row,
-    recordKind: "wiki_entity",
-  };
-}
 
 export type WikiDirectoryOptions = {
   /** Admin wiki: only tournaments created by this user. */
@@ -45,97 +23,342 @@ export type WikiDirectoryOptions = {
   adminUserId?: string;
 };
 
-function toTournamentListQuery(
-  query: WikiEntitiesListQuery,
-  options?: WikiDirectoryOptions,
-): TournamentsListQuery {
-  const status: TournamentsListQuery["status"] =
-    query.status === "draft" ? "draft" : "all";
+type DirectoryRow = {
+  record_kind: "wiki_entity" | "tournament";
+  id: string;
+  sport_id: string;
+  sport_slug: string;
+  sport_name: string;
+  entity_type: string;
+  slug: string;
+  display_name: string;
+  nickname: string | null;
+  summary: string | null;
+  status: string;
+  primary_image_url: string | null;
+  cover_image_storage_key: string | null;
+  source_type: string;
+  updated_at: Date | string;
+  created_at: Date | string;
+};
+
+function escapeIlike(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function toIso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+/** Map wiki directory status filter → tournament statuses. */
+function tournamentStatusesForWikiFilter(
+  status: WikiEntitiesListQuery["status"],
+): string[] | null {
+  if (status === "all") return null;
+  if (status === "draft") return ["draft"];
+  if (status === "archived") return ["cancelled"];
+  if (status === "published") return ["upcoming", "live", "completed"];
+  return null;
+}
+
+function mapUnionRow(row: DirectoryRow): WikiDirectoryListItem {
+  const isTournament = row.record_kind === "tournament";
+  const primaryImageUrl = isTournament
+    ? resolveTournamentCoverUrl(row.primary_image_url, row.cover_image_storage_key)
+    : row.primary_image_url;
 
   return {
-    page: 1,
-    pageSize: MERGED_FETCH_CAP,
-    search: query.search,
-    status: status as TournamentsListQuery["status"],
-    createdBy: options?.tournamentCreatedBy,
-    sortBy: query.sortBy === "name" ? "name" : "updated",
-    sortDir: query.sortDir,
+    recordKind: isTournament ? "tournament" : "wiki_entity",
+    id: row.id,
+    sportId: row.sport_id,
+    sportSlug: row.sport_slug,
+    sportName: row.sport_name,
+    entityType: isTournament
+      ? "tournament"
+      : (row.entity_type as WikiDirectoryListItem["entityType"]),
+    slug: row.slug,
+    displayName: row.display_name,
+    nickname: row.nickname,
+    summary: row.summary,
+    status: row.status,
+    primaryImageUrl,
+    sourceType: row.source_type,
+    updatedAt: toIso(row.updated_at),
+    createdAt: toIso(row.created_at),
   };
 }
 
-function tournamentMatchesWikiStatus(
-  status: WikiEntitiesListQuery["status"],
-  tournamentStatus: string,
-): boolean {
-  if (status === "all") return true;
-  if (status === "draft") return tournamentStatus === "draft";
-  if (status === "archived") return tournamentStatus === "cancelled";
-  if (status === "published") {
-    return tournamentStatus === "upcoming" || tournamentStatus === "live" || tournamentStatus === "completed";
-  }
-  return true;
-}
-
-function sortDirectoryItems(
-  items: WikiDirectoryListItem[],
+function sortSql(
   sortBy: WikiEntitiesListQuery["sortBy"],
   sortDir: WikiEntitiesListQuery["sortDir"],
-): WikiDirectoryListItem[] {
-  const dir = sortDir === "asc" ? 1 : -1;
-  return [...items].sort((a, b) => {
-    if (sortBy === "name") {
-      return a.displayName.localeCompare(b.displayName) * dir;
-    }
-    const aTime = new Date(sortBy === "created" ? a.createdAt : a.updatedAt).getTime();
-    const bTime = new Date(sortBy === "created" ? b.createdAt : b.updatedAt).getTime();
-    return (aTime - bTime) * dir;
-  });
+): SQL {
+  const dir = sortDir === "asc" ? sql`asc` : sql`desc`;
+  if (sortBy === "name") {
+    return sql`order by display_name ${dir}, id ${dir}`;
+  }
+  if (sortBy === "created") {
+    return sql`order by created_at ${dir}, id ${dir}`;
+  }
+  return sql`order by updated_at ${dir}, id ${dir}`;
 }
 
-function paginateDirectoryItems(
-  items: WikiDirectoryListItem[],
-  page: number,
-  pageSize: number,
-) {
-  const total = items.length;
-  const offset = (page - 1) * pageSize;
-  return {
-    items: items.slice(offset, offset + pageSize),
-    total,
-    page,
-    pageSize,
-    totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
-  };
+function wikiSearchCondition(term: string | undefined): SQL | undefined {
+  if (!term?.trim()) return undefined;
+  const pattern = `%${escapeIlike(term.trim())}%`;
+  return sql`(
+    ${wikiEntities.displayName} ilike ${pattern} escape '\\'
+    or coalesce(${wikiEntities.nickname}, '') ilike ${pattern} escape '\\'
+    or ${wikiEntities.slug} ilike ${pattern} escape '\\'
+  )`;
 }
 
+function tournamentSearchCondition(term: string | undefined): SQL | undefined {
+  if (!term?.trim()) return undefined;
+  const pattern = `%${escapeIlike(term.trim())}%`;
+  return sql`(
+    ${tournaments.name} ilike ${pattern} escape '\\'
+    or coalesce(${tournaments.summary}, '') ilike ${pattern} escape '\\'
+    or coalesce(${tournaments.venue}, '') ilike ${pattern} escape '\\'
+    or ${tournaments.slug} ilike ${pattern} escape '\\'
+  )`;
+}
+
+function wikiStatusCondition(status: WikiEntitiesListQuery["status"]): SQL | undefined {
+  if (status === "all") return undefined;
+  return sql`${wikiEntities.status} = ${status}`;
+}
+
+function tournamentStatusCondition(status: WikiEntitiesListQuery["status"]): SQL | undefined {
+  const statuses = tournamentStatusesForWikiFilter(status);
+  if (!statuses) return undefined;
+  return sql`${tournaments.status} in (${sql.join(
+    statuses.map((s) => sql`${s}`),
+    sql`, `,
+  )})`;
+}
+
+/**
+ * True SQL UNION ALL + LIMIT/OFFSET for the combined wiki + tournament directory.
+ * Scales beyond the previous in-memory 500-row merge.
+ */
 async function listMergedWikiDirectory(
   sportId: string,
   query: WikiEntitiesListQuery,
   options?: WikiDirectoryOptions,
 ) {
-  const wikiQuery: WikiEntitiesListQuery = {
-    ...query,
-    entityType: undefined,
-    page: 1,
-    pageSize: MERGED_FETCH_CAP,
+  const db = getDb();
+  const offset = (query.page - 1) * query.pageSize;
+
+  const wikiVisibility = options?.adminUserId
+    ? adminWikiEntityVisibilityCondition(options.adminUserId)
+    : sql`true`;
+
+  const wikiParts: SQL[] = [
+    sql`${wikiEntities.sportId} = ${sportId}`,
+    wikiVisibility,
+  ];
+  const wikiStatus = wikiStatusCondition(query.status);
+  if (wikiStatus) wikiParts.push(wikiStatus);
+  const wikiSearch = wikiSearchCondition(query.search);
+  if (wikiSearch) wikiParts.push(wikiSearch);
+
+  const tournamentParts: SQL[] = [
+    sql`${tournaments.sportId} = ${sportId}`,
+    sql`${tournaments.partnerId} is null`,
+  ];
+  if (options?.tournamentCreatedBy) {
+    tournamentParts.push(sql`${tournaments.createdBy} = ${options.tournamentCreatedBy}`);
+  }
+  const tournamentStatus = tournamentStatusCondition(query.status);
+  if (tournamentStatus) tournamentParts.push(tournamentStatus);
+  const tournamentSearch = tournamentSearchCondition(query.search);
+  if (tournamentSearch) tournamentParts.push(tournamentSearch);
+
+  const wikiWhere = sql.join(wikiParts, sql` and `);
+  const tournamentWhere = sql.join(tournamentParts, sql` and `);
+  const order = sortSql(query.sortBy, query.sortDir);
+
+  const unionBody = sql`
+    (
+      select
+        'wiki_entity'::text as record_kind,
+        ${wikiEntities.id}::text as id,
+        ${wikiEntities.sportId} as sport_id,
+        ${sports.slug} as sport_slug,
+        ${sports.name} as sport_name,
+        ${wikiEntities.entityType} as entity_type,
+        ${wikiEntities.slug} as slug,
+        ${wikiEntities.displayName} as display_name,
+        ${wikiEntities.nickname} as nickname,
+        ${wikiEntities.summary} as summary,
+        ${wikiEntities.status} as status,
+        ${wikiEntities.primaryImageUrl} as primary_image_url,
+        null::text as cover_image_storage_key,
+        ${wikiEntities.sourceType} as source_type,
+        ${wikiEntities.updatedAt} as updated_at,
+        ${wikiEntities.createdAt} as created_at
+      from ${wikiEntities}
+      inner join ${sports} on ${sports.id} = ${wikiEntities.sportId}
+      where ${wikiWhere}
+    )
+    union all
+    (
+      select
+        'tournament'::text as record_kind,
+        ${tournaments.id}::text as id,
+        ${tournaments.sportId} as sport_id,
+        ${sports.slug} as sport_slug,
+        ${sports.name} as sport_name,
+        'tournament'::text as entity_type,
+        ${tournaments.slug} as slug,
+        ${tournaments.name} as display_name,
+        null::text as nickname,
+        ${tournaments.summary} as summary,
+        ${tournaments.status} as status,
+        ${tournaments.coverImageUrl} as primary_image_url,
+        ${tournaments.coverImageStorageKey} as cover_image_storage_key,
+        'manual'::text as source_type,
+        ${tournaments.updatedAt} as updated_at,
+        ${tournaments.createdAt} as created_at
+      from ${tournaments}
+      inner join ${sports} on ${sports.id} = ${tournaments.sportId}
+      where ${tournamentWhere}
+    )
+  `;
+
+  const countResult = await db.execute<{ count: string | number }>(sql`
+    select count(*)::int as count from (${unionBody}) as directory
+  `);
+  const countRows = Array.isArray(countResult)
+    ? countResult
+    : ((countResult as { rows?: { count: string | number }[] }).rows ?? []);
+  const total = Number(countRows[0]?.count ?? 0);
+  const totalPages = toTotalPages(total, query.pageSize);
+  const safePage = totalPages === 0 ? 1 : Math.min(Math.max(query.page, 1), totalPages);
+  const safeOffset = (safePage - 1) * query.pageSize;
+
+  const rowResult = await db.execute<DirectoryRow>(sql`
+    select * from (${unionBody}) as directory
+    ${order}
+    limit ${query.pageSize}
+    offset ${safeOffset}
+  `);
+  const rows = Array.isArray(rowResult)
+    ? rowResult
+    : ((rowResult as { rows?: DirectoryRow[] }).rows ?? []);
+
+  const items = rows.map(mapUnionRow);
+
+  return {
+    items,
+    total,
+    page: safePage,
+    pageSize: query.pageSize,
+    totalPages,
   };
+}
 
-  const [wikiResult, tournamentResult] = await Promise.all([
-    listWikiEntities(sportId, wikiQuery, { adminUserId: options?.adminUserId }),
-    listTournaments(sportId, toTournamentListQuery(query, options)),
-  ]);
+async function listTournamentDirectoryPage(
+  sportId: string,
+  query: WikiEntitiesListQuery,
+  options?: WikiDirectoryOptions,
+) {
+  const db = getDb();
+  const conditions: SQL[] = [
+    eq(tournaments.sportId, sportId),
+    isNull(tournaments.partnerId),
+  ];
 
-  const tournamentItems = tournamentResult.items
-    .filter((row) => tournamentMatchesWikiStatus(query.status, row.status))
-    .map(mapTournamentRow);
+  if (options?.tournamentCreatedBy) {
+    conditions.push(eq(tournaments.createdBy, options.tournamentCreatedBy));
+  }
 
-  const merged = sortDirectoryItems(
-    [...wikiResult.items.map(mapWikiRow), ...tournamentItems],
-    query.sortBy,
-    query.sortDir,
-  );
+  const statuses = tournamentStatusesForWikiFilter(query.status);
+  if (statuses) {
+    conditions.push(inArray(tournaments.status, statuses as [string, ...string[]]));
+  }
 
-  return paginateDirectoryItems(merged, query.page, query.pageSize);
+  if (query.search?.trim()) {
+    const term = `%${escapeIlike(query.search.trim())}%`;
+    conditions.push(
+      or(
+        ilike(tournaments.name, term),
+        ilike(tournaments.summary, term),
+        ilike(tournaments.venue, term),
+        ilike(tournaments.slug, term),
+      )!,
+    );
+  }
+
+  const whereClause = and(...conditions);
+  const [totalRow] = await db
+    .select({ count: count() })
+    .from(tournaments)
+    .where(whereClause);
+
+  const total = Number(totalRow?.count ?? 0);
+  const totalPages = toTotalPages(total, query.pageSize);
+  const safePage = totalPages === 0 ? 1 : Math.min(Math.max(query.page, 1), totalPages);
+  const offset = (safePage - 1) * query.pageSize;
+
+  const orderFn = query.sortDir === "asc" ? asc : desc;
+  const orderCol =
+    query.sortBy === "name"
+      ? tournaments.name
+      : query.sortBy === "created"
+        ? tournaments.createdAt
+        : tournaments.updatedAt;
+
+  const rows = await db
+    .select({
+      id: tournaments.id,
+      sportId: tournaments.sportId,
+      sportSlug: sports.slug,
+      sportName: sports.name,
+      slug: tournaments.slug,
+      name: tournaments.name,
+      summary: tournaments.summary,
+      status: tournaments.status,
+      coverImageUrl: tournaments.coverImageUrl,
+      coverImageStorageKey: tournaments.coverImageStorageKey,
+      updatedAt: tournaments.updatedAt,
+      createdAt: tournaments.createdAt,
+    })
+    .from(tournaments)
+    .innerJoin(sports, eq(tournaments.sportId, sports.id))
+    .where(whereClause)
+    .orderBy(orderFn(orderCol), orderFn(tournaments.id))
+    .limit(query.pageSize)
+    .offset(offset);
+
+  return {
+    items: rows.map(
+      (row): WikiDirectoryListItem => ({
+        recordKind: "tournament",
+        id: row.id,
+        sportId: row.sportId,
+        sportSlug: row.sportSlug,
+        sportName: row.sportName,
+        entityType: "tournament",
+        slug: row.slug,
+        displayName: row.name,
+        nickname: null,
+        summary: row.summary,
+        status: row.status,
+        primaryImageUrl: resolveTournamentCoverUrl(
+          row.coverImageUrl,
+          row.coverImageStorageKey,
+        ),
+        sourceType: "manual",
+        updatedAt: row.updatedAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+      }),
+    ),
+    total,
+    page: safePage,
+    pageSize: query.pageSize,
+    totalPages,
+  };
 }
 
 export async function listWikiDirectory(
@@ -144,34 +367,10 @@ export async function listWikiDirectory(
   options?: WikiDirectoryOptions,
 ) {
   if (query.entityType === "tournament") {
-    const result = await listTournaments(sportId, {
-      ...toTournamentListQuery(query, options),
-      page: query.page,
-      pageSize: query.pageSize,
-    });
-    const filtered = result.items.filter((row) =>
-      tournamentMatchesWikiStatus(query.status, row.status),
-    );
-    return {
-      items: filtered.map(mapTournamentRow),
-      total:
-        query.status === "all"
-          ? result.total
-          : filtered.length,
-      page: result.page,
-      pageSize: result.pageSize,
-      totalPages:
-        query.status === "all"
-          ? result.totalPages
-          : filtered.length === 0
-            ? 0
-            : Math.ceil(filtered.length / result.pageSize),
-    };
+    return listTournamentDirectoryPage(sportId, query, options);
   }
 
-  const isAllTypes = !query.entityType;
-
-  if (isAllTypes) {
+  if (!query.entityType) {
     return listMergedWikiDirectory(sportId, query, options);
   }
 
@@ -182,14 +381,19 @@ export async function listWikiDirectory(
       ? query.entityType
       : undefined;
 
-  const wikiQuery: WikiEntitiesListQuery = {
-    ...query,
-    entityType: wikiEntityType,
-  };
-  const result = await listWikiEntities(sportId, wikiQuery, { adminUserId: options?.adminUserId });
+  const result = await listWikiEntities(
+    sportId,
+    { ...query, entityType: wikiEntityType },
+    { adminUserId: options?.adminUserId },
+  );
+
   return {
     ...result,
-    items: result.items.map(mapWikiRow),
+    totalPages: toTotalPages(result.total, result.pageSize),
+    items: result.items.map((row) => ({
+      ...row,
+      recordKind: "wiki_entity" as const,
+    })),
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
@@ -95,6 +95,7 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery, sportSlug: str
           total: number;
           page: number;
           pageSize: number;
+          totalPages?: number;
           stats: {
             player: number;
             gear: number;
@@ -114,6 +115,8 @@ export function useWikiEntitiesList(query: WikiEntitiesListQuery, sportSlug: str
       }
       return json.data;
     },
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
   });
 }
 

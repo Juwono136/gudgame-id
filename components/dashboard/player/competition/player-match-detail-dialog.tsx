@@ -222,7 +222,13 @@ export function PlayerMatchDetailDialog({
                   <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                     <DetailRow
                       label="Format"
-                      value={data.source.kind === "bracket" ? "Knockout bracket" : "Reclub round"}
+                      value={
+                        data.source.kind === "bracket"
+                          ? "Knockout bracket"
+                          : data.source.kind === "group"
+                            ? "Group / round robin"
+                            : "Fun Match round"
+                      }
                     />
                     <DetailRow
                       label="Status"

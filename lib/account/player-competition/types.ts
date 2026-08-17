@@ -25,7 +25,8 @@ export type PlayerMatchListItem = {
 };
 
 export type PlayerMatchSourceDetail = {
-  kind: "reclub" | "bracket";
+  /** bracket = knockout; group = round/group play (incl. Official group stage); fun_match = Fun Match rounds */
+  kind: "bracket" | "group" | "fun_match";
   roundNumber: number | null;
   matchNumber: number | null;
   teamAName: string | null;
@@ -46,6 +47,10 @@ export type PlayerMatchDetail = PlayerMatchListItem & {
   tournamentStartsAt: string | null;
   tournamentEndsAt: string | null;
   recordedAt: string;
+  format: string | null;
+  formatLabel: string | null;
+  officialBilling: "paid" | "free" | null;
+  categoryLabel: string | null;
   source: PlayerMatchSourceDetail | null;
   tournamentContext: {
     userWins: number;
@@ -79,6 +84,11 @@ export type PlayerTournamentListItem = {
   sportSlug: string | null;
   slug: string | null;
   status: string | null;
+  format: string | null;
+  officialBilling: "paid" | "free" | null;
+  venue: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
   canManage: boolean;
   canEdit: boolean;
   canDelete: boolean;

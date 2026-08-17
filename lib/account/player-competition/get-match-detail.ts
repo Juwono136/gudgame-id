@@ -27,6 +27,7 @@ import {
 import { rankingDeltaForMatch } from "@/lib/account/player-performance/points";
 import { formatPlayerTierLabel } from "@/lib/player/tier";
 import { loadSkillTierForTournament } from "@/lib/tournaments/skill-tier";
+import { getTournamentFormatLabel } from "@/lib/tournaments/settings";
 import type {
   PlayerMatchDetail,
   PlayerMatchListItem,
@@ -96,70 +97,27 @@ async function findSourceMatch(
   const [teamA, teamB] = teams;
   const db = getDb();
 
-  if (!row.isOfficial) {
-    const candidates = await db
-      .select()
-      .from(tournamentReclubMatches)
-      .where(
-        and(
-          eq(tournamentReclubMatches.tournamentId, row.tournamentId),
-          or(
-            and(
-              eq(tournamentReclubMatches.teamAName, teamA),
-              eq(tournamentReclubMatches.teamBName, teamB),
-            ),
-            and(
-              eq(tournamentReclubMatches.teamAName, teamB),
-              eq(tournamentReclubMatches.teamBName, teamA),
-            ),
-          ),
-        ),
-      );
+  const mapReclub = (
+    match: typeof tournamentReclubMatches.$inferSelect,
+    kind: "group" | "fun_match",
+  ): PlayerMatchSourceDetail => ({
+    kind,
+    roundNumber: match.roundNumber,
+    matchNumber: null,
+    teamAName: match.teamAName,
+    teamBName: match.teamBName,
+    scoreA: match.scoreA,
+    scoreB: match.scoreB,
+    durationSeconds: match.durationSeconds,
+    summary: match.summary,
+    status: match.status,
+    startedAt: match.startedAt?.toISOString() ?? null,
+    endedAt: match.endedAt?.toISOString() ?? null,
+  });
 
-    const match =
-      candidates.find((c) => scoresMatch(row.score, c.scoreA, c.scoreB)) ?? candidates[0];
-    if (!match) return null;
-
-    return {
-      kind: "reclub",
-      roundNumber: match.roundNumber,
-      matchNumber: null,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      scoreA: match.scoreA,
-      scoreB: match.scoreB,
-      durationSeconds: match.durationSeconds,
-      summary: match.summary,
-      status: match.status,
-      startedAt: match.startedAt?.toISOString() ?? null,
-      endedAt: match.endedAt?.toISOString() ?? null,
-    };
-  }
-
-  const candidates = await db
-    .select()
-    .from(tournamentBracketMatches)
-    .where(
-      and(
-        eq(tournamentBracketMatches.tournamentId, row.tournamentId),
-        or(
-          and(
-            eq(tournamentBracketMatches.teamAName, teamA),
-            eq(tournamentBracketMatches.teamBName, teamB),
-          ),
-          and(
-            eq(tournamentBracketMatches.teamAName, teamB),
-            eq(tournamentBracketMatches.teamBName, teamA),
-          ),
-        ),
-      ),
-    );
-
-  const match =
-    candidates.find((c) => scoresMatch(row.score, c.scoreA, c.scoreB)) ?? candidates[0];
-  if (!match) return null;
-
-  return {
+  const mapBracket = (
+    match: typeof tournamentBracketMatches.$inferSelect,
+  ): PlayerMatchSourceDetail => ({
     kind: "bracket",
     roundNumber: match.roundNumber,
     matchNumber: match.matchNumber,
@@ -172,7 +130,52 @@ async function findSourceMatch(
     status: match.status,
     startedAt: match.scheduledAt?.toISOString() ?? null,
     endedAt: match.completedAt?.toISOString() ?? null,
-  };
+  });
+
+  const teamNameFilter = or(
+    and(
+      eq(tournamentBracketMatches.teamAName, teamA),
+      eq(tournamentBracketMatches.teamBName, teamB),
+    ),
+    and(
+      eq(tournamentBracketMatches.teamAName, teamB),
+      eq(tournamentBracketMatches.teamBName, teamA),
+    ),
+  );
+
+  const reclubNameFilter = or(
+    and(
+      eq(tournamentReclubMatches.teamAName, teamA),
+      eq(tournamentReclubMatches.teamBName, teamB),
+    ),
+    and(
+      eq(tournamentReclubMatches.teamAName, teamB),
+      eq(tournamentReclubMatches.teamBName, teamA),
+    ),
+  );
+
+  // Prefer bracket for knockout / Official KO; fall back to round matches (group / Fun Match).
+  const bracketCandidates = await db
+    .select()
+    .from(tournamentBracketMatches)
+    .where(and(eq(tournamentBracketMatches.tournamentId, row.tournamentId), teamNameFilter));
+
+  const bracket =
+    bracketCandidates.find((c) => scoresMatch(row.score, c.scoreA, c.scoreB)) ??
+    bracketCandidates[0];
+  if (bracket) return mapBracket(bracket);
+
+  const reclubCandidates = await db
+    .select()
+    .from(tournamentReclubMatches)
+    .where(and(eq(tournamentReclubMatches.tournamentId, row.tournamentId), reclubNameFilter));
+
+  const reclub =
+    reclubCandidates.find((c) => scoresMatch(row.score, c.scoreA, c.scoreB)) ??
+    reclubCandidates[0];
+  if (!reclub) return null;
+
+  return mapReclub(reclub, row.isOfficial ? "group" : "fun_match");
 }
 
 export async function getPlayerMatchDetail(
@@ -203,6 +206,9 @@ export async function getPlayerMatchDetail(
       tournamentStatus: tournaments.status,
       tournamentStartsAt: tournaments.startsAt,
       tournamentEndsAt: tournaments.endsAt,
+      format: tournaments.format,
+      officialBilling: tournaments.officialBilling,
+      categoryLabel: tournaments.categoryLabel,
     })
     .from(playerMatches)
     .leftJoin(tournaments, eq(playerMatches.tournamentId, tournaments.id))
@@ -213,6 +219,11 @@ export async function getPlayerMatchDetail(
   if (!row) return null;
 
   const listFields = mapListFields(row);
+  const format = row.format ?? null;
+  const officialBilling =
+    row.officialBilling === "paid" || row.officialBilling === "free"
+      ? row.officialBilling
+      : null;
 
   let userTeamName: string | null = null;
   if (row.tournamentId) {
@@ -287,6 +298,10 @@ export async function getPlayerMatchDetail(
     tournamentStartsAt: row.tournamentStartsAt?.toISOString() ?? null,
     tournamentEndsAt: row.tournamentEndsAt?.toISOString() ?? null,
     recordedAt: row.createdAt.toISOString(),
+    format,
+    formatLabel: format ? getTournamentFormatLabel(format) : null,
+    officialBilling,
+    categoryLabel: row.categoryLabel ?? null,
     source,
     tournamentContext,
     careerSnapshot: {

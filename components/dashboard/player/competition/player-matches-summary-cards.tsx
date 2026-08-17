@@ -62,11 +62,11 @@ export function PlayerMatchesSummaryCards({ summary, isLoading }: PlayerMatchesS
       <SummaryCard
         label="Official"
         value={summary.official}
-        sub="Paid ranked events"
+        sub="Paid & free ranked events"
         accent="muted"
       />
       <SummaryCard
-        label="Reclub"
+        label="Fun Match"
         value={summary.reclub}
         sub="Community sessions"
         accent="emerald"
