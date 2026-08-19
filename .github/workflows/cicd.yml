@@ -120,9 +120,11 @@ jobs:
       - name: Purge Official FREE QA fixtures
         run: |
           set -euo pipefail
-          echo "Purging dummy Official FREE QA fixtures and *@gudgame.local players"
-          docker compose --profile migrate run --rm db-migrate \
-            npm run db:seed:fixtures:purge -- --players
+          echo "Purging dummy Official FREE QA fixtures and seed-domain players"
+          docker compose --profile migrate run --rm \
+            -e DEPLOY_QA_FIXTURE_PURGE=true \
+            -e DB_SCRIPT_MODE=true \
+            db-migrate npm run db:seed:fixtures:purge -- --players
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}

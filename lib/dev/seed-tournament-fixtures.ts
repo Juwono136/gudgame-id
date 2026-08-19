@@ -60,9 +60,10 @@ function isRestrictedSeedAllowed(options?: {
   allowDeployEnsure?: boolean;
   allowDeployPurge?: boolean;
 }): boolean {
-  if (process.env.GITHUB_ACTIONS === "true") {
-    return Boolean(options?.allowDeployPurge && isDeployQaFixturePurgeMode());
-  }
+  // Docker migrate jobs usually do not inherit GITHUB_ACTIONS; honor the purge
+  // flag whenever this script is explicitly allowed to clean dummy fixtures.
+  if (options?.allowDeployPurge && isDeployQaFixturePurgeMode()) return true;
+  if (process.env.GITHUB_ACTIONS === "true") return false;
   if (process.env.FORCE_DEV_SEED === "true") return true;
   if (options?.allowDeployEnsure && isDeployFixtureSeedMode()) return true;
   return false;
