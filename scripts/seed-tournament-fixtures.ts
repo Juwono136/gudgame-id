@@ -5,7 +5,7 @@
  *   npm run db:seed:fixtures -- --name you@example.com
  * Always purges prior QA/legacy seed tournaments + dummy players, then recreates
  * the Official FREE matrix as **upcoming** (no duplicate slugs).
- * `--go-live` is local-only and is ignored during deploy refresh.
+ * `--go-live` is local-only. Production/CI must never run this script.
  */
 process.env.DB_SCRIPT_MODE = "true";
 
@@ -31,7 +31,6 @@ import {
   ensureSeedPlayers,
   insertConfirmedTeams,
   isDeployFixtureSeedMode,
-  isDeployQaFixtureRefreshMode,
   normalizeEnv,
   parseCreatorEmail,
   purgeTournamentsBySlugLike,
@@ -93,10 +92,6 @@ function parseArgs(argv: string[]): CliOptions {
   }
 
   if (opts.ensure) opts.reset = false;
-  if (isDeployQaFixtureRefreshMode()) {
-    opts.ensure = false;
-    opts.goLive = false;
-  }
   return opts;
 }
 
@@ -215,7 +210,7 @@ async function seedOneFixture(input: {
   });
 
   let final = created;
-  if (input.goLive && !isDeployQaFixtureRefreshMode()) {
+  if (input.goLive) {
     const liveStarts = new Date();
     const liveEnds = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
     final = await updateTournament(
@@ -254,7 +249,6 @@ async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   assertDevOnlySeed("seed-official-free-qa", {
     allowDeployEnsure: opts.ensure || isDeployFixtureSeedMode(),
-    allowDeployRefresh: true,
   });
   assertIdempotentEnsure("seed-official-free-qa", opts.reset);
 

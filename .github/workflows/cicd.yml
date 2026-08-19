@@ -113,30 +113,22 @@ jobs:
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
 
-      # Fresh Official FREE QA matrix on every deploy (manual prod testing).
-      # Script purges seed slugs (qa-free-*, dev-*) + dummy *@gudgame.local, then
-      # recreates 54 events as upcoming. Does not delete real host/admin accounts.
-      # --go-live is ignored when DEPLOY_QA_FIXTURE_REFRESH=true.
-      - name: Refresh Official FREE QA fixtures
+      # Never recreate dummy tournaments or test players on production.
+      # Idempotent: deletes only known seed slugs (`qa-free-*`, legacy `dev-*`
+      # fixture names) and `*@gudgame.local` accounts. Real user accounts
+      # and host-created events are not touched.
+      - name: Purge Official FREE QA fixtures
         run: |
           set -euo pipefail
-          HOST_EMAIL="${SEED_FIXTURE_HOST_EMAIL:-}"
-          if [ -z "${HOST_EMAIL}" ]; then
-            HOST_EMAIL="juwonoindonesia@gmail.com"
-          fi
-          echo "Refreshing Official FREE QA fixtures (upcoming) for host=${HOST_EMAIL}"
-
+          echo "Purging dummy Official FREE QA fixtures and *@gudgame.local players"
           docker compose --profile migrate run --rm db-migrate \
-            npm run db:seed:fixtures -- --name "${HOST_EMAIL}"
+            npm run db:seed:fixtures:purge -- --players
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DB_SCRIPT_MODE: "true"
           NODE_ENV: ${{ secrets.NODE_ENV }}
-          DEPLOY_QA_FIXTURE_REFRESH: "true"
-          SEED_FIXTURE_HOST_EMAIL: ${{ secrets.SEED_FIXTURE_HOST_EMAIL }}
-          SEED_FIXTURE_PASSWORD: ${{ secrets.SEED_FIXTURE_PASSWORD }}
-          SEED_DOUBLE_STAGE_PASSWORD: ${{ secrets.SEED_DOUBLE_STAGE_PASSWORD }}
+          DEPLOY_QA_FIXTURE_PURGE: "true"
 
       # Only recreate app + payout scheduler — never `docker compose down --remove-orphans`.
       - name: Deploy Gud Game app

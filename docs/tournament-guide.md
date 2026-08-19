@@ -581,11 +581,11 @@ Dev-only scripts (bukan CI). Creator harus sudah ada di DB.
 | `npm run db:seed:double-stage -- --name you@email --tier=gold --reset` | Satu tier |
 | `npm run db:seed:double-stage -- --name you@email --go-live` | Langsung live (groups init) |
 | `npm run db:seed:double-stage:purge -- --all` | Hapus fixture DS per-tier |
-| `npm run db:seed:fixtures -- --name you@email` | Purge seed lama + generate Official **FREE** matrix (54 event, status **upcoming**, 8 tim, No Rank). Tidak duplikat slug. |
-| `npm run db:seed:fixtures -- --name you@email --go-live` | Lokal saja: status live. **Diabaikan** saat deploy refresh. |
+| `npm run db:seed:fixtures -- --name you@email` | **Lokal saja.** Purge seed lama + generate Official **FREE** matrix (54 event, status **upcoming**, 8 tim, No Rank). Tidak duplikat slug. |
+| `npm run db:seed:fixtures -- --name you@email --go-live` | **Lokal saja:** status live. Ditolak di production/CI. |
 | `npm run db:seed:fixtures:purge -- --players` | Hapus QA + legacy seed tournaments + semua `*@gudgame.local` |
 
-**Deploy (production):** setiap deploy CI/CD menjalankan `db:seed:fixtures` dengan `DEPLOY_QA_FIXTURE_REFRESH=true`: hapus slug `qa-free-*` / `dev-*` + akun `*@gudgame.local`, lalu recreate 54 event status **upcoming**. Host via `SEED_FIXTURE_HOST_EMAIL`.
+**Production:** setiap deploy CI/CD menjalankan `db:seed:fixtures:purge` dengan `DEPLOY_QA_FIXTURE_PURGE=true` (hapus slug `qa-free-*` + slug fixture lama + akun `*@gudgame.local`). Script seed **tidak** dijalankan. Akun host/admin dan turnamen buatan user tidak dihapus.
 
 Player dummy: `qa-p001@gudgame.local` … `qa-p016@gudgame.local`, password default `SeedPlayer1!`.
 

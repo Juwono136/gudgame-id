@@ -42,55 +42,58 @@ export const FORMAT_FIXTURE_TEAM_COUNT = 16;
 export const PLAYERS_PER_TEAM = 2;
 
 /**
- * CI/CD: recreate Official FREE QA fixtures on every deploy (purge seed slugs + *@gudgame.local only).
- * Takes precedence over ALLOW_DEPLOY_FIXTURE_SEED.
+ * Production/CI: purge dummy QA fixtures only. Never recreates tournaments or players.
  */
-export function isDeployQaFixtureRefreshMode(): boolean {
-  return process.env.DEPLOY_QA_FIXTURE_REFRESH === "true";
+export function isDeployQaFixturePurgeMode(): boolean {
+  return process.env.DEPLOY_QA_FIXTURE_PURGE === "true";
 }
 
-/** CI/CD: create-if-missing only (never purge). Ignored when refresh mode is on. */
+/** Local/docker: create-if-missing only. Blocked in production and GitHub Actions. */
 export function isDeployFixtureSeedMode(): boolean {
-  if (isDeployQaFixtureRefreshMode()) return false;
+  if (process.env.NODE_ENV === "production" || process.env.GITHUB_ACTIONS === "true") {
+    return false;
+  }
   return process.env.ALLOW_DEPLOY_FIXTURE_SEED === "true";
 }
 
 function isRestrictedSeedAllowed(options?: {
   allowDeployEnsure?: boolean;
-  allowDeployRefresh?: boolean;
+  allowDeployPurge?: boolean;
 }): boolean {
+  if (process.env.GITHUB_ACTIONS === "true") {
+    return Boolean(options?.allowDeployPurge && isDeployQaFixturePurgeMode());
+  }
   if (process.env.FORCE_DEV_SEED === "true") return true;
-  if (options?.allowDeployRefresh && isDeployQaFixtureRefreshMode()) return true;
   if (options?.allowDeployEnsure && isDeployFixtureSeedMode()) return true;
   return false;
 }
 
 /**
  * Guard for seed/purge scripts.
- * - Local: allowed in non-production (or FORCE_DEV_SEED=true).
- * - Deploy refresh: DEPLOY_QA_FIXTURE_REFRESH=true (purge seed data + recreate).
- * - Deploy ensure: ALLOW_DEPLOY_FIXTURE_SEED=true (create-if-missing, no purge).
+ * - Local: allowed when NODE_ENV is not production (or FORCE_DEV_SEED=true).
+ * - Production/CI seed: refused. Dummy fixtures must not be created for real users.
+ * - Production/CI purge: DEPLOY_QA_FIXTURE_PURGE=true (known seed slugs + *@gudgame.local only).
  */
 export function assertDevOnlySeed(
   scriptLabel: string,
-  options?: { allowDeployEnsure?: boolean; allowDeployRefresh?: boolean },
+  options?: { allowDeployEnsure?: boolean; allowDeployPurge?: boolean },
 ): void {
   const allowed = isRestrictedSeedAllowed(options);
 
   if (process.env.GITHUB_ACTIONS === "true" && !allowed) {
     throw new Error(
-      `Refusing to run ${scriptLabel} in CI. Set DEPLOY_QA_FIXTURE_REFRESH=true (fresh QA fixtures) or ALLOW_DEPLOY_FIXTURE_SEED=true (ensure-only).`,
+      `Refusing to run ${scriptLabel} in CI. Dummy tournament seeds are not allowed in deploy. Use DEPLOY_QA_FIXTURE_PURGE=true for purge-only.`,
     );
   }
 
   if (process.env.NODE_ENV === "production" && !allowed) {
     throw new Error(
-      `Refusing to run ${scriptLabel} in production. Set DEPLOY_QA_FIXTURE_REFRESH=true, ALLOW_DEPLOY_FIXTURE_SEED=true, or FORCE_DEV_SEED=true.`,
+      `Refusing to run ${scriptLabel} in production. Dummy tournament seeds are not allowed. Use DEPLOY_QA_FIXTURE_PURGE=true (purge-only) or FORCE_DEV_SEED=true (local override).`,
     );
   }
 }
 
-/** Deploy ensure must never purge. Refresh mode is allowed to recreate. */
+/** Deploy ensure must never purge. */
 export function assertIdempotentEnsure(scriptLabel: string, reset: boolean): void {
   if (reset && isDeployFixtureSeedMode()) {
     throw new Error(
