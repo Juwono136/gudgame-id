@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/admin/wiki/rich-text-editor";
 import { ReclubWizardReview } from "@/components/tournaments/reclub/reclub-wizard-review";
+import { TournamentEditLockedBanner } from "@/components/tournaments/tournament-edit-locked-banner";
 import { ReclubWizardStepper } from "@/components/tournaments/reclub/reclub-wizard-stepper";
 import { TournamentCoverUpload, type TournamentCoverValue } from "@/components/tournaments/form/tournament-cover-upload";
 import { FormatTypeSelect } from "@/components/tournaments/form/format-type-select";
@@ -53,7 +54,7 @@ import {
 } from "@/hooks/use-host-tournaments";
 import { useCreateTournament, useUpdateAdminTournament } from "@/hooks/use-tournaments";
 import { useUpdateManageTournament } from "@/hooks/use-manage-tournament";
-import { dashboardRoutes, adminRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, adminRoutes, publicSportRoutes } from "@/lib/constants/routes";
 import { tournamentAfterCreateUrl, tournamentAfterSaveUrl } from "@/lib/tournaments/edit-routes";
 import {
   TOURNAMENT_COURT_COUNT_OPTIONS,
@@ -90,6 +91,7 @@ type ReclubTournamentWizardProps = {
   backHref?: string;
   backLabel?: string;
   onBack?: () => void;
+  readOnly?: boolean;
 };
 
 function buildInitialCover(initial?: TournamentDetail): TournamentCoverValue {
@@ -136,6 +138,7 @@ export function ReclubTournamentWizard({
   backHref,
   backLabel,
   onBack,
+  readOnly = false,
 }: ReclubTournamentWizardProps) {
   const resolvedTournamentId = tournamentId ?? initial?.id ?? "";
   const isEdit = Boolean(resolvedTournamentId);
@@ -330,6 +333,7 @@ export function ReclubTournamentWizard({
   };
 
   const handleSubmit = async () => {
+    if (readOnly) return;
     const err = validateReclubWizardAll(formState);
     if (err) {
       toast.error(err);
@@ -415,7 +419,7 @@ export function ReclubTournamentWizard({
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {isEdit ? "Edit Fun Match" : "Create Fun Match"}
+              {readOnly ? "View Fun Match" : isEdit ? "Edit Fun Match" : "Create Fun Match"}
             </h1>
             <p className="mt-1 text-sm text-cp-muted">
               Free community play — no official ranking impact. Open to all members.
@@ -432,6 +436,15 @@ export function ReclubTournamentWizard({
           />
         </div>
       </div>
+
+      {readOnly && initial ? (
+        <div className="mt-4">
+          <TournamentEditLockedBanner
+            status={initial.status}
+            publicHref={publicSportRoutes.tournament(initial.sportSlug, initial.slug)}
+          />
+        </div>
+      ) : null}
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -704,7 +717,7 @@ export function ReclubTournamentWizard({
             Next
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
-        ) : (
+        ) : readOnly ? null : (
           <Button
             className="bg-emerald-600 hover:bg-emerald-500"
             disabled={isPending}

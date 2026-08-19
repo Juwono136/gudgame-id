@@ -1,11 +1,14 @@
 /**
  * Dev-only: Official FREE QA matrix (Original + Custom × formats × scoring).
  *
- * Usage:
+ * Default (local refresh — always wipe + recreate as upcoming):
  *   npm run db:seed:fixtures -- --name you@example.com
- * Always purges prior QA/legacy seed tournaments + dummy players, then recreates
- * the Official FREE matrix as **upcoming** (no duplicate slugs).
- * `--go-live` is local-only. Production/CI must never run this script.
+ *
+ * Optional:
+ *   --go-live   recreate as live instead of upcoming
+ *   --ensure    create-if-missing only (does not reset completed events)
+ *
+ * Production/CI must never run this script.
  */
 process.env.DB_SCRIPT_MODE = "true";
 
@@ -13,7 +16,6 @@ import "dotenv/config";
 import { closeDatabase } from "@/db/client";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import {
-  LEGACY_SEED_TOURNAMENT_SLUGS,
   QA_SEED_EMAIL_PREFIX,
   QA_SEED_TEAM_PREFIX,
   QA_TEAM_COUNT,
@@ -27,13 +29,13 @@ import {
   PLAYERS_PER_TEAM,
   assertDevOnlySeed,
   assertIdempotentEnsure,
-  deleteAllGudgameLocalSeedPlayers,
+  deleteSeedPlayersByPrefix,
   ensureSeedPlayers,
   insertConfirmedTeams,
   isDeployFixtureSeedMode,
   normalizeEnv,
   parseCreatorEmail,
-  purgeTournamentsBySlugLike,
+  purgeOfficialFreeQaTournaments,
   purgeTournamentsBySlugs,
   resolveCreatorUser,
   resolveFirstOfficialCreator,
@@ -52,6 +54,9 @@ const log = logger.child({ script: "seed-official-free-qa" });
 
 const DEFAULT_SPORT_SLUG = "padel";
 const PLAYER_COUNT = QA_TEAM_COUNT * PLAYERS_PER_TEAM;
+/** Keep regenerated events upcoming for local testing without immediate live/complete. */
+const UPCOMING_START_OFFSET_MS = 14 * 24 * 60 * 60 * 1000;
+const UPCOMING_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 
 type CliOptions = {
   reset: boolean;
@@ -63,9 +68,9 @@ type CliOptions = {
 
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
-    reset: false,
+    reset: true,
     goLive: false,
-    ensure: isDeployFixtureSeedMode(),
+    ensure: false,
     sportSlug: DEFAULT_SPORT_SLUG,
     creatorEmail: parseCreatorEmail(argv),
   };
@@ -74,10 +79,12 @@ function parseArgs(argv: string[]): CliOptions {
     const arg = argv[i]!;
     if (arg === "--reset") {
       opts.reset = true;
+      opts.ensure = false;
       continue;
     }
     if (arg === "--ensure") {
       opts.ensure = true;
+      opts.reset = false;
       continue;
     }
     if (arg === "--go-live") {
@@ -92,6 +99,7 @@ function parseArgs(argv: string[]): CliOptions {
   }
 
   if (opts.ensure) opts.reset = false;
+  else opts.reset = true;
   return opts;
 }
 
@@ -182,8 +190,8 @@ async function seedOneFixture(input: {
     });
   }
 
-  const startsAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
-  const endsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+  const startsAt = new Date(Date.now() + UPCOMING_START_OFFSET_MS);
+  const endsAt = new Date(startsAt.getTime() + UPCOMING_DURATION_MS);
 
   const created = await createTournament(
     input.sport.id,
@@ -234,14 +242,9 @@ async function seedOneFixture(input: {
 }
 
 async function purgePreviousSeedTournaments(sportId: string): Promise<void> {
-  const legacy = await purgeTournamentsBySlugs({
-    sportId,
-    slugs: [...LEGACY_SEED_TOURNAMENT_SLUGS],
-  });
-  const qa = await purgeTournamentsBySlugLike({ sportId, pattern: "qa-free-%" });
-  const dev = await purgeTournamentsBySlugLike({ sportId, pattern: "dev-%" });
+  const purged = await purgeOfficialFreeQaTournaments(sportId);
   console.log(
-    `[seed-qa] Purged tournaments: legacy=${legacy.removed} qa=${qa.removed} dev=${dev.removed}`,
+    `[seed-qa] Purged Official FREE QA + legacy seed tournaments: ${purged.removed} (payments=${purged.paymentsDeleted})`,
   );
 }
 
@@ -274,7 +277,7 @@ async function main(): Promise<void> {
         }
         throw new Error(
           "Creator email is required (or register a host first).\n" +
-            "  npm run db:seed:fixtures -- --name you@example.com --reset",
+            "  npm run db:seed:fixtures -- --name you@example.com",
         );
       }
       creator = fallback;
@@ -293,15 +296,15 @@ async function main(): Promise<void> {
 
   console.log("[seed-qa] Official FREE matrix (Original + Custom × scoring)…");
   console.log(
-    `[seed-qa] creator=${creator.email} sport=${opts.sportSlug} events=${fixtures.length} refresh=${!opts.ensure} goLive=${opts.goLive}`,
+    `[seed-qa] creator=${creator.email} sport=${opts.sportSlug} events=${fixtures.length} refresh=${opts.reset} goLive=${opts.goLive}`,
   );
 
   if (opts.ensure) {
     console.log("[seed-qa] Ensure mode: skip purge (create-if-missing only).");
   } else {
     await purgePreviousSeedTournaments(sport.id);
-    const playersDeleted = await deleteAllGudgameLocalSeedPlayers();
-    console.log(`[seed-qa] Seed players deleted: ${playersDeleted}`);
+    const playersDeleted = await deleteSeedPlayersByPrefix(QA_SEED_EMAIL_PREFIX);
+    console.log(`[seed-qa] QA seed players deleted: ${playersDeleted}`);
   }
 
   const playerIds = await ensureSeedPlayers({

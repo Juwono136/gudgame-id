@@ -1,7 +1,7 @@
 # Panduan Turnamen Gud Game
 
 > **Dokumen hidup.** Perbarui file ini setiap kali ada perubahan, penambahan, atau rombak fitur seputar turnamen (format match, scoring, form create/edit, aturan lifecycle, dsb.).  
-> Terakhir diselaraskan dengan aplikasi: **2026-08-13**.  
+> Terakhir diselaraskan dengan aplikasi: **2026-08-20**.  
 > Rule agen: `.cursor/rules/tournament-docs.mdc` — sync otomatis saat file turnamen terkait diubah.
 
 Dokumen ini menjelaskan:
@@ -29,6 +29,8 @@ Nama field di UI umumnya berbahasa Inggris; penjelasan di sini berbahasa Indones
 7. [Realtime: public & manage saat Live](#7-realtime-public--manage-saat-live)
 8. [Checklist field wajib](#8-checklist-field-wajib)
 9. [Seed fixtures (local QA)](#9-seed-fixtures-local-qa)
+    - [9.1 Official FREE QA (`db:seed:fixtures`)](#91-official-free-qa-dbseedfixtures)
+    - [9.2 Double Stage per-tier](#92-double-stage-per-tier-terpisah)
 10. [Matriks uji otomatis](#10-matriks-uji-otomatis)
 11. [Catatan maintenance dokumen](#11-catatan-maintenance-dokumen)
 
@@ -573,7 +575,42 @@ npx vitest run lib/account/player-performance
 
 ## 9. Seed fixtures (local QA)
 
-Dev-only scripts (bukan CI). Creator harus sudah ada di DB.
+Dev-only scripts (bukan CI / bukan production). Dipakai untuk generate ulang data uji Official **FREE** di database local.
+
+### 9.1 Official FREE QA (`db:seed:fixtures`)
+
+Perintah ini **selalu purge dulu** event seed lama (`qa-free-*` + slug fixture legacy), lalu recreate **54** turnamen Official free (Original + Custom × format × scoring). Status default **upcoming**, mulai ~14 hari ke depan, 8 tim, No Rank, billing free. Tidak membuat duplikat slug.
+
+| Command | Kapan dipakai |
+| --- | --- |
+| `npm run db:seed:fixtures` | Local development. Host/creator diambil otomatis: user **host** atau **super_admin** pertama yang aktif di DB. |
+| `npm run db:seed:fixtures -- --name you@email.com` | Sama seperti di atas, tetapi creator dipaksa ke akun itu. Akun harus sudah terdaftar. Jika belum punya role host, script akan menambahkan host. |
+
+Contoh:
+
+```bash
+npm run db:seed:fixtures
+npm run db:seed:fixtures -- --name you@email.com
+```
+
+**Isi yang di-generate**
+
+- 54 event, slug unik `qa-free-orig-*` dan `qa-free-cus-*`
+- 8 tim per event (`QA Team 01` … `08`)
+- Player dummy: `qa-p001@gudgame.local` … `qa-p016@gudgame.local`, password default `SeedPlayer1!` (bisa di-override `SEED_FIXTURE_PASSWORD`)
+- Event completed / live / leftover slug (`qa-free-…-2`) ikut dihapus sebelum recreate, jadi status kembali **upcoming**
+
+**Flag tambahan (opsional)**
+
+| Command | Isi |
+| --- | --- |
+| `npm run db:seed:fixtures -- --name you@email.com --go-live` | Recreate dengan status **live** (untuk tes scoring). Ditolak di production/CI. |
+| `npm run db:seed:fixtures -- --name you@email.com --ensure` | Create-if-missing saja (tidak mereset event yang sudah ada). Jangan dipakai jika ingin fresh upcoming. |
+| `npm run db:seed:fixtures:purge -- --players` | Hapus QA + legacy seed tournaments + semua `*@gudgame.local` tanpa recreate |
+
+**Production:** setiap deploy CI/CD menjalankan `db:seed:fixtures:purge` dengan `DEPLOY_QA_FIXTURE_PURGE=true` (hapus slug `qa-free-*` + slug fixture lama + akun `*@gudgame.local`). Script seed **tidak** dijalankan. Akun host/admin dan turnamen buatan user tidak dihapus.
+
+### 9.2 Double Stage per-tier (terpisah)
 
 | Command | Isi |
 | --- | --- |
@@ -581,13 +618,6 @@ Dev-only scripts (bukan CI). Creator harus sudah ada di DB.
 | `npm run db:seed:double-stage -- --name you@email --tier=gold --reset` | Satu tier |
 | `npm run db:seed:double-stage -- --name you@email --go-live` | Langsung live (groups init) |
 | `npm run db:seed:double-stage:purge -- --all` | Hapus fixture DS per-tier |
-| `npm run db:seed:fixtures -- --name you@email` | **Lokal saja.** Purge seed lama + generate Official **FREE** matrix (54 event, status **upcoming**, 8 tim, No Rank). Tidak duplikat slug. |
-| `npm run db:seed:fixtures -- --name you@email --go-live` | **Lokal saja:** status live. Ditolak di production/CI. |
-| `npm run db:seed:fixtures:purge -- --players` | Hapus QA + legacy seed tournaments + semua `*@gudgame.local` |
-
-**Production:** setiap deploy CI/CD menjalankan `db:seed:fixtures:purge` dengan `DEPLOY_QA_FIXTURE_PURGE=true` (hapus slug `qa-free-*` + slug fixture lama + akun `*@gudgame.local`). Script seed **tidak** dijalankan. Akun host/admin dan turnamen buatan user tidak dihapus.
-
-Player dummy: `qa-p001@gudgame.local` … `qa-p016@gudgame.local`, password default `SeedPlayer1!`.
 
 **Manual smoke saat Live (setelah seed `--go-live`)**
 

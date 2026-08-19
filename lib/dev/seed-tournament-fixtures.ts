@@ -31,6 +31,10 @@ import {
 } from "@/lib/player/tier";
 import type { AppRole } from "@/lib/roles/constants";
 import { getUserRoleAssignments, setUserRoles } from "@/lib/roles/sync";
+import {
+  LEGACY_SEED_TOURNAMENT_SLUGS,
+  QA_SEED_SLUG_LIKE,
+} from "@/lib/dev/official-free-qa-fixtures";
 import { deleteTournament } from "@/lib/tournaments/service";
 
 export const SEED_EMAIL_DOMAIN = "gudgame.local";
@@ -530,6 +534,40 @@ export async function purgeTournamentsBySlugLike(input: {
     sportId: input.sportId,
     slugs: rows.map((r) => r.slug),
   });
+}
+
+/** Delete Official FREE QA events + leftover unique-slug copies + legacy seed slugs. */
+export async function purgeOfficialFreeQaTournaments(sportId: string): Promise<{
+  removed: number;
+  paymentsDeleted: number;
+  leftoverSlugs: string[];
+}> {
+  const legacy = await purgeTournamentsBySlugs({
+    sportId,
+    slugs: [...LEGACY_SEED_TOURNAMENT_SLUGS],
+  });
+  const qa = await purgeTournamentsBySlugLike({
+    sportId,
+    pattern: QA_SEED_SLUG_LIKE,
+  });
+
+  const leftoverSlugs = await getDb()
+    .select({ slug: tournaments.slug })
+    .from(tournaments)
+    .where(and(eq(tournaments.sportId, sportId), like(tournaments.slug, QA_SEED_SLUG_LIKE)))
+    .then((rows) => rows.map((r) => r.slug));
+
+  if (leftoverSlugs.length) {
+    throw new Error(
+      `Official FREE QA purge left leftover slugs: ${leftoverSlugs.join(", ")}`,
+    );
+  }
+
+  return {
+    removed: legacy.removed + qa.removed,
+    paymentsDeleted: legacy.paymentsDeleted + qa.paymentsDeleted,
+    leftoverSlugs,
+  };
 }
 
 export async function resolveFirstOfficialCreator(): Promise<{

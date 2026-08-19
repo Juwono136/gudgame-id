@@ -16,17 +16,13 @@ import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { closeDatabase, getDb } from "@/db/client";
 import { sports } from "@/db/schema/sports";
-import {
-  LEGACY_SEED_TOURNAMENT_SLUGS,
-  LEGACY_SEED_PLAYER_PREFIXES,
-} from "@/lib/dev/official-free-qa-fixtures";
+import { LEGACY_SEED_PLAYER_PREFIXES } from "@/lib/dev/official-free-qa-fixtures";
 import {
   assertDevOnlySeed,
   deleteAllGudgameLocalSeedPlayers,
   deleteSeedPlayersByPrefix,
   isDeployQaFixturePurgeMode,
-  purgeTournamentsBySlugLike,
-  purgeTournamentsBySlugs,
+  purgeOfficialFreeQaTournaments,
   takeFlagValue,
 } from "@/lib/dev/seed-tournament-fixtures";
 import { logger } from "@/lib/logger";
@@ -94,17 +90,9 @@ async function main(): Promise<void> {
   let paymentsDeleted = 0;
 
   for (const sport of sportRows) {
-    const legacy = await purgeTournamentsBySlugs({
-      sportId: sport.id,
-      slugs: [...LEGACY_SEED_TOURNAMENT_SLUGS],
-    });
-    const qa = await purgeTournamentsBySlugLike({
-      sportId: sport.id,
-      pattern: "qa-free-%",
-    });
-
-    removed += legacy.removed + qa.removed;
-    paymentsDeleted += legacy.paymentsDeleted + qa.paymentsDeleted;
+    const purged = await purgeOfficialFreeQaTournaments(sport.id);
+    removed += purged.removed;
+    paymentsDeleted += purged.paymentsDeleted;
   }
 
   console.log(

@@ -972,12 +972,6 @@ export function OfficialTournamentPage({
                     items={liveScoreHistoryItems}
                     gamesScoreMode={getTournamentMatchScoreMode(tournament) === "games"}
                   />
-                ) : liveScoreMode === "group_stage" ? (
-                  <section className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 p-6 text-center sm:p-10">
-                    <p className="text-sm text-cp-muted">
-                      Group fixtures appear here when the host starts play on each court.
-                    </p>
-                  </section>
                 ) : null}
               </div>
             ) : (
@@ -996,7 +990,7 @@ export function OfficialTournamentPage({
                       >
                         <p className="text-xs text-cp-muted">
                           Round {m.roundNumber}
-                          {m.matchNumber ? ` · Match ${m.matchNumber}` : ""}
+                          {m.matchNumber ? `, Match ${m.matchNumber}` : ""}
                         </p>
                         <p className="mt-1 font-semibold text-foreground">
                           {m.teamAName} vs {m.teamBName}

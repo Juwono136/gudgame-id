@@ -183,6 +183,8 @@ type TournamentCreateWizardProps = {
   lockTournamentType?: boolean;
   /** Pre-select official billing when kind is chosen upfront (host create hub). */
   initialOfficialBilling?: "paid" | "free";
+  /** Finished/cancelled events: browse settings, no save. */
+  readOnly?: boolean;
 };
 
 export function TournamentCreateWizard({
@@ -195,6 +197,7 @@ export function TournamentCreateWizard({
   showTopBack,
   initialTournamentType,
   initialOfficialBilling,
+  readOnly = false,
 }: TournamentCreateWizardProps) {
   const resolvedTournamentId = tournamentId ?? initial?.id ?? "";
   const isEdit = Boolean(resolvedTournamentId);
@@ -853,6 +856,7 @@ export function TournamentCreateWizard({
   };
 
   const handleSubmit = async () => {
+    if (readOnly) return;
     if (submitLockRef.current) return;
     if (!validateAllSteps()) return;
     submitLockRef.current = true;
@@ -1550,6 +1554,7 @@ export function TournamentCreateWizard({
           onSubmit={() => void handleSubmit()}
           isPending={isPending}
           isEdit={isEdit}
+          readOnly={readOnly}
         />
       </div>
     </div>

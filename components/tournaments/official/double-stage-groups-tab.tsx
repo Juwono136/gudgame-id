@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
 import {
   DoubleStageStandingsLegend,
@@ -20,6 +21,11 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
   const { data: live } = useTournamentLive(tournament.sportSlug, tournament.slug);
   const doubleStage = live?.doubleStage;
   const groups = (doubleStage?.groups ?? []) as GroupOverview[];
+  const [activeGroupId, setActiveGroupId] = useState<string>("all");
+  const visibleGroups = useMemo(() => {
+    if (activeGroupId === "all") return groups;
+    return groups.filter((g) => g.id === activeGroupId);
+  }, [groups, activeGroupId]);
   const cfg = getDoubleStageConfigSummary(tournament);
   const scoreDisplay = isClassicSetsFormat(tournament, "group")
     ? "sets"
@@ -80,8 +86,29 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
         </div>
       ) : null}
 
+      {groups.length > 2 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="public-group-filter" className="text-sm text-cp-muted">
+            Group
+          </label>
+          <select
+            id="public-group-filter"
+            value={activeGroupId}
+            onChange={(e) => setActiveGroupId(e.target.value)}
+            className="h-9 rounded-lg border border-cp-border bg-cp-card px-3 text-sm text-foreground"
+          >
+            <option value="all">All groups</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <Card key={group.id} className="overflow-hidden">
             <CardHeader className="border-b border-cp-border/60 pb-3">
               <CardTitle className="text-base sm:text-lg">{group.name}</CardTitle>

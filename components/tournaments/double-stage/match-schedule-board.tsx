@@ -15,6 +15,61 @@ import {
 
 type BoardView = "orderOfPlay" | "schedule" | "court";
 
+const BUCKET_PAGE_SIZE = 8;
+
+function MatchList({
+  matches,
+  gamesScoreMode,
+  onEditSchedule,
+  showCallStatus,
+  hideCourtInLabel,
+}: {
+  matches: ScheduleMatchRow[];
+  gamesScoreMode: boolean;
+  onEditSchedule?: (match: ScheduleMatchRow) => void;
+  showCallStatus?: boolean;
+  hideCourtInLabel?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? matches : matches.slice(0, BUCKET_PAGE_SIZE);
+  const hiddenCount = matches.length - visible.length;
+
+  return (
+    <>
+      <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
+        {visible.map((m) => (
+          <MatchRow
+            key={`${m.kind}-${m.id}`}
+            m={m}
+            gamesScoreMode={gamesScoreMode}
+            onEditSchedule={onEditSchedule}
+            showCallStatus={showCallStatus}
+            hideCourtInLabel={hideCourtInLabel}
+          />
+        ))}
+      </ul>
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="mt-2 w-full rounded-lg border border-cp-border px-3 py-2 text-sm font-medium text-cp-primary hover:bg-cp-elevated/40"
+        >
+          Show {hiddenCount} more {hiddenCount === 1 ? "match" : "matches"}
+        </button>
+      ) : null}
+      {expanded && matches.length > BUCKET_PAGE_SIZE ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="mt-2 w-full text-sm text-cp-muted hover:text-foreground"
+        >
+          Show fewer
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 type MatchScheduleBoardProps = {
   matches: ScheduleMatchRow[];
   gamesScoreMode?: boolean;
@@ -53,9 +108,9 @@ function MatchRow({
     <li className="px-3 py-3 sm:px-4">
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-          {m.playOrder != null ? `#${m.playOrder} · ` : null}
+          {m.playOrder != null ? `#${m.playOrder} ` : null}
           {m.stageLabel}
-          {!hideCourtInLabel && m.courtName ? ` · ${m.courtName}` : ""}
+          {!hideCourtInLabel && m.courtName ? `, ${m.courtName}` : ""}
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {showCallStatus ? (
@@ -281,17 +336,12 @@ export function MatchScheduleBoard({
               {bucket.matches.length === 0 ? (
                 <p className="px-1 py-2 text-xs text-cp-muted">Nothing here yet.</p>
               ) : (
-                <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
-                  {bucket.matches.map((m) => (
-                    <MatchRow
-                      key={`${m.kind}-${m.id}`}
-                      m={m}
-                      gamesScoreMode={gamesScoreMode}
-                      onEditSchedule={onEditSchedule}
-                      showCallStatus
-                    />
-                  ))}
-                </ul>
+                <MatchList
+                  matches={bucket.matches}
+                  gamesScoreMode={gamesScoreMode}
+                  onEditSchedule={onEditSchedule}
+                  showCallStatus
+                />
               )}
             </section>
           ))}
@@ -308,16 +358,11 @@ export function MatchScheduleBoard({
                   {day.matches.length} match{day.matches.length === 1 ? "" : "es"}
                 </span>
               </div>
-              <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
-                {day.matches.map((m) => (
-                  <MatchRow
-                    key={`${m.kind}-${m.id}`}
-                    m={m}
-                    gamesScoreMode={gamesScoreMode}
-                    onEditSchedule={onEditSchedule}
-                  />
-                ))}
-              </ul>
+              <MatchList
+                matches={day.matches}
+                gamesScoreMode={gamesScoreMode}
+                onEditSchedule={onEditSchedule}
+              />
             </section>
           ))}
         </div>
@@ -333,17 +378,12 @@ export function MatchScheduleBoard({
                   {court.matches.length} match{court.matches.length === 1 ? "" : "es"}
                 </span>
               </div>
-              <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
-                {court.matches.map((m) => (
-                  <MatchRow
-                    key={`${m.kind}-${m.id}`}
-                    m={m}
-                    gamesScoreMode={gamesScoreMode}
-                    onEditSchedule={onEditSchedule}
-                    hideCourtInLabel
-                  />
-                ))}
-              </ul>
+              <MatchList
+                matches={court.matches}
+                gamesScoreMode={gamesScoreMode}
+                onEditSchedule={onEditSchedule}
+                hideCourtInLabel
+              />
             </section>
           ))}
         </div>

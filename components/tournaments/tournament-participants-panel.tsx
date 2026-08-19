@@ -672,9 +672,7 @@ export function TournamentParticipantsPanel({
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <TeamPlayersList players={team.players} variant={variant} />
-                </div>
+                <TeamPlayersList players={team.players} variant={variant} compact />
 
                 {canRemoveTeams ? (
                   <div className="mt-4">

@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { OfficialPlayerStandingsTable } from "@/components/tournaments/official/official-player-standings-table";
+import { PublicSectionTabs } from "@/components/tournaments/public/public-section-tabs";
 import { TournamentParticipantsPanel } from "@/components/tournaments/tournament-participants-panel";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import { computeOfficialPlayerStandings } from "@/lib/tournaments/stats/official-standings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+
+type PlayersSection = "teams" | "leaderboard";
 
 type OfficialPublicPlayersTabProps = {
   tournament: TournamentDetail;
@@ -25,6 +28,7 @@ export function OfficialPublicPlayersTab({
   teams,
   participantsVariant = "official",
 }: OfficialPublicPlayersTabProps) {
+  const [section, setSection] = useState<PlayersSection>("teams");
   const { players, squads } = useMemo(
     () => computeOfficialPlayerStandings(bracketMatches, reclubMatches, teams),
     [bracketMatches, reclubMatches, teams],
@@ -46,34 +50,41 @@ export function OfficialPublicPlayersTab({
   const isFunMatch = participantsVariant === "reclub";
 
   return (
-    <div className="space-y-8">
-      <TournamentParticipantsPanel
-        sportSlug={tournament.sportSlug}
-        slug={tournament.slug}
-        tournamentType={isFunMatch ? "fun_match" : "official"}
-        variant={participantsVariant}
-        officialBilling={isFunMatch ? null : tournament.officialBilling}
-        teamScoreByTeamId={teamScoreByTeamId}
-        partnerEvent={Boolean(tournament.partnerId)}
+    <div className="space-y-4">
+      <PublicSectionTabs
+        label="Players sections"
+        tabs={[
+          { id: "teams", label: isFunMatch ? "Squads" : "Registered teams" },
+          { id: "leaderboard", label: isFunMatch ? "Leaderboard" : "Official leaderboard" },
+        ]}
+        active={section}
+        onChange={setSection}
       />
 
-      <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-        <h2 className="text-lg font-semibold text-foreground">
-          {isFunMatch ? "Player leaderboard" : "Official leaderboard"}
-        </h2>
-        <p className="mt-1 text-sm text-cp-muted">
-          Full standings with ranking points, point differential, and logged scoring activity.
-          {tournament.categoryLabel ? (
-            <>
-              {" "}
-              <span className="text-foreground/80">({tournament.categoryLabel})</span>
-            </>
-          ) : null}
-        </p>
-        <div className="mt-4">
-          <OfficialPlayerStandingsTable rows={players} />
-        </div>
-      </section>
+      {section === "teams" ? (
+        <TournamentParticipantsPanel
+          sportSlug={tournament.sportSlug}
+          slug={tournament.slug}
+          tournamentType={isFunMatch ? "fun_match" : "official"}
+          variant={participantsVariant}
+          officialBilling={isFunMatch ? null : tournament.officialBilling}
+          teamScoreByTeamId={teamScoreByTeamId}
+          partnerEvent={Boolean(tournament.partnerId)}
+        />
+      ) : (
+        <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">
+            {isFunMatch ? "Player leaderboard" : "Official leaderboard"}
+          </h2>
+          <p className="mt-1 text-sm text-cp-muted">
+            Ranking points, point differential, and logged scoring activity
+            {tournament.categoryLabel ? ` (${tournament.categoryLabel})` : ""}.
+          </p>
+          <div className="mt-4">
+            <OfficialPlayerStandingsTable rows={players} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ type TournamentWizardFooterProps = {
   onSubmit: () => void;
   isPending: boolean;
   isEdit: boolean;
+  readOnly?: boolean;
   className?: string;
 };
 
@@ -30,6 +31,7 @@ export function TournamentWizardFooter({
   onSubmit,
   isPending,
   isEdit,
+  readOnly = false,
   className,
 }: TournamentWizardFooterProps) {
   return (
@@ -80,7 +82,7 @@ export function TournamentWizardFooter({
               Continue
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-          ) : (
+          ) : readOnly ? null : (
             <Button
               type="button"
               className="h-10 bg-cp-primary px-5 hover:bg-cp-primary-light"

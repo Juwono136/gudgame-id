@@ -67,7 +67,7 @@ export function DoubleStageMatchesTab({
       g.matches.map((m) => ({
         id: m.id,
         kind: "group" as const,
-        stageLabel: `Group stage · ${g.name}`,
+        stageLabel: `Group stage, ${g.name}`,
         teamAName: m.teamAName,
         teamBName: m.teamBName,
         scoreA: m.scoreA,

@@ -13,6 +13,8 @@ import {
 export const QA_SEED_EMAIL_PREFIX = "qa-p";
 export const QA_SEED_TEAM_PREFIX = "QA Team";
 export const QA_SEED_SLUG_PREFIX = "qa-free-";
+/** SQL LIKE pattern for Official FREE QA slugs, including unique-suffix leftovers. */
+export const QA_SEED_SLUG_LIKE = `${QA_SEED_SLUG_PREFIX}%`;
 export const QA_TEAM_COUNT = 8;
 
 export const QA_SCORING_KEYS = ["bo3", "bo5", "r4", "r6", "t4", "cs"] as const;

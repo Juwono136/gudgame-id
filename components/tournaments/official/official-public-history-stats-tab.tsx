@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, History, ListOrdered } from "lucide-react";
+import { History } from "lucide-react";
 import {
   OfficialPointLogTimeline,
   type PointLogMatchContext,
 } from "@/components/tournaments/official/official-point-log-timeline";
 import { OfficialPlayerStandingsTable } from "@/components/tournaments/official/official-player-standings-table";
 import { OfficialPublicBracketTab } from "@/components/tournaments/official/official-public-bracket-tab";
+import { PublicSectionTabs } from "@/components/tournaments/public/public-section-tabs";
 import {
   FunMatchSquadStandingsTable,
 } from "@/components/tournaments/fun-match/fun-match-standings-table";
@@ -140,23 +141,35 @@ export function OfficialPublicHistoryStatsTab({
   );
 
   const squadRows = squads;
+  const [section, setSection] = useState<"standings" | "history" | "logs" | "bracket">(
+    "standings",
+  );
+
+  const sectionTabs = useMemo(() => {
+    const tabs: Array<{ id: "standings" | "history" | "logs" | "bracket"; label: string }> = [
+      { id: "standings", label: "Standings" },
+      { id: "history", label: "Match history" },
+      { id: "logs", label: "Point logs" },
+    ];
+    if (isElimination) tabs.push({ id: "bracket", label: "Bracket" });
+    return tabs;
+  }, [isElimination]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
+      <PublicSectionTabs
+        label="History and stats sections"
+        tabs={sectionTabs}
+        active={section}
+        onChange={setSection}
+      />
+
+      {section === "standings" ? (
       <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <BarChart3 className="h-5 w-5 text-cp-primary" />
-          Tournament stats
-        </h2>
+        <h2 className="text-lg font-semibold text-foreground">Tournament stats</h2>
         <p className="mt-1 text-sm text-cp-muted">
-          Squad and player performance from every official match
-          {tournament.categoryLabel ? (
-            <>
-              {" "}
-              <span className="text-foreground/80">({tournament.categoryLabel})</span>
-            </>
-          ) : null}
-          .
+          Squad and player performance from official matches
+          {tournament.categoryLabel ? ` (${tournament.categoryLabel})` : ""}.
         </p>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,9 +192,7 @@ export function OfficialPublicHistoryStatsTab({
               key={item.label}
               className="rounded-xl border border-cp-border/80 bg-cp-elevated/25 px-3 py-2.5"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-                {item.label}
-              </p>
+              <p className="text-xs text-cp-muted">{item.label}</p>
               <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
                 {item.value}
               </p>
@@ -189,7 +200,7 @@ export function OfficialPublicHistoryStatsTab({
           ))}
         </div>
 
-        <div className="mt-6 space-y-6">
+        <div className="mt-6 space-y-8">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Squad standings</h3>
             <div className="mt-3">
@@ -199,7 +210,7 @@ export function OfficialPublicHistoryStatsTab({
           <div>
             <h3 className="text-sm font-semibold text-foreground">Player standings</h3>
             <p className="mt-1 text-xs text-cp-muted">
-              Includes ranking points, point differential, points scored, and logged scoring actions.
+              Ranking points, point differential, points scored, and logged scoring actions.
             </p>
             <div className="mt-3">
               <OfficialPlayerStandingsTable rows={players} />
@@ -207,8 +218,10 @@ export function OfficialPublicHistoryStatsTab({
           </div>
         </div>
       </section>
+      ) : null}
 
-      {historyItems.length > 0 ? (
+      {section === "history" ? (
+      historyItems.length > 0 ? (
         <TournamentRoundHistorySection
           variant="official"
           title="Match history"
@@ -221,13 +234,12 @@ export function OfficialPublicHistoryStatsTab({
             Match history appears after official matches are finalized.
           </p>
         </section>
-      )}
+      )
+      ) : null}
 
-      <section className="rounded-2xl border border-cp-primary/20 bg-cp-card p-4 sm:p-6">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-          <ListOrdered className="h-4 w-4 text-cp-primary" />
-          Point-by-point logs
-        </h3>
+      {section === "logs" ? (
+      <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+        <h3 className="text-base font-semibold text-foreground">Point-by-point logs</h3>
         <p className="mt-1 text-sm text-cp-muted">
           Points scored with player, team, time, and resulting score. Score reductions are not
           listed.
@@ -280,8 +292,9 @@ export function OfficialPublicHistoryStatsTab({
           </div>
         )}
       </section>
+      ) : null}
 
-      {isElimination ? (
+      {section === "bracket" && isElimination ? (
         <section>
           <h3 className="mb-4 text-base font-semibold text-foreground">Bracket history</h3>
           <OfficialPublicBracketTab
