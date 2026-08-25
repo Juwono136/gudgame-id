@@ -20,12 +20,14 @@ import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
 export type LobbyMemberView = {
-  /** userId for Gud Game members, partnerPlayerId for partner guest members. */
+  /** userId / partnerPlayerId / pending member id. */
   userId: string;
   displayName: string;
   image: string | null;
   slotIndex: number;
   role: string;
+  kind?: "user" | "partner" | "pending";
+  claimStatus?: "pending" | "claimed" | null;
 };
 
 export type LobbyTeamView = {
@@ -48,6 +50,7 @@ export async function listLobbyTeamsDetailed(tournamentId: string): Promise<Lobb
   const teamIds = teams.map((t) => t.id);
   const memberRows = await db
     .select({
+      memberId: tournamentTeamMembers.id,
       teamId: tournamentTeamMembers.teamId,
       userId: tournamentTeamMembers.userId,
       partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
@@ -55,6 +58,9 @@ export async function listLobbyTeamsDetailed(tournamentId: string): Promise<Lobb
       role: tournamentTeamMembers.role,
       userName: user.name,
       partnerFullName: partnerPlayers.fullName,
+      pendingDisplayName: tournamentTeamMembers.pendingDisplayName,
+      pendingEmail: tournamentTeamMembers.pendingEmail,
+      claimedAt: tournamentTeamMembers.claimedAt,
       image: user.image,
     })
     .from(tournamentTeamMembers)
@@ -70,14 +76,42 @@ export async function listLobbyTeamsDetailed(tournamentId: string): Promise<Lobb
       captainUserId: team.captainUserId,
       memberCount: teamMembers.length,
       members: teamMembers
-        .filter((m) => m.userId != null || m.partnerPlayerId != null)
-        .map((m) => ({
-          userId: (m.userId ?? m.partnerPlayerId)!,
-          displayName: m.userId ? (m.userName ?? "Player") : (m.partnerFullName ?? "Guest"),
-          image: m.image,
-          slotIndex: m.slotIndex,
-          role: m.role,
-        })),
+        .filter(
+          (m) => m.userId != null || m.partnerPlayerId != null || m.pendingEmail != null,
+        )
+        .map((m) => {
+          if (m.userId) {
+            return {
+              userId: m.userId,
+              displayName: m.userName ?? "Player",
+              image: m.image,
+              slotIndex: m.slotIndex,
+              role: m.role,
+              kind: "user" as const,
+              claimStatus: m.claimedAt ? ("claimed" as const) : null,
+            };
+          }
+          if (m.partnerPlayerId) {
+            return {
+              userId: m.partnerPlayerId,
+              displayName: m.partnerFullName ?? "Guest",
+              image: null,
+              slotIndex: m.slotIndex,
+              role: m.role,
+              kind: "partner" as const,
+            };
+          }
+          return {
+            userId: m.memberId,
+            displayName: m.pendingDisplayName ?? "Invited player",
+            image: null,
+            slotIndex: m.slotIndex,
+            role: m.role,
+            kind: "pending" as const,
+            claimStatus: "pending" as const,
+          };
+        })
+        .sort((a, b) => a.slotIndex - b.slotIndex),
     };
   });
 }

@@ -16,6 +16,7 @@ import {
   cpFunAccentTextClass,
   cpLossTextClass,
 } from "@/lib/styles/surface-classes";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
 
 type HistoryRow = {
@@ -30,11 +31,6 @@ type HistoryRow = {
   durationSeconds: number | null;
   endedAt: string | null;
 };
-
-function formatPlayerLine(players: string[]): string | null {
-  const names = players.map((p) => p.trim()).filter(Boolean);
-  return names.length ? names.join(", ") : null;
-}
 
 type ManageScoringHistoryPanelProps = {
   sessionStats?: TournamentSessionStats;
@@ -222,9 +218,7 @@ export function ManageScoringHistoryPanel({
                         <td className="px-3 py-2">
                           <p className="font-medium text-foreground">{team.name}</p>
                           {roster.length ? (
-                            <p className="mt-0.5 text-[11px] leading-snug text-cp-muted">
-                              {roster.join(", ")}
-                            </p>
+                            <TeamPlayerList names={roster} maxNames={4} compact />
                           ) : null}
                         </td>
                         <td className={cn("px-3 py-2 text-center font-semibold", accent)}>
@@ -273,18 +267,15 @@ export function ManageScoringHistoryPanel({
                       {m.teamAName ?? "Team A"}{" "}
                       <span className="text-cp-muted">vs</span> {m.teamBName ?? "Team B"}
                     </p>
-                    {formatPlayerLine(m.teamAPlayers) || formatPlayerLine(m.teamBPlayers) ? (
-                      <div className="mt-0.5 space-y-0.5 text-[11px] leading-snug text-cp-muted">
-                        {formatPlayerLine(m.teamAPlayers) ? (
-                          <p>
-                            {m.teamAName ?? "Team A"}: {formatPlayerLine(m.teamAPlayers)}
-                          </p>
-                        ) : null}
-                        {formatPlayerLine(m.teamBPlayers) ? (
-                          <p>
-                            {m.teamBName ?? "Team B"}: {formatPlayerLine(m.teamBPlayers)}
-                          </p>
-                        ) : null}
+                    {m.teamAPlayers.length > 0 || m.teamBPlayers.length > 0 ? (
+                      <div className="mt-1 grid grid-cols-2 gap-2">
+                        <TeamPlayerList names={m.teamAPlayers} maxNames={3} compact />
+                        <TeamPlayerList
+                          names={m.teamBPlayers}
+                          maxNames={3}
+                          align="right"
+                          compact
+                        />
                       </div>
                     ) : null}
                     <p className="mt-1 text-xs text-cp-muted">

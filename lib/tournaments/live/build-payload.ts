@@ -31,11 +31,13 @@ import { listReclubMatches } from "@/lib/tournaments/reclub/matches";
 import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import { listLobbyTeamsDetailed } from "@/lib/tournaments/reclub/teams";
-import { listTournamentCourts } from "@/lib/tournaments/courts/service";
+import { provisionTournamentCourts } from "@/lib/tournaments/courts/service";
 import {
   getTournamentDisplayConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
+  getTournamentRoundDurationMinutes,
+  getTournamentScoringType,
 } from "@/lib/tournaments/settings";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
 import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
@@ -51,6 +53,9 @@ function mapGroupToLiveMatch(m: GroupMatchView) {
     id: m.id,
     type: "group_stage" as const,
     groupId: m.groupId,
+    roundNumber: m.roundNumber > 0 ? m.roundNumber : 1,
+    roundLabel: `Round ${m.roundNumber > 0 ? m.roundNumber : 1}`,
+    matchNumber: m.matchNumber,
     teamAId: m.teamAId,
     teamBId: m.teamBId,
     teamAName: m.teamAName,
@@ -63,6 +68,7 @@ function mapGroupToLiveMatch(m: GroupMatchView) {
     courtId: m.courtId,
     teamAPlayers: (m.teamAPlayers ?? []).map((p) => p.displayName).filter(Boolean),
     teamBPlayers: (m.teamBPlayers ?? []).map((p) => p.displayName).filter(Boolean),
+    playType: "group_stage" as const,
     scoreEvents: m.scoreEvents ?? [],
     gameState: m.gameState ?? null,
   };
@@ -192,7 +198,7 @@ export async function buildTournamentLivePayload(
     includeBracket ? buildTournamentLeaderboard(tournament.id) : Promise.resolve([]),
     listLobbyTeamsDetailed(tournament.id),
     includeLobbyRounds ? listReclubMatches(tournament.id) : Promise.resolve([]),
-    listTournamentCourts(tournament.id),
+    provisionTournamentCourts(tournament),
     includeGroupStage ? listGroupMatches(tournament.id) : Promise.resolve([]),
     includeGroupStage ? buildDoubleStageOverview(tournament) : Promise.resolve(null),
   ]);
@@ -241,10 +247,19 @@ export async function buildTournamentLivePayload(
       })),
   }));
 
+  // Include pending/queued fixtures so public Live Score round tabs match Manage
+  // (completedCount / isComplete per RR day). Live + completed alone collapsed
+  // all rows onto round 1 when roundNumber was missing historically.
   const groupSessionMatches =
     isLiveOrDone && includeGroupStage && caps.hasGroupStage
       ? groupMatchesRaw
-          .filter((m) => m.status === "in_progress" || m.status === "completed")
+          .filter(
+            (m) =>
+              m.status === "in_progress" ||
+              m.status === "completed" ||
+              m.status === "pending" ||
+              m.status === "scheduled",
+          )
           .map(mapGroupToLiveMatch)
       : [];
 
@@ -344,21 +359,24 @@ export async function buildTournamentLivePayload(
 
   const groupHistory = groupMatchesRaw
     .filter((m) => m.status === "completed")
-    .map((m) => ({
-      id: m.id,
-      label: "Group stage",
-      summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
-      score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
-      endedAt: m.completedAt,
-      playType: "group_stage" as const,
-      teamAId: m.teamAId,
-      teamBId: m.teamBId,
-      teamAName: m.teamAName,
-      teamBName: m.teamBName,
-      teamAPlayers: m.teamAPlayers.map((p) => p.displayName).filter(Boolean),
-      teamBPlayers: m.teamBPlayers.map((p) => p.displayName).filter(Boolean),
-      scoreEvents: m.scoreEvents,
-    }));
+    .map((m) => {
+      const round = m.roundNumber > 0 ? m.roundNumber : 1;
+      return {
+        id: m.id,
+        label: `Group stage · Round ${round}`,
+        summary: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
+        score: `${m.scoreA ?? 0}–${m.scoreB ?? 0}`,
+        endedAt: m.completedAt,
+        playType: "group_stage" as const,
+        teamAId: m.teamAId,
+        teamBId: m.teamBId,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        teamAPlayers: m.teamAPlayers.map((p) => p.displayName).filter(Boolean),
+        teamBPlayers: m.teamBPlayers.map((p) => p.displayName).filter(Boolean),
+        scoreEvents: m.scoreEvents,
+      };
+    });
 
   const matchHistory = [...groupHistory, ...lobbyHistory, ...bracketHistory].sort((a, b) => {
     const at = new Date(a.endedAt ?? 0).getTime();
@@ -427,9 +445,13 @@ export async function buildTournamentLivePayload(
           : doubleStageOverview
             ? "group"
             : "default";
+      const roundDurationMinutes =
+        getTournamentScoringType(tournament) === "timed"
+          ? getTournamentRoundDurationMinutes(tournament)
+          : 45;
       const matchScoreMode = getTournamentMatchScoreMode(tournament, stage);
       if (matchScoreMode !== "games") {
-        return { matchScoreMode };
+        return { matchScoreMode, roundDurationMinutes };
       }
       const rules = getTournamentGameRules(tournament, stage);
       return {
@@ -438,6 +460,7 @@ export async function buildTournamentLivePayload(
         lengthMode: rules.lengthMode ?? "race_to",
         pointsToWinGame: rules.pointsToWinGame,
         pointStyle: rules.pointStyle,
+        roundDurationMinutes,
       };
     })(),
     matchHistory:

@@ -50,7 +50,13 @@ export const tournamentTeams = pgTable(
   ],
 );
 
-/** Player assigned to a team slot (Gud Game user XOR partner guest player). */
+/**
+ * Player assigned to a team slot.
+ * Exactly one identity kind:
+ * - Gud Game user (`userId`)
+ * - Partner guest (`partnerPlayerId`)
+ * - Official pending invite (`pendingEmail` + `claimTokenHash`) until claimed
+ */
 export const tournamentTeamMembers = pgTable(
   "tournament_team_members",
   {
@@ -62,6 +68,17 @@ export const tournamentTeamMembers = pgTable(
     partnerPlayerId: uuidFk("partner_player_id").references(() => partnerPlayers.id, {
       onDelete: "cascade",
     }),
+    /** Provisional Official roster — display name before claim. */
+    pendingDisplayName: varchar("pending_display_name", { length: 120 }),
+    pendingEmail: varchar("pending_email", { length: 255 }),
+    pendingPhone: varchar("pending_phone", { length: 32 }),
+    claimTokenHash: varchar("claim_token_hash", { length: 128 }),
+    claimExpiresAt: timestamp("claim_expires_at"),
+    claimedAt: timestamp("claimed_at"),
+    invitedByUserId: text("invited_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    inviteSentAt: timestamp("invite_sent_at"),
     slotIndex: integer("slot_index").default(0).notNull(),
     role: varchar("role", { length: 20 }).default("member").notNull(),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
@@ -74,12 +91,31 @@ export const tournamentTeamMembers = pgTable(
       table.partnerPlayerId,
     ),
     uniqueIndex("tournament_team_members_slot_uidx").on(table.teamId, table.slotIndex),
+    uniqueIndex("tournament_team_members_claim_token_uidx").on(table.claimTokenHash),
     index("tournament_team_members_partner_player_idx").on(table.partnerPlayerId),
+    index("tournament_team_members_pending_email_idx").on(table.pendingEmail),
     check(
-      "tournament_team_members_user_xor_partner",
+      "tournament_team_members_identity_kind",
       sql`(
-        ("user_id" IS NOT NULL AND "partner_player_id" IS NULL)
-        OR ("user_id" IS NULL AND "partner_player_id" IS NOT NULL)
+        (
+          "user_id" IS NOT NULL
+          AND "partner_player_id" IS NULL
+          AND "pending_email" IS NULL
+          AND "claim_token_hash" IS NULL
+        )
+        OR (
+          "user_id" IS NULL
+          AND "partner_player_id" IS NOT NULL
+          AND "pending_email" IS NULL
+          AND "claim_token_hash" IS NULL
+        )
+        OR (
+          "user_id" IS NULL
+          AND "partner_player_id" IS NULL
+          AND "pending_email" IS NOT NULL
+          AND "pending_display_name" IS NOT NULL
+          AND "claim_token_hash" IS NOT NULL
+        )
       )`,
     ),
   ],

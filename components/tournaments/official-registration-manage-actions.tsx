@@ -4,6 +4,7 @@ import { CheckCircle2, CreditCard, Loader2, Pencil, XCircle } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { useCancelRegistration } from "@/hooks/use-cancel-registration";
 import {
+  canEditOfficialRoster,
   isActiveRegistrationStatus,
   registrationCheckoutUrl,
   registrationConfirmUrl,
@@ -17,6 +18,7 @@ type OfficialRegistrationManageActionsProps = {
   slug: string;
   teamName?: string | null;
   registrationStatus: string;
+  tournamentStatus?: string | null;
   /** compact = icon row for tables; stacked = sidebar layout */
   layout?: "compact" | "stacked";
   className?: string;
@@ -33,6 +35,7 @@ export function OfficialRegistrationManageActions({
   slug,
   teamName,
   registrationStatus,
+  tournamentStatus = null,
   layout = "compact",
   className,
   onEditTeam,
@@ -42,12 +45,21 @@ export function OfficialRegistrationManageActions({
 }: OfficialRegistrationManageActionsProps) {
   const { cancelRegistration, isPending } = useCancelRegistration();
 
-  if (!isActiveRegistrationStatus(registrationStatus)) return null;
+  const canEdit = canEditOfficialRoster({
+    registrationStatus,
+    tournamentStatus,
+  });
+  const showPaymentActions = isActiveRegistrationStatus(registrationStatus);
+  const showCancel = showPaymentActions;
+
+  if (!canEdit && !showPaymentActions) return null;
 
   const confirmHref = registrationConfirmUrl(sportSlug, slug, registrationId, partnerSlug);
   const checkoutHref = registrationCheckoutUrl(sportSlug, slug, registrationId, partnerSlug);
   const isAwaiting = registrationStatus === "awaiting_confirmation";
   const isPendingPayment = registrationStatus === "pending_payment";
+  const isConfirmedUpcoming =
+    registrationStatus === "confirmed" && tournamentStatus === "upcoming";
 
   const handleCancel = async () => {
     const ok = await cancelRegistration({
@@ -63,7 +75,7 @@ export function OfficialRegistrationManageActions({
   if (layout === "stacked") {
     return (
       <div className={cn("mt-3 space-y-2 border-t border-cp-border pt-3", className)}>
-        {isAwaiting ? (
+        {canEdit && onEditTeam ? (
           <Button
             type="button"
             variant="outline"
@@ -72,24 +84,26 @@ export function OfficialRegistrationManageActions({
             onClick={onEditTeam}
           >
             <Pencil className="mr-2 h-4 w-4" />
-            Edit team
+            {isConfirmedUpcoming ? "Update team roster" : "Edit team"}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          disabled={isPending}
-          onClick={() => void handleCancel()}
-        >
-          {isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <XCircle className="mr-2 h-4 w-4" />
-          )}
-          Cancel registration
-        </Button>
+        {showCancel ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            disabled={isPending}
+            onClick={() => void handleCancel()}
+          >
+            {isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <XCircle className="mr-2 h-4 w-4" />
+            )}
+            Cancel registration
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -100,19 +114,19 @@ export function OfficialRegistrationManageActions({
       role="group"
       aria-label="Registration actions"
     >
+      {canEdit && onEditTeam ? (
+        <RegistrationActionIconButton
+          icon={Pencil}
+          label={isConfirmedUpcoming ? "Update team roster" : "Edit team"}
+          onClick={onEditTeam}
+        />
+      ) : null}
       {isAwaiting ? (
-        <>
-          <RegistrationActionIconButton
-            icon={Pencil}
-            label="Edit team"
-            onClick={onEditTeam}
-          />
-          <RegistrationActionIconButton
-            icon={CheckCircle2}
-            label="Confirm participation"
-            href={confirmHref}
-          />
-        </>
+        <RegistrationActionIconButton
+          icon={CheckCircle2}
+          label="Confirm participation"
+          href={confirmHref}
+        />
       ) : null}
       {isPendingPayment ? (
         <RegistrationActionIconButton
@@ -122,13 +136,15 @@ export function OfficialRegistrationManageActions({
           variant="default"
         />
       ) : null}
-      <RegistrationActionIconButton
-        icon={XCircle}
-        label="Cancel registration"
-        onClick={() => void handleCancel()}
-        loading={isPending}
-        variant="danger"
-      />
+      {showCancel ? (
+        <RegistrationActionIconButton
+          icon={XCircle}
+          label="Cancel registration"
+          onClick={() => void handleCancel()}
+          loading={isPending}
+          variant="danger"
+        />
+      ) : null}
     </div>
   );
 }

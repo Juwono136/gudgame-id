@@ -43,3 +43,16 @@ export function isActiveRegistrationStatus(
 ): status is ActiveRegistrationStatus {
   return status === "awaiting_confirmation" || status === "pending_payment";
 }
+
+/**
+ * Captain may edit roster while payment is unfinished, or after confirm
+ * while the tournament is still upcoming (not live/completed).
+ */
+export function canEditOfficialRoster(input: {
+  registrationStatus: string | null | undefined;
+  tournamentStatus: string | null | undefined;
+}): boolean {
+  const { registrationStatus, tournamentStatus } = input;
+  if (isActiveRegistrationStatus(registrationStatus)) return true;
+  return registrationStatus === "confirmed" && tournamentStatus === "upcoming";
+}

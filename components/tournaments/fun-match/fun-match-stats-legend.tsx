@@ -6,7 +6,10 @@ export type TournamentStatsLegendVariant = "fun" | "official-player" | "american
 
 const AMERICANO_STAT_LEGEND = [
   { abbr: "W-L-T", description: "Wins, losses, and ties" },
-  { abbr: "WR", description: "Win rate (%)" },
+  {
+    abbr: "WR",
+    description: "Match win rate (%) = wins ÷ matches played (ties count as played)",
+  },
   { abbr: "Diff", description: "Point difference (scored minus conceded)" },
   { abbr: "+M", description: "Compensation points for fewer games played" },
   { abbr: "P", description: "Total individual points scored (Americano ranking)" },
@@ -15,7 +18,10 @@ const AMERICANO_STAT_LEGEND = [
 
 const FUN_STAT_LEGEND = [
   { abbr: "W-L-T", description: "Wins, losses, and ties" },
-  { abbr: "WR", description: "Win rate (%)" },
+  {
+    abbr: "WR",
+    description: "Match win rate (%) = wins ÷ matches played (ties count as played)",
+  },
   { abbr: "Diff", description: "Point difference (scored minus conceded)" },
   { abbr: "+M", description: "Compensation points for fewer games played" },
   { abbr: "P", description: "Ranking points (3 per win, 1 per tie)" },
@@ -24,7 +30,10 @@ const FUN_STAT_LEGEND = [
 
 const OFFICIAL_PLAYER_STAT_LEGEND = [
   { abbr: "W-L-T", description: "Wins, losses, and ties" },
-  { abbr: "WR", description: "Win rate (%)" },
+  {
+    abbr: "WR",
+    description: "Match win rate (%) = wins ÷ matches played (ties count as played)",
+  },
   { abbr: "Diff", description: "Point difference (scored minus conceded)" },
   { abbr: "P", description: "Ranking points (3 per win, 1 per tie)" },
   { abbr: "Pts+", description: "Points scored for your side in completed matches" },
@@ -73,7 +82,7 @@ export function FunMatchStatsLegend({
 /** Column header tooltips shared with standings tables. */
 export const FUN_MATCH_STAT_COLUMN_TITLES = {
   wlt: "Wins, losses, and ties",
-  wr: "Win rate (%)",
+  wr: "Match win rate (%) = wins ÷ matches played",
   diff: "Point difference (scored minus conceded)",
   plusM: "Compensation points for fewer games played",
   p: "Ranking points (3 per win, 1 per tie)",

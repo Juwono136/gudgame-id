@@ -6,12 +6,14 @@ import {
   BracketConnectorOverlay,
   shouldRenderBracketMatch,
 } from "@/components/tournaments/bracket-tree-connectors";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import {
   buildBracketMatchAnchors,
   buildLayoutBracketPaths,
   getBracketGridMetrics,
+  getBracketMaxPlayersPerSide,
   getMainDrawGridSlots,
   getMainDrawMatches,
   getMainDrawRoundNumbers,
@@ -19,6 +21,7 @@ import {
   getPlayInMatches,
 } from "@/lib/tournaments/brackets/tree-layout";
 import { cn } from "@/lib/utils";
+import { uniquePlayerNames } from "@/lib/format/player-names";
 
 type BracketTreeViewProps = {
   matches: BracketMatchView[];
@@ -77,7 +80,18 @@ export function BracketTreeView({
   );
 
   const gridSlots = useMemo(() => getMainDrawGridSlots(structuralMatches), [structuralMatches]);
-  const metrics = useMemo(() => getBracketGridMetrics(gridSlots), [gridSlots]);
+  const rosterSizing = useMemo(
+    () => getBracketMaxPlayersPerSide(structuralMatches, 6),
+    [structuralMatches],
+  );
+  const maxPlayersPerSide = rosterSizing.display;
+  const metrics = useMemo(
+    () =>
+      getBracketGridMetrics(gridSlots, maxPlayersPerSide, {
+        overflowRow: rosterSizing.needsOverflowRow,
+      }),
+    [gridSlots, maxPlayersPerSide, rosterSizing.needsOverflowRow],
+  );
   const roundNumbers = useMemo(() => getMainDrawRoundNumbers(treeMatches), [treeMatches]);
   const totalRounds = useMemo(
     () => getMainDrawTotalRounds(structuralMatches),
@@ -122,7 +136,8 @@ export function BracketTreeView({
   const [zoom, setZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
-  const draggedRef = useRef(false);
+  /** True only for the pan gesture that just ended — cleared after click handlers run. */
+  const suppressClickFromPanRef = useRef(false);
   const pointerOrigin = useRef({ x: 0, y: 0 });
 
   const effectiveZoom = Math.max(0.5, Math.min(zoom, 1.5));
@@ -137,8 +152,12 @@ export function BracketTreeView({
     );
   };
 
+  const endPan = () => {
+    setIsPanning(false);
+  };
+
   const handleSlotClick = (matchId: string, slot: "a" | "b") => {
-    if (draggedRef.current) return;
+    if (suppressClickFromPanRef.current) return;
     onSlotClick?.(matchId, slot);
   };
 
@@ -172,7 +191,7 @@ export function BracketTreeView({
                 <article
                   key={m.id}
                   className={cn(
-                    "overflow-hidden rounded-lg border bg-cp-card shadow-sm",
+                    "rounded-lg border bg-cp-card shadow-sm",
                     m.status === "in_progress"
                       ? "border-emerald-500/45"
                       : m.status === "completed"
@@ -188,7 +207,7 @@ export function BracketTreeView({
                       {status.label}
                     </span>
                   </div>
-                  <div className="divide-y divide-cp-border/50">
+                  <div className="flex flex-col divide-y divide-cp-border/50">
                     <MatchSlot
                       name={m.teamAName}
                       players={m.teamAPlayers}
@@ -206,6 +225,10 @@ export function BracketTreeView({
                       droppable={seedingMode && m.status === "pending"}
                       showEmptySlots={showEmptySlots}
                       compact
+                      maxPlayers={maxPlayersPerSide}
+                      onPrepareClick={() => {
+                        suppressClickFromPanRef.current = false;
+                      }}
                       onClick={
                         onSlotClick && seedingMode && m.status === "pending"
                           ? () => handleSlotClick(m.id, "a")
@@ -229,6 +252,10 @@ export function BracketTreeView({
                       droppable={seedingMode && m.status === "pending"}
                       showEmptySlots={showEmptySlots}
                       compact
+                      maxPlayers={maxPlayersPerSide}
+                      onPrepareClick={() => {
+                        suppressClickFromPanRef.current = false;
+                      }}
                       onClick={
                         onSlotClick && seedingMode && m.status === "pending"
                           ? () => handleSlotClick(m.id, "b")
@@ -245,9 +272,7 @@ export function BracketTreeView({
 
       <div className="flex flex-wrap items-center justify-between gap-2" data-bracket-chrome="">
         <p className="text-[11px] text-cp-muted">
-          {seedingMode
-            ? "Tap two first-round teams to swap them, or use Arrange pairings. Drag to pan the bracket."
-            : "All matches at 100% — drag to pan · use zoom if you need more detail."}
+          Drag to pan · use zoom for detail
         </p>
         <div className="flex items-center gap-1">
           <button
@@ -288,7 +313,7 @@ export function BracketTreeView({
           if (isInteractivePanTarget(e.target)) return;
           const el = viewportRef.current;
           if (!el) return;
-          draggedRef.current = false;
+          suppressClickFromPanRef.current = false;
           pointerOrigin.current = { x: e.clientX, y: e.clientY };
           setIsPanning(true);
           panStart.current = {
@@ -306,14 +331,13 @@ export function BracketTreeView({
             Math.abs(e.clientX - pointerOrigin.current.x) > 6 ||
             Math.abs(e.clientY - pointerOrigin.current.y) > 6
           ) {
-            draggedRef.current = true;
+            suppressClickFromPanRef.current = true;
           }
           el.scrollLeft = panStart.current.scrollLeft - (e.clientX - panStart.current.x);
           el.scrollTop = panStart.current.scrollTop - (e.clientY - panStart.current.y);
         }}
-        onPointerUp={() => setIsPanning(false)}
-        onPointerLeave={() => setIsPanning(false)}
-        onPointerCancel={() => setIsPanning(false)}
+        onPointerUp={endPan}
+        onPointerCancel={endPan}
       >
         <div
           className="p-3 pb-12 sm:p-4 sm:pb-14"
@@ -373,7 +397,7 @@ export function BracketTreeView({
                       <article
                         key={m.id}
                         className={cn(
-                          "absolute overflow-hidden rounded-lg border bg-cp-card shadow-sm",
+                          "absolute z-[1] flex flex-col overflow-hidden rounded-lg border bg-cp-card shadow-sm",
                           m.status === "completed"
                             ? "border-cp-primary/35"
                             : m.status === "in_progress"
@@ -387,7 +411,10 @@ export function BracketTreeView({
                           height: metrics.rowHeight - 4,
                         }}
                       >
-                        <div className="flex items-center justify-between gap-2 border-b border-cp-border/50 bg-cp-elevated/25 px-2 py-0.5">
+                        <div
+                          className="flex shrink-0 items-center justify-between gap-2 border-b border-cp-border/50 bg-cp-elevated/25 px-2.5"
+                          style={{ height: metrics.headerHeight }}
+                        >
                           <span className="text-[9px] font-semibold uppercase tracking-wide text-cp-muted">
                             {tag} · M{m.matchNumber}
                           </span>
@@ -395,7 +422,7 @@ export function BracketTreeView({
                             {status.label}
                           </span>
                         </div>
-                        <div className="divide-y divide-cp-border/50">
+                        <div className="grid min-h-0 flex-1 grid-rows-2 divide-y divide-cp-border/50">
                           <MatchSlot
                             name={m.teamAName}
                             players={m.teamAPlayers}
@@ -415,6 +442,10 @@ export function BracketTreeView({
                             droppable={seedable}
                             showEmptySlots={showEmptySlots}
                             compact={metrics.compactPlayers}
+                            maxPlayers={metrics.maxPlayersPerSide}
+                            onPrepareClick={() => {
+                              suppressClickFromPanRef.current = false;
+                            }}
                             onClick={
                               onSlotClick && seedable
                                 ? () => handleSlotClick(m.id, "a")
@@ -440,6 +471,10 @@ export function BracketTreeView({
                             droppable={seedable}
                             showEmptySlots={showEmptySlots}
                             compact={metrics.compactPlayers}
+                            maxPlayers={metrics.maxPlayersPerSide}
+                            onPrepareClick={() => {
+                              suppressClickFromPanRef.current = false;
+                            }}
                             onClick={
                               onSlotClick && seedable
                                 ? () => handleSlotClick(m.id, "b")
@@ -474,15 +509,6 @@ export function BracketTreeView({
   );
 }
 
-function formatPlayerList(players?: string[], compact = false): string | null {
-  if (!players?.length) return null;
-  const cleaned = players.map((p) => p.trim()).filter(Boolean);
-  if (!cleaned.length) return null;
-  if (!compact) return cleaned.join(" · ");
-  // Compact: keep full list but shorter separator for narrow cards.
-  return cleaned.join(" · ");
-}
-
 function MatchSlot({
   name,
   players,
@@ -494,6 +520,8 @@ function MatchSlot({
   droppable = false,
   showEmptySlots = false,
   compact = false,
+  maxPlayers = 4,
+  onPrepareClick,
   onClick,
 }: {
   name: string | null;
@@ -506,15 +534,21 @@ function MatchSlot({
   droppable?: boolean;
   showEmptySlots?: boolean;
   compact?: boolean;
+  /** Visible roster rows before “+N more” (supports 2–6 for doubles / squads). */
+  maxPlayers?: number;
+  /** Clear pan-suppress flag before this slot's click (pointerdown). */
+  onPrepareClick?: () => void;
   onClick?: () => void;
 }) {
-  const playerLine = formatPlayerList(players, compact);
+  const hasPlayers = Boolean(players?.some((p) => p.trim()));
   const hasTeam = Boolean(name?.trim());
-  const isEmpty = !hasTeam && !playerLine;
+  const isEmpty = !hasTeam && !hasPlayers;
   const isByeLabel = hasTeam && name!.trim().toUpperCase() === "BYE";
+  const rosterCap = Math.max(1, Math.min(maxPlayers, 6));
+  const resolvedPlayers = hasPlayers ? uniquePlayerNames(players ?? []) : [];
 
   if (isEmpty && !droppable && !showEmptySlots) {
-    return <div className={compact ? "h-8" : "h-10"} aria-hidden />;
+    return <div className="h-full min-h-10" aria-hidden />;
   }
 
   const teamLabel = hasTeam
@@ -537,19 +571,17 @@ function MatchSlot({
             !winner && !eliminated && !isByeLabel && "text-foreground",
             ((droppable && !hasTeam) || isByeLabel) && "text-cp-muted",
           )}
+          title={teamLabel ?? undefined}
         >
           {teamLabel}
         </span>
-        {playerLine && !isByeLabel ? (
-          <span
-            className={cn(
-              "mt-0.5 block truncate leading-tight text-cp-muted",
-              compact ? "text-[9px]" : "text-[11px]",
-            )}
-            title={playerLine}
-          >
-            {playerLine}
-          </span>
+        {resolvedPlayers.length > 0 && !isByeLabel ? (
+          <TeamPlayerList
+            names={resolvedPlayers}
+            maxNames={rosterCap}
+            compact={compact}
+            className="mt-0.5 space-y-0.5"
+          />
         ) : hasTeam && !isByeLabel && !droppable ? (
           <span
             className={cn(
@@ -564,7 +596,7 @@ function MatchSlot({
       {score != null && !isByeLabel ? (
         <span
           className={cn(
-            "shrink-0 self-center font-mono font-semibold tabular-nums",
+            "shrink-0 self-start pt-0.5 font-mono font-semibold tabular-nums",
             compact ? "text-xs" : "text-sm",
             winner ? "text-emerald-400" : "text-foreground",
           )}
@@ -576,8 +608,8 @@ function MatchSlot({
   );
 
   const className = cn(
-    "flex w-full items-center justify-between gap-2 px-2 text-left transition-colors",
-    compact ? "min-h-[2rem] py-1" : "min-h-[2.35rem] py-1.5",
+    "flex h-full w-full items-start justify-between gap-2 overflow-hidden px-2.5 text-left transition-colors",
+    compact ? "py-1.5" : "py-2",
     highlighted && "bg-emerald-500/10",
     droppable && "cursor-pointer hover:bg-cp-primary/5",
     active && "bg-cp-primary/10 ring-2 ring-inset ring-cp-primary/50",
@@ -590,7 +622,12 @@ function MatchSlot({
         type="button"
         data-bracket-slot=""
         className={className}
-        onPointerDown={(e) => e.stopPropagation()}
+        title={droppable ? "Click to select this slot for swap / place" : undefined}
+        onPointerDown={(e) => {
+          // Never start canvas pan from a slot; always allow this click.
+          e.stopPropagation();
+          onPrepareClick?.();
+        }}
         onClick={(e) => {
           e.stopPropagation();
           onClick();

@@ -8,6 +8,7 @@ export type EmailTemplateId =
   | "registration-confirm-participation"
   | "registration-payment-reminder"
   | "registration-team-invite"
+  | "registration-roster-claim"
   | "registration-cancelled"
   | "host-payment-received"
   | "host-payout-disbursed"
@@ -102,6 +103,18 @@ export type RegistrationTeamInviteTemplateData = {
   teamName: string;
   sportName: string;
   tournamentUrl: string;
+};
+
+export type RegistrationRosterClaimTemplateData = {
+  appName: string;
+  userName: string;
+  captainName: string;
+  tournamentName: string;
+  teamName: string;
+  sportName: string;
+  inviteEmail: string;
+  claimUrl: string;
+  expiresAtFormatted: string;
 };
 
 export type RegistrationCancelledTemplateData = {
@@ -237,6 +250,7 @@ export type EmailTemplateDataMap = {
   "registration-confirm-participation": RegistrationConfirmParticipationTemplateData;
   "registration-payment-reminder": RegistrationPaymentReminderTemplateData;
   "registration-team-invite": RegistrationTeamInviteTemplateData;
+  "registration-roster-claim": RegistrationRosterClaimTemplateData;
   "registration-cancelled": RegistrationCancelledTemplateData;
   "host-payment-received": HostPaymentReceivedTemplateData;
   "host-payout-disbursed": HostPayoutDisbursedTemplateData;

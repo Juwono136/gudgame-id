@@ -110,6 +110,19 @@ export async function confirmParticipation(
 
     void notifyHostPlayerConfirmedParticipation(tournament, registrationId, userId, teamName);
 
+    if (registration.teamId) {
+      const { dispatchOfficialRosterInvites } = await import(
+        "@/lib/tournaments/registration/dispatch-invites"
+      );
+      void dispatchOfficialRosterInvites({
+        tournament,
+        registrationId,
+        teamId: registration.teamId,
+        captainUserId: userId,
+        teamName,
+      });
+    }
+
     return { registrationId, status: "confirmed" };
   }
 

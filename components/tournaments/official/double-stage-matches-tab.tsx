@@ -67,13 +67,18 @@ export function DoubleStageMatchesTab({
       g.matches.map((m) => ({
         id: m.id,
         kind: "group" as const,
-        stageLabel: `Group stage, ${g.name}`,
+        stageLabel: `Group stage · ${g.name}`,
+        stageKindLabel: "Group stage",
+        groupName: g.name,
         teamAName: m.teamAName,
         teamBName: m.teamBName,
+        teamAPlayers: m.teamAPlayers?.map((p) => p.displayName).filter(Boolean) ?? [],
+        teamBPlayers: m.teamBPlayers?.map((p) => p.displayName).filter(Boolean) ?? [],
         scoreA: m.scoreA,
         scoreB: m.scoreB,
         status: m.status,
         scheduledAt: m.scheduledAt,
+        startedAt: m.startedAt,
         courtId: m.courtId,
         courtName: courtNameFor(m.courtId),
         playOrder: m.playOrder,
@@ -84,21 +89,28 @@ export function DoubleStageMatchesTab({
     const totalRounds = bracketMatches.length
       ? Math.max(...bracketMatches.map((m) => m.roundNumber), 1)
       : 1;
-    const bracketRows: ScheduleMatchRow[] = bracketMatches.map((m) => ({
-      id: m.id,
-      kind: "bracket" as const,
-      stageLabel: getBracketRoundLabel(m.roundNumber, totalRounds),
-      teamAName: m.teamAName,
-      teamBName: m.teamBName,
-      scoreA: m.scoreA,
-      scoreB: m.scoreB,
-      status: m.status,
-      scheduledAt: m.scheduledAt ?? null,
-      courtId: m.courtId ?? null,
-      courtName: courtNameFor(m.courtId),
-      playOrder: m.playOrder ?? null,
-      callStatus: parseCallStatus(m.callStatus),
-    }));
+    const bracketRows: ScheduleMatchRow[] = bracketMatches.map((m) => {
+      const roundLabel = getBracketRoundLabel(m.roundNumber, totalRounds);
+      return {
+        id: m.id,
+        kind: "bracket" as const,
+        stageLabel: roundLabel,
+        stageKindLabel: roundLabel,
+        groupName: null,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        teamAPlayers: m.teamAPlayers ?? [],
+        teamBPlayers: m.teamBPlayers ?? [],
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        status: m.status,
+        scheduledAt: m.scheduledAt ?? null,
+        courtId: m.courtId ?? null,
+        courtName: courtNameFor(m.courtId),
+        playOrder: m.playOrder ?? null,
+        callStatus: parseCallStatus(m.callStatus),
+      };
+    });
 
     return [...groupRows, ...bracketRows];
   }, [groups, bracketMatches, courts]);
@@ -147,10 +159,7 @@ export function DoubleStageMatchesTab({
   }
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-cp-muted">
-        Scores & fixtures for group stage and knockout.
-      </p>
+    <div className="space-y-4">
       <MatchScheduleBoard
         matches={rows}
         gamesScoreMode={gamesScoreMode}

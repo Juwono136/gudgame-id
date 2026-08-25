@@ -3,8 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
-import { DoubleStageFlowGuide } from "@/components/tournaments/double-stage/double-stage-flow-guide";
 import { DoubleStageGroupMatchCard } from "@/components/tournaments/manage/double-stage-group-match-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -168,19 +166,12 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
         </div>
       ) : null}
 
-      <DoubleStageConfigBanner tournament={tournament} />
-
-      <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
-        <span className="font-medium text-foreground">Live scoring — group stage only.</span> Start
-        each fixture before adjusting scores. Standings on the{" "}
-        <span className="font-medium text-foreground">Groups</span> tab update when you finalize a
-        match.
-        {pendingCount > 0 ? (
-          <span className="mt-1 block text-xs">
-            {pendingCount} match{pendingCount === 1 ? "" : "es"} remaining in group stage.
-          </span>
-        ) : null}
-      </div>
+      {pendingCount > 0 ? (
+        <p className="text-xs text-cp-muted sm:text-sm">
+          <span className="font-medium text-foreground">{pendingCount}</span> group match
+          {pendingCount === 1 ? "" : "es"} remaining · standings sync on the Groups tab.
+        </p>
+      ) : null}
 
       {groups.length > 1 ? (
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -239,7 +230,6 @@ export function DoubleStageGroupScoringPanel({ tournament }: DoubleStageGroupSco
         </Card>
       ) : null}
 
-      <DoubleStageFlowGuide phase="group" variant="manage" />
     </div>
   );
 }

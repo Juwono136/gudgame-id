@@ -7,14 +7,12 @@ import { AppError } from "@/lib/errors";
 import { requireApiRoleGuardContext } from "@/lib/auth/role-guard";
 import { getTournamentBySlug } from "@/lib/tournaments/service";
 import { startOfficialRegistration } from "@/lib/tournaments/registration/service";
-import { z } from "zod";
+import {
+  normalizeOfficialRosterMembers,
+  startOfficialRegistrationSchema,
+} from "@/lib/validations/official-registration";
 
 export const runtime = "nodejs";
-
-const bodySchema = z.object({
-  teamName: z.string().trim().min(2).max(120),
-  memberUserIds: z.array(z.string().min(1)).max(8).default([]),
-});
 
 export async function POST(
   request: Request,
@@ -35,7 +33,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const parsed = bodySchema.safeParse(body);
+    const parsed = startOfficialRegistrationSchema.safeParse(body);
     if (!parsed.success) {
       throw new AppError("Invalid registration data", {
         code: "VALIDATION_ERROR",
@@ -50,18 +48,28 @@ export async function POST(
       .limit(1);
 
     if (!dbUser?.email) {
-      throw new AppError("Account email is required for payment", {
+      throw new AppError("Account email is required for registration", {
         code: "VALIDATION_ERROR",
         statusCode: 400,
       });
     }
 
-    const result = await startOfficialRegistration(
-      tournament,
-      userId,
-      dbUser.email,
-      parsed.data,
-    );
+    const members = normalizeOfficialRosterMembers(parsed.data);
+    const teamName =
+      parsed.data.teamName.trim() ||
+      (tournament.playersPerTeam === 1 ? dbUser.email.split("@")[0]! : "");
+
+    if ((tournament.playersPerTeam ?? 2) > 1 && teamName.trim().length < 2) {
+      throw new AppError("Team name is required", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    const result = await startOfficialRegistration(tournament, userId, dbUser.email, {
+      teamName: teamName.trim() || "Solo",
+      members,
+    });
 
     return jsonSuccess(result, 201);
   } catch (error) {

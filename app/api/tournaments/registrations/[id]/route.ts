@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import {
@@ -15,7 +15,10 @@ import {
   updateOfficialRegistration,
 } from "@/lib/tournaments/registration/service";
 import { expireRegistrationIfOverdue } from "@/lib/tournaments/registration/payment-expiry";
-import { updateOfficialRegistrationSchema } from "@/lib/validations/official-registration";
+import {
+  normalizeOfficialRosterMembers,
+  updateOfficialRegistrationSchema,
+} from "@/lib/validations/official-registration";
 
 export const runtime = "nodejs";
 
@@ -49,10 +52,27 @@ export async function GET(
     const members =
       reg?.teamId != null
         ? await getDb()
-            .select({ displayName: user.name, userId: user.id })
+            .select({
+              userId: tournamentTeamMembers.userId,
+              displayName: sql<string>`coalesce(
+                nullif(${user.nickname}, ''),
+                ${user.name},
+                ${tournamentTeamMembers.pendingDisplayName},
+                'Player'
+              )`,
+              role: tournamentTeamMembers.role,
+              slotIndex: tournamentTeamMembers.slotIndex,
+              kind: sql<"user" | "pending">`case when ${tournamentTeamMembers.userId} is not null then 'user' else 'pending' end`,
+              pendingEmail: tournamentTeamMembers.pendingEmail,
+              claimStatus: sql<"claimed" | "pending" | null>`case
+                when ${tournamentTeamMembers.claimedAt} is not null then 'claimed'
+                when ${tournamentTeamMembers.pendingEmail} is not null then 'pending'
+                else null end`,
+            })
             .from(tournamentTeamMembers)
-            .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+            .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
             .where(eq(tournamentTeamMembers.teamId, reg.teamId))
+            .orderBy(tournamentTeamMembers.slotIndex)
         : [];
 
     return jsonSuccess({
@@ -99,7 +119,7 @@ export async function PATCH(
       userId,
       {
         teamName: parsed.data.teamName,
-        memberUserIds: parsed.data.memberUserIds,
+        members: normalizeOfficialRosterMembers(parsed.data),
       },
     );
 

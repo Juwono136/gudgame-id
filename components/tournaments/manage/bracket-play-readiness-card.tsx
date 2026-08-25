@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Lock, Radio, Swords, Trophy } from "lucide-react";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { publicSportRoutes } from "@/lib/constants/routes";
@@ -227,11 +228,29 @@ export function BracketPlayReadinessCard({
                         R{m.roundNumber} M{m.matchNumber}: {m.teamAName} vs {m.teamBName}
                       </p>
                       {(playersA.length > 0 || playersB.length > 0) ? (
-                        <p className="mt-1 text-[11px] leading-snug text-cp-muted">
-                          {playersA.length ? playersA.join(" · ") : "TBD"}
-                          <span className="mx-1.5 text-cp-muted/50">vs</span>
-                          {playersB.length ? playersB.join(" · ") : "TBD"}
-                        </p>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-start">
+                          <div className="min-w-0">
+                            <p className="truncate text-[11px] font-semibold text-foreground/90">
+                              {m.teamAName}
+                            </p>
+                            <TeamPlayerList names={playersA} maxNames={6} compact />
+                          </div>
+                          <span className="hidden self-center text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:inline">
+                            vs
+                          </span>
+                          <div className="min-w-0 sm:text-right">
+                            <p className="truncate text-[11px] font-semibold text-foreground/90 sm:text-right">
+                              {m.teamBName}
+                            </p>
+                            <TeamPlayerList
+                              names={playersB}
+                              maxNames={6}
+                              compact
+                              align="right"
+                              className="max-sm:[&_li]:justify-start sm:items-end"
+                            />
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                     <Badge variant="muted" className="shrink-0">

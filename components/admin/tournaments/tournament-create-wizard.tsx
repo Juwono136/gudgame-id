@@ -74,6 +74,7 @@ import {
   getTournamentRaceToTarget,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
+  getMaxRounds,
   getScoringTypeLabel,
   getVenueMapsUrl,
   isTournamentRankingOpen,
@@ -365,6 +366,9 @@ export function TournamentCreateWizard({
       (initial ? getTournamentMexicanoSettings(initial) : undefined) ??
       defaultMexicanoSettings(),
   );
+  const [americanoMaxRounds, setAmericanoMaxRounds] = useState(
+    String(initial && initial.format === "americano" ? (getMaxRounds(initial) ?? 8) : 8),
+  );
 
   const isOfficial = isOfficialType(tournamentType);
   const rankingTier = rankingMode === "open" ? null : (allowedTierLevels[0] ?? null);
@@ -646,6 +650,9 @@ export function TournamentCreateWizard({
             ...(formatFamily === "custom" ? { customMatch } : {}),
             ...(matchType === "mexicano"
               ? { mexicano, maxRounds: mexicano.roundCount }
+              : {}),
+            ...(matchType === "americano"
+              ? { maxRounds: Number(americanoMaxRounds) || 8 }
               : {}),
             ...(!matchType ||
             matchType === "double_stage" ||
@@ -1117,6 +1124,24 @@ export function TournamentCreateWizard({
                     value={mexicano}
                     onChange={setMexicano}
                   />
+                ) : null}
+                {isOfficial && matchType === "americano" ? (
+                  <div className="space-y-2 sm:col-span-2 sm:max-w-xs">
+                    <Label htmlFor="americano-max-rounds">Number of session rounds</Label>
+                    <Input
+                      id="americano-max-rounds"
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={americanoMaxRounds}
+                      onChange={(e) => setAmericanoMaxRounds(e.target.value)}
+                      className="border-cp-border bg-cp-elevated"
+                    />
+                    <p className="text-xs text-cp-muted">
+                      Caps Live scoring round tabs (same as Fun Match). Courts set how many matches
+                      run in parallel each round.
+                    </p>
+                  </div>
                 ) : null}
                 {isOfficial ? (
                   <MatchScoringFields

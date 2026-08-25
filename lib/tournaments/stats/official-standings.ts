@@ -14,6 +14,7 @@ import {
   computeFunMatchPlayerLeaderboard,
   type FunMatchPlayerLeaderboardRow,
 } from "@/lib/tournaments/stats/fun-match-player-stats";
+import { matchWinRatePercent } from "@/lib/tournaments/stats/win-rate";
 
 export type OfficialPlayerPointLog = {
   userId: string;
@@ -333,10 +334,7 @@ function computeBracketSquadStandings(
         diff: row.pointsFor - row.pointsAgainst,
         missedGames,
         compensationPoints: missedGames,
-        winRate:
-          row.games > 0
-            ? Math.round(((row.wins / row.games) * 100 + Number.EPSILON) * 10) / 10
-            : 0,
+        winRate: matchWinRatePercent(row.wins, row.games),
       };
     })
     .sort(
@@ -413,10 +411,7 @@ function mergeSquadRows(
         memberCount: uniquePlayerNames(row.members).length,
         missedGames,
         compensationPoints: missedGames,
-        winRate:
-          row.games > 0
-            ? Math.round(((row.wins / row.games) * 100 + Number.EPSILON) * 10) / 10
-            : 0,
+        winRate: matchWinRatePercent(row.wins, row.games),
       };
     })
     .sort(
@@ -482,10 +477,7 @@ export function computeOfficialPlayerStandings(
       const pointsScored = row.pointsFor;
       return {
         ...row,
-        winRate:
-          row.games > 0
-            ? Math.round(((row.wins / row.games) * 100 + Number.EPSILON) * 10) / 10
-            : 0,
+        winRate: matchWinRatePercent(row.wins, row.games),
         pointsScored,
         scoringActions: loggedIncrements > 0 ? loggedIncrements : pointsScored,
         avgPointsPerGame:

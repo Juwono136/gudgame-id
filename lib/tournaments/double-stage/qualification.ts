@@ -26,6 +26,7 @@ type StandingLike = {
   setsAgainst?: number;
   gamesFor?: number;
   gamesAgainst?: number;
+  winRate?: number;
 };
 
 function toQualifiedTeam(
@@ -92,6 +93,7 @@ export function buildQualifiedTeamsFromStandings(
           setsAgainst: row.setsAgainst ?? row.scoreAgainst ?? 0,
           gamesFor: row.gamesFor ?? row.scoreFor ?? 0,
           gamesAgainst: row.gamesAgainst ?? row.scoreAgainst ?? 0,
+          winRate: row.winRate ?? 0,
           rank: row.rank,
           qualificationStatus: row.qualificationStatus as
             | "pending"

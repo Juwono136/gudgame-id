@@ -5,11 +5,10 @@ import { Loader2, Play, Scale } from "lucide-react";
 import { GameRaceScoreboard } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
 import { ScoreOverrideDialog } from "@/components/tournaments/manage/score-override-dialog";
+import { PaperScorePad } from "@/components/tournaments/manage/paper-score-pad";
 import { SpecialResultDialog } from "@/components/tournaments/manage/special-result-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
 import {
   emptyMatchGameState,
@@ -264,41 +263,20 @@ export function DoubleStageGroupMatchCard({
       </div>
 
       {paperMode && (isLive || isPending) ? (
-        <div className={cn("grid gap-3 sm:grid-cols-2", isPending && "opacity-60")}>
-          <div className="space-y-1.5">
-            <Label htmlFor={`paper-a-${match.id}`} className="text-xs text-cp-muted">
-              {match.teamAName ?? "Team A"} — {classicMode ? "sets" : "games"}
-            </Label>
-            <Input
-              id={`paper-a-${match.id}`}
-              type="number"
-              min={0}
-              inputMode="numeric"
-              disabled={!canScore}
-              value={localScoreA}
-              onChange={(e) => setLocalScoreA(Number.parseInt(e.target.value, 10) || 0)}
-              className="border-cp-border bg-cp-elevated"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={`paper-b-${match.id}`} className="text-xs text-cp-muted">
-              {match.teamBName ?? "Team B"} — {classicMode ? "sets" : "games"}
-            </Label>
-            <Input
-              id={`paper-b-${match.id}`}
-              type="number"
-              min={0}
-              inputMode="numeric"
-              disabled={!canScore}
-              value={localScoreB}
-              onChange={(e) => setLocalScoreB(Number.parseInt(e.target.value, 10) || 0)}
-              className="border-cp-border bg-cp-elevated"
-            />
-          </div>
-          <p className="text-xs text-cp-muted sm:col-span-2">
-            Enter the final {classicMode ? "sets" : "games"} score from paper sheets, then
-            finish the match.
-          </p>
+        <div className={cn(isPending && "opacity-60")}>
+          <PaperScorePad
+            teamAName={match.teamAName ?? "Team A"}
+            teamBName={match.teamBName ?? "Team B"}
+            scoreA={localScoreA}
+            scoreB={localScoreB}
+            unitLabel={classicMode ? "sets" : "games"}
+            disabled={!canScore}
+            onChange={(a, b) => {
+              setLocalScoreA(a);
+              setLocalScoreB(b);
+            }}
+            hint={`Enter the final ${classicMode ? "sets" : "games"} score from paper sheets, then finish the match.`}
+          />
         </div>
       ) : gamesMode && gameRules ? (
         <GameRaceScoreboard

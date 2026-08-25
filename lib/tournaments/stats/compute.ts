@@ -5,6 +5,7 @@ import type {
   TournamentSessionStats,
   TournamentTeamStatRow,
 } from "@/lib/tournaments/stats/types";
+import { matchWinRatePercent } from "@/lib/tournaments/stats/win-rate";
 
 function dedupeMatches(
   matches: StatsMatchInput[],
@@ -120,7 +121,7 @@ export function computeTournamentSessionStats(input: {
   const teams = [...teamMap.values()]
     .map((t) => ({
       ...t,
-      winRate: t.played > 0 ? Math.round((t.wins / t.played) * 100) : 0,
+      winRate: matchWinRatePercent(t.wins, t.played),
     }))
     .sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;

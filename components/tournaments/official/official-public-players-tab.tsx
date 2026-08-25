@@ -19,6 +19,8 @@ type OfficialPublicPlayersTabProps = {
   teams: LobbyTeamView[];
   /** Defaults to official; partner white-label events use fun_match. */
   participantsVariant?: "official" | "reclub";
+  /** Prefer leaderboard as the default public landing section. */
+  initialSection?: PlayersSection;
 };
 
 export function OfficialPublicPlayersTab({
@@ -27,8 +29,9 @@ export function OfficialPublicPlayersTab({
   reclubMatches,
   teams,
   participantsVariant = "official",
+  initialSection = "leaderboard",
 }: OfficialPublicPlayersTabProps) {
-  const [section, setSection] = useState<PlayersSection>("teams");
+  const [section, setSection] = useState<PlayersSection>(initialSection);
   const { players, squads } = useMemo(
     () => computeOfficialPlayerStandings(bracketMatches, reclubMatches, teams),
     [bracketMatches, reclubMatches, teams],
@@ -54,14 +57,25 @@ export function OfficialPublicPlayersTab({
       <PublicSectionTabs
         label="Players sections"
         tabs={[
+          { id: "leaderboard", label: "Leaderboard" },
           { id: "teams", label: isFunMatch ? "Squads" : "Registered teams" },
-          { id: "leaderboard", label: isFunMatch ? "Leaderboard" : "Official leaderboard" },
         ]}
         active={section}
         onChange={setSection}
       />
 
-      {section === "teams" ? (
+      {section === "leaderboard" ? (
+        <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">Leaderboard</h2>
+          <p className="mt-1 text-sm text-cp-muted">
+            Ranking points, point differential, and logged scoring activity
+            {tournament.categoryLabel ? ` (${tournament.categoryLabel})` : ""}.
+          </p>
+          <div className="mt-4">
+            <OfficialPlayerStandingsTable rows={players} />
+          </div>
+        </section>
+      ) : (
         <TournamentParticipantsPanel
           sportSlug={tournament.sportSlug}
           slug={tournament.slug}
@@ -71,19 +85,6 @@ export function OfficialPublicPlayersTab({
           teamScoreByTeamId={teamScoreByTeamId}
           partnerEvent={Boolean(tournament.partnerId)}
         />
-      ) : (
-        <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-foreground">
-            {isFunMatch ? "Player leaderboard" : "Official leaderboard"}
-          </h2>
-          <p className="mt-1 text-sm text-cp-muted">
-            Ranking points, point differential, and logged scoring activity
-            {tournament.categoryLabel ? ` (${tournament.categoryLabel})` : ""}.
-          </p>
-          <div className="mt-4">
-            <OfficialPlayerStandingsTable rows={players} />
-          </div>
-        </section>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { renderRegistrationConfirmedTemplate } from "./registration-confirmed";
 import { renderRegistrationConfirmParticipationTemplate } from "./registration-confirm-participation";
 import { renderRegistrationPaymentReminderTemplate } from "./registration-payment-reminder";
 import { renderRegistrationTeamInviteTemplate } from "./registration-team-invite";
+import { renderRegistrationRosterClaimTemplate } from "./registration-roster-claim";
 import { renderRegistrationCancelledTemplate } from "./registration-cancelled";
 import { renderHostPaymentReceivedTemplate } from "./host-payment-received";
 import { renderHostPayoutDisbursedTemplate } from "./host-payout-disbursed";
@@ -58,6 +59,10 @@ export function renderEmailTemplate<T extends EmailTemplateId>(
     case "registration-team-invite":
       return renderRegistrationTeamInviteTemplate(
         input.data as EmailTemplateDataMap["registration-team-invite"],
+      );
+    case "registration-roster-claim":
+      return renderRegistrationRosterClaimTemplate(
+        input.data as EmailTemplateDataMap["registration-roster-claim"],
       );
     case "registration-cancelled":
       return renderRegistrationCancelledTemplate(

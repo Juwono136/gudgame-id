@@ -3,17 +3,25 @@ import "server-only";
 import { ilike, or, sql, type SQL } from "drizzle-orm";
 import { user } from "@/db/schema/auth";
 import { partnerPlayers } from "@/db/schema/partner-players";
-import { tournamentTeams } from "@/db/schema/tournament-registration";
+import {
+  tournamentTeamMembers,
+  tournamentTeams,
+} from "@/db/schema/tournament-registration";
 import {
   sanitizeSearchTerm,
   toIlikeContainsPattern,
 } from "@/lib/search/sanitize-search-term";
 
-const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`;
+const displayNameSql = sql<string>`coalesce(
+  nullif(${user.nickname}, ''),
+  ${user.name},
+  ${partnerPlayers.fullName},
+  ${tournamentTeamMembers.pendingDisplayName}
+)`;
 
 /**
- * Participant list filter: match player display name / name / nickname / partner guest
- * name, or team name. Returns `undefined` when search is empty (no extra WHERE clause).
+ * Participant list filter: match player display name / nickname / partner guest /
+ * pending invite name/email, or team name.
  */
 export function buildParticipantSearchFilter(rawSearch: string | undefined): SQL | undefined {
   const term = sanitizeSearchTerm(rawSearch);
@@ -25,6 +33,8 @@ export function buildParticipantSearchFilter(rawSearch: string | undefined): SQL
     ilike(user.name, pattern),
     ilike(user.nickname, pattern),
     ilike(partnerPlayers.fullName, pattern),
+    ilike(tournamentTeamMembers.pendingDisplayName, pattern),
+    ilike(tournamentTeamMembers.pendingEmail, pattern),
     ilike(tournamentTeams.name, pattern),
   );
 }

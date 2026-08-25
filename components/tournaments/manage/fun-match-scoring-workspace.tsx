@@ -1,14 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { Focus, LayoutPanelLeft, Maximize2, RefreshCw } from "lucide-react";
 import { FunMatchLiveHub } from "@/components/tournaments/fun-match/fun-match-live-hub";
 import { AmericanoManagePairingsDialog } from "@/components/tournaments/manage/americano-manage-pairings-dialog";
-import { FunMatchHostTools } from "@/components/tournaments/manage/fun-match-host-tools";
+import { CourtsideScorepad } from "@/components/tournaments/manage/courtside-scorepad";
+import { LiveScoringLeaderboardColumn } from "@/components/tournaments/manage/live-scoring-leaderboard-column";
+import {
+  StandingsColumnPickerMenu,
+  useFunStandingsColumns,
+  useOfficialStandingsColumns,
+} from "@/components/tournaments/manage/standings-column-picker";
 import { OfficialManagePointLogPanel } from "@/components/tournaments/official/official-manage-point-log-panel";
 import { OfficialPlayerStandingsTable } from "@/components/tournaments/official/official-player-standings-table";
 import { MatchRecapShareCard } from "@/components/partners/match-recap-share-card";
 import { ManageScoringHistoryPanel } from "@/components/tournaments/tournament-players-live-stats-panel";
+import { TournamentRoundHistorySection } from "@/components/tournaments/tournament-round-history-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -60,9 +70,15 @@ import { bracketMatchToReclubView } from "@/lib/tournaments/reclub/types";
 import {
   dedupeReclubMatchViews,
   getCurrentSessionRound,
+  getPreferredLiveScoringRound,
   groupMatchesByRound,
 } from "@/lib/tournaments/reclub/round-groups";
 import { computeFunMatchStandings } from "@/lib/tournaments/stats/fun-match-standings";
+import {
+  mapBracketMatchesToHistoryItems,
+  mapReclubMatchesToHistoryItems,
+  mergeHistoryItems,
+} from "@/lib/tournaments/stats/map-history-items";
 import {
   getBusyTeamIds,
   planIdleCourtReshuffle,
@@ -71,7 +87,6 @@ import {
   FunMatchPlayerStandingsTable,
 } from "@/components/tournaments/fun-match/fun-match-standings-table";
 import { FunMatchStatsLegend } from "@/components/tournaments/fun-match/fun-match-stats-legend";
-import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import { computeOfficialPlayerStandings } from "@/lib/tournaments/stats/official-standings";
 import {
@@ -119,6 +134,10 @@ export function FunMatchScoringWorkspace({
   partnerDisplayName = null,
 }: FunMatchScoringWorkspaceProps) {
   const { confirm } = useConfirmDialog();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const courtFromUrl = searchParams.get("court");
   const { data, isLoading, isError, error, refetch, isFetching } = useTournamentManageScoring(
     tournament.sportSlug,
     tournament.slug,
@@ -146,6 +165,7 @@ export function FunMatchScoringWorkspace({
   const activeGroupMatches = data?.activeGroupMatches ?? [];
   const doubleStageOverview = data?.doubleStage;
   const sessionStats = data?.sessionStats;
+  const scoringRuntime = data?.runtime;
   /** Staff may assign fixtures even before status flips to live (avoids empty courts UI). */
   const canManageCourts = participant.canUseCourtsideScoring;
   /** Starting / incrementing scores requires the event to be live. */
@@ -162,12 +182,29 @@ export function FunMatchScoringWorkspace({
   const useDoubleStageStandings =
     isDoubleStageTournament && (isOfficialWorkspace || isPartnerEvent);
   const accentVariant = isOfficialWorkspace ? "official" : "fun";
-  const pointsPerMatch = getTournamentPointsPerMatch(tournament);
-  const scoringType = getTournamentScoringType(tournament);
-  const courtCountSetting = getTournamentCourtCount(tournament);
+  const pointsPerMatch =
+    scoringRuntime?.pointsPerMatch ?? getTournamentPointsPerMatch(tournament);
+  const scoringType = scoringRuntime?.scoringType ?? getTournamentScoringType(tournament);
+  const courtCountSetting =
+    scoringRuntime?.courtCount ?? getTournamentCourtCount(tournament);
   const scoringLabel = getScoringTypeLabel(scoringType);
   const matchScoringHint = getTournamentMatchScoringHint(tournament);
-  const maxRounds = getMaxRounds(tournament);
+  const maxRounds = scoringRuntime?.maxRounds ?? getMaxRounds(tournament);
+  const courtsInSync = scoringRuntime?.courtsInSync ?? courts.length === courtCountSetting;
+
+  useEffect(() => {
+    const remote = scoringRuntime?.settingsUpdatedAt;
+    if (!remote || remote === tournament.updatedAt) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["tournaments", "manage-detail", tournament.sportSlug, tournament.slug],
+    });
+  }, [
+    queryClient,
+    scoringRuntime?.settingsUpdatedAt,
+    tournament.slug,
+    tournament.sportSlug,
+    tournament.updatedAt,
+  ]);
 
   const scoringRules: ScoringRules = useMemo(
     () => ({
@@ -178,31 +215,24 @@ export function FunMatchScoringWorkspace({
     [pointsPerMatch, scoringType, tournament],
   );
 
+  const raceStage =
+    scoringRuntime?.raceStage ??
+    (isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default");
+
   const gameRules = useMemo(
     () =>
-      getTournamentMatchScoreMode(
-        tournament,
-        isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
-      ) === "games"
-        ? getTournamentGameRules(
-            tournament,
-            isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
-          )
+      (scoringRuntime?.matchScoreMode ??
+        getTournamentMatchScoreMode(tournament, raceStage)) === "games"
+        ? getTournamentGameRules(tournament, raceStage)
         : null,
-    [tournament, isBracketMode, isGroupStageMode],
+    [tournament, raceStage, scoringRuntime?.matchScoreMode],
   );
   const classicSetRules = useMemo(
     () =>
-      isClassicSetsFormat(
-        tournament,
-        isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
-      )
-        ? getTournamentClassicSetRules(
-            tournament,
-            isBracketMode ? "knockout" : isGroupStageMode ? "group" : "default",
-          )
+      isClassicSetsFormat(tournament, raceStage)
+        ? getTournamentClassicSetRules(tournament, raceStage)
         : null,
-    [tournament, isBracketMode, isGroupStageMode],
+    [tournament, raceStage],
   );
   const scoreEntryMode = getTournamentScoreEntryMode(tournament);
 
@@ -214,6 +244,77 @@ export function FunMatchScoringWorkspace({
   const [startingAllCourts, setStartingAllCourts] = useState(false);
   const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
   const [courtNameDraft, setCourtNameDraft] = useState("");
+  const [focusScoring, setFocusScoring] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"scoring" | "standings">("scoring");
+  const [workspaceTab, setWorkspaceTab] = useState<"scoring" | "standings" | "history">(
+    "scoring",
+  );
+  const [courtsideCourtId, setCourtsideCourtId] = useState<string | null>(courtFromUrl);
+  const focusAutoAppliedRef = useRef(false);
+
+  const officialCols = useOfficialStandingsColumns(
+    `gg-live-standings-cols:official:${tournament.id}`,
+  );
+  const funCols = useFunStandingsColumns(`gg-live-standings-cols:fun:${tournament.id}`);
+
+  useEffect(() => {
+    if (courtFromUrl) {
+      setCourtsideCourtId(courtFromUrl);
+      setFocusScoring(true);
+      setWorkspaceTab("scoring");
+    }
+  }, [courtFromUrl]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`gg-live-scoring-focus:${tournament.id}`);
+      if (stored === "1") setFocusScoring(true);
+      if (stored === "0") setFocusScoring(false);
+    } catch {
+      /* ignore */
+    }
+  }, [tournament.id]);
+
+  const toggleFocusScoring = useCallback(() => {
+    setFocusScoring((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(
+          `gg-live-scoring-focus:${tournament.id}`,
+          next ? "1" : "0",
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [tournament.id]);
+
+  const syncCourtInUrl = useCallback(
+    (courtId: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("section", "scoring");
+      if (courtId) params.set("court", courtId);
+      else params.delete("court");
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const openCourtside = useCallback(
+    (courtId: string) => {
+      setCourtsideCourtId(courtId);
+      setWorkspaceTab("scoring");
+      setFocusScoring(true);
+      syncCourtInUrl(courtId);
+    },
+    [syncCourtInUrl],
+  );
+
+  const closeCourtside = useCallback(() => {
+    setCourtsideCourtId(null);
+    syncCourtInUrl(null);
+  }, [syncCourtInUrl]);
 
   const squadsWithPlayers = useMemo(
     () => teams.filter((t) => t.memberCount > 0),
@@ -253,7 +354,7 @@ export function FunMatchScoringWorkspace({
     [matches, bracketAsReclub],
   );
 
-  const currentRound = useMemo(
+  const lobbyCurrentRound = useMemo(
     () => getCurrentSessionRound(allMatchesForDisplay, activeMatches),
     [allMatchesForDisplay, activeMatches],
   );
@@ -313,6 +414,16 @@ export function FunMatchScoringWorkspace({
     matches,
     useDoubleStageStandings,
   ]);
+
+  /** Same card-grid Round history as public Live Score (Official). Must stay above early returns. */
+  const scoringRoundHistoryItems = useMemo(
+    () =>
+      mergeHistoryItems(
+        mapReclubMatchesToHistoryItems(officialSessionReclubMatches),
+        mapBracketMatchesToHistoryItems(bracketMatches),
+      ),
+    [officialSessionReclubMatches, bracketMatches],
+  );
 
   const { players: officialPlayerStandings } = useMemo(
     () => {
@@ -434,31 +545,17 @@ export function FunMatchScoringWorkspace({
     return map;
   }, [activeMatches, activeBracketMatches, activeGroupMatches, groupNameById]);
 
-  const groupStageRoundGroups = useMemo(() => {
+  const displayRoundGroups = useMemo(() => {
     if (!isGroupStageMode) return roundGroups;
-    const completed = groupMatchesAsReclub.filter((m) => m.status === "completed");
-    const live = groupMatchesAsReclub.filter((m) => m.status === "in_progress");
-    const groups = [];
-    if (completed.length) {
-      groups.push({
-        roundNumber: 1,
-        matches: completed,
-        liveCount: 0,
-        completedCount: completed.length,
-      });
-    }
-    if (live.length) {
-      groups.push({
-        roundNumber: 2,
-        matches: live,
-        liveCount: live.length,
-        completedCount: 0,
-      });
-    }
-    return groups;
-  }, [groupMatchesAsReclub, isGroupStageMode, roundGroups]);
+    return groupMatchesByRound(groupMatchesAsReclub, { includeFriendly: false });
+  }, [isGroupStageMode, roundGroups, groupMatchesAsReclub]);
 
-  const displayRoundGroups = isGroupStageMode ? groupStageRoundGroups : roundGroups;
+  const currentRound = useMemo(() => {
+    if (isGroupStageMode) {
+      return getPreferredLiveScoringRound(groupMatchesAsReclub, lobbyCurrentRound);
+    }
+    return lobbyCurrentRound;
+  }, [isGroupStageMode, groupMatchesAsReclub, lobbyCurrentRound]);
 
   const startableBracketMatches = useMemo(
     () =>
@@ -1203,6 +1300,30 @@ export function FunMatchScoringWorkspace({
     setEditingCourtId(null);
   };
 
+  const liveCourtCount = useMemo(() => {
+    let n = 0;
+    for (const c of courts) {
+      if (matchByCourt.get(c.id)?.status === "in_progress") n += 1;
+    }
+    return n;
+  }, [courts, matchByCourt]);
+
+  /** Auto-enable Focus scoring when several courts are live (command-center density). */
+  useEffect(() => {
+    if (liveCourtCount < 2) {
+      focusAutoAppliedRef.current = false;
+      return;
+    }
+    if (focusAutoAppliedRef.current) return;
+    focusAutoAppliedRef.current = true;
+    setFocusScoring(true);
+    try {
+      window.localStorage.setItem(`gg-live-scoring-focus:${tournament.id}`, "1");
+    } catch {
+      /* ignore */
+    }
+  }, [liveCourtCount, tournament.id]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16">
@@ -1252,163 +1373,368 @@ export function FunMatchScoringWorkspace({
     );
   }
 
-  const toolbar = (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cp-border bg-cp-card/60 px-4 py-3">
-      <div className="space-y-2">
-        <p className="text-sm text-cp-muted">
-          {scoringLabel} · {matchScoringHint} · {courtCountSetting} court
-          {courtCountSetting === 1 ? "" : "s"}
-          {isGroupStageMode
-            ? " · group stage"
-            : isBracketMode
-              ? " · elimination"
-              : " · americano"}
-          {roundPlan && roundPlan.resting.length > 0
-            ? ` · resting: ${roundPlan.resting.map((p) => p.name).join(", ")}`
-            : ""}
-        </p>
-        {isOfficialWorkspace ? (
-          <div className="flex flex-wrap gap-2">
-            {tournament.categoryLabel ? (
-              <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5 text-[11px] text-cp-muted">
-                {tournament.categoryLabel}
-              </span>
-            ) : null}
-            <span className="rounded-full border border-cp-border bg-cp-elevated/40 px-2.5 py-0.5 text-[11px] text-cp-muted">
-              {getOfficialBillingLabel(tournament.officialBilling)}
-            </span>
-            <span className="rounded-full border border-cp-primary/25 bg-cp-primary/10 px-2.5 py-0.5 text-[11px] text-cp-primary">
-              Point-by-point audit log
-            </span>
-          </div>
-        ) : isPartnerEvent ? (
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-cp-primary/25 bg-cp-primary/10 px-2.5 py-0.5 text-[11px] text-cp-primary">
-              Score audit trail
-            </span>
-          </div>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
-          {isFetching ? "Refreshing…" : "Refresh"}
-        </Button>
-      </div>
-    </div>
-  );
-
   const hasActive =
     activeMatches.length > 0 ||
     activeBracketMatches.length > 0 ||
     activeGroupMatches.length > 0;
 
-  const pendingGroupCount = startableGroupMatches.length;
+  const showLeaderboardColumn =
+    !isGroupStageMode || isOfficialWorkspace || isPartnerEvent;
+
+  const useOfficialStandingsTable = isOfficialWorkspace || useDoubleStageStandings;
+
+  const toolbar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cp-border bg-cp-card/60 px-3 py-2 sm:px-4">
+      <p className="min-w-0 flex-1 text-xs text-cp-muted sm:text-sm">
+        <span className="font-medium text-foreground">{parallelCapacity.bannerText}</span>
+        {parallelCapacity.blockReason && parallelCapacity.idleCourtCount > 0 ? (
+          <span className="ml-1">{parallelCapacity.blockReason}</span>
+        ) : null}
+        {!courtsInSync ? (
+          <span className="ml-1 text-amber-400">
+            · Configured {courtCountSetting} · provisioned {courts.length} — tap Refresh
+          </span>
+        ) : null}
+        {maxRounds != null && !isGroupStageMode && !isBracketMode ? (
+          <span className="ml-1 hidden text-cp-muted sm:inline">
+            · {maxRounds} session rounds
+          </span>
+        ) : null}
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {liveCourtCount > 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => {
+              const firstLive = courts.find(
+                (c) => matchByCourt.get(c.id)?.status === "in_progress",
+              );
+              if (firstLive) openCourtside(firstLive.id);
+            }}
+            title="Fullscreen courtside scorepad"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Courtside</span>
+          </Button>
+        ) : null}
+        {showLeaderboardColumn ? (
+          <Button
+            type="button"
+            variant={focusScoring ? "secondary" : "outline"}
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={toggleFocusScoring}
+            title={
+              focusScoring
+                ? "Show leaderboard beside rounds"
+                : "Hide leaderboard for wider scoring"
+            }
+          >
+            {focusScoring ? (
+              <LayoutPanelLeft className="h-3.5 w-3.5" />
+            ) : (
+              <Focus className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {focusScoring ? "Show standings" : "Focus scoring"}
+            </span>
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+          {isFetching ? "…" : "Refresh"}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const leaderboardPanel = showLeaderboardColumn ? (
+    <LiveScoringLeaderboardColumn
+      title="Leaderboard"
+      subtitle="Live standings"
+      hint="Use ⋮ to show or hide columns"
+      headerAction={
+        useOfficialStandingsTable ? (
+          <StandingsColumnPickerMenu
+            options={officialCols.options}
+            columns={officialCols.columns}
+            onToggle={(id) =>
+              officialCols.toggle(id as (typeof officialCols.columns)[number])
+            }
+            onReset={officialCols.reset}
+          />
+        ) : (
+          <StandingsColumnPickerMenu
+            options={funCols.options}
+            columns={funCols.columns}
+            onToggle={(id) => funCols.toggle(id as (typeof funCols.columns)[number])}
+            onReset={funCols.reset}
+          />
+        )
+      }
+    >
+      {useOfficialStandingsTable ? (
+        <OfficialPlayerStandingsTable
+          rows={officialPlayerStandings}
+          className="min-w-0 border-0"
+          hideLegend
+          visibleColumns={officialCols.columns}
+          compactOnMobile
+        />
+      ) : (
+        <FunMatchPlayerStandingsTable
+          rows={playerStandings}
+          className="min-w-0 border-0"
+          hideLegend
+          visibleColumns={funCols.columns}
+          compactOnMobile
+        />
+      )}
+      <div className="mt-2 hidden border-t border-cp-border/60 px-1 pt-2 sm:block">
+        <FunMatchStatsLegend
+          compact
+          variant={
+            useOfficialStandingsTable
+              ? "official-player"
+              : isAmericanoMode
+                ? "americano"
+                : "fun"
+          }
+        />
+      </div>
+    </LiveScoringLeaderboardColumn>
+  ) : null;
+
+  const roundsHub = (
+    <FunMatchLiveHub
+      roundGroups={displayRoundGroups}
+      currentRound={currentRound}
+      courts={courts}
+      teams={teams}
+      matchByCourt={matchByCourt}
+      teamAByCourt={teamAByCourt}
+      teamBByCourt={teamBByCourt}
+      bracketPickByCourt={bracketPickByCourt}
+      groupPickByCourt={groupPickByCourt}
+      startableBracketMatches={startableBracketMatches}
+      startableGroupMatches={startableGroupMatches}
+      activeGroupMatches={activeGroupMatches}
+      isBracketMode={isBracketMode}
+      isGroupStageMode={isGroupStageMode}
+      onGroupPickChange={(courtId, v) =>
+        setGroupPickByCourt((p) => ({ ...p, [courtId]: v }))
+      }
+      onTeamAChange={(courtId, v) => setTeamAByCourt((p) => ({ ...p, [courtId]: v }))}
+      onTeamBChange={(courtId, v) => setTeamBByCourt((p) => ({ ...p, [courtId]: v }))}
+      onBracketPickChange={(courtId, v) =>
+        setBracketPickByCourt((p) => ({ ...p, [courtId]: v }))
+      }
+      onStartCourt={(courtId) => void handleStartOnCourt(courtId)}
+      onScoreChange={handleScoreChange}
+      onCompleteMatch={(m) => void handleComplete(m)}
+      onEditCourtName={handleEditCourtName}
+      canManage={canManageCourts}
+      readOnly={!canManageCourts}
+      pointsPerMatch={pointsPerMatch}
+      scoringRules={scoringRules}
+      gameRules={gameRules}
+      classicSetRules={classicSetRules}
+      scoreEntryMode={scoreEntryMode}
+      sportSlug={tournament.sportSlug}
+      tournamentSlug={tournament.slug}
+      onOverrideSuccess={() => void refetch()}
+      isCourtStarting={isCourtStarting}
+      startingAll={startingAllCourts}
+      maxRounds={maxRounds}
+      onReshuffle={
+        canManageCourts && (!isOfficialWorkspace || isLobbyRoundsMode || isGroupStageMode)
+          ? handleReshuffle
+          : undefined
+      }
+      onStartAllCourts={canManageCourts ? () => void handleStartAllCourts() : undefined}
+      onFinishRound={canScore ? () => void handleFinishRound() : undefined}
+      hasActiveMatches={hasActive}
+      accentVariant={accentVariant}
+      isAmericanoMode={isLobbyRoundsMode}
+      americanoPlayers={americanoPlayers}
+      onManageAmericanoPairings={
+        canScore && isLobbyRoundsMode
+          ? (courtId) => setManagePairingsCourtId(courtId)
+          : undefined
+      }
+      onOpenCourtside={canManageCourts ? openCourtside : undefined}
+      initialFocusedCourtId={courtsideCourtId ?? courtFromUrl}
+    />
+  );
+
+  const scoringColumn = (
+    <div className="space-y-6">
+      {roundsHub}
+      {scoringRoundHistoryItems.length > 0 ? (
+        <TournamentRoundHistorySection
+          variant={isOfficialWorkspace || useDoubleStageStandings ? "official" : "reclub"}
+          items={scoringRoundHistoryItems}
+          gamesScoreMode={Boolean(gameRules)}
+        />
+      ) : null}
+    </div>
+  );
+
+  const secondaryStandings = (
+    <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
+      <h3 className="text-base font-semibold text-foreground">
+        {isOfficialWorkspace ? "Official leaderboard" : "Standings"}
+      </h3>
+      <p className="mt-1 text-sm text-cp-muted">
+        {isOfficialWorkspace
+          ? isDoubleStageTournament
+            ? "Player standings from group stage and knockout matches."
+            : isGroupStageMode
+              ? "Player standings from completed and live group fixtures."
+              : "Player standings with ranking points and logged scoring activity."
+          : isAmericanoMode
+            ? "Rankings follow Americano rules — total points each player scored across rounds."
+            : "Player standings update when matches are finalized."}
+      </p>
+      {isAmericanoMode && !isOfficialWorkspace ? (
+        <FunMatchStatsLegend variant="americano" className="mt-3" compact />
+      ) : null}
+      <div className="mt-4">
+        {isOfficialWorkspace || useDoubleStageStandings ? (
+          <OfficialPlayerStandingsTable rows={officialPlayerStandings} />
+        ) : (
+          <FunMatchPlayerStandingsTable rows={playerStandings} />
+        )}
+      </div>
+    </section>
+  );
+
+  const secondaryHistory = (
+    <div className="space-y-4">
+      <ManageScoringHistoryPanel
+        sessionStats={sessionStats}
+        matches={officialSessionReclubMatches}
+        bracketMatches={bracketMatches}
+        variant={isOfficialWorkspace || useDoubleStageStandings ? "official" : "reclub"}
+        standingsMode={isBracketMode ? "elimination" : isGroupStageMode ? "americano" : "americano"}
+        isLoading={isFetching && !sessionStats}
+      />
+      {showScoreAudit ? (
+        <OfficialManagePointLogPanel
+          bracketMatches={bracketMatches}
+          reclubMatches={officialSessionReclubMatches}
+          categoryLabel={tournament.categoryLabel}
+          sportSlug={tournament.sportSlug}
+          tournamentSlug={tournament.slug}
+        />
+      ) : null}
+    </div>
+  );
 
   return (
-    <div className="space-y-5">
-      {isGroupStageMode ? (
+    <div className="space-y-4">
+      {toolbar}
+
+      <div className="flex gap-1 rounded-xl border border-cp-border bg-cp-elevated/20 p-1">
+        {(
+          [
+            { id: "scoring" as const, label: "Scoring" },
+            ...(showLeaderboardColumn
+              ? [{ id: "standings" as const, label: "Standings" }]
+              : []),
+            ...(!isGroupStageMode || isOfficialWorkspace || isPartnerEvent
+              ? [{ id: "history" as const, label: "History" }]
+              : []),
+          ] as const
+        ).map((tab) => (
+          <Button
+            key={tab.id}
+            type="button"
+            size="sm"
+            variant={workspaceTab === tab.id ? "secondary" : "ghost"}
+            className="h-8 flex-1 sm:flex-none"
+            onClick={() => {
+              setWorkspaceTab(tab.id);
+              if (tab.id === "scoring") setMobilePane("scoring");
+              if (tab.id === "standings") setMobilePane("standings");
+            }}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {workspaceTab === "scoring" ? (
         <>
-          <DoubleStageConfigBanner tournament={tournament} />
-          {pendingGroupCount > 0 ? (
-            <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
-              <span className="font-medium text-foreground">Group stage live scoring.</span> Assign
-              fixtures to courts, start matches, then finalize scores. Standings update on the{" "}
-              <span className="font-medium text-foreground">Groups</span> tab automatically.
-              <span className="mt-1 block text-xs">
-                {pendingGroupCount} group fixture{pendingGroupCount === 1 ? "" : "s"} remaining.
-              </span>
+          {showLeaderboardColumn ? (
+            <div className="flex gap-1 rounded-xl border border-cp-border bg-cp-elevated/20 p-1 md:hidden">
+              <Button
+                type="button"
+                size="sm"
+                variant={mobilePane === "scoring" ? "secondary" : "ghost"}
+                className="h-8 flex-1"
+                onClick={() => setMobilePane("scoring")}
+              >
+                Courts
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={mobilePane === "standings" ? "secondary" : "ghost"}
+                className="h-8 flex-1"
+                onClick={() => setMobilePane("standings")}
+              >
+                Leaderboard
+              </Button>
             </div>
           ) : null}
+
+          <div
+            className={cn(
+              "grid gap-4",
+              showLeaderboardColumn &&
+                !focusScoring &&
+                "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start",
+            )}
+          >
+            {showLeaderboardColumn && !focusScoring ? (
+              <div
+                className={cn(
+                  "min-w-0",
+                  mobilePane !== "standings" && "hidden md:block",
+                )}
+              >
+                {leaderboardPanel}
+              </div>
+            ) : null}
+            <div
+              className={cn(
+                "min-w-0",
+                showLeaderboardColumn && mobilePane !== "scoring" && "hidden md:block",
+              )}
+            >
+              {scoringColumn}
+            </div>
+          </div>
         </>
-      ) : isLobbyRoundsMode ? (
-        <LiveFormatConfigBanner
-          tournament={tournament}
-          mode={isMexicanoMode ? "mexicano" : "americano"}
-        />
-      ) : isBracketMode ? (
-        <LiveFormatConfigBanner tournament={tournament} mode="elimination" />
       ) : null}
 
-      {courts.length > 0 ? (
-        <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
-          <span className="font-medium text-foreground">{parallelCapacity.bannerText}</span>
-          {parallelCapacity.blockReason && parallelCapacity.idleCourtCount > 0 ? (
-            <span className="mt-1 block text-xs">{parallelCapacity.blockReason}</span>
-          ) : null}
-        </div>
-      ) : null}
+      {workspaceTab === "standings" && showLeaderboardColumn ? secondaryStandings : null}
 
-      <FunMatchLiveHub
-        roundGroups={displayRoundGroups}
-        currentRound={currentRound}
-        courts={courts}
-        teams={teams}
-        matchByCourt={matchByCourt}
-        teamAByCourt={teamAByCourt}
-        teamBByCourt={teamBByCourt}
-        bracketPickByCourt={bracketPickByCourt}
-        groupPickByCourt={groupPickByCourt}
-        startableBracketMatches={startableBracketMatches}
-        startableGroupMatches={startableGroupMatches}
-        activeGroupMatches={activeGroupMatches}
-        isBracketMode={isBracketMode}
-        isGroupStageMode={isGroupStageMode}
-        onGroupPickChange={(courtId, v) =>
-          setGroupPickByCourt((p) => ({ ...p, [courtId]: v }))
-        }
-        onTeamAChange={(courtId, v) => setTeamAByCourt((p) => ({ ...p, [courtId]: v }))}
-        onTeamBChange={(courtId, v) => setTeamBByCourt((p) => ({ ...p, [courtId]: v }))}
-        onBracketPickChange={(courtId, v) =>
-          setBracketPickByCourt((p) => ({ ...p, [courtId]: v }))
-        }
-        onStartCourt={(courtId) => void handleStartOnCourt(courtId)}
-        onScoreChange={handleScoreChange}
-        onCompleteMatch={(m) => void handleComplete(m)}
-        onEditCourtName={handleEditCourtName}
-        canManage={canManageCourts}
-        readOnly={!canManageCourts}
-        pointsPerMatch={pointsPerMatch}
-        scoringRules={scoringRules}
-        gameRules={gameRules}
-        classicSetRules={classicSetRules}
-        scoreEntryMode={scoreEntryMode}
-        sportSlug={tournament.sportSlug}
-        tournamentSlug={tournament.slug}
-        onOverrideSuccess={() => void refetch()}
-        isCourtStarting={isCourtStarting}
-        startingAll={startingAllCourts}
-        maxRounds={maxRounds}
-        onReshuffle={
-          canManageCourts && (!isOfficialWorkspace || isLobbyRoundsMode || isGroupStageMode)
-            ? handleReshuffle
-            : undefined
-        }
-        onStartAllCourts={canManageCourts ? () => void handleStartAllCourts() : undefined}
-        onFinishRound={canScore ? () => void handleFinishRound() : undefined}
-        hasActiveMatches={hasActive}
-        toolbar={toolbar}
-        accentVariant={accentVariant}
-        isAmericanoMode={isLobbyRoundsMode}
-        americanoPlayers={americanoPlayers}
-        onManageAmericanoPairings={
-          canScore && isLobbyRoundsMode
-            ? (courtId) => setManagePairingsCourtId(courtId)
-            : undefined
-        }
-      />
-
-      {canScore && !isGroupStageMode ? (
-        <FunMatchHostTools
-          sportSlug={tournament.sportSlug}
-          slug={tournament.slug}
-          teams={teams}
-          activeReclubMatches={activeMatches}
-          activeBracketMatches={activeBracketMatches}
-          canManage={canScore}
-          showReshuffle={false}
-          onMoved={() => void refetch()}
-        />
-      ) : null}
+      {workspaceTab === "history" &&
+      (!isGroupStageMode || isOfficialWorkspace || isPartnerEvent)
+        ? secondaryHistory
+        : null}
 
       {managePairingsCourt && isLobbyRoundsMode ? (
         <AmericanoManagePairingsDialog
@@ -1453,55 +1779,29 @@ export function FunMatchScoringWorkspace({
         </div>
       ) : null}
 
-      {!isGroupStageMode || isOfficialWorkspace || isPartnerEvent ? (
-        <>
-          <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
-            <h3 className="text-base font-semibold text-foreground">
-              {isOfficialWorkspace ? "Official leaderboard" : "Leaderboard"}
-            </h3>
-            <p className="mt-1 text-sm text-cp-muted">
-              {isOfficialWorkspace
-                ? isDoubleStageTournament
-                  ? "Player standings from group stage and knockout matches."
-                  : isGroupStageMode
-                  ? "Player standings from completed and live group fixtures."
-                  : "Player standings with ranking points and logged scoring activity."
-                : isAmericanoMode
-                  ? "Rankings follow Americano rules — total points each player scored across rounds."
-                  : "Player standings update when matches are finalized."}
-            </p>
-            {isAmericanoMode && !isOfficialWorkspace ? (
-              <FunMatchStatsLegend variant="americano" className="mt-3" compact />
-            ) : null}
-            <div className="mt-4">
-              {isOfficialWorkspace || useDoubleStageStandings ? (
-                <OfficialPlayerStandingsTable rows={officialPlayerStandings} />
-              ) : (
-                <FunMatchPlayerStandingsTable rows={playerStandings} />
-              )}
-            </div>
-          </section>
-
-          <ManageScoringHistoryPanel
-            sessionStats={sessionStats}
-            matches={officialSessionReclubMatches}
-            bracketMatches={bracketMatches}
-            variant={isOfficialWorkspace || useDoubleStageStandings ? "official" : "reclub"}
-            standingsMode={isBracketMode ? "elimination" : isGroupStageMode ? "americano" : "americano"}
-            isLoading={isFetching && !sessionStats}
-          />
-
-          {showScoreAudit ? (
-            <OfficialManagePointLogPanel
-              bracketMatches={bracketMatches}
-              reclubMatches={officialSessionReclubMatches}
-              categoryLabel={tournament.categoryLabel}
-              sportSlug={tournament.sportSlug}
-              tournamentSlug={tournament.slug}
-            />
-          ) : null}
-        </>
-      ) : null}
+      <CourtsideScorepad
+        open={Boolean(courtsideCourtId)}
+        courtId={courtsideCourtId}
+        courts={courts}
+        matchByCourt={matchByCourt}
+        onSelectCourt={(id) => {
+          setCourtsideCourtId(id);
+          syncCourtInUrl(id);
+        }}
+        onClose={closeCourtside}
+        onScoreChange={handleScoreChange}
+        onCompleteMatch={(m) => void handleComplete(m)}
+        canManage={canManageCourts}
+        pointsPerMatch={pointsPerMatch}
+        scoringRules={scoringRules}
+        gameRules={gameRules}
+        classicSetRules={classicSetRules}
+        scoreEntryMode={scoreEntryMode}
+        sportSlug={tournament.sportSlug}
+        tournamentSlug={tournament.slug}
+        onOverrideSuccess={() => void refetch()}
+        accentVariant={accentVariant}
+      />
 
       {pendingRecap ? (
         <MatchRecapShareCard

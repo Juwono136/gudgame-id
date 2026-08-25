@@ -41,6 +41,8 @@ export type TournamentParticipantRow = {
   amountIdr: number | null;
   gender: string | null;
   genderLabel: string | null;
+  /** Official pending invite awaiting claim. */
+  claimStatus?: "pending" | "claimed" | null;
   /** Manage UI: false when team already competed (stats/history protected). */
   canHardRemove?: boolean;
 };
@@ -58,9 +60,24 @@ export type TournamentParticipantsResult = {
   search: string;
 };
 
-const displayNameSql = sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name}, ${partnerPlayers.fullName})`;
-/** userId for Gud Game members, partnerPlayerId for partner guest members. */
-const playerIdSql = sql<string>`coalesce(${tournamentTeamMembers.userId}, ${tournamentTeamMembers.partnerPlayerId}::text)`;
+const displayNameSql = sql<string>`coalesce(
+  nullif(${user.nickname}, ''),
+  ${user.name},
+  ${partnerPlayers.fullName},
+  ${tournamentTeamMembers.pendingDisplayName},
+  'Player'
+)`;
+/** userId, partnerPlayerId, or member id for pending Official invites. */
+const playerIdSql = sql<string>`coalesce(
+  ${tournamentTeamMembers.userId},
+  ${tournamentTeamMembers.partnerPlayerId}::text,
+  ${tournamentTeamMembers.id}::text
+)`;
+const claimStatusSql = sql<"pending" | "claimed" | null>`case
+  when ${tournamentTeamMembers.claimedAt} is not null then 'claimed'
+  when ${tournamentTeamMembers.pendingEmail} is not null and ${tournamentTeamMembers.userId} is null then 'pending'
+  else null
+end`;
 
 function mapRow(
   row: {
@@ -77,6 +94,7 @@ function mapRow(
     paidAt: Date | null;
     amountIdr: number | null;
     gender: string | null;
+    claimStatus?: "pending" | "claimed" | null;
   },
   sportSlug: string,
 ): TournamentParticipantRow {
@@ -98,6 +116,7 @@ function mapRow(
     amountIdr: row.amountIdr,
     gender: row.gender,
     genderLabel: formatUserGender(row.gender),
+    claimStatus: row.claimStatus ?? null,
   };
 }
 
@@ -166,7 +185,7 @@ async function countOfficialParticipants(
     })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .innerJoin(
       tournamentRegistrations,
@@ -260,7 +279,7 @@ async function listOfficialParticipants(
     })
     .from(tournamentTeams)
     .innerJoin(tournamentTeamMembers, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .innerJoin(
       tournamentRegistrations,
@@ -300,10 +319,11 @@ async function listOfficialParticipants(
         : tournamentPayments.status,
       paidAt: tournamentPayments.paidAt,
       amountIdr: tournamentPayments.amountIdr,
+      claimStatus: claimStatusSql,
     })
     .from(tournamentTeamMembers)
     .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .leftJoin(partnerPlayers, eq(tournamentTeamMembers.partnerPlayerId, partnerPlayers.id))
     .leftJoin(wikiEntities, publishedPlayerProfileJoin(sportId))
     .innerJoin(

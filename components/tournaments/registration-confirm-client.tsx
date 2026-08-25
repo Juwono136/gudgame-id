@@ -118,17 +118,24 @@ export function RegistrationConfirmClient({
                     Players ({teamMembers.length})
                   </p>
                   <ul className="mt-2 space-y-1.5">
-                    {teamMembers.map((member) => (
+                    {teamMembers.map((member, index) => (
                       <li
-                        key={member.userId}
+                        key={member.userId ?? `pending-${index}`}
                         className="flex items-center justify-between gap-3 text-sm text-foreground"
                       >
                         <span className="min-w-0 truncate">{member.displayName}</span>
-                        {member.role === "captain" ? (
-                          <span className="shrink-0 rounded-full border border-cp-border bg-cp-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
-                            Captain
-                          </span>
-                        ) : null}
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          {!member.userId ? (
+                            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+                              Pending
+                            </span>
+                          ) : null}
+                          {member.role === "captain" ? (
+                            <span className="rounded-full border border-cp-border bg-cp-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cp-muted">
+                              Captain
+                            </span>
+                          ) : null}
+                        </span>
                       </li>
                     ))}
                   </ul>

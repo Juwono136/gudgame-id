@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ListOrdered, MapPin } from "lucide-react";
+import { CalendarDays, ListOrdered, MapPin, Pencil, Play } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
 import {
   callStatusLabel,
@@ -9,24 +11,34 @@ import {
   groupMatchesByCourt,
   groupMatchesByOrderOfPlay,
   groupMatchesByScheduleDay,
+  groupNameAccentClass,
   scheduleStatusLabel,
   type ScheduleMatchRow,
 } from "@/lib/tournaments/double-stage/schedule-view";
 
 type BoardView = "orderOfPlay" | "schedule" | "court";
 
-const BUCKET_PAGE_SIZE = 8;
+const BUCKET_PAGE_SIZE = 10;
+
+const BUCKET_DOT: Record<string, string> = {
+  now: "bg-rose-400",
+  next: "bg-emerald-400",
+  later: "bg-sky-400",
+  done: "bg-cp-muted",
+};
 
 function MatchList({
   matches,
   gamesScoreMode,
   onEditSchedule,
+  onStartMatch,
   showCallStatus,
   hideCourtInLabel,
 }: {
   matches: ScheduleMatchRow[];
   gamesScoreMode: boolean;
   onEditSchedule?: (match: ScheduleMatchRow) => void;
+  onStartMatch?: (match: ScheduleMatchRow) => void;
   showCallStatus?: boolean;
   hideCourtInLabel?: boolean;
 }) {
@@ -36,13 +48,14 @@ function MatchList({
 
   return (
     <>
-      <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
+      <ul className="divide-y divide-cp-border/40 overflow-hidden rounded-xl border border-cp-border bg-cp-card/80">
         {visible.map((m) => (
           <MatchRow
             key={`${m.kind}-${m.id}`}
             m={m}
             gamesScoreMode={gamesScoreMode}
             onEditSchedule={onEditSchedule}
+            onStartMatch={onStartMatch}
             showCallStatus={showCallStatus}
             hideCourtInLabel={hideCourtInLabel}
           />
@@ -52,7 +65,7 @@ function MatchList({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="mt-2 w-full rounded-lg border border-cp-border px-3 py-2 text-sm font-medium text-cp-primary hover:bg-cp-elevated/40"
+          className="mt-2 w-full rounded-lg border border-cp-border px-3 py-2 text-sm font-medium text-cp-primary transition-colors hover:bg-cp-elevated/40"
         >
           Show {hiddenCount} more {hiddenCount === 1 ? "match" : "matches"}
         </button>
@@ -61,7 +74,7 @@ function MatchList({
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="mt-2 w-full text-sm text-cp-muted hover:text-foreground"
+          className="mt-1.5 w-full text-sm text-cp-muted transition-colors hover:text-foreground"
         >
           Show fewer
         </button>
@@ -75,11 +88,12 @@ type MatchScheduleBoardProps = {
   gamesScoreMode?: boolean;
   className?: string;
   emptyMessage?: string;
-  /** Manage: render schedule editor controls */
+  title?: string;
   onEditSchedule?: (match: ScheduleMatchRow) => void;
+  /** Manage: jump to Live scoring to start/score this fixture. */
+  onStartMatch?: (match: ScheduleMatchRow) => void;
   filter?: "all" | "group" | "knockout";
   onFilterChange?: (filter: "all" | "group" | "knockout") => void;
-  /** Default Order of Play for partner/ops; schedule = day list; court = by court. */
   defaultView?: BoardView;
 };
 
@@ -87,33 +101,118 @@ function MatchRow({
   m,
   gamesScoreMode,
   onEditSchedule,
+  onStartMatch,
   showCallStatus,
   hideCourtInLabel,
 }: {
   m: ScheduleMatchRow;
   gamesScoreMode: boolean;
   onEditSchedule?: (match: ScheduleMatchRow) => void;
+  onStartMatch?: (match: ScheduleMatchRow) => void;
   showCallStatus?: boolean;
   hideCourtInLabel?: boolean;
 }) {
   const status = scheduleStatusLabel(m.status, m.kind);
   const call = callStatusLabel(m.callStatus);
+  const canEdit =
+    Boolean(onEditSchedule) && m.status !== "completed" && m.status !== "bye";
+  const canStart =
+    Boolean(onStartMatch) &&
+    m.status !== "completed" &&
+    m.status !== "bye" &&
+    m.status !== "in_progress";
+  const isLive = m.status === "in_progress" || m.callStatus === "on_court";
   const displayScore =
     m.status === "completed" ||
     m.status === "in_progress" ||
     (m.callStatus === "on_court" && (m.scoreA != null || m.scoreB != null));
   const kickoff = formatKickoffDateAndTimeParts(m.scheduledAt);
+  const stageKind =
+    m.stageKindLabel ??
+    (m.kind === "group" ? "Group stage" : m.stageLabel.split("·")[0]?.trim() || "Knockout");
+  const groupLabel = m.groupName ?? null;
+  const courtLabel = hideCourtInLabel ? null : m.courtName?.trim() || null;
 
   return (
-    <li className="px-3 py-3 sm:px-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 flex-1 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
-          {m.playOrder != null ? `#${m.playOrder} ` : null}
-          {m.stageLabel}
-          {!hideCourtInLabel && m.courtName ? `, ${m.courtName}` : ""}
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          {showCallStatus ? (
+    <li className="px-3 py-3 transition-colors hover:bg-cp-elevated/20 sm:px-4">
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(7.5rem,9rem)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(4.5rem,5.5rem)_auto] lg:items-center lg:gap-3">
+        {/* Meta */}
+        <div className="min-w-0">
+          <p className="text-xs tabular-nums text-cp-muted">
+            {m.playOrder != null ? `#${m.playOrder}` : "—"}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium text-foreground sm:text-xs">{stageKind}</p>
+          {groupLabel ? (
+            <p
+              className={cn(
+                "mt-0.5 text-[11px] font-semibold sm:text-xs",
+                groupNameAccentClass(groupLabel),
+              )}
+            >
+              {groupLabel}
+            </p>
+          ) : null}
+          {courtLabel ? (
+            <p className="mt-0.5 text-[10px] text-cp-muted sm:text-[11px]">{courtLabel}</p>
+          ) : null}
+        </div>
+
+        {/* Team A */}
+        <div className="min-w-0 lg:text-right">
+          <p className="truncate text-sm font-semibold text-foreground">{m.teamAName ?? "TBD"}</p>
+          <div className="lg:flex lg:justify-end">
+            <TeamPlayerList names={m.teamAPlayers} maxNames={3} align="right" />
+          </div>
+        </div>
+
+        {/* Score / time */}
+        <div className="flex justify-center">
+          <div
+            className={cn(
+              "flex min-w-[4.75rem] flex-col items-center rounded-lg px-2 py-1",
+              displayScore ? "border border-cp-border/70 bg-cp-elevated/40" : "",
+            )}
+          >
+            {displayScore ? (
+              <>
+                <p className="text-base font-bold tabular-nums text-foreground">
+                  {m.scoreA ?? 0}
+                  <span className="mx-0.5 font-normal text-cp-muted">–</span>
+                  {m.scoreB ?? 0}
+                </p>
+                {gamesScoreMode ? (
+                  <p className="text-[8px] font-bold uppercase tracking-wider text-cp-muted">
+                    Games
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <p
+                  className={cn(
+                    "text-sm font-bold tabular-nums",
+                    kickoff.time === "TBA" ? "text-cp-muted" : "text-cp-primary",
+                  )}
+                >
+                  {kickoff.time}
+                </p>
+                {kickoff.date ? (
+                  <p className="text-[10px] text-cp-muted">{kickoff.date}</p>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Team B */}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">{m.teamBName ?? "TBD"}</p>
+          <TeamPlayerList names={m.teamBPlayers} maxNames={3} />
+        </div>
+
+        {/* Status */}
+        <div className="flex items-center gap-1.5 lg:justify-center">
+          {showCallStatus && !isLive ? (
             <span
               className={cn(
                 "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
@@ -130,96 +229,54 @@ function MatchRow({
               )}
               title={status.full}
             >
-              {status.short}
+              {isLive ? "Live" : status.short}
             </span>
           )}
-          {onEditSchedule && m.status !== "completed" && m.status !== "bye" ? (
-            <button
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          {canStart ? (
+            <Button
               type="button"
-              onClick={() => onEditSchedule(m)}
-              className="text-[11px] font-medium text-cp-primary hover:underline"
+              size="sm"
+              className="h-8 gap-1.5 px-3"
+              onClick={() => onStartMatch?.(m)}
             >
-              Edit
-            </button>
+              <Play className="h-3.5 w-3.5" aria-hidden />
+              Start
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 px-2.5"
+              onClick={() => onEditSchedule?.(m)}
+              aria-label={`Edit schedule for ${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`}
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden sm:inline">Schedule</span>
+            </Button>
           ) : null}
         </div>
-      </div>
-
-      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 sm:gap-x-3">
-        <p className="truncate text-right text-sm font-semibold leading-snug text-foreground sm:text-[15px]">
-          {m.teamAName ?? "TBD"}
-        </p>
-
-        <div
-          className={cn(
-            "flex min-w-[6.25rem] flex-col items-center justify-center rounded-xl border px-2 py-1.5 sm:min-w-[7.25rem] sm:px-2.5 sm:py-2",
-            displayScore
-              ? "border-cp-border/80 bg-cp-elevated/50"
-              : "border-transparent bg-transparent",
-          )}
-        >
-          {displayScore ? (
-            <>
-              <p className="text-base font-bold tabular-nums leading-none text-foreground sm:text-lg">
-                {m.scoreA ?? 0}
-                <span className="mx-0.5 font-normal text-cp-muted">–</span>
-                {m.scoreB ?? 0}
-              </p>
-              {gamesScoreMode ? (
-                <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-cp-muted sm:text-[9px]">
-                  Games
-                </p>
-              ) : null}
-              {kickoff.date || kickoff.time !== "TBA" ? (
-                <p className="mt-1 text-center text-[9px] font-medium leading-tight text-cp-muted sm:text-[10px]">
-                  {kickoff.date ? (
-                    <>
-                      <span className="block whitespace-nowrap">{kickoff.date}</span>
-                      <span className="block whitespace-nowrap tabular-nums">{kickoff.time}</span>
-                    </>
-                  ) : (
-                    <span className="whitespace-nowrap tabular-nums">{kickoff.time}</span>
-                  )}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <div className="text-center">
-              {kickoff.date ? (
-                <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:text-[11px]">
-                  {kickoff.date}
-                </p>
-              ) : null}
-              <p
-                className={cn(
-                  "whitespace-nowrap font-semibold tabular-nums text-foreground",
-                  kickoff.date ? "mt-0.5 text-xs sm:text-sm" : "text-xs sm:text-sm",
-                  kickoff.time === "TBA" && "text-cp-muted",
-                )}
-              >
-                {kickoff.time}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <p className="truncate text-left text-sm font-semibold leading-snug text-foreground sm:text-[15px]">
-          {m.teamBName ?? "TBD"}
-        </p>
       </div>
     </li>
   );
 }
 
 /**
- * Schedule board + Order of Play (Now / Next / Later) + By day / By court.
+ * Match Schedule board — Order of Play / By day / By court.
  */
 export function MatchScheduleBoard({
   matches,
   gamesScoreMode = false,
   className,
   emptyMessage = "No fixtures scheduled yet.",
+  title = "Match Schedule",
   onEditSchedule,
+  onStartMatch,
   filter = "all",
   onFilterChange,
   defaultView = "orderOfPlay",
@@ -239,35 +296,25 @@ export function MatchScheduleBoard({
   const buckets = useMemo(() => groupMatchesByOrderOfPlay(filtered), [filtered]);
   const courts = useMemo(() => groupMatchesByCourt(filtered), [filtered]);
 
-  const viewTitle =
-    view === "orderOfPlay" ? "Order of Play" : view === "schedule" ? "Match schedule" : "By court";
-
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {view === "orderOfPlay" ? (
-            <ListOrdered className="h-4 w-4 text-cp-primary" />
-          ) : view === "schedule" ? (
-            <CalendarDays className="h-4 w-4 text-cp-primary" />
-          ) : (
-            <MapPin className="h-4 w-4 text-cp-primary" />
-          )}
-          <h3 className="text-sm font-semibold text-foreground">{viewTitle}</h3>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+          {title}
+        </h2>
         <div className="flex flex-wrap items-center gap-2">
           <div
-            className="inline-flex rounded-full border border-cp-border bg-cp-elevated/40 p-0.5 text-[11px] font-semibold"
+            className="inline-flex rounded-lg border border-cp-border bg-cp-elevated/40 p-0.5 text-[11px] font-semibold"
             role="tablist"
             aria-label="Board view"
           >
             {(
               [
-                ["orderOfPlay", "Order of Play"],
-                ["schedule", "By day"],
-                ["court", "By court"],
+                ["orderOfPlay", "Order of Play", ListOrdered],
+                ["schedule", "By day", CalendarDays],
+                ["court", "By court", MapPin],
               ] as const
-            ).map(([key, label]) => (
+            ).map(([key, label, Icon]) => (
               <button
                 key={key}
                 type="button"
@@ -275,20 +322,21 @@ export function MatchScheduleBoard({
                 aria-selected={view === key}
                 onClick={() => setView(key)}
                 className={cn(
-                  "rounded-full px-3 py-1.5 transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition-colors",
                   view === key
-                    ? "bg-cp-primary text-white"
+                    ? "bg-cp-primary text-white shadow-sm"
                     : "text-cp-muted hover:text-foreground",
                 )}
               >
+                <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}
               </button>
             ))}
           </div>
           <div
-            className="inline-flex rounded-full border border-cp-border bg-cp-elevated/40 p-0.5 text-[11px] font-semibold"
+            className="inline-flex rounded-lg border border-cp-border bg-cp-elevated/40 p-0.5 text-[11px] font-semibold"
             role="tablist"
-            aria-label="Schedule filter"
+            aria-label="Stage filter"
           >
             {(
               [
@@ -304,9 +352,9 @@ export function MatchScheduleBoard({
                 aria-selected={activeFilter === key}
                 onClick={() => setFilter(key)}
                 className={cn(
-                  "rounded-full px-3 py-1.5 transition-colors",
+                  "rounded-md px-2.5 py-1.5 transition-colors",
                   activeFilter === key
-                    ? "bg-cp-primary text-white"
+                    ? "bg-cp-primary text-white shadow-sm"
                     : "text-cp-muted hover:text-foreground",
                 )}
               >
@@ -317,29 +365,45 @@ export function MatchScheduleBoard({
         </div>
       </div>
 
+      {onEditSchedule ? (
+        <p className="text-xs text-cp-muted sm:text-sm">
+          <span className="font-medium text-foreground">Now</span> = on court ·{" "}
+          <span className="font-medium text-foreground">Next</span> = called / next in queue ·{" "}
+          <span className="font-medium text-foreground">Later</span> = rest of the list. 
+        </p>
+      ) : null}
+
       {!filtered.length ? (
-        <div className="rounded-2xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-10 text-center text-sm text-cp-muted">
+        <div className="rounded-xl border border-dashed border-cp-border bg-cp-card/40 px-4 py-10 text-center text-sm text-cp-muted">
           {emptyMessage}
         </div>
       ) : view === "orderOfPlay" ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {buckets.map((bucket) => (
             <section key={bucket.key} className="space-y-2">
-              <div className="flex items-center justify-between gap-2 border-b border-cp-border/70 pb-2">
-                <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-cp-muted">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-cp-muted">
+                  <span
+                    className={cn("h-2 w-2 rounded-full", BUCKET_DOT[bucket.key] ?? "bg-cp-muted")}
+                    aria-hidden
+                  />
                   {bucket.label}
-                </h4>
+                </h3>
                 <span className="text-[10px] text-cp-muted">
                   {bucket.matches.length} match{bucket.matches.length === 1 ? "" : "es"}
                 </span>
               </div>
               {bucket.matches.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-cp-muted">Nothing here yet.</p>
+                <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-cp-border/80 bg-cp-elevated/20 px-4 py-6 text-center">
+                  <CalendarDays className="h-5 w-5 text-cp-muted" aria-hidden />
+                  <p className="text-xs text-cp-muted">Nothing here yet.</p>
+                </div>
               ) : (
                 <MatchList
                   matches={bucket.matches}
                   gamesScoreMode={gamesScoreMode}
                   onEditSchedule={onEditSchedule}
+                  onStartMatch={onStartMatch}
                   showCallStatus
                 />
               )}
@@ -347,13 +411,13 @@ export function MatchScheduleBoard({
           ))}
         </div>
       ) : view === "schedule" ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {days.map((day) => (
             <section key={day.dateKey} className="space-y-2">
-              <div className="flex items-center justify-between gap-2 border-b border-cp-border/70 pb-2">
-                <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-cp-muted">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-cp-muted">
                   {day.label}
-                </h4>
+                </h3>
                 <span className="text-[10px] text-cp-muted">
                   {day.matches.length} match{day.matches.length === 1 ? "" : "es"}
                 </span>
@@ -362,18 +426,19 @@ export function MatchScheduleBoard({
                 matches={day.matches}
                 gamesScoreMode={gamesScoreMode}
                 onEditSchedule={onEditSchedule}
+                onStartMatch={onStartMatch}
               />
             </section>
           ))}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {courts.map((court) => (
             <section key={court.courtKey} className="space-y-2">
-              <div className="flex items-center justify-between gap-2 border-b border-cp-border/70 pb-2">
-                <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-cp-muted">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-cp-muted">
                   {court.label}
-                </h4>
+                </h3>
                 <span className="text-[10px] text-cp-muted">
                   {court.matches.length} match{court.matches.length === 1 ? "" : "es"}
                 </span>
@@ -382,6 +447,7 @@ export function MatchScheduleBoard({
                 matches={court.matches}
                 gamesScoreMode={gamesScoreMode}
                 onEditSchedule={onEditSchedule}
+                onStartMatch={onStartMatch}
                 hideCourtInLabel
               />
             </section>

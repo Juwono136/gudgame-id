@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Maximize2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { DisplayIdleScoreboard } from "@/components/tournaments/display/display-idle-scoreboard";
-import { DisplayOrderOfPlayStrip } from "@/components/tournaments/display/display-order-of-play-strip";
+import { DisplayBracketSlide } from "@/components/tournaments/display/display-bracket-slide";
 import { DisplaySessionLeaderboard } from "@/components/tournaments/display/display-session-leaderboard";
+import { DisplaySponsorStrip } from "@/components/tournaments/display/display-sponsor-strip";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
+import { DisplayVenueControls } from "@/components/tournaments/display/display-venue-controls";
 import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
 import { LiveScoreboardDisplay } from "@/components/tournaments/live-scoreboard";
 import {
@@ -16,7 +17,6 @@ import {
   MULTI_COURT_SLIDE_INTERVAL_MS,
   MultiCourtDisplayCard,
   MultiCourtDisplayGrid,
-  MultiCourtWaitingCard,
 } from "@/components/tournaments/display-multi-court-grid";
 import { DisplayVenueShell } from "@/components/tournaments/display-venue-shell";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
@@ -26,13 +26,8 @@ import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status
 import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import type { MatchGameState } from "@/lib/tournaments/scoring/game-mode";
 import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
-import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
+import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { resolveGamesDisplayMode } from "@/lib/tournaments/live/display-scoring";
-import {
-  parseCallStatus,
-  type ScheduleMatchRow,
-} from "@/lib/tournaments/double-stage/schedule-view";
-import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 
 type TournamentDisplayClientProps = {
   sportSlug: string;
@@ -56,6 +51,8 @@ type LiveMatchView = {
   scoreB?: number | null;
   status?: string;
   courtId?: string | null;
+  startedAt?: string | null;
+  timerEndsAt?: string | null;
   gameState?: MatchGameState | null;
 };
 
@@ -160,7 +157,7 @@ export function TournamentDisplayClient({
     sportSlug,
     slug,
   );
-  const containerRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [rotationIndex, setRotationIndex] = useState(0);
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [multiCourtSlide, setMultiCourtSlide] = useState(0);
@@ -207,7 +204,7 @@ export function TournamentDisplayClient({
   ]);
 
   const enterFullscreen = async () => {
-    const el = containerRef.current;
+    const el = shellRef.current;
     if (!el) return;
     try {
       if (document.fullscreenElement) {
@@ -253,11 +250,20 @@ export function TournamentDisplayClient({
     [data?.courts],
   );
 
+  /** Only live courts — idle “Waiting” never shown on venue TV. */
+  const liveCourtsOrdered = useMemo(() => {
+    if (!sortedCourts.length) return [];
+    const liveCourtIds = new Set(
+      activeMatches.map((m) => m.courtId).filter((id): id is string => Boolean(id)),
+    );
+    return sortedCourts.filter((c) => liveCourtIds.has(c.id));
+  }, [sortedCourts, activeMatches]);
+
   const multiCourtItemCount =
-    sortedCourts.length > 0 ? sortedCourts.length : activeMatches.length;
+    liveCourtsOrdered.length > 0 ? liveCourtsOrdered.length : activeMatches.length;
   const multiCourtSlideCount = Math.max(
     1,
-    Math.ceil(multiCourtItemCount / MULTI_COURT_PER_SLIDE),
+    Math.ceil(Math.max(multiCourtItemCount, 1) / MULTI_COURT_PER_SLIDE),
   );
 
   useEffect(() => {
@@ -272,7 +278,7 @@ export function TournamentDisplayClient({
     setMultiCourtSlide(0);
   }, [
     effectiveLayout,
-    sortedCourts.map((c) => c.id).join(","),
+    liveCourtsOrdered.map((c) => c.id).join(","),
     activeMatches.map((m) => m.id).join(","),
   ]);
 
@@ -320,120 +326,13 @@ export function TournamentDisplayClient({
   const isOfficial = isOfficialType(data?.tournament.tournamentType);
   const isPartnerEvent = Boolean(partnerName || partnerLogoUrl);
 
-  const orderOfPlayRows = useMemo((): ScheduleMatchRow[] => {
-    if (!data) return [];
-    const courts = data.courts ?? [];
-    const courtNameFor = (courtId: string | null | undefined) => {
-      if (!courtId) return null;
-      const label = resolveCourtLabel(courtId, courts);
-      return label === "Court —" ? null : label;
-    };
-
-    const fromLive = ((data.matches ?? []) as LiveMatchView[]).map((m) => ({
-      id: m.id,
-      kind: (m.type === "group" ? "group" : "bracket") as "group" | "bracket",
-      stageLabel:
-        m.type === "group"
-          ? "Group"
-          : `R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` · M${m.matchNumber}` : ""}`,
-      teamAName: m.teamAName ?? null,
-      teamBName: m.teamBName ?? null,
-      scoreA: m.scoreA ?? null,
-      scoreB: m.scoreB ?? null,
-      status: m.status ?? "pending",
-      scheduledAt: null,
-      courtId: m.courtId ?? null,
-      courtName: courtNameFor(m.courtId),
-      playOrder: null,
-      callStatus: parseCallStatus(null),
-    }));
-
-    type DsGroup = {
-      name?: string;
-      matches?: Array<{
-        id: string;
-        teamAName: string | null;
-        teamBName: string | null;
-        scoreA: number | null;
-        scoreB: number | null;
-        status: string;
-        scheduledAt?: string | null;
-        courtId?: string | null;
-        playOrder?: number | null;
-        callStatus?: string | null;
-      }>;
-    };
-    const groups = (data.doubleStage?.groups ?? []) as DsGroup[];
-    const fromGroups: ScheduleMatchRow[] = groups.flatMap((g) =>
-      (g.matches ?? []).map((m) => ({
-        id: m.id,
-        kind: "group" as const,
-        stageLabel: `Group · ${g.name ?? ""}`,
-        teamAName: m.teamAName,
-        teamBName: m.teamBName,
-        scoreA: m.scoreA,
-        scoreB: m.scoreB,
-        status: m.status,
-        scheduledAt: m.scheduledAt ?? null,
-        courtId: m.courtId ?? null,
-        courtName: courtNameFor(m.courtId),
-        playOrder: m.playOrder ?? null,
-        callStatus: parseCallStatus(m.callStatus),
-      })),
-    );
-
-    const bracketMatches = (data.bracket?.matches as LiveMatchView[]) ?? [];
-    const totalRounds = bracketMatches.length
-      ? Math.max(...bracketMatches.map((m) => m.roundNumber ?? 1), 1)
-      : 1;
-    const fromBracket: ScheduleMatchRow[] = bracketMatches.map((m) => ({
-      id: m.id,
-      kind: "bracket" as const,
-      stageLabel: getBracketRoundLabel(m.roundNumber ?? 1, totalRounds),
-      teamAName: m.teamAName ?? null,
-      teamBName: m.teamBName ?? null,
-      scoreA: m.scoreA ?? null,
-      scoreB: m.scoreB ?? null,
-      status: m.status ?? "pending",
-      scheduledAt: null,
-      courtId: m.courtId ?? null,
-      courtName: courtNameFor(m.courtId),
-      playOrder: null,
-      callStatus: parseCallStatus(null),
-    }));
-
-    // Prefer structured group+bracket rows when double-stage payload exists.
-    if (fromGroups.length || fromBracket.length) {
-      const seen = new Set<string>();
-      const merged: ScheduleMatchRow[] = [];
-      for (const row of [...fromGroups, ...fromBracket]) {
-        if (seen.has(row.id)) continue;
-        seen.add(row.id);
-        merged.push(row);
-      }
-      return merged;
-    }
-    return fromLive;
-  }, [data]);
-
-  const oopStrip =
-    orderOfPlayRows.length > 0 ? (
-      <DisplayOrderOfPlayStrip matches={orderOfPlayRows} />
-    ) : null;
-
   const displayControls = (
-    <div className="fixed bottom-4 right-4 flex gap-2 opacity-90 transition-opacity hover:opacity-100">
-      <DisplayVenueButton type="button" size="sm" onClick={() => void refetch()}>
-        {isFetching ? "…" : "Refresh"}
-      </DisplayVenueButton>
-      <DisplayVenueButton type="button" size="sm" onClick={() => void enterFullscreen()}>
-        <Maximize2 className="mr-1.5 h-4 w-4" />
-        Fullscreen
-      </DisplayVenueButton>
-      <DisplayVenueButton type="button" size="sm" onClick={exitDisplay}>
-        Exit
-      </DisplayVenueButton>
-    </div>
+    <DisplayVenueControls
+      onRefresh={() => void refetch()}
+      onFullscreen={() => void enterFullscreen()}
+      onExit={exitDisplay}
+      refreshing={isFetching}
+    />
   );
 
   if (isLoading) {
@@ -459,6 +358,9 @@ export function TournamentDisplayClient({
   }
 
   const brandTheme = data.displayConfig?.brandTheme ?? null;
+  const sponsorBanners = data.displayConfig?.sponsorBanners ?? [];
+  const sponsorStrip =
+    sponsorBanners.length > 0 ? <DisplaySponsorStrip banners={sponsorBanners} /> : null;
   const showLogo = brandTheme?.showPartnerLogo !== false && Boolean(partnerLogoUrl);
   const brandBadge =
     showLogo || partnerName ? (
@@ -481,10 +383,18 @@ export function TournamentDisplayClient({
 
   const slideKey = `${effectiveLayout}-${rotationIndex}`;
 
+  const wrapStage = (main: ReactNode) => (
+    <DisplayVenueShell ref={shellRef} lockViewport brandTheme={brandTheme}>
+      {brandBadge}
+      {sponsorStrip}
+      <div className="relative min-h-0 flex-1 overflow-hidden">{main}</div>
+      {displayControls}
+    </DisplayVenueShell>
+  );
+
   const shellContent = (() => {
     switch (effectiveLayout) {
       case "multi_court": {
-        const courtList = sortedCourts;
         const matchByCourtId = new Map(
           activeMatches
             .filter((m) => m.courtId)
@@ -492,95 +402,79 @@ export function TournamentDisplayClient({
         );
         const slide = multiCourtSlide % multiCourtSlideCount;
         const pageStart = slide * MULTI_COURT_PER_SLIDE;
-        const visibleCourts = courtList.slice(pageStart, pageStart + MULTI_COURT_PER_SLIDE);
-        const visibleMatches = activeMatches.slice(
-          pageStart,
-          pageStart + MULTI_COURT_PER_SLIDE,
-        );
+
+        const liveCards: Array<{
+          key: string;
+          courtName: string;
+          match: LiveMatchView;
+        }> = [];
+
+        if (liveCourtsOrdered.length > 0) {
+          for (const court of liveCourtsOrdered.slice(
+            pageStart,
+            pageStart + MULTI_COURT_PER_SLIDE,
+          )) {
+            const m = matchByCourtId.get(court.id);
+            if (m?.teamAName && m.teamBName) {
+              liveCards.push({ key: court.id, courtName: court.name, match: m });
+            }
+          }
+        } else {
+          for (const m of activeMatches.slice(pageStart, pageStart + MULTI_COURT_PER_SLIDE)) {
+            const court = sortedCourts.find((c) => c.id === m.courtId);
+            const courtLabel =
+              court?.name ??
+              (m.type === "bracket"
+                ? `Bracket · R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` M${m.matchNumber}` : ""}`
+                : "Court");
+            liveCards.push({ key: m.id, courtName: courtLabel, match: m });
+          }
+        }
+
         return (
           <div
-            ref={containerRef}
-            className="animate-in fade-in h-full min-h-0 overflow-hidden duration-700"
+            className="animate-in fade-in h-full min-h-0 overflow-hidden duration-500"
             key={`${slideKey}-mc-${slide}`}
           >
-            {courtList.length > 0 ? (
+            {liveCards.length > 0 ? (
               <MultiCourtDisplayGrid
                 tournamentName={data.tournament.name}
-                courtCount={visibleCourts.length}
+                courtCount={liveCards.length}
+                liveCount={activeMatches.length}
                 slideIndex={slide}
                 slideCount={multiCourtSlideCount}
               >
-                {visibleCourts.map((court) => {
-                  const m = matchByCourtId.get(court.id);
-                  if (m?.teamAName && m.teamBName) {
-                    const gamesMode = resolveGamesDisplayMode(data.scoring, m);
-                    return (
-                      <MultiCourtDisplayCard
-                        key={court.id}
-                        courtName={court.name}
-                        teamAName={m.teamAName}
-                        teamBName={m.teamBName}
-                        teamAPlayers={m.teamAPlayers}
-                        teamBPlayers={m.teamBPlayers}
-                        scoreA={m.scoreA ?? 0}
-                        scoreB={m.scoreB ?? 0}
-                        gamesMode={gamesMode}
-                        subtitle={buildSubtitle(
-                          data.tournament.name,
-                          m,
-                          isOfficial,
-                          court.name,
-                          isPartnerEvent,
-                        )}
-                      />
-                    );
-                  }
-                  return <MultiCourtWaitingCard key={court.id} courtName={court.name} />;
-                })}
-              </MultiCourtDisplayGrid>
-            ) : activeMatches.length > 0 ? (
-              <MultiCourtDisplayGrid
-                tournamentName={data.tournament.name}
-                courtCount={visibleMatches.length}
-                slideIndex={slide}
-                slideCount={multiCourtSlideCount}
-              >
-                {visibleMatches.map((m) => {
-                  const court = courtList.find((c) => c.id === m.courtId);
-                  const courtLabel =
-                    court?.name ??
-                    (m.type === "bracket"
-                      ? `Bracket · R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` M${m.matchNumber}` : ""}`
-                      : "Court");
+                {liveCards.map(({ key, courtName, match: m }) => {
                   const gamesMode = resolveGamesDisplayMode(data.scoring, m);
                   return (
                     <MultiCourtDisplayCard
-                      key={m.id}
-                      courtName={courtLabel}
+                      key={key}
+                      courtName={courtName}
                       teamAName={m.teamAName!}
                       teamBName={m.teamBName!}
                       teamAPlayers={m.teamAPlayers}
                       teamBPlayers={m.teamBPlayers}
                       scoreA={m.scoreA ?? 0}
                       scoreB={m.scoreB ?? 0}
-                      gamesMode={gamesMode}
-                      subtitle={buildSubtitle(
-                        data.tournament.name,
-                        m,
-                        isOfficial,
-                        courtLabel,
-                        isPartnerEvent,
+                      startedAt={m.startedAt}
+                      timerEndsAt={m.timerEndsAt}
+                      estimatedDurationMinutes={
+                        data.scoring?.roundDurationMinutes ?? null
+                      }
+                      matchActive={isMatchLiveForTournament(
+                        m.status ?? "pending",
+                        data.tournament.status,
                       )}
+                      gamesMode={gamesMode}
                     />
                   );
                 })}
               </MultiCourtDisplayGrid>
             ) : (
-              <p className="flex h-full items-center justify-center text-center text-sm text-white/60">
-                No courts configured yet.
+              <p className="flex h-full items-center justify-center px-6 text-center text-sm text-white/60">
+                No live matches right now — start a court from Live scoring.
               </p>
             )}
-            {displayControls}
           </div>
         );
       }
@@ -605,71 +499,45 @@ export function TournamentDisplayClient({
                 id: t.teamId ?? t.name,
                 name: t.name,
                 subtitle: (t.teamId ? playersByTeam.get(t.teamId) : undefined)?.join(", "),
-                stats: `${t.wins}W · ${t.pointsFor} pts`,
+                wins: t.wins,
+                losses: t.losses,
+                ties: t.draws,
+                points: t.pointsFor,
               }))
             : playerRows.map((p) => ({
                 id: p.userId,
                 name: p.displayName,
                 subtitle: p.teamName,
-                stats: `${p.teamPointsFor} pts`,
+                wins: p.teamWins,
+                losses: p.teamLosses,
+                ties: 0,
+                points: p.teamPointsFor,
               }));
 
         return (
-          <div ref={containerRef} className="relative" key={slideKey}>
+          <div className="relative h-full min-h-0" key={slideKey}>
             <DisplaySessionLeaderboard
               tournamentName={data.tournament.name}
               title="Session leaderboard"
+              entityLabel={teamRows.length > 0 ? "Team" : "Player"}
               rows={leaderboardRows}
             />
-            {displayControls}
           </div>
         );
       }
 
       case "bracket": {
-        const bracketMatches = (data.bracket?.matches as LiveMatchView[]) ?? [];
+        const bracketMatches = (data.bracket?.matches ?? []) as BracketMatchView[];
         return (
-          <div ref={containerRef} className="animate-in fade-in duration-700 p-6" key={slideKey}>
-            <h1 className="text-2xl font-bold text-white">{data.tournament.name}</h1>
-            <p className="mt-1 text-sm text-white/60">
-              Bracket ·{" "}
-              {
-                bracketMatches.filter((m) =>
-                  isMatchLiveForTournament(m.status ?? "pending", data.tournament.status),
-                ).length
-              }{" "}
-              live
-            </p>
-            {bracketMatches.length > 0 ? (
-              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {bracketMatches.slice(0, 16).map((m) => (
-                  <div
-                    key={m.id}
-                    className={
-                      isMatchLiveForTournament(m.status ?? "pending", data.tournament.status)
-                        ? "rounded-xl border border-red-500/40 bg-red-950/30 p-4 backdrop-blur-sm"
-                        : "rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
-                    }
-                  >
-                    <p className="text-xs text-white/50">
-                      R{m.roundNumber} · M{m.matchNumber}
-                    </p>
-                    <p className="mt-1 font-medium text-white">
-                      {m.teamAName ?? "TBD"} <span className="text-white/40">vs</span>{" "}
-                      {m.teamBName ?? "TBD"}
-                    </p>
-                    <p className="mt-2 font-mono text-2xl text-white">
-                      {m.scoreA ?? 0} – {m.scoreB ?? 0}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-12 text-center text-sm text-white/50">
-                Bracket matches will appear here once generated.
-              </p>
-            )}
-            {displayControls}
+          <div
+            className="animate-in fade-in h-full min-h-0 overflow-hidden duration-500"
+            key={slideKey}
+          >
+            <DisplayBracketSlide
+              tournamentName={data.tournament.name}
+              matches={bracketMatches}
+              tournamentStatus={data.tournament.status}
+            />
           </div>
         );
       }
@@ -682,39 +550,25 @@ export function TournamentDisplayClient({
   })();
 
   if (shellContent) {
-    return (
-      <DisplayVenueShell
-        lockViewport={effectiveLayout === "multi_court"}
-        brandTheme={brandTheme}
-      >
-        {brandBadge}
-        {oopStrip}
-        {shellContent}
-      </DisplayVenueShell>
-    );
+    return wrapStage(shellContent);
   }
 
   if (!featuredMatch?.teamAName || !featuredMatch?.teamBName) {
-    return (
-      <DisplayVenueShell brandTheme={brandTheme} lockViewport>
-        {brandBadge}
-        {oopStrip}
-        <div ref={containerRef} className="relative min-h-dvh w-full">
-          <DisplayIdleScoreboard
-            tournamentName={data.tournament.name}
-            message={
-              data.phase === "live"
-                ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
-                : (data.message ??
-                  "No live match to display yet. Check back when the tournament is live.")
-            }
-            refreshing={isFetching}
-            onRefresh={() => void refetch()}
-            onBack={exitDisplay}
-          />
-          {displayControls}
-        </div>
-      </DisplayVenueShell>
+    return wrapStage(
+      <div className="relative h-full min-h-0 w-full">
+        <DisplayIdleScoreboard
+          tournamentName={data.tournament.name}
+          message={
+            data.phase === "live"
+              ? "No active match on the scoreboard yet. Start a lobby round or bracket match — this screen updates automatically."
+              : (data.message ??
+                "No live match to display yet. Check back when the tournament is live.")
+          }
+          refreshing={isFetching}
+          onRefresh={() => void refetch()}
+          onBack={exitDisplay}
+        />
+      </div>,
     );
   }
 
@@ -730,54 +584,52 @@ export function TournamentDisplayClient({
     data.tournament.status,
   );
 
-  return (
-    <DisplayVenueShell brandTheme={brandTheme}>
-      {brandBadge}
-      {oopStrip}
-      <div ref={containerRef} className="relative animate-in fade-in duration-700" key={slideKey}>
-        {isLiveNow ? (
-          <div className="pointer-events-none absolute left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-500/40 bg-red-950/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-red-200">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-            Live
-          </div>
-        ) : null}
-        {activeMatches.length > 1 && !isPinned ? (
-          <p className="pointer-events-none absolute right-6 top-6 z-10 text-xs text-white/50">
-            Court {featuredIndex % activeMatches.length + 1} of {activeMatches.length}
-          </p>
-        ) : null}
-        {(() => {
-          const gamesMode = resolveGamesDisplayMode(data.scoring, featuredMatch);
-          if (gamesMode) {
-            return (
-              <LiveGameRaceDisplay
-                teamAName={featuredMatch.teamAName}
-                teamBName={featuredMatch.teamBName}
-                gamesA={featuredMatch.scoreA ?? 0}
-                gamesB={featuredMatch.scoreB ?? 0}
-                pointsA={gamesMode.pointsA}
-                pointsB={gamesMode.pointsB}
-                raceToGames={gamesMode.raceToGames}
-                pointsToWinGame={gamesMode.pointsToWinGame}
-                lengthMode={gamesMode.lengthMode}
-                subtitle={subtitle}
-                className="bg-transparent"
-              />
-            );
-          }
+  return wrapStage(
+    <div
+      className="relative h-full min-h-0 animate-in fade-in overflow-hidden duration-500"
+      key={slideKey}
+    >
+      {isLiveNow ? (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-500/40 bg-red-950/50 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-red-200">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+          Live
+        </div>
+      ) : null}
+      {activeMatches.length > 1 && !isPinned ? (
+        <p className="pointer-events-none absolute right-4 top-4 z-10 text-xs text-white/50 sm:right-6">
+          Court {featuredIndex % activeMatches.length + 1} of {activeMatches.length}
+        </p>
+      ) : null}
+      {(() => {
+        const gamesMode = resolveGamesDisplayMode(data.scoring, featuredMatch);
+        if (gamesMode) {
           return (
-            <LiveScoreboardDisplay
+            <LiveGameRaceDisplay
               teamAName={featuredMatch.teamAName}
               teamBName={featuredMatch.teamBName}
-              scoreA={featuredMatch.scoreA ?? 0}
-              scoreB={featuredMatch.scoreB ?? 0}
+              gamesA={featuredMatch.scoreA ?? 0}
+              gamesB={featuredMatch.scoreB ?? 0}
+              pointsA={gamesMode.pointsA}
+              pointsB={gamesMode.pointsB}
+              raceToGames={gamesMode.raceToGames}
+              pointsToWinGame={gamesMode.pointsToWinGame}
+              lengthMode={gamesMode.lengthMode}
               subtitle={subtitle}
               className="bg-transparent"
             />
           );
-        })()}
-        {displayControls}
-      </div>
-    </DisplayVenueShell>
+        }
+        return (
+          <LiveScoreboardDisplay
+            teamAName={featuredMatch.teamAName}
+            teamBName={featuredMatch.teamBName}
+            scoreA={featuredMatch.scoreA ?? 0}
+            scoreB={featuredMatch.scoreB ?? 0}
+            subtitle={subtitle}
+            className="bg-transparent"
+          />
+        );
+      })()}
+    </div>,
   );
 }

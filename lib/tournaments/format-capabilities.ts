@@ -20,6 +20,8 @@ export type FormatCapabilities = {
   manageScoringMode: "rounds" | "bracket" | "groups";
   showBracketTab: boolean;
   showGroupsTab: boolean;
+  /** Match Schedule / Order of Play manage section (group formats). */
+  showScheduleTab: boolean;
   canGenerateKnockout: boolean;
 };
 
@@ -64,6 +66,7 @@ export function getFormatCapabilities(tournament: TournamentDetail): FormatCapab
     manageScoringMode,
     showBracketTab: formatHasKnockout(format) && !isGroupOnly && !isAmericano && !isMexicano,
     showGroupsTab: isDoubleStage || isGroupOnly || formatHasGroupStage(format),
+    showScheduleTab: isDoubleStage || isGroupOnly || formatHasGroupStage(format),
     canGenerateKnockout: formatHasKnockout(format) && !isGroupOnly,
   };
 }

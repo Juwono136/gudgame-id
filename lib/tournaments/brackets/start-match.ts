@@ -106,6 +106,7 @@ export async function startBracketMatchOnCourt(
       status: "in_progress",
       scoreA: 0,
       scoreB: 0,
+      callStatus: "on_court",
       scheduledAt: startedAt,
       recordedByUserId: userId,
     })

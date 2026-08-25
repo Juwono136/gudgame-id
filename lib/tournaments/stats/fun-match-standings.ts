@@ -5,6 +5,7 @@ import {
   computeFunMatchPlayerLeaderboard,
   type FunMatchPlayerLeaderboardRow,
 } from "@/lib/tournaments/stats/fun-match-player-stats";
+import { matchWinRatePercent } from "@/lib/tournaments/stats/win-rate";
 
 export type FunMatchStandingsRow = FunMatchPlayerLeaderboardRow & {
   winRate: number;
@@ -41,8 +42,8 @@ function withCompensation<T extends { games: number }>(
       missedGames,
       compensationPoints: missedGames,
       winRate:
-        "wins" in row && row.games > 0
-          ? Math.round((((row as { wins: number }).wins / row.games) * 100 + Number.EPSILON) * 10) / 10
+        "wins" in row
+          ? matchWinRatePercent((row as { wins: number }).wins, row.games)
           : 0,
     };
   });

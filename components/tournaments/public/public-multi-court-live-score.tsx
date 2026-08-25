@@ -3,8 +3,9 @@
 import { useMemo } from "react";
 import { Radio } from "lucide-react";
 import { FunMatchLiveHub } from "@/components/tournaments/fun-match/fun-match-live-hub";
+import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { getFunMatchSessionViews } from "@/lib/tournaments/fun-match/session-views";
-import { formatPlayerNameList } from "@/lib/format/player-names";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import {
   getCurrentSessionRound,
@@ -20,6 +21,7 @@ import {
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
+  getTournamentRoundDurationMinutes,
   getTournamentScoringType,
 } from "@/lib/tournaments/settings";
 
@@ -81,10 +83,12 @@ function PublicGroupStageLiveCourts({
   activeMatches,
   courts,
   gameRules,
+  estimatedDurationMinutes,
 }: {
   activeMatches: ReclubMatchView[];
   courts: NonNullable<TournamentLivePayload["courts"]>;
   gameRules: ReturnType<typeof getTournamentGameRules> | null;
+  estimatedDurationMinutes: number | null;
 }) {
   return (
     <section className="rounded-2xl border border-cp-primary/25 bg-cp-card p-4 sm:p-6">
@@ -101,20 +105,18 @@ function PublicGroupStageLiveCourts({
               key={match.id}
               className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-3 sm:p-4"
             >
-              <p className="text-xs text-cp-muted">
-                {resolveCourtLabel(match.courtId, courts)}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-cp-muted">
+                  {resolveCourtLabel(match.courtId, courts)}
+                </p>
+              </div>
 
               <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-3">
                 <div className="min-w-0 text-left">
                   <p className="truncate text-sm font-semibold text-foreground sm:text-base">
                     {match.teamAName ?? "TBD"}
                   </p>
-                  {match.teamAPlayers?.length ? (
-                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-cp-muted sm:text-[11px]">
-                      {formatPlayerNameList(match.teamAPlayers)}
-                    </p>
-                  ) : null}
+                  <TeamPlayerList names={match.teamAPlayers} maxNames={3} />
                 </div>
 
                 <div className="flex min-w-[4.5rem] flex-col items-center justify-center px-1 sm:min-w-[5.5rem]">
@@ -150,12 +152,19 @@ function PublicGroupStageLiveCourts({
                   <p className="truncate text-sm font-semibold text-foreground sm:text-base">
                     {match.teamBName ?? "TBD"}
                   </p>
-                  {match.teamBPlayers?.length ? (
-                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-cp-muted sm:text-[11px]">
-                      {formatPlayerNameList(match.teamBPlayers)}
-                    </p>
-                  ) : null}
+                  <TeamPlayerList names={match.teamBPlayers} maxNames={3} align="right" />
                 </div>
+              </div>
+
+              <div className="mt-3">
+                <LiveMatchTimer
+                  startedAt={match.startedAt}
+                  timerEndsAt={match.timerEndsAt}
+                  estimatedDurationMinutes={
+                    match.timerEndsAt ? null : estimatedDurationMinutes
+                  }
+                  active={match.status === "in_progress"}
+                />
               </div>
 
               {gameRules ? (
@@ -234,26 +243,15 @@ export function PublicMultiCourtLiveScore({
   }, [activeMatches]);
 
   if (mode === "group_stage") {
-    const completedMatches = allMatches.filter((m) => m.status === "completed");
-    if (activeMatches.length === 0) {
-      if (completedMatches.length > 0) {
-        return (
-          <FunMatchLiveHub
-            roundGroups={groupMatchesByRound(completedMatches, { includeFriendly: false })}
-            currentRound={1}
-            courts={courts}
-            teams={teams}
-            matchByCourt={new Map()}
-            readOnly
-            pointsPerMatch={pointsPerMatch}
-            scoringRules={scoringRules}
-            gameRules={gameRules}
-            maxRounds={maxRounds}
-            accentVariant={variant === "official" ? "official" : "fun"}
-            isGroupStageMode
-          />
-        );
-      }
+    const hasGroupContent =
+      allMatches.some(
+        (m) =>
+          m.status === "in_progress" ||
+          m.status === "completed" ||
+          m.status === "pending",
+      ) || courts.length > 0;
+
+    if (!hasGroupContent && activeMatches.length === 0) {
       return (
         <PublicLiveScoreEmptyState
           title="Waiting for live group matches"
@@ -266,12 +264,38 @@ export function PublicMultiCourtLiveScore({
         />
       );
     }
+
+    // Same FunMatchLiveHub as Manage Live scoring (read-only) so completed
+    // round rows / tabs / court strip stay visually synchronized.
     return (
-      <PublicGroupStageLiveCourts
-        activeMatches={activeMatches}
-        courts={courts}
-        gameRules={gameRules}
-      />
+      <div className="space-y-6">
+        {activeMatches.length > 0 ? (
+          <PublicGroupStageLiveCourts
+            activeMatches={activeMatches}
+            courts={courts}
+            gameRules={gameRules}
+            estimatedDurationMinutes={
+              getTournamentScoringType(tournament) === "timed"
+                ? getTournamentRoundDurationMinutes(tournament)
+                : 45
+            }
+          />
+        ) : null}
+        <FunMatchLiveHub
+          roundGroups={roundGroups}
+          currentRound={currentRound}
+          courts={courts}
+          teams={teams}
+          matchByCourt={matchByCourt}
+          readOnly
+          pointsPerMatch={pointsPerMatch}
+          scoringRules={scoringRules}
+          gameRules={gameRules}
+          maxRounds={maxRounds}
+          accentVariant={variant === "official" ? "official" : "fun"}
+          isGroupStageMode
+        />
+      </div>
     );
   }
 

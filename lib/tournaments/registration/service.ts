@@ -40,16 +40,26 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   confirmUrl,
   checkoutUrl,
-  notifyAwaitingConfirmation,
+  getPaymentDueDate,
   notifyHostPaymentReceived,
+  notifyHostPlayerConfirmedParticipation,
+  notifyPaymentReminder,
   notifyPlayerRegistrationConfirmed,
-  notifyTeamMemberInvitations,
 } from "@/lib/tournaments/registration/notify-flow";
+import { dispatchOfficialRosterInvites } from "@/lib/tournaments/registration/dispatch-invites";
+import {
+  linkedMemberIdsFromSlots,
+  resolveOfficialRosterSlots,
+  slotsToInsertValues,
+} from "@/lib/tournaments/registration/roster-slots";
+import type { OfficialRosterMemberInput } from "@/lib/validations/official-registration";
+import { normalizeOfficialRosterMembers } from "@/lib/validations/official-registration";
 import {
   registrationCheckoutUrl,
   registrationSuccessUrl,
 } from "@/lib/tournaments/registration/urls";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
+import { publicSportRoutes } from "@/lib/constants/routes";
 
 const log = logger.child({ module: "tournament-registration-payments" });
 
@@ -78,7 +88,10 @@ export type TournamentRegistrationSummary = {
   registeredTeams: number;
   registeredPlayers: number;
   maxTeams: number | null;
+  /** Open team slots after counting confirmed + pending holds. */
   spotsRemaining: number | null;
+  /** Confirmed + awaiting_confirmation + pending_payment (capacity holds). */
+  reservedTeams: number;
   registrationOpen: boolean;
   registrationClosesAt: string | null;
 };
@@ -117,7 +130,9 @@ export async function getRegistrationSummary(
     registeredPlayers = Number(playerRow?.count ?? 0);
     registeredTeams = Number(teamRow?.count ?? 0);
   } else {
-    const [teamRow] = await db
+    const isFree = isFreeOfficialBilling(officialBilling);
+
+    const [confirmedRow] = await db
       .select({ count: count() })
       .from(tournamentRegistrations)
       .where(
@@ -127,10 +142,16 @@ export async function getRegistrationSummary(
         ),
       );
 
-    const isFree = isFreeOfficialBilling(officialBilling);
+    const reservedTeams = await countActiveRegistrations(tournamentId);
 
     const [playerRow] = await db
-      .select({ count: sql<number>`count(distinct ${tournamentTeamMembers.userId})::int` })
+      .select({
+        count: sql<number>`count(distinct coalesce(
+          ${tournamentTeamMembers.userId},
+          ${tournamentTeamMembers.partnerPlayerId}::text,
+          ${tournamentTeamMembers.id}::text
+        ))::int`,
+      })
       .from(tournamentTeamMembers)
       .innerJoin(tournamentTeams, eq(tournamentTeamMembers.teamId, tournamentTeams.id))
       .innerJoin(
@@ -149,8 +170,25 @@ export async function getRegistrationSummary(
         ),
       );
 
-    registeredTeams = Number(teamRow?.count ?? 0);
+    registeredTeams = Number(confirmedRow?.count ?? 0);
     registeredPlayers = Number(playerRow?.count ?? 0);
+
+    const registrationOpen = computeRegistrationOpen(
+      registrationOpensAt,
+      registrationClosesAt,
+      tournamentStartsAt,
+    );
+
+    return {
+      registeredTeams,
+      registeredPlayers,
+      maxTeams,
+      reservedTeams,
+      spotsRemaining:
+        maxTeams != null ? Math.max(0, maxTeams - reservedTeams) : null,
+      registrationOpen,
+      registrationClosesAt: registrationClosesAt?.toISOString() ?? null,
+    };
   }
   const registrationOpen = computeRegistrationOpen(
     registrationOpensAt,
@@ -162,6 +200,7 @@ export async function getRegistrationSummary(
     registeredTeams,
     registeredPlayers,
     maxTeams,
+    reservedTeams: registeredTeams,
     spotsRemaining: maxTeams != null ? Math.max(0, maxTeams - registeredTeams) : null,
     registrationOpen,
     registrationClosesAt: registrationClosesAt?.toISOString() ?? null,
@@ -368,7 +407,9 @@ async function findOpenTeam(tournamentId: string, playersPerTeam: number) {
 
 export type OfficialRegistrationInput = {
   teamName: string;
-  memberUserIds: string[];
+  members?: OfficialRosterMemberInput[];
+  /** @deprecated Prefer `members`. */
+  memberUserIds?: string[];
 };
 
 export type RegistrationTeamMemberView = {
@@ -376,6 +417,9 @@ export type RegistrationTeamMemberView = {
   displayName: string;
   role: string;
   slotIndex: number;
+  kind: "user" | "pending";
+  pendingEmail: string | null;
+  claimStatus: "claimed" | "pending" | null;
 };
 
 export type UserRegistrationStatus = {
@@ -448,19 +492,40 @@ async function getRegistrationTeamMembers(
       userId: tournamentTeamMembers.userId,
       slotIndex: tournamentTeamMembers.slotIndex,
       role: tournamentTeamMembers.role,
-      displayName: sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`,
+      pendingDisplayName: tournamentTeamMembers.pendingDisplayName,
+      pendingEmail: tournamentTeamMembers.pendingEmail,
+      claimedAt: tournamentTeamMembers.claimedAt,
+      userDisplayName: sql<string>`coalesce(nullif(${user.nickname}, ''), ${user.name})`,
     })
     .from(tournamentTeamMembers)
-    .innerJoin(user, eq(tournamentTeamMembers.userId, user.id))
+    .leftJoin(user, eq(tournamentTeamMembers.userId, user.id))
     .where(eq(tournamentTeamMembers.teamId, teamId))
     .orderBy(asc(tournamentTeamMembers.slotIndex));
 
-  return rows.map((row) => ({
-    userId: row.userId,
-    displayName: row.displayName,
-    role: row.role,
-    slotIndex: row.slotIndex,
-  }));
+  return rows
+    .filter((row) => row.userId != null || row.pendingEmail != null)
+    .map((row) => {
+      if (row.userId) {
+        return {
+          userId: row.userId,
+          displayName: row.userDisplayName || "Player",
+          role: row.role,
+          slotIndex: row.slotIndex,
+          kind: "user" as const,
+          pendingEmail: null,
+          claimStatus: row.claimedAt ? ("claimed" as const) : null,
+        };
+      }
+      return {
+        userId: null,
+        displayName: row.pendingDisplayName || "Invited player",
+        role: row.role,
+        slotIndex: row.slotIndex,
+        kind: "pending" as const,
+        pendingEmail: row.pendingEmail,
+        claimStatus: "pending" as const,
+      };
+    });
 }
 
 export async function getUserRegistrationStatus(
@@ -563,6 +628,7 @@ export async function getRegistrationDetail(registrationId: string) {
     .select({
       registrationId: tournamentRegistrations.id,
       status: tournamentRegistrations.status,
+      teamId: tournamentRegistrations.teamId,
       teamName: tournamentTeams.name,
       tournamentId: tournaments.id,
       tournamentName: tournaments.name,
@@ -769,9 +835,10 @@ async function resumePendingOfficialRegistration(
 
 export type OfficialRegistrationResult = {
   registrationId: string;
-  status: "awaiting_confirmation" | "pending_payment";
+  status: "awaiting_confirmation" | "pending_payment" | "confirmed";
   confirmUrl?: string;
   checkoutUrl?: string;
+  successUrl?: string;
   paymentId?: string;
   invoiceUrl?: string;
   amountIdr?: number;
@@ -792,6 +859,8 @@ export async function startOfficialRegistration(
 
   const isFreeOfficial = tournament.officialBilling === "free";
   const fee = tournament.registrationFeeIdr;
+  const playersPerTeam = tournament.playersPerTeam ?? 2;
+  const members = normalizeOfficialRosterMembers(input);
 
   if (!isFreeOfficial) {
     if (!fee || fee <= 0) {
@@ -866,19 +935,48 @@ export async function startOfficialRegistration(
     }
   }
 
+  const [captainRow] = await getDb()
+    .select({ name: user.name, nickname: user.nickname })
+    .from(user)
+    .where(eq(user.id, payerUserId))
+    .limit(1);
+  const captainLabel =
+    captainRow?.nickname?.trim() || captainRow?.name?.trim() || "Captain";
+
+  let teamName = input.teamName.trim();
+  if (!teamName) {
+    if (playersPerTeam <= 1) {
+      teamName = captainLabel;
+    } else {
+      throw new AppError("Team name is required.", {
+        code: "VALIDATION_ERROR",
+        statusCode: 400,
+      });
+    }
+  }
+
+  const slots = await resolveOfficialRosterSlots({
+    captainUserId: payerUserId,
+    members,
+    playersPerTeam,
+    invitedByUserId: payerUserId,
+    tournamentEndsAt: tournament.endsAt,
+    tournamentId: tournament.id,
+  });
+
+  const linkedIds = linkedMemberIdsFromSlots(slots);
+  await assertUsersEligibleForTournamentTier(linkedIds, tournament);
+
   const db = getDb();
   let team: { id: string };
   let registration: { id: string };
-  const uniqueMembers = [...new Set([payerUserId, ...input.memberUserIds])];
-
-  await assertUsersEligibleForTournamentTier(uniqueMembers, tournament);
 
   try {
     const [insertedTeam] = await db
       .insert(tournamentTeams)
       .values({
         tournamentId: tournament.id,
-        name: input.teamName.trim(),
+        name: teamName,
         captainUserId: payerUserId,
       })
       .returning();
@@ -888,14 +986,9 @@ export async function startOfficialRegistration(
     }
     team = insertedTeam;
 
-    await db.insert(tournamentTeamMembers).values(
-      uniqueMembers.map((userId, i) => ({
-        teamId: team.id,
-        userId,
-        slotIndex: i,
-        role: i === 0 ? "captain" : "member",
-      })),
-    );
+    await db.insert(tournamentTeamMembers).values(slotsToInsertValues(team.id, slots));
+
+    const initialStatus = isFreeOfficial ? "confirmed" : "pending_payment";
 
     const [insertedRegistration] = await db
       .insert(tournamentRegistrations)
@@ -903,7 +996,10 @@ export async function startOfficialRegistration(
         tournamentId: tournament.id,
         teamId: team.id,
         registeredByUserId: payerUserId,
-        status: "awaiting_confirmation",
+        status: initialStatus,
+        confirmedAt: new Date(),
+        confirmedByUserId: payerUserId,
+        ...(isFreeOfficial ? {} : { paymentDueAt: getPaymentDueDate() }),
       })
       .returning();
 
@@ -952,26 +1048,46 @@ export async function startOfficialRegistration(
 
   const path = await registrationPathTournament(tournament);
 
-  void notifyAwaitingConfirmation(
-    path,
-    registration.id,
-    payerUserId,
-    input.teamName.trim(),
-  );
+  if (isFreeOfficial) {
+    void dispatchOfficialRosterInvites({
+      tournament: path,
+      registrationId: registration.id,
+      teamId: team.id,
+      captainUserId: payerUserId,
+      teamName,
+    });
 
-  void notifyTeamMemberInvitations(
-    path,
-    registration.id,
-    payerUserId,
-    input.teamName.trim(),
-    uniqueMembers,
-  );
+    return {
+      registrationId: registration.id,
+      status: "confirmed",
+      successUrl: publicSportRoutes.tournament(tournament.sportSlug, tournament.slug),
+    };
+  }
 
-  return {
-    registrationId: registration.id,
-    status: "awaiting_confirmation",
-    confirmUrl: confirmUrl(path, registration.id),
-  };
+  try {
+    const { amountIdr, paymentId, invoiceUrl } = await issueRegistrationInvoice(
+      tournament,
+      registration.id,
+      payerUserId,
+      payerEmail,
+      fee!,
+    );
+
+    void notifyPaymentReminder(path, registration.id, payerUserId, teamName, amountIdr);
+    void notifyHostPlayerConfirmedParticipation(path, registration.id, payerUserId, teamName);
+
+    return {
+      registrationId: registration.id,
+      status: "pending_payment",
+      checkoutUrl: checkoutUrl(path, registration.id),
+      paymentId,
+      invoiceUrl,
+      amountIdr,
+    };
+  } catch (err) {
+    await rollbackDraftRegistration(team.id, registration.id);
+    throw err;
+  }
 }
 
 export async function updateOfficialRegistration(
@@ -979,7 +1095,7 @@ export async function updateOfficialRegistration(
   registrationId: string,
   userId: string,
   input: OfficialRegistrationInput,
-): Promise<{ registrationId: string; confirmUrl: string }> {
+): Promise<{ registrationId: string; confirmUrl?: string; checkoutUrl?: string }> {
   if (tournament.tournamentType !== "official") {
     throw new AppError("Only official tournaments support this flow.", {
       code: "INVALID_TOURNAMENT_TYPE",
@@ -1006,11 +1122,20 @@ export async function updateOfficialRegistration(
     throw new AppError("Registration not found", { code: "NOT_FOUND", statusCode: 404 });
   }
 
-  if (registration.status !== "awaiting_confirmation") {
-    throw new AppError("You can only edit your team before confirming participation.", {
-      code: "VALIDATION_ERROR",
-      statusCode: 400,
-    });
+  if (
+    registration.status !== "awaiting_confirmation" &&
+    registration.status !== "pending_payment" &&
+    !(registration.status === "confirmed" && tournament.status === "upcoming")
+  ) {
+    throw new AppError(
+      tournament.status === "upcoming"
+        ? "You can only edit your team before the tournament goes live."
+        : "Roster edits are only allowed while the tournament is upcoming.",
+      {
+        code: "VALIDATION_ERROR",
+        statusCode: 400,
+      },
+    );
   }
 
   if (!registration.teamId) {
@@ -1021,23 +1146,28 @@ export async function updateOfficialRegistration(
   }
 
   const teamId = registration.teamId;
-  const uniqueMembers = [...new Set([userId, ...input.memberUserIds])];
+  const members = normalizeOfficialRosterMembers(input);
   const playersPerTeam = tournament.playersPerTeam ?? 2;
-
-  if (uniqueMembers.length > playersPerTeam) {
-    throw new AppError(`Teams can have at most ${playersPerTeam} players.`, {
+  const trimmedName = input.teamName.trim();
+  if (!trimmedName) {
+    throw new AppError("Team name is required.", {
       code: "VALIDATION_ERROR",
       statusCode: 400,
     });
   }
 
-  const previousMembers = await db
-    .select({ userId: tournamentTeamMembers.userId })
-    .from(tournamentTeamMembers)
-    .where(eq(tournamentTeamMembers.teamId, teamId));
+  const slots = await resolveOfficialRosterSlots({
+    captainUserId: userId,
+    members,
+    playersPerTeam,
+    invitedByUserId: userId,
+    tournamentEndsAt: tournament.endsAt,
+    tournamentId: tournament.id,
+    excludeTeamId: teamId,
+  });
 
-  const previousMemberIds = previousMembers.map((m) => m.userId);
-  const trimmedName = input.teamName.trim();
+  const linkedIds = linkedMemberIdsFromSlots(slots);
+  await assertUsersEligibleForTournamentTier(linkedIds, tournament);
 
   try {
     await db
@@ -1047,14 +1177,7 @@ export async function updateOfficialRegistration(
 
     await db.delete(tournamentTeamMembers).where(eq(tournamentTeamMembers.teamId, teamId));
 
-    await db.insert(tournamentTeamMembers).values(
-      uniqueMembers.map((memberId, i) => ({
-        teamId,
-        userId: memberId,
-        slotIndex: i,
-        role: i === 0 ? "captain" : "member",
-      })),
-    );
+    await db.insert(tournamentTeamMembers).values(slotsToInsertValues(teamId, slots));
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     if (message.includes("tournament_teams_name_uidx") || message.includes("unique")) {
@@ -1066,22 +1189,30 @@ export async function updateOfficialRegistration(
     throw cause;
   }
 
-  const newInvitees = uniqueMembers.filter(
-    (id) => id !== userId && !previousMemberIds.includes(id),
-  );
-  if (newInvitees.length) {
-    void notifyTeamMemberInvitations(
-      tournament,
+  const path = await registrationPathTournament(tournament);
+
+  if (registration.status === "confirmed") {
+    // Pending claim emails only — avoid re-spamming linked players already on the roster.
+    void dispatchOfficialRosterInvites({
+      tournament: path,
       registrationId,
-      userId,
-      trimmedName,
-      newInvitees,
-    );
+      teamId,
+      captainUserId: userId,
+      teamName: trimmedName,
+      linkedMemberUserIds: [],
+    });
   }
 
   return {
     registrationId,
-    confirmUrl: confirmUrl(await registrationPathTournament(tournament), registrationId),
+    confirmUrl:
+      registration.status === "awaiting_confirmation"
+        ? confirmUrl(path, registrationId)
+        : undefined,
+    checkoutUrl:
+      registration.status === "pending_payment"
+        ? checkoutUrl(path, registrationId)
+        : undefined,
   };
 }
 
@@ -1154,6 +1285,22 @@ async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSele
     .set({ status: "confirmed" })
     .where(eq(tournamentRegistrations.id, registrationId));
 
+  const detail = await getRegistrationDetail(registrationId);
+
+  if (detail?.teamId && payment.payerUserId) {
+    const { getTournamentBySlug } = await import("@/lib/tournaments/service");
+    const tournament = await getTournamentBySlug(detail.sportSlug, detail.tournamentSlug);
+    if (tournament) {
+      void dispatchOfficialRosterInvites({
+        tournament,
+        registrationId,
+        teamId: detail.teamId,
+        captainUserId: payment.payerUserId,
+        teamName: detail.teamName ?? "Team",
+      });
+    }
+  }
+
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? process.env.BETTER_AUTH_URL ?? "";
   if (appOrigin) {
     const { sendRegistrationConfirmedEmails } = await import(
@@ -1164,7 +1311,6 @@ async function finalizePaidPayment(payment: typeof tournamentPayments.$inferSele
 
   void notifyHostPaymentReceived(registrationId);
 
-  const detail = await getRegistrationDetail(registrationId);
   if (detail && payment.payerUserId) {
     const origin = appOrigin.replace(/\/$/, "");
     const { dashboardRoutes } = await import("@/lib/constants/routes");

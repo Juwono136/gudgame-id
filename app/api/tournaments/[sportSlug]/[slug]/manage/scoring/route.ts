@@ -19,6 +19,7 @@ import {
   reconcileDoubleStageGroups,
 } from "@/lib/tournaments/double-stage/service";
 import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
+import { buildManageScoringRuntime } from "@/lib/tournaments/manage/scoring-runtime";
 import { computeManageWorkspaceStats } from "@/lib/tournaments/stats/from-manage-workspace";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import {
@@ -135,6 +136,8 @@ export async function GET(
       summary,
     });
 
+    const scoringRuntime = buildManageScoringRuntime(tournament, courts.length, caps);
+
     return jsonSuccess({
       mode: caps.manageScoringMode,
       courts,
@@ -150,6 +153,7 @@ export async function GET(
       teamsInActiveBracket,
       bracketEligibleTeamIds,
       sessionStats,
+      runtime: scoringRuntime,
       tournament: {
         id: tournament.id,
         name: tournament.name,
@@ -158,6 +162,7 @@ export async function GET(
         tournamentType: tournament.tournamentType,
         playersPerTeam: tournament.playersPerTeam,
         maxTeams: tournament.maxTeams,
+        updatedAt: tournament.updatedAt,
       },
     });
   } catch (error) {

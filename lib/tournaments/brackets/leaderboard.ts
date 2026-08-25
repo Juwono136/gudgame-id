@@ -9,6 +9,7 @@ import {
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
 import { isBracketSeriesChildLeg } from "@/lib/tournaments/brackets/bracket-metadata";
+import { matchWinRatePercent } from "@/lib/tournaments/stats/win-rate";
 
 export type LeaderboardEntry = {
   rank: number;
@@ -119,7 +120,7 @@ export async function buildTournamentLeaderboard(
       points: s.wins * 100,
       wins: s.wins,
       losses: s.losses,
-      winRate: total > 0 ? Math.round((s.wins / total) * 1000) / 10 : 0,
+      winRate: matchWinRatePercent(s.wins, total),
       form: s.form.slice(-5),
     });
   }

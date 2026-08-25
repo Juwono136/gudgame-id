@@ -124,6 +124,8 @@ export const publicSportRoutes = {
     `/sports/${sportSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
   tournamentInvite: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/invite`,
+  tournamentClaim: (sportSlug: string, slug: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}/claim`,
   tournamentRegister: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/register`,
   rules: (sportSlug: string) => `/sports/${sportSlug}/rules`,

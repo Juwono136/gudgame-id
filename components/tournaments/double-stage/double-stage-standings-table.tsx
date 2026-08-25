@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,10 @@ export function getDoubleStageStandingsLegend(
     { key: "G", label: "Matches played in the group" },
     { key: "W", label: "Match wins" },
     { key: "L", label: "Match losses" },
+    {
+      key: "WR",
+      label: "Match win rate (%) = wins ÷ matches played",
+    },
     showSets
       ? { key: "SET", label: "Sets won–lost (ITF/FIP classic)" }
       : showGames
@@ -96,7 +101,7 @@ export function DoubleStageStandingsTable({
         <table
           className={cn(
             "w-full table-fixed text-sm",
-            showSets ? "min-w-[26rem]" : "min-w-[22rem]",
+            showSets ? "min-w-[30rem]" : "min-w-[26rem]",
             compact && "text-xs",
           )}
         >
@@ -106,6 +111,7 @@ export function DoubleStageStandingsTable({
             <col className="w-9" />
             <col className="w-9" />
             <col className="w-9" />
+            <col className="w-12" />
             <col className="w-[3.25rem]" />
             {showSets ? <col className="w-[3.25rem]" /> : null}
             <col className="w-11" />
@@ -124,6 +130,12 @@ export function DoubleStageStandingsTable({
               </th>
               <th className={thStat} title="Losses">
                 L
+              </th>
+              <th
+                className={thStat}
+                title="Match win rate (%) = wins ÷ matches played"
+              >
+                WR
               </th>
               <th className={thStat} title={scoreTitle}>
                 {showSets ? "SET" : "S"}
@@ -150,15 +162,11 @@ export function DoubleStageStandingsTable({
                     {row.teamName}
                   </p>
                   {row.players.length > 0 ? (
-                    <p
-                      className={cn(
-                        "mt-0.5 truncate text-cp-muted",
-                        compact ? "text-[10px]" : "text-[10px] sm:text-xs",
-                      )}
-                      title={row.players.map((p) => p.displayName).join(", ")}
-                    >
-                      {row.players.map((p) => p.displayName).join(", ")}
-                    </p>
+                    <TeamPlayerList
+                      names={row.players}
+                      maxNames={4}
+                      compact={compact}
+                    />
                   ) : null}
                   {showQualification && row.qualificationStatus !== "pending" ? (
                     <Badge
@@ -177,6 +185,10 @@ export function DoubleStageStandingsTable({
                 <td className={tdStat}>{row.played}</td>
                 <td className={tdStat}>{row.wins}</td>
                 <td className={tdStat}>{row.losses}</td>
+                <td className={cn(tdStat, "text-cp-muted")}>
+                  {row.winRate}
+                  <span className="text-[9px] opacity-70">%</span>
+                </td>
                 <td className={cn(tdStat, "text-[11px] sm:text-sm")}>
                   {showSets
                     ? `${row.setsFor}–${row.setsAgainst}`

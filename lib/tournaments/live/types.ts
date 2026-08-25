@@ -77,6 +77,11 @@ export type TournamentLivePayload = {
     lengthMode?: "race_to" | "total";
     pointsToWinGame?: number;
     pointStyle?: IntraGamePointStyle;
+    /**
+     * Est. match length for LiveMatchTimer (same source as public Live Score).
+     * Null when not applicable / unknown.
+     */
+    roundDurationMinutes?: number | null;
   };
   courts?: Array<{
     id: string;
@@ -100,6 +105,12 @@ export type TournamentLivePayload = {
       showPartnerLogo?: boolean;
       scoreboardStyle?: "classic" | "bold" | "minimal";
     };
+    sponsorBanners?: Array<{
+      id: string;
+      imageUrl: string;
+      storageKey: string;
+      label?: string;
+    }>;
   };
   matchHistory: Array<{
     id: string;

@@ -9,19 +9,48 @@ export type ScheduleMatchRow = {
   id: string;
   kind: "group" | "bracket";
   stageLabel: string;
+  /** Short stage line e.g. "Group stage" (without group name). */
+  stageKindLabel?: string;
+  /** Group name for color accents e.g. "Group A". */
+  groupName?: string | null;
   teamAName: string | null;
   teamBName: string | null;
+  teamAPlayers?: string[];
+  teamBPlayers?: string[];
   /** Games won when matchScoreMode = games; otherwise match points. */
   scoreA: number | null;
   scoreB: number | null;
   status: string;
   scheduledAt: string | null;
+  startedAt?: string | null;
+  timerEndsAt?: string | null;
   courtName?: string | null;
   courtId?: string | null;
   venueHint?: string | null;
   playOrder?: number | null;
   callStatus?: MatchCallStatus | null;
 };
+
+const GROUP_ACCENT_CLASSES = [
+  "text-sky-400",
+  "text-orange-400",
+  "text-emerald-400",
+  "text-violet-400",
+  "text-rose-400",
+  "text-amber-400",
+  "text-cyan-400",
+  "text-fuchsia-400",
+] as const;
+
+/** Stable color accent for group labels (Group A / B / …). */
+export function groupNameAccentClass(groupName: string | null | undefined): string {
+  if (!groupName?.trim()) return "text-cp-muted";
+  let hash = 0;
+  for (let i = 0; i < groupName.length; i += 1) {
+    hash = (hash * 31 + groupName.charCodeAt(i)) >>> 0;
+  }
+  return GROUP_ACCENT_CLASSES[hash % GROUP_ACCENT_CLASSES.length]!;
+}
 
 export type ScheduleDayGroup = {
   dateKey: string;
@@ -126,13 +155,23 @@ function sortByPlayOrder(a: ScheduleMatchRow, b: ScheduleMatchRow): number {
 
 /**
  * Build Now / Next / Later / Done buckets for the Order of Play surface.
- * Live / on_court → Now; called → Next; remaining unfinished → Later; completed → Done.
+ *
+ * - **Now** — live (`in_progress`) or court call `on_court`
+ * - **Next** — court call `called`, plus the next queued fixtures by play order
+ *   (so Next is never empty while there are upcoming matches)
+ * - **Later** — remaining unfinished fixtures
+ * - **Done** — completed / bye / call `done` (hidden when empty)
  */
-export function groupMatchesByOrderOfPlay(rows: ScheduleMatchRow[]): OrderOfPlayBucket[] {
+export function groupMatchesByOrderOfPlay(
+  rows: ScheduleMatchRow[],
+  options?: { nextCapacity?: number },
+): OrderOfPlayBucket[] {
+  const nextCapacity = Math.max(1, options?.nextCapacity ?? 2);
   const now: ScheduleMatchRow[] = [];
   const next: ScheduleMatchRow[] = [];
   const later: ScheduleMatchRow[] = [];
   const done: ScheduleMatchRow[] = [];
+  const remaining: ScheduleMatchRow[] = [];
 
   for (const row of rows) {
     if (row.status === "completed" || row.status === "bye" || row.callStatus === "done") {
@@ -143,17 +182,34 @@ export function groupMatchesByOrderOfPlay(rows: ScheduleMatchRow[]): OrderOfPlay
       now.push(row);
       continue;
     }
+    remaining.push(row);
+  }
+
+  const sortedRemaining = remaining.sort(sortByPlayOrder);
+  const nextIds = new Set<string>();
+
+  for (const row of sortedRemaining) {
     if (row.callStatus === "called") {
       next.push(row);
-      continue;
+      nextIds.add(row.id);
     }
-    later.push(row);
+  }
+
+  for (const row of sortedRemaining) {
+    if (nextIds.has(row.id)) continue;
+    if (next.length >= nextCapacity) break;
+    next.push(row);
+    nextIds.add(row.id);
+  }
+
+  for (const row of sortedRemaining) {
+    if (!nextIds.has(row.id)) later.push(row);
   }
 
   return [
     { key: "now" as const, label: "Now", matches: now.sort(sortByPlayOrder) },
     { key: "next" as const, label: "Next", matches: next.sort(sortByPlayOrder) },
-    { key: "later" as const, label: "Later", matches: later.sort(sortByPlayOrder) },
+    { key: "later" as const, label: "Later", matches: later },
     { key: "done" as const, label: "Done", matches: done.sort(sortByPlayOrder) },
   ].filter((b) => b.matches.length > 0 || b.key !== "done");
 }

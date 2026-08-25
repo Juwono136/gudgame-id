@@ -135,6 +135,9 @@ function ParticipantPlayerCell({
     <div className="min-w-0">
       <p className="truncate font-semibold text-foreground">{row.displayName}</p>
       {row.genderLabel ? <p className="mt-0.5 truncate text-xs text-cp-muted">{row.genderLabel}</p> : null}
+      {row.claimStatus === "pending" ? (
+        <p className="mt-0.5 text-[11px] font-medium text-amber-400">Pending claim</p>
+      ) : null}
     </div>
   );
 

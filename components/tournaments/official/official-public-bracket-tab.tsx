@@ -1,11 +1,11 @@
 "use client";
 
-import { formatPlayerNameList } from "@/lib/format/player-names";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, GitBranch, History, Radio, Trophy } from "lucide-react";
 import { BracketSnapshotDialog } from "@/components/tournaments/fun-match/bracket-snapshot-dialog";
 import { BracketTreeView } from "@/components/tournaments/bracket-tree-view";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
@@ -65,11 +65,15 @@ function BracketHistoryCard({
                     <span className="text-cp-muted">vs</span> {teamB ?? "TBD"}
                   </p>
                   {(m.teamAPlayers.length > 0 || m.teamBPlayers.length > 0) ? (
-                    <p className="mt-1 text-xs text-cp-muted">
-                      {[formatPlayerNameList(m.teamAPlayers), formatPlayerNameList(m.teamBPlayers)]
-                        .filter(Boolean)
-                        .join(" vs ")}
-                    </p>
+                    <div className="mt-1.5 grid grid-cols-2 gap-2">
+                      <TeamPlayerList names={m.teamAPlayers} maxNames={3} compact />
+                      <TeamPlayerList
+                        names={m.teamBPlayers}
+                        maxNames={3}
+                        align="right"
+                        compact
+                      />
+                    </div>
                   ) : null}
                   <p className="mt-1 text-[10px] text-cp-primary/90">Tap to view bracket</p>
                 </div>

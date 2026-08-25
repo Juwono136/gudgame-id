@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Pencil, Play } from "lucide-react";
 import { LiveScoreboard } from "@/components/tournaments/live-scoreboard";
+import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,12 +43,6 @@ function useLiveTimer(startedAt: string | null, active: boolean) {
     return () => clearInterval(id);
   }, [active, startedAt]);
   return elapsed;
-}
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 export type ManageCourtCardProps = {
@@ -288,16 +283,25 @@ export const ManageCourtCard = memo(function ManageCourtCard({
               pushScore(a, v, "set", "b");
             }}
           />
-          <div className="mt-auto flex flex-col gap-2 border-t border-cp-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-center text-xs tabular-nums text-cp-muted sm:text-left">
-              {formatDuration(elapsed)}
-            </span>
+          <div className="mt-auto flex flex-col gap-2 border-t border-cp-border/60 pt-3">
+            <LiveMatchTimer
+              startedAt={match.startedAt}
+              timerEndsAt={match.timerEndsAt}
+              estimatedDurationMinutes={
+                match.timerEndsAt
+                  ? null
+                  : scoringType === "timed"
+                    ? roundDuration
+                    : 45
+              }
+              active={Boolean(match)}
+            />
             {canScore ? (
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto sm:self-end"
                 disabled={completing}
                 onClick={() => onComplete(elapsed)}
               >

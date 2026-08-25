@@ -75,6 +75,8 @@ type FunMatchLiveHubProps = {
   isAmericanoMode?: boolean;
   americanoPlayers?: AmericanoPlayerRef[];
   onManageAmericanoPairings?: (courtId: string) => void;
+  onOpenCourtside?: (courtId: string) => void;
+  initialFocusedCourtId?: string | null;
 };
 
 export function FunMatchLiveHub({
@@ -123,9 +125,11 @@ export function FunMatchLiveHub({
   isAmericanoMode = false,
   americanoPlayers = [],
   onManageAmericanoPairings,
+  onOpenCourtside,
+  initialFocusedCourtId = null,
 }: FunMatchLiveHubProps) {
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn(toolbar ? "space-y-4" : undefined, className)}>
       {toolbar}
       <FunMatchRoundsPanel
         roundGroups={roundGroups}
@@ -171,6 +175,8 @@ export function FunMatchLiveHub({
         isAmericanoMode={isAmericanoMode}
         americanoPlayers={americanoPlayers}
         onManageAmericanoPairings={onManageAmericanoPairings}
+        onOpenCourtside={onOpenCourtside}
+        initialFocusedCourtId={initialFocusedCourtId}
       />
     </div>
   );

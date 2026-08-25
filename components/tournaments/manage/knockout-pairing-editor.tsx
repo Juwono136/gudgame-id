@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
 
 export type KnockoutPairingSlotRef = { matchId: string; slot: "a" | "b" };
@@ -122,9 +123,7 @@ export function KnockoutPairingEditorDialog({
                           {name?.trim() || "Empty"}
                         </span>
                         {team?.members?.length ? (
-                          <span className="mt-0.5 line-clamp-1 text-xs text-cp-muted">
-                            {team.members.map((m) => m.displayName).join(" · ")}
-                          </span>
+                          <TeamPlayerList names={team.members} maxNames={4} compact />
                         ) : null}
                       </button>
                     );

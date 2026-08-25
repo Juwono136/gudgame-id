@@ -4,6 +4,7 @@ import {
   buildLayoutBracketPaths,
   buildRoundedForkPaths,
   getBracketGridMetrics,
+  getBracketMaxPlayersPerSide,
   getMainDrawGridSlots,
   getMatchCenterY,
   getMatchGridRow,
@@ -77,8 +78,34 @@ describe("bracket tree layout", () => {
     expect(paths.at(-1)).toContain("H 100");
   });
 
-  it("centers spans correctly", () => {
-    expect(getMatchCenterY(1, 2, 100, 20)).toBe(110);
+  it("sizes row height for multi-player rosters", () => {
+    const tight = getBracketGridMetrics(2, 2);
+    const wide = getBracketGridMetrics(2, 4);
+    expect(wide.rowHeight).toBeGreaterThan(tight.rowHeight);
+    expect(wide.maxPlayersPerSide).toBe(4);
+  });
+
+  it("detects max players per side from matches", () => {
+    expect(
+      getBracketMaxPlayersPerSide([
+        { teamAPlayers: ["a", "b"], teamBPlayers: ["c"] },
+        { teamAPlayers: ["a", "b", "c", "d"], teamBPlayers: ["e", "f"] },
+      ]),
+    ).toEqual({ display: 4, needsOverflowRow: false });
+    expect(
+      getBracketMaxPlayersPerSide([
+        {
+          teamAPlayers: ["a", "b", "c", "d", "e", "f", "g"],
+          teamBPlayers: ["h"],
+        },
+      ]),
+    ).toEqual({ display: 6, needsOverflowRow: true });
+  });
+
+  it("reserves overflow row height when needed", () => {
+    const base = getBracketGridMetrics(2, 6);
+    const withOverflow = getBracketGridMetrics(2, 6, { overflowRow: true });
+    expect(withOverflow.rowHeight).toBeGreaterThan(base.rowHeight);
   });
 });
 

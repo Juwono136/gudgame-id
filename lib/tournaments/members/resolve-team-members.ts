@@ -7,22 +7,23 @@ import { partnerPlayers } from "@/db/schema/partner-players";
 import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-registration";
 
 /**
- * A team slot resolved to whichever identity actually fills it — a Gud Game
- * user or a partner guest player. `tournament_team_members.userId` XOR
- * `partnerPlayerId` is enforced at the DB level (see schema check constraint),
- * so exactly one of the two joins below will match per row.
+ * A team slot resolved to whichever identity fills it:
+ * Gud Game user, partner guest, or Official pending invite (pre-claim).
  */
 export type ResolvedTeamMember = {
-  /** userId for Gud Game members, partnerPlayerId for partner guest members. */
+  /** userId, partnerPlayerId, or member row id for pending. */
   playerId: string;
   displayName: string;
-  kind: "user" | "partner";
+  kind: "user" | "partner" | "pending";
   teamId: string;
   slotIndex: number;
   role: string;
+  pendingEmail?: string | null;
+  claimStatus?: "pending" | "claimed" | null;
 };
 
 type ResolvedMemberRow = {
+  memberId: string;
   teamId: string;
   slotIndex: number;
   role: string;
@@ -30,33 +31,51 @@ type ResolvedMemberRow = {
   partnerPlayerId: string | null;
   userName: string | null;
   partnerFullName: string | null;
+  pendingDisplayName: string | null;
+  pendingEmail: string | null;
+  claimedAt: Date | null;
 };
 
 function toResolvedMember(row: ResolvedMemberRow): ResolvedTeamMember | null {
-  const playerId = row.userId ?? row.partnerPlayerId;
-  if (!playerId) return null;
-
-  return row.userId
-    ? {
-        playerId,
-        displayName: row.userName ?? "Player",
-        kind: "user",
-        teamId: row.teamId,
-        slotIndex: row.slotIndex,
-        role: row.role,
-      }
-    : {
-        playerId,
-        displayName: row.partnerFullName ?? "Guest",
-        kind: "partner",
-        teamId: row.teamId,
-        slotIndex: row.slotIndex,
-        role: row.role,
-      };
+  if (row.userId) {
+    return {
+      playerId: row.userId,
+      displayName: row.userName ?? "Player",
+      kind: "user",
+      teamId: row.teamId,
+      slotIndex: row.slotIndex,
+      role: row.role,
+      claimStatus: row.claimedAt ? "claimed" : null,
+    };
+  }
+  if (row.partnerPlayerId) {
+    return {
+      playerId: row.partnerPlayerId,
+      displayName: row.partnerFullName ?? "Guest",
+      kind: "partner",
+      teamId: row.teamId,
+      slotIndex: row.slotIndex,
+      role: row.role,
+    };
+  }
+  if (row.pendingEmail) {
+    return {
+      playerId: row.memberId,
+      displayName: row.pendingDisplayName ?? "Invited player",
+      kind: "pending",
+      teamId: row.teamId,
+      slotIndex: row.slotIndex,
+      role: row.role,
+      pendingEmail: row.pendingEmail,
+      claimStatus: "pending",
+    };
+  }
+  return null;
 }
 
 function memberSelection() {
   return {
+    memberId: tournamentTeamMembers.id,
     teamId: tournamentTeamMembers.teamId,
     slotIndex: tournamentTeamMembers.slotIndex,
     role: tournamentTeamMembers.role,
@@ -64,10 +83,13 @@ function memberSelection() {
     partnerPlayerId: tournamentTeamMembers.partnerPlayerId,
     userName: user.name,
     partnerFullName: partnerPlayers.fullName,
+    pendingDisplayName: tournamentTeamMembers.pendingDisplayName,
+    pendingEmail: tournamentTeamMembers.pendingEmail,
+    claimedAt: tournamentTeamMembers.claimedAt,
   };
 }
 
-/** All team members (Gud Game users + partner guests) for a tournament. */
+/** All team members (Gud Game users + partner guests + pending invites) for a tournament. */
 export async function resolveTeamMembers(tournamentId: string): Promise<ResolvedTeamMember[]> {
   const rows = await getDb()
     .select(memberSelection())

@@ -1,7 +1,7 @@
 # Panduan Turnamen Gud Game
 
 > **Dokumen hidup.** Perbarui file ini setiap kali ada perubahan, penambahan, atau rombak fitur seputar turnamen (format match, scoring, form create/edit, aturan lifecycle, dsb.).  
-> Terakhir diselaraskan dengan aplikasi: **2026-08-20**.  
+> Terakhir diselaraskan dengan aplikasi: **2026-08-25**.  
 > Rule agen: `.cursor/rules/tournament-docs.mdc` — sync otomatis saat file turnamen terkait diubah.
 
 Dokumen ini menjelaskan:
@@ -27,12 +27,13 @@ Nama field di UI umumnya berbahasa Inggris; penjelasan di sini berbahasa Indones
 5. [Aturan scoring](#5-aturan-scoring)
 6. [Alur operasional per format](#6-alur-operasional-per-format)
 7. [Realtime: public & manage saat Live](#7-realtime-public--manage-saat-live)
-8. [Checklist field wajib](#8-checklist-field-wajib)
-9. [Seed fixtures (local QA)](#9-seed-fixtures-local-qa)
-    - [9.1 Official FREE QA (`db:seed:fixtures`)](#91-official-free-qa-dbseedfixtures)
-    - [9.2 Double Stage per-tier](#92-double-stage-per-tier-terpisah)
-10. [Matriks uji otomatis](#10-matriks-uji-otomatis)
-11. [Catatan maintenance dokumen](#11-catatan-maintenance-dokumen)
+8. [Registrasi Official (tim & klaim slot)](#8-registrasi-official-tim--klaim-slot)
+9. [Checklist field wajib](#9-checklist-field-wajib)
+10. [Seed fixtures (local QA)](#10-seed-fixtures-local-qa)
+    - [10.1 Official FREE QA (`db:seed:fixtures`)](#101-official-free-qa-dbseedfixtures)
+    - [10.2 Double Stage per-tier](#102-double-stage-per-tier-terpisah)
+11. [Matriks uji otomatis](#11-matriks-uji-otomatis)
+12. [Catatan maintenance dokumen](#12-catatan-maintenance-dokumen)
 
 ---
 
@@ -174,7 +175,9 @@ Paid vs Free **tidak** mengubah engine format/scoring — hanya billing, fee, da
 - Live score di court; finalize → standings + history.
 - Qualifikasi bermakna setelah **semua** fixture grup selesai.
 - Setelah selesai → knockout **otomatis** (tombol Generate tetap sebagai retry). Generic generate bracket untuk semua tim **dilarang**.
-- Schedule kickoff di manage → Groups; tampil di publik tab **Matches**.
+- Schedule / Order of Play di manage tab **Match Schedule** (terpisah dari Groups); tampil di publik tab **Matches**.
+- UI manage/publik tidak menampilkan banner “Double stage settings” atau “How double stage works”.
+- Live Score menampilkan **timer** elapsed (+ sisa waktu jika timed / estimasi).
 
 **Aturan knockout**
 
@@ -198,10 +201,10 @@ Sama infrastruktur group seperti Double Stage, **tanpa** knockout.
 
 ### 2.4 Americano (`americano`)
 
-1. Lobby pemain/tim.
+1. Lobby pemain/tim; host set **court count** (paralel) dan **session rounds** (`maxRounds` di Official & Fun Match).
 2. Setiap round: pasangan & lawan di-rotasi (`planAmericanoRound`).
 3. Skor per match; agregat poin individu.
-4. Manage: Live scoring mode rounds; reshuffle / finish round.
+4. Manage: Live scoring mode rounds; tab round mengikuti `maxRounds`; reshuffle / finish round. Court count ≠ jumlah round.
 
 ### 2.5 Mexicano (`mexicano`) — Original only
 
@@ -247,7 +250,8 @@ Tanda **\*** = wajib.
 | Teams advancing / 3rd place | Double Stage saja | |
 | Allow draw | Double Stage, Group only | |
 | Scoring type / Point / Duration | Americano & Mexicano | Points atau Timed (jam round) |
-| Number of courts | Ya | 1–12 |
+| Number of courts | Ya | 1–12; di-provision ke `tournament_courts` saat create/update & setiap manage/live poll |
+| Number of session rounds | Official Americano (+ Fun Match / Mexicano) | `settings.maxRounds` (Mexicano: `mexicano.roundCount`) — membatasi tab round Live scoring |
 | Max teams / Players per team | Disarankan / default sport | |
 | Summary / Description / Cover | Tidak | |
 | **Venue \*** | Ya | + maps autocomplete |
@@ -402,6 +406,18 @@ Helper: `isBracketSeriesChildLeg` (`bracket-metadata.ts`) — child legs tidak m
 | **Sesi** (Live Score / manage / display) | Setiap update skor live + finalize | Payload `playerStats` lewat poll live/manage (§7) |
 | **Career** (`player_matches` + wiki) | Hanya saat **finalize** match (bukan live ±) | Account history + wiki performance |
 
+#### Win rate (WR) — rumus sesi / Groups / leaderboard
+
+**Definisi profesional (Gud Game):** **match win rate** = `wins ÷ matchesPlayed × 100` (1 desimal).
+
+| Aturan | Detail |
+| --- | --- |
+| Denominator | Jumlah match yang sudah dimainkan (`played` / `G`), termasuk draw/tie jika format mengizinkan |
+| Bukan | Set-win % atau game-win % — itu tetap di kolom **SET** / **GM** (dan dipakai tie-break ITF/FIP) |
+| Ranking | Primär tetap **PTS** / wins; WR informatif (dan soft tie-break di beberapa board sesi) |
+| Helper | `lib/tournaments/stats/win-rate.ts` → dipakai Groups, Fun Match, Official player, session `playerStats`, bracket leaderboard |
+| Groups | Kolom **WR** di `DoubleStageStandingsTable` (# · Team · G · W · L · **WR** · SET/S · GM? · PTS); update real-time via poll live / manage overview |
+
 **Aturan career mengikuti create-tournament**
 
 | Setting turnamen | Efek career |
@@ -430,10 +446,26 @@ Helper: `isBracketSeriesChildLeg` (`bracket-metadata.ts`) — child legs tidak m
 1. Create (family, format, scoring, pool rules, tier/No Rank).
 2. Publish; registrasi & konfirmasi tim.
 3. **Live** → groups + fixtures (× meetings).
-4. Opsional: schedule kickoff (Groups).
-5. Live scoring group di manage → publik Live Score / Groups / Matches.
-6. Semua group selesai → knockout otomatis (× legs jika Custom).
-7. Score legs / bracket → juara; history & ranking sync.
+4. Manage **Groups**: standings (compact), Sync/Assign — no long fixture list.
+5. Manage **Match Schedule** (tab terpisah): Order of Play / By day / By court.
+   - **Order of Play buckets:** Now (live / on court) · Next (called + next in queue) · Later (sisanya) · Done (selesai, disembunyikan jika kosong).
+   - **Start** → buka Live scoring; start match di court otomatis set `callStatus=on_court` (Now).
+   - Finalize match → `callStatus=done`.
+   - **Schedule** → modal: Queue number, Court call (In queue / Called / On court / Finished), Scheduled start (opsional).
+   - Validasi client + API (`playOrder` 0–9999, `callStatus` enum, `scheduledAt` ISO atau null).
+   - Label stage & nama group ditampilkan di **baris terpisah** pada setiap match row.
+6. Manage **Live scoring** — dual surface (command center + courtside):
+   - **Command center:** sticky court strip (C1 12–9 · LIVE …); **hanya 1 scorepad expanded** (focus-one); court live lain = baris ringkas. Density `command` di `FunMatchRoundMatchCard`.
+   - Saat ada court **live**, blok **Idle courts · start next** disembunyikan agar fokus scoring; host bisa buka lagi via baris “Show” (N idle ready). Idle otomatis tampil lagi jika tidak ada live.
+   - Tab workspace: **Scoring | Standings | History** — standings/history tidak memanjangkan jalur kritis.
+   - Leaderboard samping opsional; **Focus scoring** otomatis ON saat ≥2 court live.
+   - **Courtside scorepad:** fullscreen opaque shell (`bg-cp-bg`, portal ke `document.body`, z di atas chrome manage) per court (`?section=scoring&court=<id>`). Density `courtside` = permukaan solid + touch target besar; aturan serve / classic sets / race-to tetap sama dengan command center. Tap **Courtside** / double-tap strip; switcher antar court live; Esc kembali.
+   - Match rounds: Tabs/Stack; search; live matches di atas idle planning.
+7. Publik: **Live Score** (timer), **Groups**, **Matches** (jadwal read-only mirip manage), **Bracket** setelah KO.
+8. Semua group selesai → knockout otomatis (retry **Generate knockout** di Groups jika perlu).
+9. Score KO di Live scoring → juara; history & ranking sync.
+
+**UI note:** banner “Double stage settings” / “How double stage works” tidak ditampilkan. Lebar manage konsisten antar tab (`max-w-7xl`). Di desktop, sidebar section (Dashboard, Groups, …) bisa di-collapse ke icon rail (preferensi tersimpan) agar konten lebih lebar.
 
 **Reset knockout:** sebelum bracket di-score; regenerate hanya dari qualified.
 
@@ -496,36 +528,67 @@ Penulisan skor (±) **menjeda** poll manage sebentar agar GET stale tidak menimp
 
 `getFormatCapabilities(tournament)` mengontrol:
 
-| Format | Groups tab | Bracket tab | Manage scoring mode | Live payload |
-| --- | --- | --- | --- | --- |
-| Double Stage (group) | ✅ | Setelah KO | `groups` | Group matches + standings |
-| Double Stage (KO) | ✅ (final standings) | ✅ | `bracket` | Bracket live |
-| Group only | ✅ | ❌ | `groups` | Group only (no KO generate) |
-| Elimination | ❌ | ✅ | `bracket` | Bracket |
-| Americano / Mexicano | ❌ | ❌ | `rounds` | Lobby rounds |
+| Format | Groups tab | Match Schedule | Bracket tab | Manage scoring mode | Live payload |
+| --- | --- | --- | --- | --- | --- |
+| Double Stage (group) | ✅ | ✅ | Setelah KO | `groups` | Group matches + standings |
+| Double Stage (KO) | ✅ (final standings) | ✅ | ✅ | `bracket` | Bracket live |
+| Group only | ✅ | ✅ | ❌ | `groups` | Group only (no KO generate) |
+| Elimination | ❌ | ❌ | ✅ | `bracket` | Bracket |
+| Americano / Mexicano | ❌ | ❌ | ❌ | `rounds` | Lobby rounds |
 
 API menolak operasi ilegal (contoh: generate KO pada `group_only` / `mexicano`; generic bracket generate pada `double_stage`).
 
 ### 7.4 Apa yang harus sinkron
 
+- **Settings create/edit → Live scoring** → `settings.courtCount` / `maxRounds` / scoring rules di-persist saat upsert; `provisionTournamentCourts` di create/update + setiap `GET .../manage/scoring` dan `GET .../live`. Payload manage menyertakan `runtime` (`buildManageScoringRuntime`) agar UI memakai konfigurasi yang sama tanpa menunggu poll manage-detail.
+- **Jumlah court** → parallel capacity & idle courts mengikuti baris `tournament_courts` (setelah provision = `settings.courtCount`). Bukan jumlah round RR. Jika provision mismatch, status bar Live scoring menampilkan peringatan.
+- **Round tabs** → Group RR dari `metadata.round` / `deriveGroupStageRoundNumber` (bukan court count). Lobby Americano/Mexicano memadatkan tab ke `maxRounds` / `mexicano.roundCount` (Official Americano juga menyimpan `maxRounds` di wizard).
 - **Skor court** (group / lobby / bracket) → Live Score publik dalam interval poll berikutnya (atau segera setelah invalidate mutasi).
+- **Group round sync** → live payload `mapGroupToLiveMatch` menyertakan `roundNumber` / `roundLabel` (dari `deriveGroupStageRoundNumber`); fixture pending ikut di payload agar tab Round 1/2/3 di publik = manage (`isComplete` per RR day).
 - **Standings grup** → tab Groups publik (`live.doubleStage.groups`) termasuk semua meetings.
 - **Knockout series** → parent slot + legs; advance setelah mayoritas; pohon publik memakai parent slots.
 - **Mexicano / Americano** → leaderboard / history dari `playerStats` + `matchHistory` live.
-- **Schedule** → tab Matches publik mengikuti kickoff yang di-set host.
+- **Schedule / Order of Play** → host edit di manage **Match Schedule** (`DoubleStageSchedulePanel` + `MatchScheduleBoard`); publik tab Matches read-only. Field: queue number (`playOrder`), court call (`callStatus`), scheduled start (`scheduledAt`). Buckets Now/Next/Later mengikuti status live + call status; Next juga diisi otomatis dari antrean terdekat.
+- **Roster display** → daftar pemain per tim memakai `TeamPlayerList` (satu baris + ikon User), sama di Groups / Matches / Live Score / History / bracket slots — bukan daftar dipisah koma.
+- **Bracket tree roster** → tinggi kartu match menyesuaikan roster (hingga 6 pemain/side, sisanya `+N more`); `getBracketGridMetrics(slots, maxPlayers)` + `getBracketMaxPlayersPerSide` agar connector tetap sejajar tanpa clipping (publik + manage + TV).
+- **Live timer** → `LiveMatchTimer` di publik Live Score (group courts), manage court cards, dan venue multi-court display (elapsed + remaining / est. left; `scoring.roundDurationMinutes` dari live payload).
+- **Live scoring Round tabs** → manage hub memfilter fixture per RR / session round (`MatchRoundTabs` + `FunMatchRoundsPanel`); group fixtures memakai `metadata.round` / `playOrder` → `roundNumber` (`deriveGroupStageRoundNumber`). Layout: **round tabs di atas search** (checklist inline, tidak absolute) agar tidak overlap. Publik group stage memakai hub yang sama (read-only) + kartu live opsional; manage Scoring menampilkan **Round history** card grid (`TournamentRoundHistorySection`) seperti Live Score publik.
+- **Live scoring dual surface** → **Command center** (sticky court strip + focus-one scorepad) vs **Courtside scorepad** fullscreen opaque (`CourtsideScorepad` portal + `density="courtside"` / `GameRaceScoreboard` presentation courtside). Idle courts **collapsed while any court is live** (expand via Show). Workspace tabs Scoring / Standings / History. Focus scoring auto saat multi-live. Sidebar manage desktop collapsible (icon rail). Pad race-to-N (MATCH · Race to N, ± / +15/+30/+40, SERVING pill, Next game) dipakai bersama manage Gud Game & partner — chrome solid `cp-*` / mint Official.
+- **Groups WR** → kolom match win rate pada standings grup (manage + publik) sinkron dengan legend Live Score.
+- **Create/edit ↔ runtime sync (checklist)** → `courtCount` / `maxRounds` / scoring mode dari settings; `provisionTournamentCourts` on upsert + manage/scoring GET + live GET; `runtime` snapshot di manage poll; invalidate manage-detail saat `settingsUpdatedAt` berubah. Round tabs group ≠ court count (RR days); lobby rounds capped by `maxRounds`.
+- **Venue fullscreen display** → `TournamentDisplayClient` + `DisplayVenueShell` (`lockViewport` semua layout). **Tanpa Order of Play** di TV. Leaderboard = **tabel kolom** (# · Team/Player · Players · W-L-T · P) mirip standings publik; bracket = pohon `BracketTreeView`; multi-court = **kartu grid max 6/halaman** (3×2) hanya court live — skema kartu sama dengan tab Live Score publik (`TeamPlayerList` + Games/Points + `LiveMatchTimer` + rules line), di-styling untuk TV. **Kontrol Refresh / Fullscreen / Exit** auto-hide saat idle (`DisplayVenueControls`) agar tidak menutupi skor. **Sponsor strip di atas** (header in-flow) + ikut browser fullscreen (`shellRef.requestFullscreen`). Payload live `scoring.roundDurationMinutes` sinkron dengan estimasi timer publik.
+- **Sponsor banners (TV only)** → Manage → Display → upload max 6 logo (`displayConfig.sponsorBanners`); strip di **header** stage agar paling terlihat; ikut poll live. Tidak muncul di halaman publik turnamen.
+- **Score entry Live vs Paper** → Manage → Display: pilih kartu visual; paper pad lapangan (`PaperScorePad`) = stepper ± + skor besar, lalu Finish. Engine scoring tidak berubah.
 
 ### 7.5 File acuan realtime
 
 - `lib/tournaments/live/build-payload.ts`
 - `lib/tournaments/live/poll-intervals.ts` — interval poll publik / manage / clamp TV
 - `lib/tournaments/live/display-scoring.ts` — mapping scoring → fullscreen games board
+- `lib/tournaments/manage/scoring-runtime.ts` — snapshot courtCount / maxRounds / scoring stage untuk manage
+- `lib/tournaments/courts/service.ts` — `provisionTournamentCourts`
 - `lib/tournaments/format-capabilities.ts`
 - `lib/tournaments/lifecycle-guards.ts`
+- `lib/tournaments/double-stage/round-number.ts` — derive group RR round for tabs
 - `hooks/use-tournament-live.ts`, `hooks/use-tournament-manage-scoring.ts`
 - `hooks/use-double-stage-group-score.ts`, `hooks/use-tournament-lobby.ts`, `hooks/use-tournament-bracket.ts`
 - `components/tournaments/official-tournament-page.tsx`
 - `components/tournaments/tournament-display-client.tsx` (fullscreen venue)
+- `components/tournaments/display-multi-court-grid.tsx` — TV multi-court cards (public Live Score schema)
+- `components/tournaments/display/display-venue-controls.tsx` — auto-hide Refresh / Fullscreen / Exit
+- `components/tournaments/display/display-session-leaderboard.tsx` — vertical TV standings
+- `components/tournaments/display/display-bracket-slide.tsx` — TV bracket tree
+- `components/tournaments/display/display-sponsor-strip.tsx` — venue sponsor logos
+- `components/tournaments/manage/display-sponsor-banners-panel.tsx` — upload/reorder sponsors
+- `components/tournaments/manage/paper-score-pad.tsx` — field paper entry UI
+- `components/tournaments/manage/score-entry-panel.tsx` — Live vs Paper mode cards
 - `components/tournaments/manage/fun-match-scoring-workspace.tsx`
+- `components/tournaments/manage/courtside-scorepad.tsx` — fullscreen field scorepad
+- `components/tournaments/manage/live-scoring-leaderboard-column.tsx`
+- `components/tournaments/manage/standings-column-picker.tsx`
+- `components/tournaments/fun-match/fun-match-rounds-panel.tsx`, `match-round-tabs.tsx`, `fun-match-round-match-card.tsx` (`density: command` / `courtside`)
+- `lib/tournaments/display-config-service.ts`, `lib/tournaments/upload-sponsor-banner.ts`
+- `app/api/tournaments/.../manage/display/sponsors/route.ts`
 
 **Automated smoke (no DB):**
 
@@ -544,7 +607,71 @@ npx vitest run lib/account/player-performance
 
 ---
 
-## 8. Checklist field wajib
+## 8. Registrasi Official (tim & klaim slot)
+
+Alur Gud Game Official (free & paid) memakai **satu halaman** (bukan wizard 3 step). Hanya **captain** yang wajib login.
+
+### 8.1 Satu layar daftar
+
+1. **Team name** — wajib jika `playersPerTeam > 1`; singles boleh auto dari nama captain.
+2. **Captain** — otomatis dari akun yang login.
+3. **Partner slots** (0…`playersPerTeam - 1`), tiap slot bisa:
+   - **Skip / solo** — kosongkan (underfill diizinkan)
+   - **Search** — pilih player Gud Game yang sudah punya akun
+   - **Invite email** — nama + email (+ phone opsional) untuk anggota yang belum punya akun
+4. Satu CTA:
+   - **Free:** Confirm registration → status langsung `confirmed`
+   - **Paid:** Continue to payment → `pending_payment` + invoice Xendit → `confirmed` setelah bayar
+
+**Kapasitas:** jika `maxTeams` penuh (termasuk hold `awaiting_confirmation` / `pending_payment`), tombol Register dinonaktifkan dan API menolak team baru.
+
+**Anti-duplikat:** satu `userId` / email invite hanya boleh di **satu tim** dalam turnamen yang sama. Maksimum anggota = `playersPerTeam` (tidak boleh lebih).
+
+**Edit roster:** captain boleh update daftar player selama status turnamen **upcoming** (belum live), termasuk setelah `confirmed`. Setelah live/completed, roster terkunci.
+
+Edit sebelum bayar: `pending_payment` / legacy `awaiting_confirmation`.
+
+### 8.2 Provisional roster + claim
+
+| Mode slot | Data | Tampil di skor / roster | Ranking karier GG |
+| --- | --- | --- | --- |
+| Linked | `userId` | Ya | Langsung |
+| Pending invite | nama + email + claim token | Ya (nama) | Setelah klaim akun |
+
+Setelah registrasi **confirmed** (free) atau **paid**:
+
+- Anggota linked mendapat email “team invitation”.
+- Anggota pending mendapat email **Claim my spot** → `/sports/{sport}/tournaments/{slug}/claim?token=…`
+- Klaim: login/daftar dengan **email yang sama** dengan invite → bind `userId`, hapus pending fields.
+- Jika event sudah ada match selesai: history + poin di-backfill ke akun yang klaim.
+- Deadline klaim: sampai akhir turnamen + 7 hari grace.
+- Jika tidak pernah klaim: nama tetap di arsip event, **tanpa** masuk leaderboard karier.
+
+Partner white-label guest tetap terpisah (tidak masuk ranking Gud Game) — jangan disamakan dengan Official claim.
+
+### 8.3 Perintah / URL terkait
+
+| Item | Path |
+| --- | --- |
+| Form daftar | `/sports/{sport}/tournaments/{slug}/register` |
+| Klaim slot | `/sports/{sport}/tournaments/{slug}/claim?token=…` |
+| API register | `POST /api/tournaments/{sport}/{slug}/register` body `{ teamName, members: [{kind:'linked',userId}|{kind:'pending',displayName,email,phone?}] }` |
+| API claim | `GET/POST /api/tournaments/{sport}/{slug}/claim` |
+
+Manage Players menampilkan badge **Pending claim** untuk slot yang belum diklaim.
+
+### 8.4 Tab Players (public)
+
+Urutan sub-tab di halaman public **Players**:
+
+1. **Leaderboard** (default) — ranking poin / W-L / diff
+2. **Registered teams** — roster per tim
+
+Overview menyediakan CTA **Leaderboard** dan **Registered teams** agar info ranking mudah ditemukan.
+
+---
+
+## 9. Checklist field wajib
 
 ### Official (Paid & Free)
 
@@ -573,11 +700,11 @@ npx vitest run lib/account/player-performance
 
 ---
 
-## 9. Seed fixtures (local QA)
+## 10. Seed fixtures (local QA)
 
 Dev-only scripts (bukan CI / bukan production). Dipakai untuk generate ulang data uji Official **FREE** di database local.
 
-### 9.1 Official FREE QA (`db:seed:fixtures`)
+### 10.1 Official FREE QA (`db:seed:fixtures`)
 
 Perintah ini **selalu purge dulu** event seed lama (`qa-free-*` + slug fixture legacy), lalu recreate **54** turnamen Official free (Original + Custom × format × scoring). Status default **upcoming**, mulai ~14 hari ke depan, 8 tim, No Rank, billing free. Tidak membuat duplikat slug.
 
@@ -610,7 +737,7 @@ npm run db:seed:fixtures -- --name you@email.com
 
 **Production:** setiap deploy CI/CD menjalankan `db:seed:fixtures:purge` dengan `DEPLOY_QA_FIXTURE_PURGE=true` (hapus slug `qa-free-*` + slug fixture lama + akun `*@gudgame.local`). Script seed **tidak** dijalankan. Akun host/admin dan turnamen buatan user tidak dihapus.
 
-### 9.2 Double Stage per-tier (terpisah)
+### 10.2 Double Stage per-tier (terpisah)
 
 | Command | Isi |
 | --- | --- |
@@ -629,7 +756,7 @@ npm run db:seed:fixtures -- --name you@email.com
 
 ---
 
-## 10. Matriks uji otomatis
+## 11. Matriks uji otomatis
 
 Status verifikasi terakhir: **2026-08-13** (`vitest` tournaments + player-performance = hijau).
 
@@ -647,7 +774,7 @@ Status verifikasi terakhir: **2026-08-13** (`vitest` tournaments + player-perfor
 
 ---
 
-## 11. Catatan maintenance dokumen
+## 12. Catatan maintenance dokumen
 
 | Perubahan | Bagian docs |
 | --- | --- |
@@ -671,7 +798,9 @@ Status verifikasi terakhir: **2026-08-13** (`vitest` tournaments + player-perfor
 - Bracket leaderboard: `lib/tournaments/brackets/leaderboard.ts`
 - Mexicano: `lib/tournaments/mexicano/`
 - Ranking points: `lib/account/player-performance/points.ts`
-- Career sync: `lib/tournaments/stats/sync.ts`, `history-fixture-key.ts`
+- `lib/tournaments/stats/compute.ts` — session team/player aggregates
+- `lib/tournaments/stats/win-rate.ts` — shared match win rate % (Groups / boards)
+- `lib/tournaments/stats/fun-match-standings.ts` / `official-standings.ts`
 - Live payload / poll / display: `lib/tournaments/live/`
 
 ---

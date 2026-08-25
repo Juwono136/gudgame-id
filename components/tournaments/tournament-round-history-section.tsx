@@ -2,8 +2,8 @@
 
 import { History, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
-import { formatPlayerNameList } from "@/lib/format/player-names";
 
 export type RoundHistoryItem = {
   id: string;
@@ -57,11 +57,7 @@ function TeamBlock({
       >
         {name ?? "TBD"}
       </p>
-      {players?.length ? (
-        <p className="mt-0.5 text-[11px] leading-relaxed text-cp-muted">
-          {formatPlayerNameList(players)}
-        </p>
-      ) : null}
+      <TeamPlayerList names={players} maxNames={3} align={align} compact />
     </div>
   );
 }

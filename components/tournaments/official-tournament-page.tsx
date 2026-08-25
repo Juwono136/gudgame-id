@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, ChevronLeft, CreditCard, Loader2, Radio, Trophy, Users } from "lucide-react";
+import { Calendar, ChevronLeft, CreditCard, Loader2, Pencil, Radio, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FadeInView } from "@/components/motion/fade-in";
 import { TournamentAddToCalendar } from "@/components/tournaments/tournament-add-to-calendar";
@@ -100,9 +100,9 @@ import { getMaxRounds } from "@/lib/tournaments/settings";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
-import { isActiveRegistrationStatus } from "@/lib/tournaments/registration/urls";
+import { isActiveRegistrationStatus, canEditOfficialRoster } from "@/lib/tournaments/registration/urls";
 import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
-import { formatPlayerNameList } from "@/lib/format/player-names";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 
 function formatIdr(amount: number | null | undefined) {
   if (amount == null) return "—";
@@ -180,6 +180,11 @@ export function OfficialTournamentPage({
   const tournamentPublicHref = publicSportRoutes.tournament(tournament.sportSlug, tournament.slug);
   const registeredToastHandled = useRef(false);
   const createdToastHandled = useRef(false);
+
+  useEffect(() => {
+    if (searchParams.get("full") !== "1") return;
+    toast.error("This tournament is full. No new teams can register.");
+  }, [searchParams]);
 
   useEffect(() => {
     if (searchParams.get("created") !== "1") return;
@@ -618,6 +623,12 @@ export function OfficialTournamentPage({
       toast.error(tierEligibility?.message ?? "Your player tier is not eligible for this tournament.");
       return;
     }
+    const holdingSpot =
+      isActiveRegistrationStatus(regStatus?.status) || regStatus?.status === "confirmed";
+    if (summary.spotsRemaining === 0 && !holdingSpot) {
+      toast.error("This tournament is full. No new teams can register.");
+      return;
+    }
     if (regStatus?.status === "awaiting_confirmation" && regStatus.confirmUrl) {
       router.push(regStatus.confirmUrl);
       return;
@@ -850,14 +861,24 @@ export function OfficialTournamentPage({
                             } still open.`}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 w-full shrink-0 border-cp-border sm:w-auto"
-                    onClick={() => navigateTab("Players")}
-                  >
-                    View players
-                  </Button>
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button
+                      size="sm"
+                      className="h-9 w-full shrink-0 bg-cp-primary font-semibold hover:bg-cp-primary-light sm:w-auto"
+                      onClick={() => navigateTab("Players")}
+                    >
+                      <Trophy className="mr-1.5 h-3.5 w-3.5" />
+                      Leaderboard
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-full shrink-0 border-cp-border sm:w-auto"
+                      onClick={() => navigateTab("Players")}
+                    >
+                      Registered teams
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -996,11 +1017,14 @@ export function OfficialTournamentPage({
                           {m.teamAName} vs {m.teamBName}
                         </p>
                         {m.teamAPlayers?.length || m.teamBPlayers?.length ? (
-                          <p className="mt-1 text-[11px] leading-relaxed text-cp-muted">
-                            {[formatPlayerNameList(m.teamAPlayers), formatPlayerNameList(m.teamBPlayers)]
-                              .filter(Boolean)
-                              .join(" vs ")}
-                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <TeamPlayerList names={m.teamAPlayers} maxNames={3} />
+                            <TeamPlayerList
+                              names={m.teamBPlayers}
+                              maxNames={3}
+                              align="right"
+                            />
+                          </div>
                         ) : null}
                         <p className="mt-3 text-center text-3xl font-bold tabular-nums">
                           {m.scoreA ?? 0} : {m.scoreB ?? 0}
@@ -1161,6 +1185,8 @@ export function OfficialTournamentPage({
                 disabled={
                   resumingPayment ||
                   tierBlocked ||
+                  (summary.spotsRemaining === 0 &&
+                    !isActiveRegistrationStatus(regStatus?.status)) ||
                   (!summary.registrationOpen &&
                     regStatus?.status !== "pending_payment" &&
                     regStatus?.status !== "awaiting_confirmation")
@@ -1176,11 +1202,27 @@ export function OfficialTournamentPage({
                   ? "Sign up to register"
                   : resumingPayment
                     ? "Opening checkout…"
-                    : regStatus?.status === "awaiting_confirmation"
-                      ? "Confirm participation"
-                      : regStatus?.status === "pending_payment"
-                        ? "Continue to checkout"
-                        : "Register team"}
+                    : summary.spotsRemaining === 0 &&
+                        !isActiveRegistrationStatus(regStatus?.status)
+                      ? "Registration full"
+                      : regStatus?.status === "awaiting_confirmation"
+                        ? "Confirm participation"
+                        : regStatus?.status === "pending_payment"
+                          ? "Continue to checkout"
+                          : "Register team"}
+              </Button>
+            ) : canEditOfficialRoster({
+                registrationStatus: regStatus.status,
+                tournamentStatus: displayStatus,
+              }) ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-6 h-11 w-full border-cp-border"
+                onClick={() => setEditRegistrationOpen(true)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Update team roster
               </Button>
             ) : null}
 
@@ -1203,6 +1245,7 @@ export function OfficialTournamentPage({
                 slug={tournament.slug}
                 teamName={regStatus.teamName}
                 registrationStatus={regStatus.status}
+                tournamentStatus={displayStatus}
                 layout="stacked"
                 onEditTeam={() => setEditRegistrationOpen(true)}
                 onCancelled={() => {
@@ -1238,7 +1281,11 @@ export function OfficialTournamentPage({
                 void queryClient.invalidateQueries({
                   queryKey: ["tournaments", "registration-status", tournament.sportSlug, tournament.slug],
                 });
+                void queryClient.invalidateQueries({
+                  queryKey: ["tournaments", "participants", tournament.sportSlug, tournament.slug],
+                });
               }}
+              playersPerTeam={tournament.playersPerTeam ?? 2}
             />
           ) : null}
 

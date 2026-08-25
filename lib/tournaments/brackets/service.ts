@@ -279,6 +279,7 @@ export async function submitBracketMatchScore(
       scoreB,
       winnerTeamId,
       status: "completed",
+      callStatus: "done",
       completedAt: new Date(),
       recordedByUserId: userId,
       courtId: null,

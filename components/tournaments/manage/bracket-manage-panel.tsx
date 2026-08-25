@@ -222,13 +222,17 @@ export function BracketManagePanel({
         return;
       }
     }
+    // Keep the same slot selected (Cancel closes). Re-clicking used to toggle
+    // the picker off and felt like “click does nothing”.
     if (seedSlot?.matchId === matchId && seedSlot.slot === slot) {
-      setSeedSlot(null);
-      setSelectedTeamId("");
+      seedPickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       return;
     }
     setSeedSlot({ matchId, slot });
     setSelectedTeamId("");
+    requestAnimationFrame(() => {
+      seedPickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
   };
 
   const handleGenerate = async (seedMode: "random" | "manual") => {

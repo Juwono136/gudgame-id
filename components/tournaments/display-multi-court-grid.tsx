@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { formatGamesMatchLengthLabel, GAME_RALLY_MILESTONES } from "@/lib/tournaments/scoring/game-mode";
+import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
 
 type MultiCourtDisplayCardProps = {
@@ -13,8 +14,11 @@ type MultiCourtDisplayCardProps = {
   /** Games won (race-to-N / total-N) or flat match points. */
   scoreA: number;
   scoreB: number;
-  subtitle?: string;
-  /** When set, primary numbers are points this game; scoreA/B = games won. */
+  startedAt?: string | null;
+  timerEndsAt?: string | null;
+  estimatedDurationMinutes?: number | null;
+  matchActive?: boolean;
+  /** When set, center shows games + large points this game (public live style). */
   gamesMode?: {
     pointsA: number;
     pointsB: number;
@@ -24,6 +28,10 @@ type MultiCourtDisplayCardProps = {
   };
 };
 
+/**
+ * TV multi-court card — same schema as public Live Score court cards
+ * (team | score | team + LiveMatchTimer + rules line), styled for venue monitors.
+ */
 export function MultiCourtDisplayCard({
   courtName,
   teamAName,
@@ -32,158 +40,126 @@ export function MultiCourtDisplayCard({
   teamBPlayers,
   scoreA,
   scoreB,
-  subtitle,
+  startedAt = null,
+  timerEndsAt = null,
+  estimatedDurationMinutes = null,
+  matchActive = true,
   gamesMode,
 }: MultiCourtDisplayCardProps) {
-  const milestones =
-    gamesMode && (gamesMode.pointsToWinGame ?? 40) === 40
-      ? GAME_RALLY_MILESTONES
-      : gamesMode
-        ? ([gamesMode.pointsToWinGame ?? 40] as readonly number[])
-        : [];
-  const lead = gamesMode ? Math.max(gamesMode.pointsA, gamesMode.pointsB) : 0;
-
   return (
     <article
       className={cn(
-        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/15",
-        "bg-white/[0.06] p-2.5 shadow-lg backdrop-blur-md sm:p-3 lg:p-4",
+        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-emerald-500/30",
+        "bg-[#0c1613] p-3 shadow-lg sm:p-3.5 lg:p-4",
       )}
     >
-      <div className="mb-1.5 flex shrink-0 items-start justify-between gap-2 sm:mb-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/55 sm:text-[11px]">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300/80 sm:text-[11px]">
           {courtName}
         </p>
-        <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-200 sm:text-[10px]">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-200">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
           Live
         </span>
       </div>
 
-      {subtitle ? (
-        <p className="mb-1.5 line-clamp-1 shrink-0 text-[10px] uppercase tracking-wide text-white/45 sm:mb-2 sm:text-[11px]">
-          {subtitle}
-        </p>
-      ) : null}
-
-      {gamesMode ? (
-        <div className="mb-1.5 shrink-0 space-y-1 sm:mb-2 sm:space-y-1.5">
-          <div className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 sm:rounded-xl sm:px-3 sm:py-1.5">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px]">
-              {formatGamesMatchLengthLabel({
-                raceToGames: gamesMode.raceToGames,
-                lengthMode: gamesMode.lengthMode ?? "race_to",
-                pointsToWinGame: gamesMode.pointsToWinGame ?? 40,
-                gameDecider: "golden_point",
-                pointStyle: "simple",
-              })}{" "}
-              · Games
-            </span>
-            <span className="text-base font-bold tabular-nums text-white sm:text-lg">
-              {scoreA}
-              <span className="mx-1 font-light text-white/40">–</span>
-              {scoreB}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-1">
-            {milestones.map((m, i) => (
-              <span
-                key={m}
-                className={cn(
-                  "rounded-full border px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide sm:px-2 sm:text-[9px]",
-                  lead >= m
-                    ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
-                    : "border-white/10 text-white/40",
-                )}
-              >
-                R{i + 1}·{m}
-              </span>
-            ))}
-          </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-3">
+        <div className="min-w-0 text-left">
+          <p className="truncate text-sm font-semibold text-white sm:text-base" title={teamAName}>
+            {teamAName}
+          </p>
+          <TeamPlayerList
+            names={teamAPlayers}
+            maxNames={3}
+            compact
+            className="[&_li]:text-white/50 [&_svg]:text-white/35"
+          />
         </div>
-      ) : null}
 
-      <div className="grid min-h-0 flex-1 content-center gap-1.5 sm:gap-2 lg:gap-3">
-        <ScoreRow
-          name={teamAName}
-          players={teamAPlayers}
-          score={gamesMode ? gamesMode.pointsA : scoreA}
-        />
-        <div className="h-px shrink-0 bg-white/10" />
-        <ScoreRow
-          name={teamBName}
-          players={teamBPlayers}
-          score={gamesMode ? gamesMode.pointsB : scoreB}
+        <div className="flex min-w-[4rem] flex-col items-center justify-center px-1 sm:min-w-[5rem]">
+          {gamesMode ? (
+            <>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45">
+                Games
+              </p>
+              <p className="text-base font-bold tabular-nums text-white sm:text-lg">
+                {scoreA}
+                <span className="mx-1 font-normal text-white/40">–</span>
+                {scoreB}
+              </p>
+              <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-300/90">
+                Points
+              </p>
+              <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
+                {gamesMode.pointsA}
+                <span className="mx-1.5 font-light text-white/35">:</span>
+                {gamesMode.pointsB}
+              </p>
+            </>
+          ) : (
+            <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
+              {scoreA}
+              <span className="mx-1.5 font-light text-white/35">:</span>
+              {scoreB}
+            </p>
+          )}
+        </div>
+
+        <div className="min-w-0 text-right">
+          <p className="truncate text-sm font-semibold text-white sm:text-base" title={teamBName}>
+            {teamBName}
+          </p>
+          <TeamPlayerList
+            names={teamBPlayers}
+            maxNames={3}
+            align="right"
+            compact
+            className="[&_li]:text-white/50 [&_svg]:text-white/35"
+          />
+        </div>
+      </div>
+
+      <div className="mt-2.5 shrink-0 sm:mt-3">
+        <LiveMatchTimer
+          startedAt={startedAt}
+          timerEndsAt={timerEndsAt}
+          estimatedDurationMinutes={timerEndsAt ? null : estimatedDurationMinutes}
+          active={matchActive}
+          tone="display"
         />
       </div>
 
       {gamesMode ? (
-        <p className="mt-1.5 shrink-0 text-center text-[9px] uppercase tracking-wider text-white/40 sm:mt-2 sm:text-[10px]">
-          Points this game (+1 each)
+        <p className="mt-2 shrink-0 text-center text-[9px] text-white/40 sm:text-[10px]">
+          {(gamesMode.lengthMode ?? "race_to") === "total"
+            ? `Total ${gamesMode.raceToGames}`
+            : `Race to ${gamesMode.raceToGames}`}{" "}
+          · first to {gamesMode.pointsToWinGame ?? 40} pts
         </p>
       ) : null}
     </article>
   );
 }
 
-function ScoreRow({
-  name,
-  players,
-  score,
-}: {
-  name: string;
-  players?: string[];
-  score: number;
-}) {
-  return (
-    <div className="flex min-h-0 items-center justify-between gap-2 sm:gap-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-snug text-white/90 sm:text-base lg:text-lg">
-          {name}
-        </p>
-        {players?.length ? (
-          <p className="mt-0.5 line-clamp-1 text-[10px] leading-snug text-white/50 sm:text-[11px]">
-            {players.join(" · ")}
-          </p>
-        ) : null}
-      </div>
-      <p
-        className={cn(
-          "shrink-0 font-bold tabular-nums text-white",
-          "text-[clamp(1.75rem,5.5vh,3.25rem)]",
-        )}
-      >
-        {score}
-      </p>
-    </div>
-  );
-}
-
-export function MultiCourtWaitingCard({ courtName }: { courtName: string }) {
-  return (
-    <div
-      className={cn(
-        "flex h-full min-h-0 flex-col items-center justify-center overflow-hidden rounded-2xl",
-        "border border-dashed border-white/15 bg-white/[0.04] p-4 text-center sm:p-6",
-      )}
-    >
-      <p className="text-sm font-semibold uppercase tracking-wider text-white/60">{courtName}</p>
-      <p className="mt-2 text-xs text-white/40">Waiting for match</p>
-    </div>
-  );
-}
-
+/**
+ * Grid template for 1–6 live cards per page.
+ * Prefer 2-row layouts when ≥4 so cards stay readable on TV.
+ */
 function resolveGridTemplate(courtCount: number): {
   columns: number;
   rows: number;
 } {
-  if (courtCount <= 1) return { columns: 1, rows: 1 };
-  if (courtCount === 2) return { columns: 2, rows: 1 };
-  if (courtCount === 3) return { columns: 3, rows: 1 };
-  return { columns: 2, rows: 2 };
+  const n = Math.max(1, Math.min(courtCount, 6));
+  if (n === 1) return { columns: 1, rows: 1 };
+  if (n === 2) return { columns: 2, rows: 1 };
+  if (n === 3) return { columns: 3, rows: 1 };
+  if (n === 4) return { columns: 2, rows: 2 };
+  if (n === 5) return { columns: 3, rows: 2 };
+  return { columns: 3, rows: 2 };
 }
 
-/** Max courts shown per multi-court display slide (auto-paginates beyond this). */
-export const MULTI_COURT_PER_SLIDE = 4;
+/** Max live courts shown per multi-court display slide. */
+export const MULTI_COURT_PER_SLIDE = 6;
 export const MULTI_COURT_SLIDE_INTERVAL_MS = 30_000;
 
 export function MultiCourtDisplayGrid({
@@ -193,62 +169,58 @@ export function MultiCourtDisplayGrid({
   courtCount = 1,
   slideIndex,
   slideCount,
+  liveCount,
 }: {
   tournamentName: string;
   children: ReactNode;
   className?: string;
   courtCount?: number;
-  /** 0-based slide index when courts are paginated. */
   slideIndex?: number;
   slideCount?: number;
+  liveCount?: number;
 }) {
-  const { columns, rows } = resolveGridTemplate(Math.max(1, Math.min(courtCount, MULTI_COURT_PER_SLIDE)));
+  const { columns, rows } = resolveGridTemplate(
+    Math.max(1, Math.min(courtCount, MULTI_COURT_PER_SLIDE)),
+  );
   const showSlideHint = slideCount != null && slideCount > 1 && slideIndex != null;
 
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden",
-        /* Leave room for fixed Refresh / Fullscreen / Exit controls */
-        "px-2.5 pb-[4.25rem] pt-2.5 sm:px-4 sm:pb-[4.5rem] sm:pt-3 lg:px-5",
+        "flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-2 sm:px-5 sm:pb-4 sm:pt-3 lg:px-6",
         className,
       )}
     >
-      <div className="mb-1.5 shrink-0 sm:mb-2.5">
+      <div className="mb-2 shrink-0 sm:mb-2.5">
         <h1
           className={cn(
             "text-center font-bold leading-tight text-white",
-            "text-[clamp(0.95rem,2.4vh,1.75rem)]",
+            "text-[clamp(0.95rem,2.4vh,1.65rem)]",
           )}
         >
           {tournamentName}
         </h1>
+        <p className="mt-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300/80 sm:text-[11px]">
+          {liveCount != null ? `${liveCount} court${liveCount === 1 ? "" : "s"} live` : "Live courts"}
+          {showSlideHint ? ` · Slide ${slideIndex! + 1}/${slideCount}` : null}
+        </p>
         {showSlideHint ? (
-          <div className="mt-1.5 flex flex-col items-center gap-1.5 sm:mt-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45 sm:text-[11px]">
-              Courts {(slideIndex! * MULTI_COURT_PER_SLIDE) + 1}
-              –
-              {Math.min((slideIndex! + 1) * MULTI_COURT_PER_SLIDE, slideIndex! * MULTI_COURT_PER_SLIDE + courtCount)}
-              {" · "}
-              Slide {slideIndex! + 1}/{slideCount}
-            </p>
-            <div className="flex items-center gap-1.5" aria-hidden>
-              {Array.from({ length: slideCount! }, (_, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "h-1.5 rounded-full transition-all duration-500",
-                    i === slideIndex ? "w-4 bg-emerald-400/80" : "w-1.5 bg-white/25",
-                  )}
-                />
-              ))}
-            </div>
+          <div className="mt-1.5 flex items-center justify-center gap-1.5" aria-hidden>
+            {Array.from({ length: slideCount! }, (_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1.5 rounded-full transition-all duration-500",
+                  i === slideIndex ? "w-4 bg-emerald-400/80" : "w-1.5 bg-white/25",
+                )}
+              />
+            ))}
           </div>
         ) : null}
       </div>
 
       <div
-        className="grid min-h-0 flex-1 gap-1.5 sm:gap-2.5 lg:gap-3"
+        className="grid min-h-0 flex-1 gap-2 sm:gap-2.5 lg:gap-3"
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarDays,
   GripVertical,
   Loader2,
   Radio,
@@ -13,10 +14,8 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
-import { DoubleStageFlowGuide } from "@/components/tournaments/double-stage/double-stage-flow-guide";
 import { DoubleStageStandingsLegend, DoubleStageStandingsTable } from "@/components/tournaments/double-stage/double-stage-standings-table";
-import { DoubleStageScheduleManage } from "@/components/tournaments/manage/double-stage-schedule-manage";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,18 +37,14 @@ import {
 } from "@/components/ui/select";
 import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scoring";
 import { resolveTournamentSurfaceUrls } from "@/lib/constants/routes";
-import {
-  formatKickoffDateTime,
-  formatKickoffTime,
-} from "@/lib/tournaments/double-stage/schedule-view";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getTournamentMatchScoreMode, isClassicSetsFormat } from "@/lib/tournaments/settings";
-import { cn } from "@/lib/utils";
 
 type DoubleStageManagePanelProps = {
   tournament: TournamentDetail;
   partnerSlug?: string | null;
   onOpenLiveScoring?: () => void;
+  onOpenSchedule?: () => void;
 };
 
 type AssignmentEditorDialogProps = {
@@ -210,11 +205,15 @@ function AssignmentEditorDialog({
                     <p className="mt-1 text-xs leading-relaxed text-cp-muted">
                       {team.players.length} player{team.players.length === 1 ? "" : "s"}
                     </p>
-                    <p className="mt-1 break-words text-xs text-cp-muted">
-                      {team.players.length > 0
-                        ? team.players.map((player) => player.displayName).join(", ")
-                        : "Players not loaded"}
-                    </p>
+                    {team.players.length > 0 ? (
+                      <TeamPlayerList
+                        names={team.players}
+                        maxNames={6}
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="mt-1 break-words text-xs text-cp-muted">Players not loaded</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-1 md:pl-2">
@@ -259,101 +258,11 @@ function AssignmentEditorDialog({
   );
 }
 
-function FixtureList({
-  matches,
-  gamesScoreMode,
-}: {
-  matches: {
-    id: string;
-    teamAName: string | null;
-    teamBName: string | null;
-    scoreA: number | null;
-    scoreB: number | null;
-    status: string;
-    scheduledAt: string | null;
-  }[];
-  gamesScoreMode: boolean;
-}) {
-  if (!matches.length) return null;
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">Fixtures</p>
-      <ul className="space-y-1.5">
-        {matches.map((match) => {
-          const hasKickoff = Boolean(match.scheduledAt);
-          const kickoffLabel = hasKickoff
-            ? formatKickoffDateTime(match.scheduledAt)
-            : "TBA";
-
-          return (
-            <li
-              key={match.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cp-border/80 bg-cp-elevated/20 px-3 py-2 text-sm"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-foreground">
-                  {match.teamAName} vs {match.teamBName}
-                </p>
-                <p
-                  className={cn(
-                    "mt-0.5 text-[11px] font-medium tabular-nums",
-                    hasKickoff ? "text-cp-muted" : "text-amber-700 dark:text-amber-300",
-                  )}
-                  title={
-                    hasKickoff
-                      ? `Kickoff ${formatKickoffTime(match.scheduledAt)}`
-                      : "Kickoff time not set yet"
-                  }
-                >
-                  {kickoffLabel}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {match.status === "completed" ? (
-                  <span className="inline-flex flex-col items-end">
-                    <span className="font-mono text-sm tabular-nums text-foreground">
-                      {match.scoreA}–{match.scoreB}
-                    </span>
-                    {gamesScoreMode ? (
-                      <span className="text-[9px] font-semibold uppercase tracking-wide text-cp-muted">
-                        Games
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
-                <Badge
-                  variant="muted"
-                  className={cn(
-                    "text-[10px] capitalize",
-                    match.status === "completed" &&
-                      "border-emerald-600/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
-                    match.status === "in_progress" &&
-                      "border-amber-600/30 bg-amber-500/10 text-amber-900 dark:text-amber-200",
-                    match.status === "pending" &&
-                      !hasKickoff &&
-                      "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-200",
-                  )}
-                >
-                  {match.status === "completed"
-                    ? "Ended"
-                    : match.status === "pending" && !hasKickoff
-                      ? "Pending · TBA"
-                      : match.status.replace("_", " ")}
-                </Badge>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 export function DoubleStageManagePanel({
   tournament,
   partnerSlug = null,
   onOpenLiveScoring,
+  onOpenSchedule,
 }: DoubleStageManagePanelProps) {
   const { data, refetch, isFetching } = useTournamentManageScoring(
     tournament.sportSlug,
@@ -366,7 +275,6 @@ export function DoubleStageManagePanel({
     partnerSlug,
   });
   const overview = data?.doubleStage;
-  const bracketMatches = data?.bracketMatches ?? [];
   const [advancing, setAdvancing] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -427,59 +335,47 @@ export function DoubleStageManagePanel({
 
   if (overview.phase === "knockout") {
     return (
-      <div className="space-y-5">
-        <Card className="border-cp-primary/30 bg-cp-primary/5">
-          <CardContent className="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
-            <Trophy className="h-8 w-8 shrink-0 text-cp-primary" />
-            <div className="flex-1">
-              <p className="font-semibold text-foreground">Group stage complete</p>
-              <p className="mt-1 text-sm text-cp-muted">
-                Knockout bracket is active. View final group tables below, set match times, or open
-                the Bracket tab.
-              </p>
-            </div>
-            <Button asChild variant="outline" className="shrink-0">
-              <Link
-                href={`${manageUrls.manageUrl}?section=bracket`}
-              >
-                Open bracket
-              </Link>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-cp-primary/30 bg-cp-primary/5 px-3 py-3 sm:flex-row sm:items-center sm:px-4">
+          <Trophy className="h-6 w-6 shrink-0 text-cp-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">Group stage complete</p>
+            <p className="text-xs text-cp-muted">
+              Final tables below · open Match Schedule or Bracket for the draw.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {onOpenSchedule ? (
+              <Button type="button" variant="outline" size="sm" onClick={onOpenSchedule}>
+                <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+                Schedule
+              </Button>
+            ) : null}
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link href={`${manageUrls.manageUrl}?section=bracket`}>Open bracket</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="px-1" />
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} />
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2">
           {overview.groups.map((group) => (
-            <Card key={group.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{group.name} — final standings</CardTitle>
+            <Card key={group.id} className="overflow-hidden">
+              <CardHeader className="border-b border-cp-border/50 py-3">
+                <CardTitle className="text-sm sm:text-base">{group.name}</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-4">
                 <DoubleStageStandingsTable
                   group={group}
                   showQualification={showQualification}
                   scoreDisplay={scoreDisplay}
+                  compact
                 />
               </CardContent>
             </Card>
           ))}
         </div>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Match schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DoubleStageScheduleManage
-              tournament={tournament}
-              groups={overview.groups}
-              bracketMatches={bracketMatches}
-              onUpdated={() => void refetch()}
-            />
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -490,40 +386,41 @@ export function DoubleStageManagePanel({
   );
 
   return (
-    <div className="space-y-5">
-      <DoubleStageConfigBanner tournament={tournament} />
-
-      <div className="grid gap-4 rounded-2xl border border-cp-border bg-cp-card p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:p-5">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-2xl border border-cp-border bg-cp-card p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground sm:text-base">
-            Groups — live synced workspace
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-cp-muted sm:text-sm">
-            New eligible teams are synchronized into groups automatically before group matches
-            start. You can also adjust team-to-group placement manually while the group stage is
-            still pending.
-          </p>
-          <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-2.5" />
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-foreground">Groups</h2>
+            <Badge variant="success" className="border-0 text-[10px]">
+              {overview.assignedTeamCount}/{overview.eligibleTeamCount} assigned
+            </Badge>
+            {openMatches > 0 ? (
+              <Badge variant="muted" className="text-[10px] normal-case tracking-normal">
+                {openMatches} open
+              </Badge>
+            ) : null}
+          </div>
+          <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-1.5" />
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 md:flex md:w-[230px] md:flex-col">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-center md:justify-start"
+            size="sm"
             onClick={() => void syncGroups()}
             disabled={syncing}
           >
             {syncing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             )}
-            Sync groups
+            Sync
           </Button>
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-center md:justify-start"
+            size="sm"
             onClick={() => setAssignmentOpen(true)}
             disabled={!overview.canManageAssignments}
             title={
@@ -532,130 +429,114 @@ export function DoubleStageManagePanel({
                 : "Assignments are locked because group-stage matches have already started"
             }
           >
-            <Settings2 className="mr-2 h-4 w-4" />
-            Manage groups
+            <Settings2 className="mr-1.5 h-3.5 w-3.5" />
+            Assign
           </Button>
           {onOpenLiveScoring ? (
-            <Button
-              type="button"
-              className="w-full justify-center md:justify-start"
-              onClick={onOpenLiveScoring}
-            >
-              <Radio className="mr-2 h-4 w-4" />
-              Score group matches
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button type="button" size="sm" onClick={onOpenLiveScoring}>
+              <Radio className="mr-1.5 h-3.5 w-3.5" />
+              Score
+              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            </Button>
+          ) : null}
+          {onOpenSchedule ? (
+            <Button type="button" variant="outline" size="sm" onClick={onOpenSchedule}>
+              <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+              Schedule
             </Button>
           ) : null}
         </div>
       </div>
 
       {overview.unassignedEligibleTeams.length > 0 ? (
-        <Card className="border-amber-600/25 bg-amber-500/8">
-          <CardContent className="flex flex-col gap-3 py-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="font-semibold text-foreground">
-                {overview.unassignedEligibleTeams.length} eligible team
-                {overview.unassignedEligibleTeams.length === 1 ? "" : "s"} not yet placed in a
-                group
-              </p>
-              <p className="mt-1 text-sm text-cp-muted">
-                {overview.canManageAssignments
-                  ? "Use Sync groups for automatic balancing, or open Manage assignments to place teams manually."
-                  : "Group matches have already started, so assignments are locked."}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {overview.unassignedEligibleTeams.map((team) => (
-                  <Badge key={team.id} variant="warning" className="normal-case tracking-normal">
-                    <Users className="mr-1 h-3 w-3" />
-                    {team.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-cp-muted sm:text-sm">
-          <Badge variant="success" className="border-0">
-            {overview.assignedTeamCount} / {overview.eligibleTeamCount} eligible teams assigned
-          </Badge>
-          {!overview.canManageAssignments ? (
-            <span>Assignments are locked because group-stage matches have already started.</span>
-          ) : null}
+        <div className="rounded-xl border border-amber-600/25 bg-amber-500/8 px-3 py-3 sm:px-4">
+          <p className="text-sm font-semibold text-foreground">
+            {overview.unassignedEligibleTeams.length} team
+            {overview.unassignedEligibleTeams.length === 1 ? "" : "s"} not in a group
+          </p>
+          <p className="mt-0.5 text-xs text-cp-muted">
+            {overview.canManageAssignments
+              ? "Sync to auto-balance, or Assign to place manually."
+              : "Assignments locked — group matches have started."}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {overview.unassignedEligibleTeams.map((team) => (
+              <Badge key={team.id} variant="warning" className="normal-case tracking-normal">
+                <Users className="mr-1 h-3 w-3" />
+                {team.name}
+              </Badge>
+            ))}
+          </div>
         </div>
-      )}
-
-      {overview.knockoutReady && tournament.format !== "group_only" ? (
-        <Card className="border-emerald-600/30 bg-emerald-500/5">
-          <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold text-foreground">All group matches completed</p>
-              <p className="text-sm text-cp-muted">
-                {overview.qualifiedCount} teams qualified · knockout generates automatically after
-                the last result. Use the button if you need to retry.
-              </p>
-            </div>
-            <Button onClick={() => void advanceToKnockout()} disabled={advancing} className="shrink-0">
-              {advancing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating…
-                </>
-              ) : (
-                "Generate knockout bracket"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : overview.knockoutReady && tournament.format === "group_only" ? (
-        <Card className="border-cp-primary/25 bg-cp-primary/5">
-          <CardContent className="py-5">
-            <p className="font-semibold text-foreground">Group stage complete</p>
-            <p className="mt-1 text-sm text-cp-muted">
-              Group-only format — final standings decide the winner. There is no knockout stage.
-            </p>
-          </CardContent>
-        </Card>
-      ) : openMatches > 0 ? (
-        <p className="text-xs text-cp-muted sm:text-sm">
-          {openMatches} group match{openMatches === 1 ? "" : "es"} still to play. Qualified /
-          Eliminated badges appear only after every group fixture is finished.
-        </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {overview.knockoutReady && tournament.format !== "group_only" ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-600/30 bg-emerald-500/5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Group stage complete</p>
+            <p className="text-xs text-cp-muted">
+              {overview.qualifiedCount} qualified · bracket generates automatically — retry below if
+              needed.
+            </p>
+          </div>
+          <Button
+            onClick={() => void advanceToKnockout()}
+            disabled={advancing}
+            size="sm"
+            className="shrink-0"
+          >
+            {advancing ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                Generating…
+              </>
+            ) : (
+              "Generate knockout"
+            )}
+          </Button>
+        </div>
+      ) : overview.knockoutReady && tournament.format === "group_only" ? (
+        <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/5 px-3 py-3 sm:px-4">
+          <p className="text-sm font-semibold text-foreground">Group stage complete</p>
+          <p className="mt-0.5 text-xs text-cp-muted">
+            Group-only format — final standings decide the winner.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-2">
         {overview.groups.map((group) => (
           <Card key={group.id} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base sm:text-lg">{group.name}</CardTitle>
+            <CardHeader className="border-b border-cp-border/50 py-3">
+              <CardTitle className="text-sm sm:text-base">{group.name}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-3 sm:p-4">
               <DoubleStageStandingsTable
                 group={group}
                 showQualification={showQualification}
                 scoreDisplay={scoreDisplay}
+                compact
               />
-              <FixtureList matches={group.matches} gamesScoreMode={gamesScoreMode} />
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Match schedule</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DoubleStageScheduleManage
-            tournament={tournament}
-            groups={overview.groups}
-            bracketMatches={bracketMatches}
-            onUpdated={() => void refetch()}
-          />
-        </CardContent>
-      </Card>
-
-      <DoubleStageFlowGuide phase="group" variant="manage" />
+      {onOpenSchedule ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-cp-border bg-cp-card/60 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Match Schedule</p>
+            <p className="text-xs text-cp-muted">
+              Order of Play, start times, and court calls live on a separate tab.
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={onOpenSchedule}>
+            <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+            Open schedule
+            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ) : null}
 
       {overview ? (
         <AssignmentEditorDialog

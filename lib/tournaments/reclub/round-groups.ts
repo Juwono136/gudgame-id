@@ -87,3 +87,20 @@ export function getDistinctCompletedSessionRounds(matches: ReclubMatchView[]): n
       .map((m) => m.roundNumber),
   ).size;
 }
+
+/**
+ * Preferred tab for Live scoring: first live round, else first incomplete round,
+ * else the last round that has fixtures.
+ */
+export function getPreferredLiveScoringRound(
+  matches: ReclubMatchView[],
+  fallback = 1,
+): number {
+  const groups = groupMatchesByRound(matches, { includeFriendly: false });
+  if (!groups.length) return fallback;
+  const live = groups.find((g) => g.liveCount > 0);
+  if (live) return live.roundNumber;
+  const incomplete = groups.find((g) => g.completedCount < g.matches.length);
+  if (incomplete) return incomplete.roundNumber;
+  return groups[groups.length - 1]!.roundNumber;
+}

@@ -42,17 +42,48 @@ export function getMainDrawGridSlots(matches: BracketTreeMatchLike[]): number {
 }
 
 /**
- * Compact-but-readable metrics — always leave room for team + player lines.
+ * Compact-but-readable metrics — sized for team name + roster lines so
+ * player lists are not clipped inside absolutely positioned match cards.
+ *
+ * Heights are intentionally generous vs Tailwind text/padding so absolute
+ * cards never clip the last player row against the card border.
+ *
+ * @param visibleSlots opening-round match count (drives density)
+ * @param maxPlayersPerSide max roster lines to reserve (clamped 1–6); extra show as “+N more”
+ * @param options.overflowRow reserve an extra “+N more” line when any roster exceeds the cap
  */
-export function getBracketGridMetrics(visibleSlots: number) {
+export function getBracketGridMetrics(
+  visibleSlots: number,
+  maxPlayersPerSide = 4,
+  options?: { overflowRow?: boolean },
+) {
   const slots = Math.max(visibleSlots, 1);
-  const rowGap = slots >= 16 ? 10 : slots >= 8 ? 12 : slots >= 4 ? 16 : 20;
-  // Tall enough for match header + 2× (team name + player line) without clipping.
-  const rowHeight = slots >= 16 ? 100 : slots >= 8 ? 110 : slots >= 4 ? 124 : 132;
-  const columnHeight = slots * rowHeight + Math.max(slots - 1, 0) * rowGap;
-  const columnWidth = slots >= 16 ? 216 : slots >= 8 ? 232 : 252;
-  const gutterWidth = slots >= 16 ? 40 : slots >= 8 ? 48 : 60;
+  const players = Math.max(1, Math.min(Math.floor(maxPlayersPerSide), 6));
+  const overflowRows = options?.overflowRow ? 1 : 0;
+  const dense = slots >= 8;
+  const veryDense = slots >= 16;
+
+  const rowGap = veryDense ? 20 : dense ? 24 : slots >= 4 ? 32 : 40;
+  // Match header bar (label + status) — keep in sync with BracketTreeView headerHeight
   const headerHeight = 28;
+  // Per side — mirrors MatchSlot + TeamPlayerList compact/default classes:
+  // py-1.5/py-2 + team name + mt-0.5 + N×(player line + space-y-0.5)
+  const sidePadY = dense ? 12 : 16;
+  const teamLine = dense ? 16 : 20;
+  const rosterTop = 2; // mt-0.5
+  const playerGap = 2; // space-y-0.5
+  const playerLine = dense ? 14 : 16;
+  const visibleRows = players + overflowRows;
+  const rosterBlock =
+    visibleRows * playerLine + Math.max(0, visibleRows - 1) * playerGap;
+  const sideHeight = sidePadY + teamLine + rosterTop + rosterBlock + 4;
+  const divider = 1;
+  // +4 visual breathing room inside the absolute card (height uses rowHeight - 4)
+  const rowHeight = headerHeight + sideHeight * 2 + divider + 4;
+
+  const columnHeight = slots * rowHeight + Math.max(slots - 1, 0) * rowGap;
+  const columnWidth = veryDense ? 240 : dense ? 260 : 280;
+  const gutterWidth = veryDense ? 44 : dense ? 52 : 64;
 
   return {
     gridSlots: slots,
@@ -63,9 +94,27 @@ export function getBracketGridMetrics(visibleSlots: number) {
     gutterWidth,
     headerHeight,
     showPlayers: true,
-    compactPlayers: slots >= 8,
+    compactPlayers: dense,
+    /** Visible player rows per slot before “+N more”. */
+    maxPlayersPerSide: players,
   };
 }
+
+/** Largest roster size across bracket matches (for layout sizing). */
+export function getBracketMaxPlayersPerSide(
+  matches: Array<{ teamAPlayers?: string[] | null; teamBPlayers?: string[] | null }>,
+  cap = 6,
+): { display: number; needsOverflowRow: boolean } {
+  let max = 2;
+  for (const m of matches) {
+    const a = m.teamAPlayers?.filter((p) => p?.trim()).length ?? 0;
+    const b = m.teamBPlayers?.filter((p) => p?.trim()).length ?? 0;
+    max = Math.max(max, a, b);
+  }
+  const display = Math.max(2, Math.min(max, cap));
+  return { display, needsOverflowRow: max > cap };
+}
+
 
 export function getMatchGridRow(
   roundNumber: number,

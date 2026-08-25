@@ -1,4 +1,4 @@
-/** Deduplicated player names for display (comma-separated, no middle-dot separators). */
+/** Deduplicated player names for plain-text contexts (email, logs, title attrs). */
 export function uniquePlayerNames(names: string[] | undefined | null): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -13,6 +13,7 @@ export function uniquePlayerNames(names: string[] | undefined | null): string[] 
   return result;
 }
 
+/** Comma-separated names for non-UI text. Prefer `TeamPlayerList` in tournament UI. */
 export function formatPlayerNameList(names: string[] | undefined | null): string {
   return uniquePlayerNames(names).join(", ");
 }

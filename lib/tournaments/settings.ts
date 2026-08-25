@@ -81,6 +81,16 @@ export type TournamentDisplayBrandTheme = {
   scoreboardStyle?: "classic" | "bold" | "minimal";
 };
 
+/** Sponsor logo/banner shown on venue fullscreen display only (max 6). */
+export type TournamentDisplaySponsorBanner = {
+  id: string;
+  imageUrl: string;
+  storageKey: string;
+  label?: string;
+};
+
+export const MAX_DISPLAY_SPONSOR_BANNERS = 6;
+
 export type TournamentDisplayConfig = {
   layout: TournamentDisplayLayout;
   courtIds?: string[];
@@ -92,6 +102,8 @@ export type TournamentDisplayConfig = {
   showHighlights?: boolean;
   /** Per-event hospitality branding (TV / website / scoreboard). */
   brandTheme?: TournamentDisplayBrandTheme;
+  /** Multi-sponsor banners for venue TV strip (not public tournament page). */
+  sponsorBanners?: TournamentDisplaySponsorBanner[];
 };
 
 export type TournamentSettings = TournamentRuleSections & {
@@ -230,7 +242,26 @@ function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
     showUpcoming: typeof v.showUpcoming === "boolean" ? v.showUpcoming : undefined,
     showHighlights: typeof v.showHighlights === "boolean" ? v.showHighlights : undefined,
     brandTheme: parseDisplayBrandTheme(v.brandTheme),
+    sponsorBanners: parseSponsorBanners(v.sponsorBanners),
   };
+}
+
+function parseSponsorBanners(raw: unknown): TournamentDisplaySponsorBanner[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: TournamentDisplaySponsorBanner[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const o = item as Record<string, unknown>;
+    const id = typeof o.id === "string" ? o.id.trim() : "";
+    const imageUrl = typeof o.imageUrl === "string" ? o.imageUrl.trim() : "";
+    const storageKey = typeof o.storageKey === "string" ? o.storageKey.trim() : "";
+    if (!id || !imageUrl || !storageKey) continue;
+    const label =
+      typeof o.label === "string" && o.label.trim() ? o.label.trim().slice(0, 80) : undefined;
+    out.push({ id, imageUrl, storageKey, ...(label ? { label } : {}) });
+    if (out.length >= MAX_DISPLAY_SPONSOR_BANNERS) break;
+  }
+  return out.length ? out : undefined;
 }
 
 function parseDisplayBrandTheme(raw: unknown): TournamentDisplayBrandTheme | undefined {

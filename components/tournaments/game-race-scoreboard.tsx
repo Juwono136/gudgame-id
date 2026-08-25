@@ -51,6 +51,11 @@ type GameRaceScoreboardProps = {
   classicSets?: boolean;
   /** Sets needed to win the match (best of 3 → 2). */
   setsToWin?: number;
+  /**
+   * `courtside` — solid opaque surfaces + larger touch targets for field tablets.
+   * Default keeps lighter command-center chrome.
+   */
+  presentation?: "default" | "courtside";
 };
 
 /**
@@ -80,7 +85,9 @@ export function GameRaceScoreboard({
   hideTeamHeaders = false,
   classicSets = false,
   setsToWin,
+  presentation = "default",
 }: GameRaceScoreboardProps) {
+  const courtside = presentation === "courtside";
   const needSets = setsToWin ?? Math.max(1, Math.ceil((rules.raceToGames || 2)));
   const matchComplete = classicSets
     ? Math.max(gamesA, gamesB) >= needSets
@@ -201,13 +208,25 @@ export function GameRaceScoreboard({
   const serveHistory = serveHistoryFromCompletedGames(gameState.completedGames);
 
   return (
-    <div className={cn("w-full min-w-0 space-y-3", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cp-border/80 bg-cp-elevated/40 px-3 py-2.5">
+    <div className={cn("w-full min-w-0 space-y-3", courtside && "space-y-4", className)}>
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5",
+          courtside
+            ? "border-cp-border bg-cp-elevated px-4 py-3 sm:px-5"
+            : "border-cp-border bg-cp-elevated",
+        )}
+      >
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
             {headerLabel}
           </p>
-          <p className="mt-0.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+          <p
+            className={cn(
+              "mt-0.5 font-bold tabular-nums text-foreground",
+              courtside ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
+            )}
+          >
             {gamesA}
             <span className="mx-1.5 font-normal text-cp-muted">–</span>
             {gamesB}
@@ -238,8 +257,8 @@ export function GameRaceScoreboard({
               : matchComplete
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
                 : gameHeld
-                  ? "border-cp-primary/40 bg-cp-primary/10 text-cp-primary"
-                  : "border-cp-border/70 bg-cp-card text-cp-muted",
+                  ? "border-cp-primary/40 bg-cp-primary/15 text-cp-primary"
+                  : "border-cp-border bg-cp-card text-cp-muted",
           )}
         >
           {syncing
@@ -252,7 +271,12 @@ export function GameRaceScoreboard({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-cp-border bg-cp-elevated/25 p-3 sm:p-4">
+      <div
+        className={cn(
+          "rounded-2xl border border-cp-border p-3 sm:p-4",
+          courtside ? "bg-cp-elevated p-4 sm:p-5" : "bg-cp-elevated/80",
+        )}
+      >
         <div className="mb-3 flex flex-col items-center gap-1.5 sm:mb-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cp-primary">
             {pointsSectionLabel}
@@ -272,7 +296,12 @@ export function GameRaceScoreboard({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3">
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3",
+            courtside && "gap-3 sm:gap-4",
+          )}
+        >
           <SideScorePanel
             name={teamAName}
             roster={resolvedRosterA}
@@ -297,6 +326,7 @@ export function GameRaceScoreboard({
             hideHeader={hideTeamHeaders}
             highlight={pendingWinner === "a"}
             scoringDisabled={Boolean(disabled)}
+            courtside={courtside}
           />
 
           <div className="hidden items-center justify-center sm:flex">
@@ -327,11 +357,12 @@ export function GameRaceScoreboard({
             hideHeader={hideTeamHeaders}
             highlight={pendingWinner === "b"}
             scoringDisabled={Boolean(disabled)}
+            courtside={courtside}
           />
         </div>
 
         {gameHeld && winnerName ? (
-          <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-cp-primary/30 bg-cp-primary/5 px-3 py-3 text-center">
+          <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-cp-primary/30 bg-cp-primary/10 px-3 py-3 text-center">
             <p className="text-sm font-semibold text-foreground">
               {winnerName} won this {inTiebreak ? "tiebreak" : "game"} ({pointsA}–{pointsB})
             </p>
@@ -344,7 +375,10 @@ export function GameRaceScoreboard({
             ) : (
               <Button
                 type="button"
-                className="w-full max-w-xs touch-manipulation sm:w-auto"
+                className={cn(
+                  "w-full max-w-sm touch-manipulation rounded-full px-6 font-semibold sm:w-auto",
+                  courtside ? "h-12 text-base" : "h-11 text-sm",
+                )}
                 disabled={disabled || syncing || !onNextGame}
                 onClick={() => onNextGame?.(activeServerOpts)}
               >
@@ -356,7 +390,14 @@ export function GameRaceScoreboard({
       </div>
 
       {serveHistory.length > 0 ? (
-        <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
+        <div
+          className={cn(
+            "rounded-xl border px-3 py-2",
+            courtside
+              ? "border-cp-border bg-cp-elevated"
+              : "border-cp-border/70 bg-cp-elevated/20",
+          )}
+        >
           <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
             Servers this match
           </p>
@@ -484,6 +525,7 @@ function SideScorePanel({
   hideHeader,
   highlight = false,
   scoringDisabled,
+  courtside = false,
 }: {
   name: string;
   roster: GameRaceRosterPlayer[];
@@ -501,28 +543,38 @@ function SideScorePanel({
   hideHeader?: boolean;
   highlight?: boolean;
   scoringDisabled?: boolean;
+  courtside?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col items-center gap-2 rounded-xl border bg-cp-card/60 p-3",
+        "flex min-w-0 flex-col items-center gap-2 rounded-xl border p-3",
+        courtside ? "gap-3 bg-cp-card p-3.5 sm:p-4" : "bg-cp-card",
         highlight
           ? "border-cp-primary/50 ring-1 ring-cp-primary/25"
           : isServingSide
-            ? "border-cp-primary/35 ring-1 ring-cp-primary/15"
-            : "border-cp-border/60",
+            ? "border-cp-primary/40 ring-1 ring-cp-primary/20"
+            : "border-cp-border",
       )}
     >
       {!hideHeader ? (
         <div className="min-w-0 w-full text-center">
-          <p className="truncate text-sm font-semibold text-foreground" title={name}>
-            {name}
-          </p>
           {isServingSide ? (
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-cp-primary">
+            <p className="mb-1 inline-flex items-center rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground">
               Serving
             </p>
-          ) : null}
+          ) : (
+            <span className="mb-1 block h-[18px]" aria-hidden />
+          )}
+          <p
+            className={cn(
+              "truncate font-semibold text-foreground",
+              courtside ? "text-base sm:text-lg" : "text-sm sm:text-base",
+            )}
+            title={name}
+          >
+            {name}
+          </p>
           {roster.length > 0 ? (
             <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1">
               {roster.map((player) => {
@@ -534,10 +586,13 @@ function SideScorePanel({
                     disabled={scoringDisabled}
                     onClick={() => onSelectServer(player.userId)}
                     className={cn(
-                      "max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                      "max-w-full truncate rounded-full border font-medium transition-colors",
+                      courtside
+                        ? "px-2.5 py-1 text-[11px] touch-manipulation"
+                        : "px-2 py-0.5 text-[10px]",
                       active
-                        ? "border-cp-primary/40 bg-cp-primary/15 text-cp-primary"
-                        : "border-cp-border/70 bg-cp-elevated/30 text-cp-muted hover:text-foreground",
+                        ? "border-cp-primary/50 bg-cp-primary/20 text-cp-primary"
+                        : "border-cp-border bg-cp-elevated text-cp-muted hover:text-foreground",
                       scoringDisabled && "cursor-default",
                     )}
                     title={`Set ${player.displayName} as server`}
@@ -551,31 +606,44 @@ function SideScorePanel({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center gap-2 sm:gap-3">
         <Button
           type="button"
           size="icon"
           variant="outline"
-          className="h-10 w-10 shrink-0 touch-manipulation rounded-full border-cp-border sm:h-9 sm:w-9"
+          className={cn(
+            "shrink-0 touch-manipulation rounded-full border-cp-border",
+            courtside ? "h-12 w-12 sm:h-11 sm:w-11" : "h-10 w-10 sm:h-9 sm:w-9",
+          )}
           disabled={!canDecrement}
           onClick={onDecrement}
           aria-label={`Remove 1 point from ${name}`}
         >
-          <Minus className="h-4 w-4" />
+          <Minus className={courtside ? "h-5 w-5" : "h-4 w-4"} />
         </Button>
-        <span className="min-w-[3.25rem] text-center text-4xl font-bold tabular-nums text-foreground sm:min-w-[3.5rem] sm:text-5xl">
+        <span
+          className={cn(
+            "text-center font-bold tabular-nums text-foreground",
+            courtside
+              ? "min-w-[3.75rem] text-5xl sm:min-w-[4rem] sm:text-6xl"
+              : "min-w-[3.25rem] text-4xl sm:min-w-[3.5rem] sm:text-5xl",
+          )}
+        >
           {points}
         </span>
         <Button
           type="button"
           size="icon"
           variant="outline"
-          className="h-10 w-10 shrink-0 touch-manipulation rounded-full border-cp-border sm:h-9 sm:w-9"
+          className={cn(
+            "shrink-0 touch-manipulation rounded-full border-cp-border",
+            courtside ? "h-12 w-12 sm:h-11 sm:w-11" : "h-10 w-10 sm:h-9 sm:w-9",
+          )}
           disabled={incrementDisabled}
           onClick={onIncrement}
           aria-label={`Add 1 point to ${name}`}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className={courtside ? "h-5 w-5" : "h-4 w-4"} />
         </Button>
       </div>
 
@@ -589,7 +657,12 @@ function SideScorePanel({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 min-w-[3.25rem] touch-manipulation rounded-full px-2.5 text-xs font-semibold tabular-nums"
+                className={cn(
+                  "touch-manipulation rounded-full font-semibold tabular-nums",
+                  courtside
+                    ? "h-10 min-w-[3.75rem] px-3 text-sm"
+                    : "h-8 min-w-[3.25rem] px-2.5 text-xs",
+                )}
                 disabled={disabledBtn}
                 onClick={() => onSetPoints(target)}
                 aria-label={`Set ${name} points to ${target}`}
@@ -691,33 +764,33 @@ export function LiveGameRaceDisplay({
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col items-center justify-center px-6 py-10 text-white",
+        "flex h-full min-h-0 w-full flex-col items-center justify-center overflow-hidden px-4 py-4 text-white sm:px-8 sm:py-6",
         className,
       )}
     >
       {subtitle ? (
-        <p className="mb-4 text-center text-sm uppercase tracking-[0.2em] text-white/60 sm:text-base">
+        <p className="mb-3 max-w-4xl truncate text-center text-xs uppercase tracking-[0.18em] text-white/55 sm:mb-4 sm:text-sm">
           {subtitle}
         </p>
       ) : null}
 
-      <div className="mb-6 rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-center backdrop-blur-sm sm:mb-8 sm:px-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+      <div className="mb-4 rounded-2xl border border-white/12 bg-[#0c1613] px-5 py-2.5 text-center sm:mb-6 sm:px-8 sm:py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45 sm:text-[11px]">
           {lengthLabel} · Games won
         </p>
-        <p className="mt-1 text-4xl font-bold tabular-nums sm:text-5xl">
+        <p className="mt-0.5 text-3xl font-bold tabular-nums sm:text-4xl lg:text-5xl">
           {gamesA}
-          <span className="mx-3 font-light text-white/40">–</span>
+          <span className="mx-2 font-light text-white/35">–</span>
           {gamesB}
         </p>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-center gap-2 sm:mb-4">
         {milestones.map((m) => (
           <span
             key={m}
             className={cn(
-              "rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide",
+              "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:px-3 sm:text-[11px]",
               lead >= m
                 ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-200"
                 : "border-white/15 text-white/45",
@@ -728,23 +801,27 @@ export function LiveGameRaceDisplay({
         ))}
       </div>
 
-      <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300/90">
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300/90 sm:mb-4 sm:text-[11px]">
         Points this game
       </p>
 
-      <div className="grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-8">
+      <div className="grid w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6 lg:gap-8">
         <div className="min-w-0 text-center">
-          <p className="mb-3 line-clamp-2 break-words text-lg font-medium text-white/80 sm:text-2xl">
+          <p className="mb-2 line-clamp-2 break-words text-base font-medium text-white/80 sm:mb-3 sm:text-xl lg:text-2xl">
             {teamAName}
           </p>
-          <p className="text-7xl font-bold tabular-nums sm:text-8xl md:text-9xl">{pointsA}</p>
+          <p className="text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none">
+            {pointsA}
+          </p>
         </div>
-        <span className="text-4xl font-light text-white/40 sm:text-6xl">:</span>
+        <span className="text-3xl font-light text-white/35 sm:text-5xl">:</span>
         <div className="min-w-0 text-center">
-          <p className="mb-3 line-clamp-2 break-words text-lg font-medium text-white/80 sm:text-2xl">
+          <p className="mb-2 line-clamp-2 break-words text-base font-medium text-white/80 sm:mb-3 sm:text-xl lg:text-2xl">
             {teamBName}
           </p>
-          <p className="text-7xl font-bold tabular-nums sm:text-8xl md:text-9xl">{pointsB}</p>
+          <p className="text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none">
+            {pointsB}
+          </p>
         </div>
       </div>
     </div>

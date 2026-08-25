@@ -127,6 +127,13 @@
       "when": 1783300000000,
       "tag": "0023_revoke_orphan_approved_host_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783400000000,
+      "tag": "0024_official_pending_roster_claim",
+      "breakpoints": true
     }
   ]
 }

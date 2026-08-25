@@ -137,6 +137,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
       manageScoringMode: "rounds" | "bracket" | "groups";
       showGroupsTab: boolean;
       showBracketTab: boolean;
+      showScheduleTab: boolean;
       hasLobbyRounds: boolean;
       canGenerateKnockout: boolean;
     };
@@ -148,6 +149,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
         manageScoringMode: "groups",
         showGroupsTab: true,
         showBracketTab: true,
+        showScheduleTab: true,
         hasLobbyRounds: false,
         canGenerateKnockout: true,
       },
@@ -159,6 +161,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
         manageScoringMode: "bracket",
         showGroupsTab: true,
         showBracketTab: true,
+        showScheduleTab: true,
         hasLobbyRounds: false,
         canGenerateKnockout: true,
       },
@@ -169,6 +172,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
         manageScoringMode: "groups",
         showGroupsTab: true,
         showBracketTab: false,
+        showScheduleTab: true,
         hasLobbyRounds: false,
         canGenerateKnockout: false,
       },
@@ -179,6 +183,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
         manageScoringMode: "bracket",
         showGroupsTab: false,
         showBracketTab: true,
+        showScheduleTab: false,
         hasLobbyRounds: false,
         canGenerateKnockout: true,
       },
@@ -189,6 +194,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
         manageScoringMode: "rounds",
         showGroupsTab: false,
         showBracketTab: false,
+        showScheduleTab: false,
         hasLobbyRounds: true,
         canGenerateKnockout: false,
       },
@@ -199,6 +205,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
         manageScoringMode: "rounds",
         showGroupsTab: false,
         showBracketTab: false,
+        showScheduleTab: false,
         hasLobbyRounds: true,
         canGenerateKnockout: false,
       },
@@ -210,6 +217,7 @@ describe("smoke · capabilities → public tabs / manage mode", () => {
     expect(caps.manageScoringMode).toBe(row.expect.manageScoringMode);
     expect(caps.showGroupsTab).toBe(row.expect.showGroupsTab);
     expect(caps.showBracketTab).toBe(row.expect.showBracketTab);
+    expect(caps.showScheduleTab).toBe(row.expect.showScheduleTab);
     expect(caps.hasLobbyRounds).toBe(row.expect.hasLobbyRounds);
     expect(caps.canGenerateKnockout).toBe(row.expect.canGenerateKnockout);
   });

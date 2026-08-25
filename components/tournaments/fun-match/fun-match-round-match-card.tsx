@@ -8,9 +8,9 @@ import {
   GameRaceScoreboard,
 } from "@/components/tournaments/game-race-scoreboard";
 import { ScoreOverrideDialog } from "@/components/tournaments/manage/score-override-dialog";
+import { PaperScorePad } from "@/components/tournaments/manage/paper-score-pad";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   emptyMatchGameState,
   type MatchGameRules,
@@ -113,6 +113,19 @@ type FunMatchRoundMatchCardProps = {
   isAmericanoMode?: boolean;
   americanoPlayers?: AmericanoPlayerRef[];
   onManageAmericanoPairings?: () => void;
+  /**
+   * `auto` — live = full controls; completed/pending = summary row (expand on click).
+   * `full` — always expanded scoring UI.
+   * `summary` — always one-line row.
+   * `command` — command-center: live also summary unless forceExpanded (focus-one).
+   * `courtside` — immersive field pad: solid surfaces, large touch targets, no command chrome.
+   */
+  density?: "auto" | "full" | "summary" | "command" | "courtside";
+  /** When density is auto/summary/command, force expanded scoring chrome. */
+  forceExpanded?: boolean;
+  onToggleExpanded?: () => void;
+  /** Open dedicated courtside scorepad for this court (live only). */
+  onOpenCourtside?: () => void;
 };
 
 function TeamColumn({
@@ -140,15 +153,7 @@ function TeamColumn({
         )}
       >
         {players.length ? (
-          players.map((name) => (
-            <span
-              key={`${teamName}-${name}`}
-              className="line-clamp-2 break-words text-xs font-medium leading-snug text-foreground sm:line-clamp-none sm:truncate sm:text-sm"
-              title={name}
-            >
-              {name}
-            </span>
-          ))
+          <TeamPlayerList names={players} maxNames={4} align={align} />
         ) : (
           <span className="text-xs text-cp-muted sm:text-sm">—</span>
         )}
@@ -264,6 +269,10 @@ export function FunMatchRoundMatchCard({
   isAmericanoMode = false,
   americanoPlayers = [],
   onManageAmericanoPairings,
+  density = "auto",
+  forceExpanded = false,
+  onToggleExpanded,
+  onOpenCourtside,
 }: FunMatchRoundMatchCardProps) {
   const finalBadgeClass =
     accentVariant === "official"
@@ -274,6 +283,17 @@ export function FunMatchRoundMatchCard({
   const paperMode = scoreEntryMode === "paper";
   const [overrideOpen, setOverrideOpen] = useState(false);
   const isPlanning = !match && canManage && !readOnly;
+
+  const isCourtside = density === "courtside";
+
+  const showAsSummary =
+    !isPlanning &&
+    match != null &&
+    !isCourtside &&
+    (density === "summary" ||
+      (density === "command" && !forceExpanded) ||
+      (density === "auto" && !isLive && !forceExpanded));
+
   const useGroupPicker = isPlanning && isGroupStageMode && startableGroupMatches.length > 0;
   const showGroupEmpty = isPlanning && isGroupStageMode && startableGroupMatches.length === 0;
   const useBracketPicker =
@@ -678,43 +698,22 @@ export function FunMatchRoundMatchCard({
   };
 
   const scoreBoxes = paperLiveBoard ? (
-    <div className="grid w-full max-w-md gap-3 sm:grid-cols-2">
-      <div className="space-y-1.5">
-        <Label className="text-xs text-cp-muted">
-          {leftTeamName ?? "Team A"} — {gameRules ? "games" : "points"}
-        </Label>
-        <Input
-          type="number"
-          min={0}
-          inputMode="numeric"
-          disabled={!canManage}
-          value={scoreA}
-          onChange={(e) =>
-            pushPaperScore(Number.parseInt(e.target.value, 10) || 0, scoreB)
-          }
-          className="border-cp-border bg-cp-elevated"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs text-cp-muted">
-          {rightTeamName ?? "Team B"} — {gameRules ? "games" : "points"}
-        </Label>
-        <Input
-          type="number"
-          min={0}
-          inputMode="numeric"
-          disabled={!canManage}
-          value={scoreB}
-          onChange={(e) =>
-            pushPaperScore(scoreA, Number.parseInt(e.target.value, 10) || 0)
-          }
-          className="border-cp-border bg-cp-elevated"
-        />
-      </div>
-      <p className="text-xs text-cp-muted sm:col-span-2">
-        Paper entry — type the final score, then finish the match.
-      </p>
-    </div>
+    <PaperScorePad
+      teamAName={leftTeamName ?? "Team A"}
+      teamBName={rightTeamName ?? "Team B"}
+      scoreA={scoreA}
+      scoreB={scoreB}
+      unitLabel={gameRules ? (classicSetRules ? "sets" : "games") : "points"}
+      disabled={!canManage}
+      onChange={(a, b) => pushPaperScore(a, b)}
+      hint={
+        classicSetRules
+          ? "Enter final sets won, then Finish the match."
+          : gameRules
+            ? "Enter final games won, then Finish the match."
+            : "Enter the final score, then Finish the match."
+      }
+    />
   ) : gameRules ? (
     gamesLiveBoard ? (
       <GameRaceScoreboard
@@ -736,6 +735,7 @@ export function FunMatchRoundMatchCard({
         }
         disabled={!canManage}
         syncing={gamesWritePending}
+        presentation={isCourtside ? "courtside" : "default"}
         onPointA={(delta, scorer) => adjustScore("a", delta, scorer ?? leftSingleScorer)}
         onPointB={(delta, scorer) => adjustScore("b", delta, scorer ?? rightSingleScorer)}
         onSetPointsA={(target, scorer) => setGamePoints("a", target, scorer)}
@@ -815,15 +815,95 @@ export function FunMatchRoundMatchCard({
     </div>
   );
 
+  if (showAsSummary && match) {
+    const aWins = isDone && scoreA > scoreB;
+    const bWins = isDone && scoreB > scoreA;
+    return (
+      <article
+        className={cn(
+          "rounded-xl border border-cp-border bg-cp-elevated/20 px-3 py-2 transition-colors",
+          onToggleExpanded && "cursor-pointer hover:border-cp-border/80 hover:bg-cp-elevated/40",
+        )}
+      >
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 text-left"
+          onClick={onToggleExpanded}
+          disabled={!onToggleExpanded}
+        >
+          <div className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground sm:text-sm">
+            {match.teamAName ?? "TBD"}
+            {aWins ? (
+              <CheckCircle2 className="ml-1 inline h-3.5 w-3.5 text-cp-primary" aria-hidden />
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 tabular-nums">
+            <span
+              className={cn(
+                "flex h-8 w-9 items-center justify-center rounded-md text-sm font-bold",
+                aWins ? "bg-cp-primary text-cp-primary-foreground" : "bg-zinc-900 text-white",
+              )}
+            >
+              {scoreA}
+            </span>
+            <span className="text-[10px] text-cp-muted">–</span>
+            <span
+              className={cn(
+                "flex h-8 w-9 items-center justify-center rounded-md text-sm font-bold",
+                bWins ? "bg-cp-primary text-cp-primary-foreground" : "bg-zinc-900 text-white",
+              )}
+            >
+              {scoreB}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1 truncate text-right text-xs font-semibold text-foreground sm:text-sm">
+            {bWins ? (
+              <CheckCircle2 className="mr-1 inline h-3.5 w-3.5 text-cp-primary" aria-hidden />
+            ) : null}
+            {match.teamBName ?? "TBD"}
+          </div>
+          <span className="hidden shrink-0 rounded-md bg-cp-elevated px-1.5 py-0.5 text-[10px] text-cp-muted sm:inline">
+            {courtName}
+          </span>
+          {isDone ? (
+            <span
+              className={cn(
+                "hidden rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase sm:inline",
+                finalBadgeClass,
+              )}
+            >
+              Done
+            </span>
+          ) : isLive ? (
+            <span className="hidden rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-400 sm:inline">
+              Live
+            </span>
+          ) : (
+            <span className="hidden rounded-full bg-cp-elevated px-1.5 py-0.5 text-[9px] font-semibold uppercase text-cp-muted sm:inline">
+              Queued
+            </span>
+          )}
+        </button>
+      </article>
+    );
+  }
+
   return (
     <article
       className={cn(
-        "min-w-0 overflow-hidden rounded-xl border bg-cp-elevated/20 p-3 transition-colors sm:p-4",
-        isLive
+        "min-w-0 overflow-hidden rounded-xl border p-3 transition-colors sm:p-4",
+        isCourtside
+          ? "rounded-2xl border-cp-border bg-cp-card p-4 shadow-lg sm:p-5"
+          : "bg-cp-elevated/20",
+        !isCourtside && isLive
           ? "border-amber-500/40 ring-1 ring-amber-500/20"
-          : isDone
+          : !isCourtside && isDone
             ? "border-cp-border/80 opacity-90"
-            : "border-cp-border",
+            : !isCourtside
+              ? "border-cp-border"
+              : isLive
+                ? "border-amber-500/50 ring-1 ring-amber-500/25"
+                : "border-cp-border",
       )}
     >
       {gamesLiveBoard || paperLiveBoard ? (
@@ -1037,8 +1117,28 @@ export function FunMatchRoundMatchCard({
           ) : null}
 
           {isLive && canManage && onComplete && !readOnly ? (
-            <Button type="button" size="sm" variant="secondary" className="h-8" onClick={onComplete}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className={cn("h-8", isCourtside && "h-11 min-w-[5.5rem] touch-manipulation px-4 text-sm")}
+              onClick={onComplete}
+            >
               Finish
+            </Button>
+          ) : null}
+
+          {isLive && onOpenCourtside && !isCourtside ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={onOpenCourtside}
+              title="Fullscreen courtside scorepad"
+            >
+              <Radio className="mr-1 h-3.5 w-3.5" />
+              Courtside
             </Button>
           ) : null}
 
@@ -1061,6 +1161,12 @@ export function FunMatchRoundMatchCard({
             >
               <Scale className="mr-1 h-3.5 w-3.5" />
               Override
+            </Button>
+          ) : null}
+
+          {forceExpanded && onToggleExpanded && !isCourtside ? (
+            <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={onToggleExpanded}>
+              Collapse
             </Button>
           ) : null}
         </div>

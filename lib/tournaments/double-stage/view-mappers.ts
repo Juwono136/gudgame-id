@@ -58,9 +58,10 @@ export function groupMatchToReclubView(
     match.scoreB,
     match.gameState,
   );
+  const round = match.roundNumber > 0 ? match.roundNumber : 1;
   return {
     id: match.id,
-    roundNumber: 1,
+    roundNumber: round,
     teamAId: match.teamAId,
     teamBId: match.teamBId,
     teamAName: match.teamAName,
@@ -81,7 +82,9 @@ export function groupMatchToReclubView(
     scoreEvents: match.scoreEvents ?? [],
     sourceKind: "group_stage",
     playType: "group_stage",
-    roundLabel: groupName ?? "Group stage",
+    roundLabel: groupName
+      ? `${groupName} · Round ${round}`
+      : `Group stage · Round ${round}`,
     gameState: match.gameState ?? null,
   };
 }

@@ -42,6 +42,7 @@ function groupMatch(
     completedAt: null,
     courtId,
     playOrder: null,
+    roundNumber: 1,
     callStatus: "queued",
     scoreEvents: [],
   };

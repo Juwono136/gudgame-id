@@ -1,4 +1,5 @@
 import type { StandingsScoringConfig, TieBreakerKey } from "@/lib/tournaments/scoring/config";
+import { matchWinRatePercent } from "@/lib/tournaments/stats/win-rate";
 
 export type CompletedGroupMatch = {
   teamAId: string;
@@ -31,12 +32,21 @@ export type TeamStandingRow = {
   setsAgainst: number;
   gamesFor: number;
   gamesAgainst: number;
+  /**
+   * Match win rate % (wins ÷ played), one decimal.
+   * Informational — ranking still uses points / tie-breakers.
+   */
+  winRate: number;
   rank: number;
   qualificationStatus: "pending" | "qualified" | "eliminated";
   needsManualResolution?: boolean;
 };
 
-type StandingCore = Omit<TeamStandingRow, "rank" | "qualificationStatus" | "needsManualResolution">;
+type StandingCore = Omit<
+  TeamStandingRow,
+  "rank" | "qualificationStatus" | "needsManualResolution" | "winRate"
+>;
+
 
 function initStanding(teamId: string, teamName: string): StandingCore {
   return {
@@ -222,6 +232,7 @@ function sortStandings(
     }
     result.push({
       ...row,
+      winRate: matchWinRatePercent(row.wins, row.played),
       rank: i + 1,
       qualificationStatus: "pending",
       needsManualResolution,

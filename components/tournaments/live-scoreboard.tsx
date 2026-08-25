@@ -2,6 +2,7 @@
 
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { uniquePlayerNames } from "@/lib/format/player-names";
 import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
@@ -109,9 +110,7 @@ function CompactScoreRow({
             {label}
           </p>
           {playerList.length > 0 && !usePlayerButtons ? (
-            <p className="mt-0.5 break-words text-[10px] leading-snug text-cp-muted sm:text-[11px]">
-              {playerList.join(" / ")}
-            </p>
+            <TeamPlayerList names={playerList} maxNames={3} compact />
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -274,28 +273,32 @@ export function LiveScoreboardDisplay({
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col items-center justify-center px-6 py-10 text-white",
+        "flex h-full min-h-0 w-full flex-col items-center justify-center overflow-hidden px-4 py-4 text-white sm:px-8 sm:py-6",
         className,
       )}
     >
       {subtitle ? (
-        <p className="mb-6 text-center text-sm uppercase tracking-[0.2em] text-white/60 sm:text-base">
+        <p className="mb-4 max-w-4xl truncate text-center text-xs uppercase tracking-[0.18em] text-white/55 sm:mb-6 sm:text-sm">
           {subtitle}
         </p>
       ) : null}
-      <div className="grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-8">
-        <div className="text-center">
-          <p className="mb-4 line-clamp-2 text-lg font-medium text-white/80 sm:text-2xl">
+      <div className="grid w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6 lg:gap-8">
+        <div className="min-w-0 text-center">
+          <p className="mb-2 line-clamp-2 text-base font-medium text-white/80 sm:mb-4 sm:text-xl lg:text-2xl">
             {teamAName}
           </p>
-          <p className="text-7xl font-bold tabular-nums sm:text-8xl md:text-9xl">{scoreA}</p>
+          <p className="text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none">
+            {scoreA}
+          </p>
         </div>
-        <span className="text-4xl font-light text-white/40 sm:text-6xl">:</span>
-        <div className="text-center">
-          <p className="mb-4 line-clamp-2 text-lg font-medium text-white/80 sm:text-2xl">
+        <span className="text-3xl font-light text-white/35 sm:text-5xl">:</span>
+        <div className="min-w-0 text-center">
+          <p className="mb-2 line-clamp-2 text-base font-medium text-white/80 sm:mb-4 sm:text-xl lg:text-2xl">
             {teamBName}
           </p>
-          <p className="text-7xl font-bold tabular-nums sm:text-8xl md:text-9xl">{scoreB}</p>
+          <p className="text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none">
+            {scoreB}
+          </p>
         </div>
       </div>
     </div>

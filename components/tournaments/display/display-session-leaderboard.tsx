@@ -1,19 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { cn } from "@/lib/utils";
 
 export type DisplayLeaderboardRow = {
   id: string;
   name: string;
+  /** Players / team subtitle under the primary name. */
   subtitle?: string;
-  stats: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  points: number;
+  /** Optional legacy one-line stats (unused when wins/points present). */
+  stats?: string;
 };
 
 const PAGE_INTERVAL_MS = 30_000;
-const ROW_HEIGHT_ESTIMATE = 72;
-const HEADER_RESERVE = 120;
-const FOOTER_RESERVE = 72;
+const HEADER_RESERVE = 88;
+const FOOTER_RESERVE = 40;
+const ROW_HEIGHT_ESTIMATE = 48;
+const MIN_ROWS_PER_PAGE = 8;
 
 type DisplaySessionLeaderboardProps = {
   tournamentName: string;
@@ -21,22 +28,21 @@ type DisplaySessionLeaderboardProps = {
   rows: DisplayLeaderboardRow[];
   className?: string;
   emptyMessage?: string;
+  /** Primary entity column header. */
+  entityLabel?: "Team" | "Player";
 };
 
-function usePageCapacity(containerRef: RefObject<HTMLElement | null>) {
-  const [capacity, setCapacity] = useState({ columns: 2, rowsPerCol: 8 });
+function useTableCapacity(containerRef: RefObject<HTMLElement | null>) {
+  const [rowsPerPage, setRowsPerPage] = useState(12);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const measure = () => {
-      const width = el.clientWidth;
       const height = el.clientHeight;
-      const columns = width < 640 ? 1 : 2;
       const available = Math.max(240, height - HEADER_RESERVE - FOOTER_RESERVE);
-      const rowsPerCol = Math.max(4, Math.floor(available / ROW_HEIGHT_ESTIMATE));
-      setCapacity({ columns, rowsPerCol });
+      setRowsPerPage(Math.max(MIN_ROWS_PER_PAGE, Math.floor(available / ROW_HEIGHT_ESTIMATE)));
     };
 
     measure();
@@ -45,19 +51,24 @@ function usePageCapacity(containerRef: RefObject<HTMLElement | null>) {
     return () => ro.disconnect();
   }, [containerRef]);
 
-  return capacity;
+  return rowsPerPage;
 }
 
+/**
+ * Venue TV session leaderboard — table columns like public standings
+ * (# · Team/Player · W-L-T · P), paginated to fit one viewport.
+ */
 export function DisplaySessionLeaderboard({
   tournamentName,
   title = "Session leaderboard",
   rows,
   className,
   emptyMessage = "Standings appear after the first match is scored.",
+  entityLabel = "Team",
 }: DisplaySessionLeaderboardProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const { columns, rowsPerCol } = usePageCapacity(rootRef);
-  const pageSize = Math.max(1, columns * rowsPerCol);
+  const rowsPerPage = useTableCapacity(rootRef);
+  const pageSize = Math.max(1, rowsPerPage);
 
   const pages = useMemo(() => {
     if (!rows.length) return [] as DisplayLeaderboardRow[][];
@@ -89,32 +100,34 @@ export function DisplaySessionLeaderboard({
   }, [pageCount]);
 
   const currentPage = pages[pageIndex % pageCount] ?? [];
-  const leftCol = currentPage.filter((_, i) => i % columns === 0);
-  const rightCol = columns > 1 ? currentPage.filter((_, i) => i % columns === 1) : [];
+  const startRank = pageIndex * pageSize + 1;
 
   return (
     <div
       ref={rootRef}
-      className={cn("flex h-dvh min-h-dvh flex-col p-4 sm:p-6 lg:p-8", className)}
+      className={cn(
+        "flex h-full min-h-0 w-full flex-col px-4 py-3 sm:px-6 sm:py-4 lg:px-10 lg:py-5",
+        className,
+      )}
     >
-      <header className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
+      <header className="shrink-0 border-b border-white/10 pb-2.5 sm:pb-3">
+        <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl lg:text-3xl">
           {tournamentName}
         </h1>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-white/60 sm:text-base">{title}</p>
+          <p className="text-sm text-white/60">{title}</p>
           {pageCount > 1 ? (
             <p className="text-xs font-medium uppercase tracking-wider text-white/45">
               Page {pageIndex + 1} / {pageCount}
               <span className="ml-2 font-normal normal-case tracking-normal text-white/35">
-                · auto-advances every 30s
+                · advances every 30s
               </span>
             </p>
           ) : null}
         </div>
       </header>
 
-      <div className="relative mt-4 min-h-0 flex-1 sm:mt-6">
+      <div className="relative mt-3 min-h-0 flex-1 overflow-hidden sm:mt-4">
         {!rows.length ? (
           <p className="flex h-full items-center justify-center text-center text-sm text-white/50">
             {emptyMessage}
@@ -122,29 +135,79 @@ export function DisplaySessionLeaderboard({
         ) : (
           <div
             key={animKey}
-            className={cn(
-              "grid h-full animate-in fade-in slide-in-from-right-4 gap-3 duration-700 fill-mode-both sm:gap-4",
-              columns > 1 ? "grid-cols-2" : "grid-cols-1",
-            )}
+            className="flex h-full min-h-0 animate-in fade-in duration-500 fill-mode-both flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#0a1210]"
           >
-            <LeaderboardColumn
-              entries={leftCol}
-              firstRank={pageIndex * pageSize + 1}
-              rankStep={columns}
-            />
-            {columns > 1 ? (
-              <LeaderboardColumn
-                entries={rightCol}
-                firstRank={pageIndex * pageSize + 2}
-                rankStep={columns}
-              />
-            ) : null}
+            <div
+              className="grid shrink-0 grid-cols-[3rem_minmax(0,1fr)_5.5rem_4rem] items-center gap-x-3 border-b border-white/10 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-white/45 sm:grid-cols-[3.5rem_minmax(0,1fr)_6.5rem_5rem] sm:gap-x-4 sm:px-5 sm:text-[11px] lg:grid-cols-[4rem_minmax(0,1.4fr)_minmax(0,1fr)_6.5rem_5rem]"
+              role="row"
+            >
+              <span>#</span>
+              <span>{entityLabel}</span>
+              <span className="hidden lg:block">Players</span>
+              <span className="text-center" title="Wins – Losses – Ties">
+                W-L-T
+              </span>
+              <span className="text-right" title="Points">
+                P
+              </span>
+            </div>
+
+            <ul className="min-h-0 flex-1 divide-y divide-white/8 overflow-hidden">
+              {currentPage.map((row, i) => {
+                const rank = startRank + i;
+                const isTop3 = rank <= 3;
+                return (
+                  <li
+                    key={row.id}
+                    className={cn(
+                      "grid h-[calc(100%/var(--lb-rows,12))] min-h-[2.75rem] grid-cols-[3rem_minmax(0,1fr)_5.5rem_4rem] items-center gap-x-3 px-3 py-1.5 sm:grid-cols-[3.5rem_minmax(0,1fr)_6.5rem_5rem] sm:gap-x-4 sm:px-5 lg:grid-cols-[4rem_minmax(0,1.4fr)_minmax(0,1fr)_6.5rem_5rem]",
+                      isTop3 && "bg-[color:var(--display-primary,#3dba96)]/8",
+                    )}
+                    style={
+                      {
+                        ["--lb-rows" as string]: String(Math.max(currentPage.length, 1)),
+                      } as CSSProperties
+                    }
+                  >
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-bold tabular-nums sm:text-base",
+                        isTop3
+                          ? "text-[color:var(--display-primary,#3dba96)]"
+                          : "text-white/40",
+                      )}
+                    >
+                      {rank}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white sm:text-base">
+                        {row.name}
+                      </p>
+                      {row.subtitle ? (
+                        <p className="mt-0.5 truncate text-[11px] text-white/45 lg:hidden">
+                          {row.subtitle}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p className="hidden truncate text-xs text-white/45 lg:block">
+                      {row.subtitle || "—"}
+                    </p>
+                    <span className="text-center text-sm tabular-nums text-white/70 sm:text-base">
+                      {row.wins}-{row.losses}-{row.ties}
+                    </span>
+                    <span className="text-right text-base font-bold tabular-nums text-[color:var(--display-primary,#3dba96)] sm:text-lg">
+                      {row.points}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
       </div>
 
       {pageCount > 1 ? (
-        <div className="mt-3 flex shrink-0 items-center justify-center gap-2 pb-1">
+        <div className="mt-2.5 flex shrink-0 items-center justify-center gap-2">
           {pages.map((_, i) => (
             <button
               key={i}
@@ -163,44 +226,5 @@ export function DisplaySessionLeaderboard({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function LeaderboardColumn({
-  entries,
-  firstRank,
-  rankStep,
-}: {
-  entries: DisplayLeaderboardRow[];
-  firstRank: number;
-  rankStep: number;
-}) {
-  return (
-    <ul className="flex min-h-0 flex-col gap-2 sm:gap-2.5">
-      {entries.map((row, i) => {
-        const rank = firstRank + i * rankStep;
-        return (
-          <li
-            key={row.id}
-            className="flex min-h-[3.5rem] items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 backdrop-blur-sm sm:min-h-[4rem] sm:px-4 sm:py-3"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white sm:text-base lg:text-lg">
-                <span className="mr-2 font-mono text-white/40">#{rank}</span>
-                {row.name}
-              </p>
-              {row.subtitle ? (
-                <p className="mt-0.5 truncate text-[11px] text-white/45 sm:text-xs">
-                  {row.subtitle}
-                </p>
-              ) : null}
-            </div>
-            <span className="shrink-0 font-mono text-sm tabular-nums text-white sm:text-base lg:text-lg">
-              {row.stats}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

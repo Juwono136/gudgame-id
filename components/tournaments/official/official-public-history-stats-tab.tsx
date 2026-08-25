@@ -19,7 +19,7 @@ import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import { formatStatDuration } from "@/lib/tournaments/stats/compute";
 import { computeOfficialPlayerStandings } from "@/lib/tournaments/stats/official-standings";
 import type { HistoryRoundItem } from "@/lib/tournaments/stats/map-history-items";
-import { formatPlayerNameList } from "@/lib/format/player-names";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { buildPointLogRows } from "@/lib/tournaments/scoring/event-labels";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -73,7 +73,8 @@ export function OfficialPublicHistoryStatsTab({
       id: string;
       title: string;
       stage: string;
-      players: string | null;
+      teamAPlayers: string[];
+      teamBPlayers: string[];
       eventCount: number;
       events: NonNullable<BracketMatchView["scoreEvents"]>;
       context: PointLogMatchContext;
@@ -81,14 +82,12 @@ export function OfficialPublicHistoryStatsTab({
     for (const m of bracketMatches) {
       const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
       if (!displayCount) continue;
-      const playerLineA = formatPlayerNameList(m.teamAPlayers);
-      const playerLineB = formatPlayerNameList(m.teamBPlayers);
       rows.push({
         id: m.id,
         title: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         stage: `Round ${m.roundNumber}, Match ${m.matchNumber}`,
-        players:
-          playerLineA || playerLineB ? `${playerLineA || "—"} vs ${playerLineB || "—"}` : null,
+        teamAPlayers: m.teamAPlayers ?? [],
+        teamBPlayers: m.teamBPlayers ?? [],
         eventCount: displayCount,
         events: m.scoreEvents ?? [],
         context: {
@@ -102,14 +101,12 @@ export function OfficialPublicHistoryStatsTab({
     for (const m of reclubMatches) {
       const displayCount = buildPointLogRows(m.scoreEvents ?? []).length;
       if (!displayCount) continue;
-      const playerLineA = formatPlayerNameList(m.teamAPlayers);
-      const playerLineB = formatPlayerNameList(m.teamBPlayers);
       rows.push({
         id: m.id,
         title: `${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`,
         stage: m.roundLabel ?? `Round ${m.roundNumber}`,
-        players:
-          playerLineA || playerLineB ? `${playerLineA || "—"} vs ${playerLineB || "—"}` : null,
+        teamAPlayers: m.teamAPlayers ?? [],
+        teamBPlayers: m.teamBPlayers ?? [],
         eventCount: displayCount,
         events: m.scoreEvents ?? [],
         context: {
@@ -268,10 +265,16 @@ export function OfficialPublicHistoryStatsTab({
                       <span className="mt-0.5 block text-xs leading-relaxed text-cp-muted">
                         {item.stage}
                       </span>
-                      {item.players ? (
-                        <span className="mt-0.5 block text-xs leading-relaxed text-cp-muted">
-                          {item.players}
-                        </span>
+                      {item.teamAPlayers.length > 0 || item.teamBPlayers.length > 0 ? (
+                        <div className="mt-1.5 grid grid-cols-2 gap-2">
+                          <TeamPlayerList names={item.teamAPlayers} maxNames={3} compact />
+                          <TeamPlayerList
+                            names={item.teamBPlayers}
+                            maxNames={3}
+                            align="right"
+                            compact
+                          />
+                        </div>
                       ) : null}
                       <span className="mt-0.5 block text-[11px] tabular-nums text-cp-muted">
                         {item.eventCount} scoring events

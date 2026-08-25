@@ -14,6 +14,7 @@ import { tournamentQueryKeys } from "@/lib/tournaments/query-keys";
 
 import type { DoubleStageOverview } from "@/lib/tournaments/double-stage/service";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
+import type { ManageScoringRuntime } from "@/lib/tournaments/manage/scoring-runtime";
 import { resolveManageScoringRefetchIntervalMs } from "@/lib/tournaments/live/poll-intervals";
 
 export type ManageScoringPayload = {
@@ -28,6 +29,8 @@ export type ManageScoringPayload = {
   activeGroupMatches?: GroupMatchView[];
   doubleStage?: DoubleStageOverview | null;
   summary: TournamentRegistrationSummary;
+  /** Settings snapshot from create/edit — refreshed on every manage/scoring poll. */
+  runtime?: ManageScoringRuntime;
   tournament: {
     id: string;
     name: string;
@@ -36,6 +39,7 @@ export type ManageScoringPayload = {
     tournamentType: string;
     playersPerTeam: number;
     maxTeams: number | null;
+    updatedAt?: string;
   };
   teamsInActiveBracket?: string[];
   bracketEligibleTeamIds?: string[];

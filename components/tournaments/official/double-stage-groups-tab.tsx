@@ -1,14 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
 import {
   DoubleStageStandingsLegend,
   DoubleStageStandingsTable,
 } from "@/components/tournaments/double-stage/double-stage-standings-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
-import { getDoubleStageConfigSummary } from "@/lib/tournaments/double-stage/ui-helpers";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getTournamentMatchScoreMode, isClassicSetsFormat } from "@/lib/tournaments/settings";
@@ -26,7 +24,6 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
     if (activeGroupId === "all") return groups;
     return groups.filter((g) => g.id === activeGroupId);
   }, [groups, activeGroupId]);
-  const cfg = getDoubleStageConfigSummary(tournament);
   const scoreDisplay = isClassicSetsFormat(tournament, "group")
     ? "sets"
     : getTournamentMatchScoreMode(tournament, "group") === "games"
@@ -36,133 +33,102 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
   if (!groups.length) {
     return (
       <Card>
-        <CardContent className="py-12 text-center text-sm text-cp-muted">
-          Group standings will appear when the tournament is live and groups are generated.
+        <CardContent className="py-10 text-center text-sm text-cp-muted">
+          Group standings appear when the tournament is live and groups are generated.
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <DoubleStageConfigBanner tournament={tournament} />
-
-      <div className="rounded-xl border border-cp-border bg-cp-elevated/30 px-4 py-3 text-sm text-cp-muted">
-        {tournament.format === "group_only" ? (
-          <>
-            <span className="font-medium text-foreground">Group only</span> — teams play
-            round-robin within each group. Final standings decide the winner; there is no
-            knockout stage.
-          </>
-        ) : (
-          <>
-            <span className="font-medium text-foreground">Group stage</span> — teams play
-            round-robin within each group. Top {cfg.teamsAdvancePerGroup} per group advance to
-            knockout when the stage completes.
-          </>
-        )}
-        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-2.5" />
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} />
+        {groups.length > 2 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="public-group-filter" className="text-xs text-cp-muted sm:text-sm">
+              Group
+            </label>
+            <select
+              id="public-group-filter"
+              value={activeGroupId}
+              onChange={(e) => setActiveGroupId(e.target.value)}
+              className="h-9 rounded-lg border border-cp-border bg-cp-card px-3 text-sm text-foreground"
+            >
+              <option value="all">All groups</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
 
       {tournament.format !== "group_only" &&
       doubleStage?.knockoutReady &&
       doubleStage.phase === "group" ? (
-        <div className="rounded-xl border border-emerald-600/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
-          Group stage complete — knockout bracket is generating automatically. Open the Bracket or
-          Matches tab once it appears.
+        <div className="rounded-xl border border-emerald-600/25 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-900 dark:text-emerald-100">
+          Group stage complete — knockout bracket is generating. Check Bracket or Matches shortly.
         </div>
       ) : null}
 
       {tournament.format === "group_only" && doubleStage?.allGroupMatchesCompleted ? (
-        <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-4 py-3 text-sm text-foreground">
-          All group fixtures are complete — final standings above decide the ranking.
+        <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-3 py-2.5 text-sm text-foreground">
+          All fixtures complete — standings above are final.
         </div>
       ) : null}
 
       {tournament.format !== "group_only" && doubleStage?.phase === "knockout" ? (
-        <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-4 py-3 text-sm text-foreground">
-          Knockout stage is underway. Final group standings are shown below — see Matches for the
-          full schedule.
+        <div className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-3 py-2.5 text-sm text-foreground">
+          Knockout underway — final group tables below. Full schedule is on Matches.
         </div>
       ) : null}
 
-      {groups.length > 2 ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="public-group-filter" className="text-sm text-cp-muted">
-            Group
-          </label>
-          <select
-            id="public-group-filter"
-            value={activeGroupId}
-            onChange={(e) => setActiveGroupId(e.target.value)}
-            className="h-9 rounded-lg border border-cp-border bg-cp-card px-3 text-sm text-foreground"
-          >
-            <option value="all">All groups</option>
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+        {visibleGroups.map((group) => {
+          const recent = group.matches
+            .filter((m) => m.status === "completed")
+            .slice(-4);
 
-      <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
-        {visibleGroups.map((group) => (
-          <Card key={group.id} className="overflow-hidden">
-            <CardHeader className="border-b border-cp-border/60 pb-3">
-              <CardTitle className="text-base sm:text-lg">{group.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <DoubleStageStandingsTable
-                group={group}
-                showQualification={Boolean(doubleStage?.allGroupMatchesCompleted)}
-                compact
-                scoreDisplay={scoreDisplay}
-              />
+          return (
+            <Card key={group.id} className="overflow-hidden">
+              <CardHeader className="border-b border-cp-border/60 py-3">
+                <CardTitle className="text-sm sm:text-base">{group.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 p-3 sm:p-4">
+                <DoubleStageStandingsTable
+                  group={group}
+                  showQualification={Boolean(doubleStage?.allGroupMatchesCompleted)}
+                  compact
+                  scoreDisplay={scoreDisplay}
+                />
 
-              {group.matches.some((m) => m.status === "completed") ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-cp-muted">
-                    Recent results
-                  </p>
-                  <ul className="divide-y divide-cp-border/60 rounded-lg border border-cp-border">
-                    {group.matches
-                      .filter((m) => m.status === "completed")
-                      .slice(-5)
-                      .map((m) => (
-                        <li
-                          key={m.id}
-                          className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
-                        >
-                          <span className="min-w-0 font-medium text-foreground">
-                            {m.teamAName}{" "}
-                            <span className="font-normal text-cp-muted">vs</span> {m.teamBName}
-                          </span>
-                          <span className="inline-flex shrink-0 flex-col items-end gap-0.5">
-                            <span className="font-mono tabular-nums text-foreground">
-                              {m.scoreA}–{m.scoreB}
-                            </span>
-                            {scoreDisplay === "sets" ? (
-                              <span className="text-[10px] uppercase tracking-wide text-cp-muted">
-                                Sets
-                              </span>
-                            ) : scoreDisplay === "games" ? (
-                              <span className="text-[10px] uppercase tracking-wide text-cp-muted">
-                                Games
-                              </span>
-                            ) : null}
-                          </span>
-                        </li>
-                      ))}
+                {recent.length > 0 ? (
+                  <ul className="divide-y divide-cp-border/60 overflow-hidden rounded-lg border border-cp-border">
+                    {recent.map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs sm:text-sm"
+                      >
+                        <span className="min-w-0 truncate font-medium text-foreground">
+                          {m.teamAName}{" "}
+                          <span className="font-normal text-cp-muted">vs</span> {m.teamBName}
+                        </span>
+                        <span className="shrink-0 font-mono tabular-nums text-foreground">
+                          {m.scoreA}–{m.scoreB}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
-                </div>
-              ) : (
-                <p className="text-xs text-cp-muted sm:text-sm">No completed matches yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                ) : (
+                  <p className="text-xs text-cp-muted">No results yet.</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

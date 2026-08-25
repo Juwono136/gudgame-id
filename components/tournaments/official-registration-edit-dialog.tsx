@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PlayerSearchPicker } from "@/components/tournaments/player-search-picker";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import type { TournamentPlayerSearchResult } from "@/lib/tournaments/players/search";
+import { cn } from "@/lib/utils";
+
+type EditSlot = {
+  mode: "empty" | "linked" | "pending";
+  linked: TournamentPlayerSearchResult | null;
+  displayName: string;
+  email: string;
+  phone: string;
+};
 
 type OfficialRegistrationEditDialogProps = {
   open: boolean;
@@ -28,6 +37,10 @@ type OfficialRegistrationEditDialogProps = {
   playersPerTeam?: number;
   onSaved?: () => void;
 };
+
+function emptySlot(): EditSlot {
+  return { mode: "empty", linked: null, displayName: "", email: "", phone: "" };
+}
 
 export function OfficialRegistrationEditDialog({
   open,
@@ -42,8 +55,8 @@ export function OfficialRegistrationEditDialog({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [teamName, setTeamName] = useState("");
-  const [partners, setPartners] = useState<TournamentPlayerSearchResult[]>([]);
   const [playersPerTeam, setPlayersPerTeam] = useState(propPlayersPerTeam);
+  const [slots, setSlots] = useState<EditSlot[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,19 +72,49 @@ export function OfficialRegistrationEditDialog({
         const reg = json.data?.registration;
         if (cancelled) return;
 
+        const ppt = reg?.playersPerTeam ?? propPlayersPerTeam;
         setTeamName(reg?.teamName ?? "");
-        if (reg?.playersPerTeam) setPlayersPerTeam(reg.playersPerTeam);
-        const members = (reg?.members ?? []) as { userId: string; displayName: string }[];
-        setPartners(
-          members.slice(1).map((m) => ({
-            userId: m.userId,
-            displayName: m.displayName,
-            nickname: null,
-            email: "",
-            wikiSlug: null,
-            image: null,
-          })),
-        );
+        setPlayersPerTeam(ppt);
+
+        const partnerSlots = Math.max(0, ppt - 1);
+        const members = (reg?.members ?? []) as Array<{
+          userId: string | null;
+          displayName: string;
+          kind?: string;
+          pendingEmail?: string | null;
+        }>;
+        const partners = members.slice(1);
+        const nextSlots: EditSlot[] = Array.from({ length: partnerSlots }, (_, i) => {
+          const m = partners[i];
+          if (!m) return emptySlot();
+          if (m.userId) {
+            return {
+              mode: "linked",
+              linked: {
+                userId: m.userId,
+                displayName: m.displayName,
+                nickname: null,
+                email: "",
+                wikiSlug: null,
+                image: null,
+              },
+              displayName: "",
+              email: "",
+              phone: "",
+            };
+          }
+          if (m.pendingEmail || m.kind === "pending") {
+            return {
+              mode: "pending",
+              linked: null,
+              displayName: m.displayName,
+              email: m.pendingEmail ?? "",
+              phone: "",
+            };
+          }
+          return emptySlot();
+        });
+        setSlots(nextSlots);
       } catch (e) {
         if (!cancelled) {
           toast.error(e instanceof Error ? e.message : "Could not load team");
@@ -85,7 +128,7 @@ export function OfficialRegistrationEditDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, registrationId, onOpenChange]);
+  }, [open, registrationId, onOpenChange, propPlayersPerTeam]);
 
   const handleSave = async () => {
     if (!teamName.trim()) {
@@ -93,10 +136,26 @@ export function OfficialRegistrationEditDialog({
       return;
     }
 
-    const maxPartners = Math.max(0, playersPerTeam - 1);
-    if (partners.length > maxPartners) {
-      toast.error(`Teams can have at most ${playersPerTeam} players`);
-      return;
+    const members: Array<
+      | { kind: "linked"; userId: string }
+      | { kind: "pending"; displayName: string; email: string; phone: string | null }
+    > = [];
+
+    for (const slot of slots) {
+      if (slot.mode === "linked" && slot.linked) {
+        members.push({ kind: "linked", userId: slot.linked.userId });
+      } else if (slot.mode === "pending") {
+        if (slot.displayName.trim().length < 2 || !slot.email.trim()) {
+          toast.error("Pending partners need a name and email");
+          return;
+        }
+        members.push({
+          kind: "pending",
+          displayName: slot.displayName.trim(),
+          email: slot.email.trim(),
+          phone: slot.phone.trim() || null,
+        });
+      }
     }
 
     setSaving(true);
@@ -108,15 +167,13 @@ export function OfficialRegistrationEditDialog({
           sportSlug,
           slug: tournamentSlug,
           teamName: teamName.trim(),
-          memberUserIds: partners.map((p) => p.userId),
+          members,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message ?? "Could not save changes");
 
-      toast.success("Team updated", {
-        description: "Confirm your participation when you are ready to proceed.",
-      });
+      toast.success("Team updated");
       onOpenChange(false);
       onSaved?.();
     } catch (e) {
@@ -128,7 +185,7 @@ export function OfficialRegistrationEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(90dvh,40rem)] w-[calc(100%-1.5rem)] max-w-lg flex-col gap-0 border-cp-border bg-cp-card p-0 sm:w-full">
+      <DialogContent className="flex max-h-[min(90dvh,42rem)] w-[calc(100%-1.5rem)] max-w-lg flex-col gap-0 border-cp-border bg-cp-card p-0 sm:w-full">
         <LoadingOverlay show={loading || saving} label={saving ? "Saving…" : "Loading…"} />
 
         <div className="border-b border-cp-border px-4 py-4 sm:px-6">
@@ -136,8 +193,9 @@ export function OfficialRegistrationEditDialog({
             <DialogTitle>Edit team registration</DialogTitle>
             <DialogDescription>
               Update your team for{" "}
-              <span className="font-medium text-foreground">{tournamentName}</span>. You can edit
-              until you confirm participation.
+              <span className="font-medium text-foreground">{tournamentName}</span>. While the
+              tournament is still upcoming you can add, remove, or replace partners (max roster
+              size). Each player can only be on one team.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -155,21 +213,103 @@ export function OfficialRegistrationEditDialog({
             />
           </div>
 
-          <div className="space-y-3 rounded-xl border border-cp-border bg-cp-elevated/30 p-4">
-            <div>
-              <Label>Partners</Label>
-              <p className="mt-1 text-xs text-cp-muted">
-                Up to {Math.max(0, playersPerTeam - 1)} partner
-                {playersPerTeam - 1 === 1 ? "" : "s"} besides you.
-              </p>
+          {slots.map((slot, index) => (
+            <div
+              key={index}
+              className="space-y-3 rounded-xl border border-cp-border bg-cp-elevated/30 p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>Partner {index + 1}</Label>
+                <div className="flex flex-wrap gap-1">
+                  {(
+                    [
+                      { mode: "empty" as const, label: "Skip", Icon: UserPlus },
+                      { mode: "linked" as const, label: "Search", Icon: Search },
+                      { mode: "pending" as const, label: "Invite", Icon: Mail },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.mode}
+                      type="button"
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        slot.mode === opt.mode
+                          ? "bg-cp-primary text-white"
+                          : "bg-cp-muted/20 text-cp-muted",
+                      )}
+                      onClick={() =>
+                        setSlots((prev) =>
+                          prev.map((s, i) =>
+                            i === index
+                              ? opt.mode === "empty"
+                                ? emptySlot()
+                                : { ...s, mode: opt.mode }
+                              : s,
+                          ),
+                        )
+                      }
+                    >
+                      <opt.Icon className="size-3" />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {slot.mode === "linked" ? (
+                <PlayerSearchPicker
+                  sportSlug={sportSlug}
+                  selected={slot.linked ? [slot.linked] : []}
+                  maxSelections={1}
+                  onChange={(next) =>
+                    setSlots((prev) =>
+                      prev.map((s, i) =>
+                        i === index
+                          ? {
+                              ...s,
+                              mode: next[0] ? "linked" : "empty",
+                              linked: next[0] ?? null,
+                            }
+                          : s,
+                      ),
+                    )
+                  }
+                />
+              ) : null}
+
+              {slot.mode === "pending" ? (
+                <div className="grid gap-2">
+                  <Input
+                    value={slot.displayName}
+                    onChange={(e) =>
+                      setSlots((prev) =>
+                        prev.map((s, i) =>
+                          i === index ? { ...s, displayName: e.target.value } : s,
+                        ),
+                      )
+                    }
+                    placeholder="Full name"
+                  />
+                  <Input
+                    type="email"
+                    value={slot.email}
+                    onChange={(e) =>
+                      setSlots((prev) =>
+                        prev.map((s, i) =>
+                          i === index ? { ...s, email: e.target.value } : s,
+                        ),
+                      )
+                    }
+                    placeholder="Email"
+                  />
+                </div>
+              ) : null}
+
+              {slot.mode === "empty" ? (
+                <p className="text-xs text-cp-muted">Left empty — solo slot.</p>
+              ) : null}
             </div>
-            <PlayerSearchPicker
-              sportSlug={sportSlug}
-              selected={partners}
-              onChange={setPartners}
-              maxSelections={Math.max(0, playersPerTeam - 1)}
-            />
-          </div>
+          ))}
         </div>
 
         <DialogFooter className="flex-col gap-2 border-t border-cp-border px-4 py-4 sm:flex-row sm:justify-end sm:px-6">

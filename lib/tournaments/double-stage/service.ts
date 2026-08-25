@@ -17,6 +17,7 @@ import {
   planBalancedGroups,
 } from "@/lib/tournaments/double-stage/allocate-groups";
 import { generateRoundRobinFixtures } from "@/lib/tournaments/double-stage/fixtures";
+import { deriveGroupStageRoundNumber } from "@/lib/tournaments/double-stage/round-number";
 import {
   buildQualifiedTeamsFromStandings,
   provisionKnockoutBracket,
@@ -126,6 +127,8 @@ export type GroupMatchView = {
   completedAt: string | null;
   courtId: string | null;
   playOrder: number | null;
+  /** RR / ITF day round (1-based). Derived from metadata + playOrder. */
+  roundNumber: number;
   callStatus: string | null;
   scoreEvents: MatchScoreEvent[];
   /** Present when tournament uses matchScoreMode = "games". */
@@ -148,6 +151,8 @@ export type GroupStandingView = {
   setsAgainst: number;
   gamesFor: number;
   gamesAgainst: number;
+  /** Match win rate % (wins ÷ played), one decimal — same formula as Live Score WR. */
+  winRate: number;
   rank: number;
   qualificationStatus: "pending" | "qualified" | "eliminated";
   needsManualResolution?: boolean;
@@ -308,6 +313,7 @@ export async function initializeDoubleStageGroups(
         metadata: {
           meetingIndex: f.meetingIndex ?? 1,
           meetingsPerPair: meetings,
+          ...(f.round != null ? { round: f.round } : {}),
         },
       });
       matchCount++;
@@ -482,6 +488,7 @@ async function replaceGroupStructure(
           metadata: {
             meetingIndex: fixture.meetingIndex ?? 1,
             meetingsPerPair: meetings,
+            ...(fixture.round != null ? { round: fixture.round } : {}),
           },
         });
         matchCount++;
@@ -880,6 +887,7 @@ export async function startGroupStageMatch(
       courtId: resolvedCourtId,
       scoreA: match.scoreA ?? 0,
       scoreB: match.scoreB ?? 0,
+      callStatus: "on_court",
       timerEndsAt: timerEndsAt ?? match.timerEndsAt,
       recordedByUserId: userId,
     })
@@ -1345,6 +1353,7 @@ export async function recordGroupStageScore(
       scoreB: scores.scoreB,
       winnerTeamId,
       status: "completed",
+      callStatus: "done",
       completedAt: new Date(),
       durationSeconds: scores.durationSeconds ?? match.durationSeconds,
       recordedByUserId: userId,
@@ -1452,6 +1461,14 @@ function mapGroupMatchView(
   teamPlayerMap?: Map<string, GroupMatchPlayerView[]>,
 ): GroupMatchView {
   const meta = parseReclubMatchMetadata(m.metadata);
+  const rawMeta =
+    m.metadata && typeof m.metadata === "object"
+      ? (m.metadata as Record<string, unknown>)
+      : {};
+  const metadataRound =
+    typeof rawMeta.round === "number" && Number.isFinite(rawMeta.round)
+      ? rawMeta.round
+      : null;
   const gameState = meta.gameState ?? null;
   const reconciled = reconcileMatchGamesScores(m.scoreA, m.scoreB, gameState);
   return {
@@ -1473,6 +1490,10 @@ function mapGroupMatchView(
     completedAt: m.completedAt?.toISOString() ?? null,
     courtId: m.courtId,
     playOrder: m.playOrder ?? null,
+    roundNumber: deriveGroupStageRoundNumber({
+      playOrder: m.playOrder,
+      metadataRound,
+    }),
     callStatus: m.callStatus ?? "queued",
     scoreEvents: meta.scoreEvents ?? [],
     gameState,
