@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, ilike, inArray, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   partnerLeagueMatches,
@@ -9,6 +9,7 @@ import {
   type PartnerLeagueMatchStatus,
   type PartnerLeagueStatus,
 } from "@/db/schema/partner-leagues";
+import { partnerPlayers } from "@/db/schema/partner-players";
 import { sports } from "@/db/schema/sports";
 import { AppError } from "@/lib/errors";
 import type {
@@ -28,8 +29,10 @@ import {
   type PartnerPagedResult,
 } from "@/lib/partners/list-query";
 import { PARTNER_LEAGUE_FIELD_LIMITS } from "@/lib/partners/league-field-limits";
+import { readLeagueTeamRosters, withLeagueTeamRoster } from "@/lib/partners/league-roster";
 import { cleanupPartnerLeagueBrandMedia } from "@/lib/partners/media-lifecycle";
 import { resolvePartnerLeagueBrandUrl } from "@/lib/partners/resolve-league-brand";
+import { syncPartnerLeagueMatchResult } from "@/lib/partners/stats/sync";
 import { toOffset } from "@/lib/pagination/constants";
 import { sanitizeTournamentRichField } from "@/lib/tournaments/rich-text";
 import { ensureUniqueWikiSlug, slugifyWikiName } from "@/lib/wiki/slug";
@@ -420,10 +423,17 @@ async function hydrateLeagueDetail(row: {
     .where(eq(partnerLeagueTeams.leagueId, row.id))
     .orderBy(asc(partnerLeagueTeams.sortOrder), asc(partnerLeagueTeams.name));
 
+  const settings =
+    row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)
+      ? (row.settings as Record<string, unknown>)
+      : {};
+  const rosters = readLeagueTeamRosters(settings);
+
   const teams: PartnerLeagueTeamView[] = teamRows.map((t) => ({
     id: t.id,
     name: t.name,
     sortOrder: t.sortOrder,
+    playerIds: rosters[t.id] ?? [],
   }));
   const teamNameById = new Map(teams.map((t) => [t.id, t.name]));
 
@@ -477,10 +487,7 @@ async function hydrateLeagueDetail(row: {
     matchCount: matches.length,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    settings:
-      row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)
-        ? (row.settings as Record<string, unknown>)
-        : {},
+    settings,
     teams,
     matches,
     standings,
@@ -524,7 +531,7 @@ export async function addPartnerLeagueTeam(input: {
     if (!created) {
       throw new AppError("Failed to add team", { code: "INTERNAL_ERROR", statusCode: 500 });
     }
-    return created;
+    return { ...created, playerIds: [] as string[] };
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("partner_league_teams_league_name_uidx")) {
@@ -535,6 +542,75 @@ export async function addPartnerLeagueTeam(input: {
     }
     throw error;
   }
+}
+
+export async function setPartnerLeagueTeamRoster(input: {
+  partnerId: string;
+  leagueId: string;
+  teamId: string;
+  playerIds: string[];
+}): Promise<PartnerLeagueDetail> {
+  await assertPartnerOwnsLeague(input.partnerId, input.leagueId);
+  const db = getDb();
+
+  const [team] = await db
+    .select({ id: partnerLeagueTeams.id })
+    .from(partnerLeagueTeams)
+    .where(
+      and(
+        eq(partnerLeagueTeams.id, input.teamId),
+        eq(partnerLeagueTeams.leagueId, input.leagueId),
+      ),
+    )
+    .limit(1);
+  if (!team) {
+    throw new AppError("Team not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+
+  const uniqueIds = [...new Set(input.playerIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length) {
+    const rows = await db
+      .select({ id: partnerPlayers.id })
+      .from(partnerPlayers)
+      .where(
+        and(
+          eq(partnerPlayers.partnerId, input.partnerId),
+          isNull(partnerPlayers.archivedAt),
+          inArray(partnerPlayers.id, uniqueIds),
+        ),
+      );
+    if (rows.length !== uniqueIds.length) {
+      throw new AppError("One or more players are not in this partner roster", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+  }
+
+  const [league] = await db
+    .select({ settings: partnerLeagues.settings })
+    .from(partnerLeagues)
+    .where(eq(partnerLeagues.id, input.leagueId))
+    .limit(1);
+
+  const currentSettings =
+    league?.settings && typeof league.settings === "object" && !Array.isArray(league.settings)
+      ? (league.settings as Record<string, unknown>)
+      : {};
+
+  await db
+    .update(partnerLeagues)
+    .set({
+      settings: withLeagueTeamRoster(currentSettings, input.teamId, uniqueIds),
+      updatedAt: new Date(),
+    })
+    .where(eq(partnerLeagues.id, input.leagueId));
+
+  const detail = await getPartnerLeagueById(input.partnerId, input.leagueId);
+  if (!detail) {
+    throw new AppError("League not found", { code: "NOT_FOUND", statusCode: 404 });
+  }
+  return detail;
 }
 
 export async function createPartnerLeagueMatch(input: {
@@ -683,6 +759,45 @@ export async function recordPartnerLeagueMatchScore(input: {
     .update(partnerLeagues)
     .set({ updatedAt: new Date() })
     .where(eq(partnerLeagues.id, input.leagueId));
+
+  const [leagueMeta] = await db
+    .select({
+      name: partnerLeagues.name,
+      sportId: partnerLeagues.sportId,
+      settings: partnerLeagues.settings,
+    })
+    .from(partnerLeagues)
+    .where(eq(partnerLeagues.id, input.leagueId))
+    .limit(1);
+
+  const settings =
+    leagueMeta?.settings &&
+    typeof leagueMeta.settings === "object" &&
+    !Array.isArray(leagueMeta.settings)
+      ? (leagueMeta.settings as Record<string, unknown>)
+      : {};
+  const rosters = readLeagueTeamRosters(settings);
+
+  try {
+    await syncPartnerLeagueMatchResult({
+      partnerId: input.partnerId,
+      sportId: leagueMeta?.sportId ?? "",
+      leagueId: input.leagueId,
+      leagueName: leagueMeta?.name ?? "League",
+      matchId: updated.id,
+      teamAId: updated.teamAId,
+      teamBId: updated.teamBId,
+      teamAName: nameById.get(updated.teamAId) ?? "Team A",
+      teamBName: nameById.get(updated.teamBId) ?? "Team B",
+      scoreA: updated.scoreA ?? 0,
+      scoreB: updated.scoreB ?? 0,
+      teamAPlayerIds: rosters[updated.teamAId] ?? [],
+      teamBPlayerIds: rosters[updated.teamBId] ?? [],
+      playedAt: updated.playedAt ?? undefined,
+    });
+  } catch {
+    // Standings still saved; player history sync is best-effort.
+  }
 
   return {
     id: updated.id,

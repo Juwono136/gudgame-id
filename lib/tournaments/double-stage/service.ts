@@ -1442,6 +1442,7 @@ export async function recordGroupStageScore(
       const { syncPartnerMatchResult } = await import("@/lib/partners/stats/sync");
       await syncPartnerMatchResult({
         tournament,
+        fixtureId: match.id,
         teamAId: match.teamAId,
         teamBId: match.teamBId,
         teamAName: match.teamAName,

@@ -70,7 +70,11 @@ export function PartnerAccountClient({
         logoUrl={logoUrl}
         primaryColor={primaryColor}
         formTitle="My account"
-        formSubtitle={`Your ${partnerName} member profile (separate from Gud Game).`}
+        formSubtitle={`Your ${partnerName} member profile (separate from Gud Game).${
+          session.playerId
+            ? " Tournament and league results sync to your player stats."
+            : ""
+        }`}
         footer={
           <Link href={routes.home} className="font-semibold text-cp-primary hover:underline">
             Back to home

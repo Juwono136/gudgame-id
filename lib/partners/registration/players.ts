@@ -39,16 +39,59 @@ export function buildSyntheticMemberContact(
 
 /**
  * Find-or-create a partner-scoped guest player by (partnerId, email) or (partnerId, phone).
- * Refreshes the stored name when it changed.
+ * Prefer an existing authenticated member row when `preferPlayerId` is provided.
  */
 export async function upsertPartnerPlayer(
   partnerId: string,
   input: PartnerPlayerInput,
+  options?: { preferPlayerId?: string | null; identityId?: string | null },
 ): Promise<PartnerPlayer> {
   const db = getDb();
   const fullName = input.fullName.trim();
   const email = normalizeEmail(input.email);
   const phone = normalizePartnerPhone(input.phone);
+
+  if (options?.preferPlayerId) {
+    const [preferred] = await db
+      .select()
+      .from(partnerPlayers)
+      .where(
+        and(
+          eq(partnerPlayers.id, options.preferPlayerId),
+          eq(partnerPlayers.partnerId, partnerId),
+          isNull(partnerPlayers.archivedAt),
+        ),
+      )
+      .limit(1);
+
+    if (preferred) {
+      const patch: {
+        fullName?: string;
+        email?: string;
+        phone?: string;
+        identityId?: string;
+      } = {};
+      if (preferred.fullName !== fullName) patch.fullName = fullName;
+      if (preferred.email !== email) patch.email = email;
+      if (preferred.phone !== phone) patch.phone = phone;
+      if (options.identityId && !preferred.identityId) {
+        patch.identityId = options.identityId;
+      }
+      if (Object.keys(patch).length > 0) {
+        try {
+          const [updated] = await db
+            .update(partnerPlayers)
+            .set(patch)
+            .where(eq(partnerPlayers.id, preferred.id))
+            .returning();
+          return updated ?? preferred;
+        } catch {
+          return preferred;
+        }
+      }
+      return preferred;
+    }
+  }
 
   const [existing] = await db
     .select()
@@ -63,10 +106,15 @@ export async function upsertPartnerPlayer(
     .limit(1);
 
   if (existing) {
-    if (existing.fullName !== fullName) {
+    const patch: { fullName?: string; identityId?: string } = {};
+    if (existing.fullName !== fullName) patch.fullName = fullName;
+    if (options?.identityId && !existing.identityId) {
+      patch.identityId = options.identityId;
+    }
+    if (Object.keys(patch).length > 0) {
       const [updated] = await db
         .update(partnerPlayers)
-        .set({ fullName })
+        .set(patch)
         .where(eq(partnerPlayers.id, existing.id))
         .returning();
       return updated ?? existing;
@@ -77,7 +125,13 @@ export async function upsertPartnerPlayer(
   try {
     const [inserted] = await db
       .insert(partnerPlayers)
-      .values({ partnerId, fullName, email, phone })
+      .values({
+        partnerId,
+        fullName,
+        email,
+        phone,
+        identityId: options?.identityId ?? null,
+      })
       .returning();
 
     if (!inserted) {

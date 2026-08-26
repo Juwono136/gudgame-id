@@ -220,8 +220,8 @@ export function PartnerPlayerDetailClient({
                 Performance
               </h2>
               <p className="mt-0.5 text-xs text-cp-muted sm:text-sm">
-                Rebuilt from completed group, bracket, and Americano matches in your tournaments —
-                refreshes while this page is open.
+                Rebuilt from completed tournament matches and league fixtures (when team
+                rosters are set) — refreshes while this page is open.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -244,7 +244,8 @@ export function PartnerPlayerDetailClient({
             </div>
             {player.matches.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-cp-border bg-cp-card/60 px-4 py-8 text-center text-sm text-cp-muted">
-                No recorded matches yet. Results appear after group or bracket matches are completed.
+                No recorded matches yet. Results appear after tournament or league matches
+                are completed.
               </p>
             ) : (
               <ul className="divide-y divide-cp-border overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
@@ -269,9 +270,12 @@ export function PartnerPlayerDetailClient({
                       <span
                         className={cn(
                           "rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide",
-                          m.resultType === "win"
-                            ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
-                            : "bg-rose-500/15 text-rose-800 dark:text-rose-300",
+                          m.resultType === "win" &&
+                            "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
+                          m.resultType === "loss" &&
+                            "bg-rose-500/15 text-rose-800 dark:text-rose-300",
+                          m.resultType === "draw" &&
+                            "bg-amber-500/15 text-amber-900 dark:text-amber-200",
                         )}
                       >
                         {m.resultType}

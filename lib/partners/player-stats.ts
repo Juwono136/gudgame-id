@@ -14,7 +14,10 @@ import {
   type PartnerPlayersListQuery,
 } from "@/lib/partners/list-query";
 import { toOffset } from "@/lib/pagination/constants";
-import { rebuildPartnerPlayerStatsFromCompletedMatches } from "@/lib/partners/stats/sync";
+import {
+  rebuildPartnerPlayerStatsFromCompletedMatches,
+  reconcilePartnerPlayersStatsThrottled,
+} from "@/lib/partners/stats/sync";
 
 export type PartnerPlayerListItem = {
   id: string;
@@ -36,7 +39,7 @@ export type PartnerPlayerMatchItem = {
   tournamentId: string | null;
   tournamentName: string;
   opponents: string;
-  resultType: "win" | "loss";
+  resultType: "win" | "loss" | "draw";
   score: string | null;
   round: string | null;
   playedAt: string;
@@ -180,6 +183,23 @@ export async function queryPartnerPlayers(
   );
 }
 
+/** Directory list with throttled fixture reconcile so W/L stay in sync. */
+export async function queryPartnerPlayersWithReconcile(
+  partnerId: string,
+  query: PartnerPlayersListQuery,
+): Promise<PartnerPagedResult<PartnerPlayerListItem>> {
+  const first = await queryPartnerPlayers(partnerId, query);
+  try {
+    await reconcilePartnerPlayersStatsThrottled(
+      partnerId,
+      first.items.map((p) => p.id),
+    );
+    return queryPartnerPlayers(partnerId, query);
+  } catch {
+    return first;
+  }
+}
+
 export async function getPartnerPlayerDetail(
   partnerId: string,
   playerId: string,
@@ -285,7 +305,8 @@ export async function getPartnerPlayerDetail(
       tournamentId: m.tournamentId ?? null,
       tournamentName: m.tournamentName,
       opponents: m.opponents,
-      resultType: m.resultType === "win" ? "win" : "loss",
+      resultType:
+        m.resultType === "win" ? "win" : m.resultType === "draw" ? "draw" : "loss",
       score: m.score ?? null,
       round: m.round ?? null,
       playedAt: m.playedAt.toISOString(),

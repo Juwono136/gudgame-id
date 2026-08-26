@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
+import { usePartnerPlayerSession } from "@/hooks/use-partner-player-session";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import {
   partnerGuestRegistrationSchema,
@@ -51,6 +52,7 @@ export function PartnerRegistrationForm({
 }: PartnerRegistrationFormProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const { session, isAuthenticated, hydrated } = usePartnerPlayerSession(partnerSlug);
   const memberCount = Math.max(0, playersPerTeam - 1);
   const schema = useMemo(
     () => partnerGuestRegistrationSchema(playersPerTeam),
@@ -61,6 +63,7 @@ export function PartnerRegistrationForm({
     register,
     control,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<PartnerGuestRegistrationInput>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- zod transforms widen input vs output for RHF
@@ -78,6 +81,18 @@ export function PartnerRegistrationForm({
       notes: "",
     },
   });
+
+  useEffect(() => {
+    if (!hydrated || !isAuthenticated || !session) return;
+    reset((prev) => ({
+      ...prev,
+      captain: {
+        fullName: session.displayName || prev.captain.fullName,
+        email: session.email || prev.captain.email,
+        phone: prev.captain.phone,
+      },
+    }));
+  }, [hydrated, isAuthenticated, session, reset]);
 
   const { fields } = useFieldArray({ control, name: "members" });
 
@@ -126,6 +141,7 @@ export function PartnerRegistrationForm({
         `/api/partner/public/${encodeURIComponent(partnerSlug)}/tournaments/${encodeURIComponent(tournamentSlug)}/register`,
         {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         },
@@ -173,6 +189,12 @@ export function PartnerRegistrationForm({
             {spotsRemaining === 1
               ? "1 team spot remaining."
               : `${spotsRemaining} team spots remaining.`}
+          </p>
+        ) : null}
+        {hydrated && isAuthenticated && session ? (
+          <p className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-3 py-2 text-sm text-foreground">
+            Signed in as <span className="font-semibold">{session.displayName}</span>
+            — captain details filled from your member account so results sync to your stats.
           </p>
         ) : null}
         <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">

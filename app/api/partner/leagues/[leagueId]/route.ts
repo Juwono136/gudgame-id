@@ -6,6 +6,7 @@ import {
   createPartnerLeagueMatch,
   deletePartnerLeague,
   getPartnerLeagueById,
+  setPartnerLeagueTeamRoster,
   updatePartnerLeague,
 } from "@/lib/partners/leagues";
 import { getPrimaryPartnerForUser } from "@/lib/partners/service";
@@ -105,6 +106,8 @@ export async function POST(request: Request, context: RouteContext) {
       name?: string;
       teamAId?: string;
       teamBId?: string;
+      teamId?: string;
+      playerIds?: string[];
     };
 
     if (body.action === "add_team") {
@@ -114,6 +117,22 @@ export async function POST(request: Request, context: RouteContext) {
         name: typeof body.name === "string" ? body.name : "",
       });
       return jsonSuccess(team, 201);
+    }
+
+    if (body.action === "set_team_roster") {
+      if (!body.teamId) {
+        throw new AppError("teamId is required", {
+          code: "VALIDATION_ERROR",
+          statusCode: 422,
+        });
+      }
+      const league = await setPartnerLeagueTeamRoster({
+        partnerId: partner.id,
+        leagueId,
+        teamId: body.teamId,
+        playerIds: Array.isArray(body.playerIds) ? body.playerIds : [],
+      });
+      return jsonSuccess(league);
     }
 
     if (body.action === "create_match") {

@@ -423,6 +423,7 @@ export async function completeReclubRound(
   if (tournament.partnerId) {
     await syncPartnerMatchResult({
       tournament,
+      fixtureId: updated.id,
       teamAId: updated.teamAId,
       teamBId: updated.teamBId,
       teamAName: updated.teamAName,

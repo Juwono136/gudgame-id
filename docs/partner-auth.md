@@ -209,4 +209,28 @@ Players (staff): `GET\|PATCH\|DELETE /api/partner/public/{partnerSlug}/players/{
 
 ---
 
+## 13. Statistik player (turnamen & liga)
+
+### Turnamen
+
+Setiap match selesai (group / bracket / Americano / reclub) pada turnamen `partnerId`:
+
+1. `syncPartnerMatchResult` menulis/mengganti baris di `partner_player_matches` (fixture id di round key → idempotent)
+2. Draw dicatat sebagai `draw` (bukan loss ganda)
+3. Override skor & rematch ikut sync / hapus history fixture
+4. Detail player memanggil `rebuildPartnerPlayerStatsFromCompletedMatches`
+5. Players list memakai reconcile throttled (~20s) agar W/L mengikuti fixture
+
+### Liga
+
+- Standings tim (P/W/D/L/Pts) dihitung dari `partner_league_matches` (real-time setelah skor)
+- Opsional: **Team rosters** (Players list → `settings.teamRosters`) agar skor liga ikut masuk W/L player
+- Turnamen yang di-link ke liga tetap sync lewat jalur turnamen di atas
+
+### Registrasi & identitas
+
+Jika member sudah login, form registrasi turnamen mengisi captain dari session; API menempelkan `partnerPlayerId` / `identityId` yang sama (email harus cocok) agar statistik tidak terpecah ke baris guest baru.
+
+---
+
 *Lihat juga [tournament-guide.md](./tournament-guide.md) §1.3 Partner white-label.*

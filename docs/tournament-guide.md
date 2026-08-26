@@ -102,6 +102,7 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | **Data isolation** | Turnamen, liga, player, pembayaran scoped `partnerId` — tidak muncul di discovery Gud Game atau partner lain |
 | **Players management** | Staff bisa edit/remove player di Players list (lihat partner-auth §8) |
 | **Security** | Cookie per slug, rate limit, callback sanitize, archived players blocked (lihat partner-auth §4) |
+| **Stats sync** | Match turnamen → `partner_player_matches`; liga standings + optional team roster → player W/L (partner-auth §13) |
 
 Wizard UI: `components/partners/partner-tournament-wizard.tsx`.  
 Manual auth member: [`docs/partner-auth.md`](./partner-auth.md).

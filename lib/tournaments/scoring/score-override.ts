@@ -99,6 +99,21 @@ export async function overrideCompletedMatchScore(
       reason,
     });
 
+    if (tournament.partnerId) {
+      const { syncPartnerMatchResult } = await import("@/lib/partners/stats/sync");
+      await syncPartnerMatchResult({
+        tournament,
+        fixtureId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        scoreA,
+        scoreB,
+        round: "Group stage",
+      });
+    }
+
     await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
     return {
       id: updated!.id,
@@ -157,6 +172,29 @@ export async function overrideCompletedMatchScore(
     actorName: userName,
     reason,
   });
+
+  if (tournament.partnerId) {
+    const { syncPartnerMatchResult } = await import("@/lib/partners/stats/sync");
+    const dbRounds = await db
+      .select({ roundNumber: tournamentBracketMatches.roundNumber })
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+    const maxRound = Math.max(...dbRounds.map((r) => r.roundNumber), 1);
+    const { getBracketRoundLabel } = await import(
+      "@/lib/tournaments/brackets/round-labels"
+    );
+    await syncPartnerMatchResult({
+      tournament,
+      fixtureId: match.id,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      scoreA,
+      scoreB,
+      round: getBracketRoundLabel(match.roundNumber, maxRound),
+    });
+  }
 
   await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
   return {

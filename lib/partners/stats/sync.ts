@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, like, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   partnerPlayerMatches,
@@ -19,6 +19,10 @@ import { tournaments } from "@/db/schema/tournaments";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import { resolveTeamMembersByTeamIds } from "@/lib/tournaments/members/resolve-team-members";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import {
+  buildPlayerMatchRoundKey,
+  PLAYER_MATCH_FIXTURE_MARKER,
+} from "@/lib/tournaments/stats/history-fixture-key";
 
 /**
  * Partner-only history writer — mirrors lib/tournaments/stats/sync.ts but
@@ -31,37 +35,55 @@ type PartnerTournamentRef = Pick<
   "id" | "partnerId" | "sportId" | "name" | "categoryLabel" | "startsAt" | "endsAt"
 >;
 
+export type PartnerMatchResultType = "win" | "loss" | "draw";
+
 type PartnerMatchHistoryInsert = {
   partnerPlayerId: string;
   partnerId: string;
-  sportId: string;
-  tournamentId: string;
+  sportId: string | null;
+  tournamentId: string | null;
   tournamentName: string;
   opponents: string;
-  resultType: "win" | "loss";
+  resultType: PartnerMatchResultType;
   score: string;
   round: string;
   playedAt: Date;
 };
 
 /** Replace a prior sync for the same fixture so rescoring does not double-count. */
-async function replacePartnerMatchHistoryEntry(input: PartnerMatchHistoryInsert): Promise<void> {
+async function replacePartnerMatchHistoryEntry(
+  input: PartnerMatchHistoryInsert,
+): Promise<void> {
   const db = getDb();
   await db
     .delete(partnerPlayerMatches)
     .where(
       and(
         eq(partnerPlayerMatches.partnerPlayerId, input.partnerPlayerId),
-        eq(partnerPlayerMatches.tournamentId, input.tournamentId),
+        input.tournamentId
+          ? eq(partnerPlayerMatches.tournamentId, input.tournamentId)
+          : eq(partnerPlayerMatches.tournamentName, input.tournamentName),
         eq(partnerPlayerMatches.round, input.round),
-        eq(partnerPlayerMatches.opponents, input.opponents),
       ),
     );
   await db.insert(partnerPlayerMatches).values(input);
 }
 
+function resultForSide(
+  scoreA: number,
+  scoreB: number,
+  side: "a" | "b",
+): PartnerMatchResultType {
+  if (scoreA === scoreB) return "draw";
+  const aWins = scoreA > scoreB;
+  if (side === "a") return aWins ? "win" : "loss";
+  return aWins ? "loss" : "win";
+}
+
 export async function syncPartnerMatchResult(input: {
   tournament: PartnerTournamentRef;
+  /** Stable match/fixture id — required for idempotent replace-sync. */
+  fixtureId: string;
   teamAId: string | null;
   teamBId: string | null;
   teamAName: string | null;
@@ -71,10 +93,20 @@ export async function syncPartnerMatchResult(input: {
   round: string;
   playedAt?: Date;
 }): Promise<void> {
-  const { tournament, teamAId, teamBId, teamAName, teamBName, scoreA, scoreB, round, playedAt } =
-    input;
-  // Partner-only sync — Gud Game (non-partner) tournaments never touch these tables.
+  const {
+    tournament,
+    fixtureId,
+    teamAId,
+    teamBId,
+    teamAName,
+    teamBName,
+    scoreA,
+    scoreB,
+    round,
+    playedAt,
+  } = input;
   if (!tournament.partnerId) return;
+  if (!fixtureId?.trim()) return;
 
   const teamIds = [teamAId, teamBId].filter((id): id is string => id != null);
   if (!teamIds.length) return;
@@ -91,8 +123,7 @@ export async function syncPartnerMatchResult(input: {
 
   const scoreLabel = `${scoreA}–${scoreB}`;
   const opponents = [teamAName, teamBName].filter(Boolean).join(" vs ") || "Match";
-  const teamAWin = scoreA > scoreB;
-  const teamBWin = scoreB > scoreA;
+  const roundKey = buildPlayerMatchRoundKey(round, fixtureId);
   const resolvedPlayedAt = playedAt ?? new Date();
 
   for (const partnerPlayerId of teamAPartnerIds) {
@@ -103,9 +134,9 @@ export async function syncPartnerMatchResult(input: {
       tournamentId: tournament.id,
       tournamentName: tournament.name,
       opponents,
-      resultType: teamAWin ? "win" : "loss",
+      resultType: resultForSide(scoreA, scoreB, "a"),
       score: scoreLabel,
-      round,
+      round: roundKey,
       playedAt: resolvedPlayedAt,
     });
   }
@@ -118,9 +149,101 @@ export async function syncPartnerMatchResult(input: {
       tournamentId: tournament.id,
       tournamentName: tournament.name,
       opponents,
-      resultType: teamBWin ? "win" : "loss",
+      resultType: resultForSide(scoreA, scoreB, "b"),
       score: scoreLabel,
-      round,
+      round: roundKey,
+      playedAt: resolvedPlayedAt,
+    });
+  }
+}
+
+/** Drop partner history rows for a fixture after rematch / void. */
+export async function removePartnerMatchHistoryForFixture(input: {
+  tournamentId: string;
+  fixtureId: string;
+  partnerPlayerIds?: string[];
+}): Promise<void> {
+  if (!input.fixtureId) return;
+  const db = getDb();
+  const pattern = `%${PLAYER_MATCH_FIXTURE_MARKER}${input.fixtureId}%`;
+  const conditions = [
+    eq(partnerPlayerMatches.tournamentId, input.tournamentId),
+    like(partnerPlayerMatches.round, pattern),
+  ];
+  if (input.partnerPlayerIds?.length) {
+    conditions.push(inArray(partnerPlayerMatches.partnerPlayerId, input.partnerPlayerIds));
+  }
+  await db.delete(partnerPlayerMatches).where(and(...conditions));
+}
+
+/**
+ * Sync a completed partner-league fixture into player match history
+ * for rostered players on each side (settings.teamRosters).
+ */
+export async function syncPartnerLeagueMatchResult(input: {
+  partnerId: string;
+  sportId: string;
+  leagueId: string;
+  leagueName: string;
+  matchId: string;
+  teamAId: string;
+  teamBId: string;
+  teamAName: string;
+  teamBName: string;
+  scoreA: number;
+  scoreB: number;
+  teamAPlayerIds: string[];
+  teamBPlayerIds: string[];
+  playedAt?: Date;
+}): Promise<void> {
+  const {
+    partnerId,
+    sportId,
+    leagueName,
+    matchId,
+    teamAName,
+    teamBName,
+    scoreA,
+    scoreB,
+    teamAPlayerIds,
+    teamBPlayerIds,
+    playedAt,
+  } = input;
+
+  if (!teamAPlayerIds.length && !teamBPlayerIds.length) return;
+
+  const scoreLabel = `${scoreA}–${scoreB}`;
+  const opponents = `${teamAName} vs ${teamBName}`;
+  const roundKey = buildPlayerMatchRoundKey(`League · ${leagueName}`, matchId);
+  const tournamentName = `League: ${leagueName}`;
+  const resolvedPlayedAt = playedAt ?? new Date();
+
+  for (const partnerPlayerId of teamAPlayerIds) {
+    await replacePartnerMatchHistoryEntry({
+      partnerPlayerId,
+      partnerId,
+      sportId,
+      tournamentId: null,
+      tournamentName,
+      opponents,
+      resultType: resultForSide(scoreA, scoreB, "a"),
+      score: scoreLabel,
+      round: roundKey,
+      playedAt: resolvedPlayedAt,
+    });
+  }
+
+  for (const partnerPlayerId of teamBPlayerIds) {
+    await replacePartnerMatchHistoryEntry({
+      partnerPlayerId,
+      partnerId,
+      sportId,
+      tournamentId: null,
+      tournamentName,
+      opponents,
+      resultType: resultForSide(scoreA, scoreB, "b"),
+      score: scoreLabel,
+      round: roundKey,
       playedAt: resolvedPlayedAt,
     });
   }
@@ -243,7 +366,6 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
     ]),
   );
 
-  // Ensure roster appearances appear in history without downgrading Champion/etc.
   for (const t of tournamentsById.values()) {
     const membersByTeam = await resolveTeamMembersByTeamIds(
       teamRows.filter((r) => r.tournamentId === t.id).map((r) => r.teamId),
@@ -284,6 +406,7 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
   const [bracketRows, groupRows, reclubRows] = await Promise.all([
     db
       .select({
+        id: tournamentBracketMatches.id,
         tournamentId: tournamentBracketMatches.tournamentId,
         teamAId: tournamentBracketMatches.teamAId,
         teamBId: tournamentBracketMatches.teamBId,
@@ -306,6 +429,7 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
       ),
     db
       .select({
+        id: tournamentGroupMatches.id,
         tournamentId: tournamentGroupMatches.tournamentId,
         teamAId: tournamentGroupMatches.teamAId,
         teamBId: tournamentGroupMatches.teamBId,
@@ -327,6 +451,7 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
       ),
     db
       .select({
+        id: tournamentReclubMatches.id,
         tournamentId: tournamentReclubMatches.tournamentId,
         teamAId: tournamentReclubMatches.teamAId,
         teamBId: tournamentReclubMatches.teamBId,
@@ -361,6 +486,7 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
     const maxRound = maxRoundByTournament.get(row.tournamentId) ?? row.roundNumber;
     await syncPartnerMatchResult({
       tournament,
+      fixtureId: row.id,
       teamAId: row.teamAId,
       teamBId: row.teamBId,
       teamAName: row.teamAName,
@@ -377,6 +503,7 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
     if (!tournament || row.scoreA == null || row.scoreB == null) continue;
     await syncPartnerMatchResult({
       tournament,
+      fixtureId: row.id,
       teamAId: row.teamAId,
       teamBId: row.teamBId,
       teamAName: row.teamAName,
@@ -393,6 +520,7 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
     if (!tournament || row.scoreA == null || row.scoreB == null) continue;
     await syncPartnerMatchResult({
       tournament,
+      fixtureId: row.id,
       teamAId: row.teamAId,
       teamBId: row.teamBId,
       teamAName: row.teamAName,
@@ -403,4 +531,27 @@ export async function rebuildPartnerPlayerStatsFromCompletedMatches(input: {
       playedAt: row.endedAt ?? undefined,
     });
   }
+}
+
+/** Throttled reconcile for directory polling — refreshes page players from fixtures. */
+const reconcileCooldownMs = 20_000;
+const lastReconcileByPartner = new Map<string, number>();
+
+export async function reconcilePartnerPlayersStatsThrottled(
+  partnerId: string,
+  playerIds: string[],
+): Promise<void> {
+  if (!playerIds.length) return;
+  const now = Date.now();
+  const last = lastReconcileByPartner.get(partnerId) ?? 0;
+  if (now - last < reconcileCooldownMs) return;
+  lastReconcileByPartner.set(partnerId, now);
+
+  // Cap work per poll cycle
+  const batch = playerIds.slice(0, 12);
+  await Promise.allSettled(
+    batch.map((playerId) =>
+      rebuildPartnerPlayerStatsFromCompletedMatches({ partnerId, playerId }),
+    ),
+  );
 }

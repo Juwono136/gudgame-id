@@ -88,6 +88,13 @@ export function PartnerLeagueManageClient({
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
 
+  const [rosterTeamId, setRosterTeamId] = useState<string | null>(null);
+  const [rosterSelected, setRosterSelected] = useState<string[]>([]);
+  const [rosterOptions, setRosterOptions] = useState<
+    { id: string; fullName: string }[]
+  >([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -163,6 +170,61 @@ export function PartnerLeagueManageClient({
       setTeamName("");
       setTeamDialogOpen(false);
       await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openRosterEditor = async (teamId: string) => {
+    const team = league.teams.find((t) => t.id === teamId);
+    setRosterTeamId(teamId);
+    setRosterSelected(team?.playerIds ?? []);
+    setRosterLoading(true);
+    try {
+      const res = await fetch(
+        `/api/partner/public/${encodeURIComponent(partnerSlug)}/players?page=1&pageSize=100&sortBy=name&sortDir=asc`,
+      );
+      const json = await parseJsonResponse<{
+        success: true;
+        data: { items: { id: string; fullName: string }[] };
+      }>(res);
+      if (res.ok && "data" in json) {
+        setRosterOptions(json.data.items.map((p) => ({ id: p.id, fullName: p.fullName })));
+      } else {
+        setRosterOptions([]);
+        toast.error("Could not load players for roster");
+      }
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+
+  const saveRoster = async () => {
+    if (!rosterTeamId) return;
+    setBusyLabel("Saving roster…");
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/partner/leagues/${leagueId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_team_roster",
+          teamId: rosterTeamId,
+          playerIds: rosterSelected,
+        }),
+      });
+      const json = await parseJsonResponse<{ success: true; data: PartnerLeagueDetail }>(res);
+      if (!res.ok) {
+        toast.error(
+          (json as { error?: { message?: string } }).error?.message ??
+            "Could not save roster",
+        );
+        return;
+      }
+      if ("data" in json) setLeague(json.data);
+      toast.success("Roster updated");
+      setRosterTeamId(null);
+      await queryClient.invalidateQueries({ queryKey: ["partner-players", partnerSlug] });
     } finally {
       setBusy(false);
     }
@@ -318,6 +380,45 @@ export function PartnerLeagueManageClient({
         standings={league.standings}
         onAddTeam={() => setTeamDialogOpen(true)}
       />
+
+      {league.teams.length > 0 ? (
+        <section className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
+          <div className="border-b border-cp-border px-4 py-3 sm:px-5">
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">
+              Team rosters
+            </h2>
+            <p className="text-xs text-cp-muted">
+              Link Players list members so league scores update their W/L stats.
+            </p>
+          </div>
+          <ul className="divide-y divide-cp-border">
+            {league.teams.map((team) => (
+              <li
+                key={team.id}
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{team.name}</p>
+                  <p className="text-xs text-cp-muted">
+                    {team.playerIds?.length
+                      ? `${team.playerIds.length} player${team.playerIds.length === 1 ? "" : "s"} linked`
+                      : "No players linked yet"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-cp-border"
+                  onClick={() => openRosterEditor(team.id)}
+                >
+                  Edit roster
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <PartnerLeagueHistorySection
         matches={league.matches}
@@ -483,6 +584,73 @@ export function PartnerLeagueManageClient({
             >
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Save score
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(rosterTeamId)}
+        onOpenChange={(open) => {
+          if (!open) setRosterTeamId(null);
+        }}
+      >
+        <DialogContent className="border-cp-border bg-cp-card sm:max-w-md" style={brandStyle}>
+          <DialogHeader>
+            <DialogTitle>Edit team roster</DialogTitle>
+            <DialogDescription>
+              Select players from your Players list. Their W/L will update when this
+              team&apos;s league matches are scored.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative max-h-64 space-y-2 overflow-y-auto py-2">
+            {rosterLoading ? (
+              <PartnerLoadingOverlay show label="Loading players…" />
+            ) : rosterOptions.length === 0 ? (
+              <p className="text-sm text-cp-muted">
+                No players yet. Add players via tournaments or the Players list first.
+              </p>
+            ) : (
+              rosterOptions.map((p) => {
+                const checked = rosterSelected.includes(p.id);
+                return (
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-cp-border/70 px-3 py-2 text-sm hover:bg-cp-elevated/40"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-[var(--cp-primary)]"
+                      checked={checked}
+                      onChange={() => {
+                        setRosterSelected((prev) =>
+                          checked ? prev.filter((id) => id !== p.id) : [...prev, p.id],
+                        );
+                      }}
+                    />
+                    <span className="truncate font-medium text-foreground">{p.fullName}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-cp-border"
+              onClick={() => setRosterTeamId(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-cp-primary hover:bg-cp-primary-light"
+              disabled={busy || rosterLoading}
+              onClick={() => void saveRoster()}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save roster
             </Button>
           </DialogFooter>
         </DialogContent>

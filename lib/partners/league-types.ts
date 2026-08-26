@@ -37,6 +37,8 @@ export type PartnerLeagueTeamView = {
   id: string;
   name: string;
   sortOrder: number;
+  /** Partner player ids on this league team (for W/L sync into Players list). */
+  playerIds?: string[];
 };
 
 export type PartnerLeagueMatchView = {

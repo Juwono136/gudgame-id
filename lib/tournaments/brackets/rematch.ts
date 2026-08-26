@@ -175,12 +175,35 @@ export async function rematchBracketMatch(
       });
     }
 
+    if (tournament.partnerId) {
+      const { removePartnerMatchHistoryForFixture, removePartnerPlacement } =
+        await import("@/lib/partners/stats/sync");
+      await removePartnerMatchHistoryForFixture({
+        tournamentId: tournament.id,
+        fixtureId: match.id,
+      });
+    }
+
     const isFinal = !match.nextMatchId;
-    if (isFinal && isOfficialType(tournament.tournamentType)) {
-      const memberIds = await getTeamMemberUserIds(winnerTeamId);
-      const { removeOfficialPlacement } = await import("@/lib/tournaments/stats/sync");
-      for (const uid of memberIds) {
-        await removeOfficialPlacement(tournament.id, uid);
+    if (isFinal && winnerTeamId) {
+      if (tournament.partnerId) {
+        const membersByTeam = await (
+          await import("@/lib/tournaments/members/resolve-team-members")
+        ).resolveTeamMembersByTeamIds([winnerTeamId]);
+        const partnerIds = (membersByTeam.get(winnerTeamId) ?? [])
+          .filter((m) => m.kind === "partner")
+          .map((m) => m.playerId);
+        const { removePartnerPlacement } = await import("@/lib/partners/stats/sync");
+        for (const pid of partnerIds) {
+          await removePartnerPlacement(tournament.id, pid);
+        }
+      }
+      if (isOfficialType(tournament.tournamentType)) {
+        const memberIds = await getTeamMemberUserIds(winnerTeamId);
+        const { removeOfficialPlacement } = await import("@/lib/tournaments/stats/sync");
+        for (const uid of memberIds) {
+          await removeOfficialPlacement(tournament.id, uid);
+        }
       }
     }
   }

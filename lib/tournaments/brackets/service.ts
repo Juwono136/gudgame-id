@@ -409,6 +409,7 @@ export async function submitBracketMatchScore(
     const { getBracketRoundLabel } = await import("@/lib/tournaments/brackets/round-labels");
     await syncPartnerMatchResult({
       tournament,
+      fixtureId: match.id,
       teamAId: match.teamAId,
       teamBId: match.teamBId,
       teamAName: match.teamAName,

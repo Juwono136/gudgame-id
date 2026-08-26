@@ -8,7 +8,7 @@ import {
   partnerPlayersListQuerySchema,
 } from "@/lib/partners/list-query";
 import { isUserPartnerMember } from "@/lib/partners/membership";
-import { queryPartnerPlayers } from "@/lib/partners/player-stats";
+import { queryPartnerPlayersWithReconcile } from "@/lib/partners/player-stats";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 
 export const runtime = "nodejs";
@@ -42,7 +42,7 @@ export async function GET(
 
     const { searchParams } = new URL(request.url);
     const query = parseSearchParamsWithSchema(searchParams, partnerPlayersListQuerySchema);
-    const result = await queryPartnerPlayers(partner.id, query);
+    const result = await queryPartnerPlayersWithReconcile(partner.id, query);
     return jsonSuccess({
       partner: { slug: partner.slug, displayName: partner.displayName },
       ...result,

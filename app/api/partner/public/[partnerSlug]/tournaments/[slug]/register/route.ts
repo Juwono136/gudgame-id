@@ -6,6 +6,7 @@ import { getTrustedClientIp } from "@/lib/security/client-ip";
 import { normalizePartnerSlug } from "@/lib/partners/constants";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
+import { getPartnerPlayerSessionForSlug } from "@/lib/partners/auth/session";
 import { generateAccessToken } from "@/lib/partners/registration/tokens";
 import { partnerGuestRegistrationSchema } from "@/lib/partners/registration/validation";
 import { startPartnerGuestRegistration } from "@/lib/partners/registration/service";
@@ -58,12 +59,25 @@ export async function POST(
       failClosedInProduction: true,
     });
 
+    const memberSession = await getPartnerPlayerSessionForSlug(partner.slug, request);
+    const sessionEmail = memberSession?.session.email?.trim().toLowerCase() ?? null;
+    const sessionMatchesCaptain =
+      Boolean(memberSession?.session.playerId) &&
+      Boolean(sessionEmail) &&
+      sessionEmail === captainEmail;
+
     const accessTokenPlain = generateAccessToken();
     const result = await startPartnerGuestRegistration(
       tournament,
       partner,
       parsed.data,
       accessTokenPlain,
+      sessionMatchesCaptain
+        ? {
+            sessionPlayerId: memberSession!.session.playerId,
+            sessionIdentityId: memberSession!.session.identityId,
+          }
+        : undefined,
     );
 
     return jsonSuccess(result, 201);

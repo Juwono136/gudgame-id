@@ -156,6 +156,10 @@ export async function startPartnerGuestRegistration(
   partner: PartnerRegistrationContext,
   input: PartnerGuestRegistrationInput,
   accessTokenPlain: string,
+  options?: {
+    sessionPlayerId?: string | null;
+    sessionIdentityId?: string | null;
+  },
 ): Promise<StartPartnerGuestRegistrationResult> {
   if (tournament.partnerId !== partner.id) {
     throw new AppError("Tournament not found", { code: "NOT_FOUND", statusCode: 404 });
@@ -185,11 +189,18 @@ export async function startPartnerGuestRegistration(
   const captainEmail = input.captain.email.trim().toLowerCase();
   const captainName = input.captain.fullName.trim();
 
-  const captainPlayer = await upsertPartnerPlayer(partner.id, {
-    fullName: captainName,
-    email: captainEmail,
-    phone: input.captain.phone,
-  });
+  const captainPlayer = await upsertPartnerPlayer(
+    partner.id,
+    {
+      fullName: captainName,
+      email: captainEmail,
+      phone: input.captain.phone,
+    },
+    {
+      preferPlayerId: options?.sessionPlayerId,
+      identityId: options?.sessionIdentityId,
+    },
+  );
 
   const isFree = isFreeBilling(tournament);
   const fee = tournament.registrationFeeIdr ?? 0;
