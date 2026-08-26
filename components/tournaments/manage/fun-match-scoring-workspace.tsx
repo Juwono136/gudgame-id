@@ -26,6 +26,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { MatchRecapInput } from "@/lib/partners/match-recap";
 import { getTournamentDisplayConfig } from "@/lib/tournaments/settings";
 import {
+  useRematchBracketMatch,
   useStartBracketMatchOnCourt,
   useSubmitBracketScore,
   useUpdateBracketLiveScore,
@@ -147,6 +148,7 @@ export function FunMatchScoringWorkspace({
   const updateScore = useUpdateReclubLiveScore(tournament.sportSlug, tournament.slug);
   const renameCourt = useRenameTournamentCourt(tournament.sportSlug, tournament.slug);
   const startBracketOnCourt = useStartBracketMatchOnCourt(tournament.sportSlug, tournament.slug);
+  const rematchBracket = useRematchBracketMatch(tournament.sportSlug, tournament.slug);
   const updateBracketScore = useUpdateBracketLiveScore(tournament.sportSlug, tournament.slug);
   const finalizeBracketScore = useSubmitBracketScore(tournament.sportSlug, tournament.slug);
   const startGroupOnCourt = useStartGroupMatchOnCourt(tournament.sportSlug, tournament.slug);
@@ -557,6 +559,7 @@ export function FunMatchScoringWorkspace({
     return lobbyCurrentRound;
   }, [isGroupStageMode, groupMatchesAsReclub, lobbyCurrentRound]);
 
+  /** Pending + completed (completed = rematch / play-again from the picker). */
   const startableBracketMatches = useMemo(
     () =>
       bracketMatches
@@ -571,6 +574,12 @@ export function FunMatchScoringWorkspace({
           return a.matchNumber - b.matchNumber;
         }),
     [bracketMatches],
+  );
+
+  /** Auto-assign / capacity only — never queue finished fixtures. */
+  const pendingBracketMatches = useMemo(
+    () => startableBracketMatches.filter((m) => m.status === "pending"),
+    [startableBracketMatches],
   );
 
   const parallelCapacityMode = isGroupStageMode
@@ -590,7 +599,7 @@ export function FunMatchScoringWorkspace({
         activeBracket: activeBracketMatches,
         activeGroup: activeGroupMatches,
         squads: squadsWithPlayers,
-        startableBracket: startableBracketMatches,
+        startableBracket: pendingBracketMatches,
         startableGroup: startableGroupMatches,
         roundNumber: currentRound,
         seed: tournament.id.charCodeAt(0) + reshuffleSeed,
@@ -605,9 +614,9 @@ export function FunMatchScoringWorkspace({
       isBracketMode,
       isGroupStageMode,
       parallelCapacityMode,
+      pendingBracketMatches,
       reshuffleSeed,
       squadsWithPlayers,
-      startableBracketMatches,
       startableGroupMatches,
       tournament.id,
     ],
@@ -617,8 +626,12 @@ export function FunMatchScoringWorkspace({
     (courtId: string) =>
       (startRound.isPending && startRound.variables?.courtId === courtId) ||
       (startBracketOnCourt.isPending && startBracketOnCourt.variables?.courtId === courtId) ||
+      (rematchBracket.isPending && rematchBracket.variables?.matchId === bracketPickByCourt[courtId]) ||
       (startGroupOnCourt.isPending && startGroupOnCourt.variables?.courtId === courtId),
     [
+      bracketPickByCourt,
+      rematchBracket.isPending,
+      rematchBracket.variables?.matchId,
       startBracketOnCourt.isPending,
       startBracketOnCourt.variables?.courtId,
       startGroupOnCourt.isPending,
@@ -797,7 +810,7 @@ export function FunMatchScoringWorkspace({
       idleCourtIds,
       squads: squadsWithPlayers,
       busyTeamIds,
-      startableMatches: startableBracketMatches,
+      startableMatches: pendingBracketMatches,
       activeReclub: activeMatches,
       activeBracket: activeBracketMatches,
       roundNumber: currentRound,
@@ -876,6 +889,7 @@ export function FunMatchScoringWorkspace({
     reshuffleSeed,
     squadsWithPlayers,
     startableBracketMatches,
+    pendingBracketMatches,
     teamAByCourt,
     teamBByCourt,
     bracketPickByCourt,
@@ -935,6 +949,23 @@ export function FunMatchScoringWorkspace({
     if (isBracketMode) {
       if (!bracketMatchId) {
         toast.error("Select a bracket match first");
+        return;
+      }
+      const match = bracketMatches.find((m) => m.id === bracketMatchId);
+      if (!match) {
+        toast.error("Match not found");
+        return;
+      }
+      if (match.status === "completed") {
+        const ok = await confirm({
+          title: "Play again on court?",
+          description: `${match.teamAName ?? "Team A"} vs ${match.teamBName ?? "Team B"}. Previous result is saved to history; bracket advancement rolls back for this slot.`,
+          confirmLabel: "Play again",
+        });
+        if (!ok) return;
+        await rematchBracket.mutateAsync({ matchId: bracketMatchId });
+      } else if (match.status !== "pending") {
+        toast.error("Only pending matches can be started on a court");
         return;
       }
       await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId });
@@ -1005,6 +1036,9 @@ export function FunMatchScoringWorkspace({
         const bracketMatchId = bracketPickByCourt[court.id];
         if (isBracketMode) {
           if (!bracketMatchId) continue;
+          const match = bracketMatches.find((m) => m.id === bracketMatchId);
+          // Start-all only queues pending fixtures; rematch is an explicit single-court action.
+          if (!match || match.status !== "pending") continue;
           await startBracketOnCourt.mutateAsync({ matchId: bracketMatchId, courtId: court.id });
           setBracketPickByCourt((p) => ({ ...p, [court.id]: "" }));
           started++;

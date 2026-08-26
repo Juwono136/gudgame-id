@@ -109,8 +109,14 @@ export function reshuffleBracketOnIdleCourts(input: {
     input.teams,
   );
 
+  // Only auto-queue pending fixtures. Completed matches stay available for
+  // manual “play again” (rematch → start), not idle-court reshuffle.
   const eligible = input.startableMatches.filter(
-    (m) => m.teamAId && m.teamBId && !isBracketMatchLockedForCourt(m, lock, input.teams),
+    (m) =>
+      m.status === "pending" &&
+      m.teamAId &&
+      m.teamBId &&
+      !isBracketMatchLockedForCourt(m, lock, input.teams),
   );
 
   const shuffled = shuffleArray(eligible, input.seed);

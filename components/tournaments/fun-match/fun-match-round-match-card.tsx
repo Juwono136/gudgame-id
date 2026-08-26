@@ -228,7 +228,11 @@ function ScoreBox({
 }
 
 function formatBracketPick(m: BracketMatchView): string {
-  return `R${m.roundNumber} · M${m.matchNumber} — ${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`;
+  const base = `R${m.roundNumber} · M${m.matchNumber} — ${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`;
+  if (m.status === "completed") {
+    return `${base} (${m.scoreA ?? 0}–${m.scoreB ?? 0} · play again)`;
+  }
+  return base;
 }
 
 export function FunMatchRoundMatchCard({
@@ -502,6 +506,7 @@ export function FunMatchRoundMatchCard({
   const teamA = teams.find((t) => t.id === teamAId);
   const teamB = teams.find((t) => t.id === teamBId);
   const pickedBracket = startableBracketMatches.find((m) => m.id === bracketMatchId);
+  const pickedNeedsRematch = pickedBracket?.status === "completed";
   const pickedGroup = startableGroupMatches.find((m) => m.id === groupMatchId);
   const americanoLabels =
     isAmericanoMode && isAmericanoPairKey(teamAId) && isAmericanoPairKey(teamBId)
@@ -1110,7 +1115,7 @@ export function FunMatchRoundMatchCard({
                   onClick={onStart}
                 >
                   <Play className="h-3.5 w-3.5" />
-                  Start
+                  {pickedNeedsRematch ? "Play again" : "Start"}
                 </Button>
               ) : null}
             </>
