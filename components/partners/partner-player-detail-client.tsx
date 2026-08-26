@@ -1,18 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CalendarDays,
   Loader2,
+  Pencil,
   Trash2,
   Trophy,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { PartnerEditPlayerDialog } from "@/components/partners/partner-edit-player-dialog";
+import {
+  PartnerLoadingOverlay,
+  PartnerLoadingSpinner,
+} from "@/components/partners/partner-loading";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useArchivePartnerPlayer } from "@/hooks/use-archive-partner-player";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
@@ -76,6 +82,7 @@ export function PartnerPlayerDetailClient({
   primaryColor,
 }: PartnerPlayerDetailClientProps) {
   const { archivePlayer, isPending: deleting } = useArchivePartnerPlayer();
+  const [editOpen, setEditOpen] = useState(false);
   const { data, isLoading, isError, error, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["partner-player-detail", partnerSlug, playerId],
     queryFn: async (): Promise<PartnerPlayerDetail> => {
@@ -103,7 +110,19 @@ export function PartnerPlayerDetailClient({
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {deleting ? <LoadingOverlay show label="Removing player…" /> : null}
+      <PartnerLoadingOverlay
+        show={deleting}
+        label="Removing player…"
+        variant="fullscreen"
+      />
+      {player ? (
+        <PartnerEditPlayerDialog
+          partnerSlug={partnerSlug}
+          player={player}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link
@@ -119,33 +138,45 @@ export function PartnerPlayerDetailClient({
           </p>
         </div>
         {player ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 shrink-0 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
-            disabled={deleting}
-            onClick={() =>
-              void archivePlayer({
-                partnerSlug,
-                playerId,
-                playerName: player.fullName,
-                redirectTo: partnerPublicRoutes.players(partnerSlug),
-              })
-            }
-          >
-            {deleting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="mr-2 h-4 w-4" />
-            )}
-            Remove from list
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 shrink-0"
+              disabled={deleting}
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit player
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 shrink-0 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+              disabled={deleting}
+              onClick={() =>
+                void archivePlayer({
+                  partnerSlug,
+                  playerId,
+                  playerName: player.fullName,
+                  redirectTo: partnerPublicRoutes.players(partnerSlug),
+                })
+              }
+            >
+              {deleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Remove from list
+            </Button>
+          </div>
         ) : null}
       </div>
 
       {isLoading && !player ? (
         <div className="flex min-h-[16rem] items-center justify-center rounded-2xl border border-cp-border bg-cp-card">
-          <Loader2 className="h-8 w-8 animate-spin text-cp-primary" aria-hidden />
+          <PartnerLoadingSpinner label="Loading player…" size="lg" />
         </div>
       ) : isError || !player ? (
         <div className="rounded-2xl border border-destructive/30 bg-cp-card px-4 py-10 text-center text-sm text-destructive">

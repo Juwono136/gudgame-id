@@ -79,6 +79,11 @@ export const partnerPublicRoutes = {
   players: (partnerSlug: string) => `/${partnerSlug}/players`,
   player: (partnerSlug: string, playerId: string) =>
     `/${partnerSlug}/players/${encodeURIComponent(playerId)}`,
+  /** Partner member (player) auth — isolated from Gud Game. */
+  login: (partnerSlug: string) => `/${partnerSlug}/login`,
+  signup: (partnerSlug: string) => `/${partnerSlug}/signup`,
+  forgotPassword: (partnerSlug: string) => `/${partnerSlug}/forgot-password`,
+  account: (partnerSlug: string) => `/${partnerSlug}/account`,
 } as const;
 
 export const adminRoutes = {

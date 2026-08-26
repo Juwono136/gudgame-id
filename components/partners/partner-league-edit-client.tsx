@@ -10,7 +10,7 @@ import {
 } from "@/components/partners/partner-league-details-form";
 import { PartnerPageHeader } from "@/components/partners/partner-page-header";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { dashboardRoutes } from "@/lib/constants/routes";
 import { partnerBrandCssVars } from "@/lib/partners/brand-style";
@@ -173,7 +173,11 @@ export function PartnerLeagueEditClient({
       style={partnerBrandCssVars(primaryColor, accentColor)}
     >
       {busy ? (
-        <LoadingOverlay show label={uploadingBrand ? "Uploading logo…" : "Saving league…"} />
+        <PartnerLoadingOverlay
+          show
+          label={uploadingBrand ? "Uploading logo…" : "Saving league…"}
+          variant="fullscreen"
+        />
       ) : null}
 
       <PartnerPageHeader

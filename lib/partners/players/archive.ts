@@ -49,6 +49,7 @@ export async function archivePartnerPlayer(input: {
       partnerId: partnerPlayers.partnerId,
       archivedAt: partnerPlayers.archivedAt,
       fullName: partnerPlayers.fullName,
+      identityId: partnerPlayers.identityId,
     })
     .from(partnerPlayers)
     .where(
@@ -146,6 +147,13 @@ export async function archivePartnerPlayer(input: {
       code: "CONFLICT",
       statusCode: 409,
     });
+  }
+
+  if (player.identityId) {
+    const { revokeAllPartnerPlayerSessions } = await import(
+      "@/lib/partners/auth/service"
+    );
+    await revokeAllPartnerPlayerSessions(player.identityId);
   }
 
   log.info("Partner player archived from directory", {

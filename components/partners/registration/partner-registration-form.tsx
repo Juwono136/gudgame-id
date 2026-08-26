@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import {
   partnerGuestRegistrationSchema,
@@ -160,7 +160,13 @@ export function PartnerRegistrationForm({
 
   return (
     <>
-      {submitting ? <LoadingOverlay show label="Submitting registration…" /> : null}
+      {submitting ? (
+        <PartnerLoadingOverlay
+          show
+          label="Submitting registration…"
+          variant="fullscreen"
+        />
+      ) : null}
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate className="space-y-6">
         {spotsRemaining != null ? (
           <p className="text-sm text-cp-muted">

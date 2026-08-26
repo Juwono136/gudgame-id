@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, Clock, Loader2, ShieldCheck, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PartnerLoadingSpinner } from "@/components/partners/partner-loading";
 import {
   useCuratePartnerRegistration,
   usePartnerTournamentRegistrations,
@@ -136,7 +136,7 @@ export function PartnerGuestRegistrationsPanel({
 
       {isLoading ? (
         <div className="mt-6 flex justify-center py-8">
-          <LoadingSpinner label="Loading registrations…" />
+          <PartnerLoadingSpinner label="Loading registrations…" />
         </div>
       ) : isError ? (
         <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -68,8 +68,20 @@ export function renderPasswordChangedTemplate(data: PasswordChangedTemplateData)
     title: subject,
     bodyHtml,
     heroTag: "Account security",
-    footerNote:
-      "Never share your password. Gud Game will never ask for your password by email.",
+    footerNote: data.brand?.isPartner
+      ? `Never share your password. ${data.appName} (on Gud Game) will never ask for your password by email.`
+      : "Never share your password. Gud Game will never ask for your password by email.",
+    brand: data.brand
+      ? {
+          name: data.brand.name,
+          logoUrl: data.brand.logoUrl,
+          siteUrl: data.brand.siteUrl,
+          accentColor: data.brand.accentColor,
+          heroTag: data.brand.isPartner
+            ? "Member account · Powered by Gud Game"
+            : undefined,
+        }
+      : undefined,
   });
 
   const text = [

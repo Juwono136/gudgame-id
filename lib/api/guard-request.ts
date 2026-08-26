@@ -13,6 +13,9 @@ export const API_RATE_LIMITS = {
    * Higher than account signup so organizers can enroll many teams from one IP.
    */
   partnerRegister: { limit: 60, windowSeconds: 3600 },
+  /** Partner player signup / login / verify (per IP). */
+  partnerPlayerAuth: { limit: 20, windowSeconds: 60 },
+  partnerPlayerRegister: { limit: 8, windowSeconds: 3600 },
   passwordReset: { limit: 5, windowSeconds: 3600 },
   sensitive: { limit: 30, windowSeconds: 60 },
   general: { limit: 120, windowSeconds: 60 },
@@ -53,6 +56,8 @@ export async function guardApiRequest(
       tier === "auth" ||
       tier === "register" ||
       tier === "partnerRegister" ||
+      tier === "partnerPlayerAuth" ||
+      tier === "partnerPlayerRegister" ||
       tier === "passwordReset" ||
       tier === "general" ||
       tier === "sensitive" ||

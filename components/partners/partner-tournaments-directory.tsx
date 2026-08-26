@@ -6,19 +6,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
-import {
-  CompetitionListFetchingOverlay,
-  CompetitionListSkeleton,
-} from "@/components/dashboard/player/competition/competition-list-loading";
+import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
+import {
+  PartnerListFetchingOverlay,
+  PartnerLoadingOverlay,
+} from "@/components/partners/partner-loading";
 import { PartnerTournamentPublicListRow } from "@/components/partners/partner-tournament-public-list-row";
 import { PartnerTournamentRow } from "@/components/partners/partner-tournament-row";
 import { TournamentDiscoveryCard } from "@/components/tournaments/tournament-discovery-card";
 import { TournamentDiscoveryPublicCard } from "@/components/tournaments/tournament-discovery-public-card";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDirectoryViewMode } from "@/hooks/use-directory-view-mode";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
@@ -181,7 +181,11 @@ export function PartnerTournamentsDirectory({
 
   return (
     <div className="relative space-y-4">
-      {deletingId ? <LoadingOverlay show label="Deleting tournament…" /> : null}
+      <PartnerLoadingOverlay
+        show={Boolean(deletingId)}
+        label="Deleting tournament…"
+        variant="fullscreen"
+      />
 
       <PartnerDirectoryToolbar
         search={search}
@@ -239,7 +243,7 @@ export function PartnerTournamentsDirectory({
       ) : null}
 
       <div className="relative min-h-[12rem]">
-        {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
+        {isFetching && !isLoading ? <PartnerListFetchingOverlay /> : null}
         {isLoading ? (
           <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
             <CompetitionListSkeleton rows={6} />

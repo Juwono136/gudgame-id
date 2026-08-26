@@ -18,8 +18,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import {
+  PartnerLoadingOverlay,
+  PartnerLoadingSpinner,
+} from "@/components/partners/partner-loading";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import { CHECKOUT_PAYMENT_METHODS } from "@/lib/tournaments/payments/checkout-methods";
 import { cn } from "@/lib/utils";
@@ -219,7 +221,7 @@ export function PartnerRegistrationPayClient({
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <LoadingSpinner label="Loading payment details…" />
+        <PartnerLoadingSpinner label="Loading payment details…" />
       </div>
     );
   }
@@ -265,7 +267,13 @@ export function PartnerRegistrationPayClient({
 
   return (
     <>
-      {cancelling ? <LoadingOverlay show label="Cancelling registration…" /> : null}
+      {cancelling ? (
+        <PartnerLoadingOverlay
+          show
+          label="Cancelling registration…"
+          variant="fullscreen"
+        />
+      ) : null}
       <div className="space-y-6">
       <div className="flex flex-col gap-3 rounded-2xl border border-cp-border bg-cp-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>

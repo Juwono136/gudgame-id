@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { InvoiceDownloadProgress } from "@/components/payments/invoice-download-progress";
 import { PaymentInvoiceView } from "@/components/payments/payment-invoice-view";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PartnerLoadingSpinner } from "@/components/partners/partner-loading";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { usePaymentInvoiceDownload } from "@/hooks/use-payment-invoice-download";
@@ -79,7 +79,7 @@ export function PartnerRegistrationReceiptContent({
   if (isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <LoadingSpinner label="Loading your receipt…" />
+        <PartnerLoadingSpinner label="Loading your receipt…" />
       </div>
     );
   }

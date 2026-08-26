@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Building2, Menu, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { UserMenu } from "@/components/layout/user-menu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import { authRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
+import { usePartnerPlayerSession } from "@/hooks/use-partner-player-session";
+import { getUserInitials } from "@/lib/auth/user-display";
+import { authRoutes, dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
+import { resolveUserImageUrl } from "@/lib/media/client";
+import { canAccessPartnerDashboard } from "@/lib/roles/route-access";
 import { cn } from "@/lib/utils";
 
 type PartnerPublicNavProps = {
@@ -19,8 +30,9 @@ type PartnerPublicNavProps = {
 };
 
 /**
- * Auth UI must match on server + first client paint to avoid hydration mismatch.
- * Show guest "Sign in" until hydrated, then resolve session (skeleton → UserMenu / Sign in).
+ * Member auth = partner-isolated session.
+ * Staff/organizer = Gud Game session with partner role → profile → Partner Console.
+ * Auth UI stays Sign-in shaped until hydrated to avoid mismatch.
  */
 export function PartnerPublicNav({
   partnerSlug,
@@ -29,13 +41,15 @@ export function PartnerPublicNav({
   primaryColor,
 }: PartnerPublicNavProps) {
   const pathname = usePathname();
-  const { user, isAuthenticated, isAuthLoading } = useAuthUser();
-  const [hydrated, setHydrated] = useState(false);
+  const { session, isAuthenticated, isLoading, hydrated } =
+    usePartnerPlayerSession(partnerSlug);
+  const {
+    user: staffUser,
+    sessionCtx,
+    isAuthenticated: isStaffAuthenticated,
+    isAuthLoading: isStaffAuthLoading,
+  } = useAuthUser();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
 
   useEffect(() => {
     setOpen(false);
@@ -50,14 +64,36 @@ export function PartnerPublicNav({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const loginHref = `${authRoutes.login}?callbackUrl=${encodeURIComponent(
+  const memberLoginHref = `${partnerPublicRoutes.login(partnerSlug)}?callbackUrl=${encodeURIComponent(
+    pathname || partnerPublicRoutes.home(partnerSlug),
+  )}`;
+  const staffLoginHref = `${authRoutes.login}?callbackUrl=${encodeURIComponent(
     pathname || partnerPublicRoutes.home(partnerSlug),
   )}`;
 
-  // Match main Navbar: never branch on auth during SSR / pre-hydration.
-  const showAuthLoading = hydrated && isAuthLoading && !isAuthenticated;
-  const showAuthenticated = hydrated && isAuthenticated && Boolean(user);
-  const showSignIn = hydrated ? !showAuthLoading && !showAuthenticated : true;
+  const roles = sessionCtx?.roles ?? [];
+  const staffRolesReady = Boolean(sessionCtx) || !isStaffAuthenticated;
+  const isPartnerStaff =
+    hydrated &&
+    isStaffAuthenticated &&
+    Boolean(staffUser) &&
+    staffRolesReady &&
+    canAccessPartnerDashboard(roles);
+
+  const showMemberAuthLoading = hydrated && isLoading && !isAuthenticated;
+  const showMemberAuthenticated = hydrated && isAuthenticated && Boolean(session);
+  const showStaffLoading =
+    hydrated &&
+    (isStaffAuthLoading || (isStaffAuthenticated && !staffRolesReady)) &&
+    !isPartnerStaff &&
+    !showMemberAuthenticated;
+  const showSignIn =
+    hydrated
+      ? !showMemberAuthLoading &&
+        !showStaffLoading &&
+        !showMemberAuthenticated &&
+        !isPartnerStaff
+      : true;
 
   const links = [
     { href: partnerPublicRoutes.home(partnerSlug), label: "Home", exact: true },
@@ -69,6 +105,9 @@ export function PartnerPublicNav({
     if (exact) return pathname === href;
     return pathname === href || pathname.startsWith(`${href}/`);
   };
+
+  const staffAvatarSrc = staffUser ? resolveUserImageUrl(staffUser.image) : null;
+  const staffInitials = getUserInitials(staffUser?.name ?? staffUser?.email ?? "P");
 
   return (
     <header className="sticky top-0 z-30 border-b border-cp-border/70 bg-cp-card/90 backdrop-blur-xl supports-[backdrop-filter]:bg-cp-card/75">
@@ -132,23 +171,52 @@ export function PartnerPublicNav({
         <div className="flex shrink-0 items-center gap-1">
           <div className="hidden items-center gap-1 border-l border-cp-border/70 pl-2.5 lg:flex">
             <ThemeToggle />
-            {showAuthLoading ? (
+            {showMemberAuthLoading || showStaffLoading ? (
               <span
-                className="h-9 w-9 animate-pulse rounded-full bg-cp-elevated"
+                className="ml-1 h-9 w-9 animate-pulse rounded-full bg-cp-elevated"
                 aria-hidden
               />
-            ) : showAuthenticated ? (
-              <UserMenu />
+            ) : isPartnerStaff && staffUser ? (
+              <PartnerStaffProfileMenu
+                avatarSrc={staffAvatarSrc}
+                initials={staffInitials}
+                displayName={staffUser.name || staffUser.email}
+                memberAuthenticated={showMemberAuthenticated}
+                memberAccountHref={partnerPublicRoutes.account(partnerSlug)}
+                memberLoginHref={memberLoginHref}
+                className="ml-1"
+              />
+            ) : showMemberAuthenticated ? (
+              <Button asChild size="sm" variant="outline" className="ml-1 max-w-[10rem]">
+                <Link href={partnerPublicRoutes.account(partnerSlug)} className="truncate">
+                  {session?.displayName?.split(" ")[0] ?? "Account"}
+                </Link>
+              </Button>
             ) : (
               <Button asChild size="sm" className="ml-1 bg-cp-primary hover:bg-cp-primary-light">
-                <Link href={loginHref}>Sign in</Link>
+                <Link href={memberLoginHref}>Sign in</Link>
               </Button>
             )}
           </div>
 
           <div className="flex items-center gap-1 lg:hidden">
             <ThemeToggle />
-            {showAuthenticated ? <UserMenu /> : null}
+            {isPartnerStaff && staffUser ? (
+              <PartnerStaffProfileMenu
+                avatarSrc={staffAvatarSrc}
+                initials={staffInitials}
+                displayName={staffUser.name || staffUser.email}
+                memberAuthenticated={showMemberAuthenticated}
+                memberAccountHref={partnerPublicRoutes.account(partnerSlug)}
+                memberLoginHref={memberLoginHref}
+              />
+            ) : showMemberAuthenticated ? (
+              <Button asChild size="sm" variant="outline" className="max-w-[7rem]">
+                <Link href={partnerPublicRoutes.account(partnerSlug)} className="truncate">
+                  {session?.displayName?.split(" ")[0] ?? "Account"}
+                </Link>
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -186,10 +254,45 @@ export function PartnerPublicNav({
                 {l.label}
               </Link>
             ))}
-            {showSignIn ? (
+            {isPartnerStaff ? (
               <Button asChild className="mt-2 w-full bg-cp-primary hover:bg-cp-primary-light">
-                <Link href={loginHref} onClick={() => setOpen(false)}>
-                  Sign in
+                <Link href={dashboardRoutes.partner} onClick={() => setOpen(false)}>
+                  <Building2 className="mr-2 h-4 w-4" />
+                  Open Partner Console
+                </Link>
+              </Button>
+            ) : null}
+            {showSignIn ? (
+              <>
+                <Button
+                  asChild
+                  variant={isPartnerStaff ? "outline" : "default"}
+                  className={cn(
+                    "mt-2 w-full",
+                    !isPartnerStaff && "bg-cp-primary hover:bg-cp-primary-light",
+                  )}
+                >
+                  <Link href={memberLoginHref} onClick={() => setOpen(false)}>
+                    Member sign in
+                  </Link>
+                </Button>
+                {!isPartnerStaff ? (
+                  <Link
+                    href={staffLoginHref}
+                    className="mt-1 px-3 py-2 text-center text-[11px] text-cp-muted hover:text-foreground"
+                    onClick={() => setOpen(false)}
+                  >
+                    Staff / organizer (Gud Game)
+                  </Link>
+                ) : null}
+              </>
+            ) : showMemberAuthenticated ? (
+              <Button asChild variant="outline" className="mt-2 w-full">
+                <Link
+                  href={partnerPublicRoutes.account(partnerSlug)}
+                  onClick={() => setOpen(false)}
+                >
+                  My account
                 </Link>
               </Button>
             ) : null}
@@ -197,5 +300,73 @@ export function PartnerPublicNav({
         </div>
       ) : null}
     </header>
+  );
+}
+
+function PartnerStaffProfileMenu({
+  avatarSrc,
+  initials,
+  displayName,
+  memberAuthenticated,
+  memberAccountHref,
+  memberLoginHref,
+  className,
+}: {
+  avatarSrc: string | null;
+  initials: string;
+  displayName: string;
+  memberAuthenticated: boolean;
+  memberAccountHref: string;
+  memberLoginHref: string;
+  className?: string;
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-full border border-cp-border bg-cp-elevated outline-none transition-colors",
+          "hover:border-cp-primary/50 hover:ring-2 hover:ring-cp-primary/25",
+          "focus-visible:ring-2 focus-visible:ring-cp-primary/50",
+          className,
+        )}
+        aria-label={`Partner account — ${displayName}`}
+      >
+        <Avatar key={avatarSrc ?? "fallback"} className="h-8 w-8">
+          {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
+          <AvatarFallback className="bg-cp-primary/20 text-xs font-semibold text-cp-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="z-[200] w-64 border-cp-border bg-cp-card p-2 text-foreground shadow-xl"
+        sideOffset={8}
+      >
+        <div className="px-2 py-1.5">
+          <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+          <p className="text-[11px] text-cp-muted">Partner staff · Gud Game</p>
+        </div>
+        <DropdownMenuSeparator className="bg-cp-border" />
+        <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-0 focus:bg-transparent">
+          <Link
+            href={dashboardRoutes.partner}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-cp-elevated"
+          >
+            <Building2 className="h-4 w-4 text-cp-primary" aria-hidden />
+            Open Partner Console
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-0 focus:bg-transparent">
+          <Link
+            href={memberAuthenticated ? memberAccountHref : memberLoginHref}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-cp-muted hover:bg-cp-elevated hover:text-foreground"
+          >
+            <UserRound className="h-4 w-4" aria-hidden />
+            {memberAuthenticated ? "Member account" : "Member sign in"}
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

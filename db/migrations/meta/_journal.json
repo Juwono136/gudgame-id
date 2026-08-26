@@ -134,6 +134,13 @@
       "when": 1783400000000,
       "tag": "0024_official_pending_roster_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783500000000,
+      "tag": "0025_partner_player_auth",
+      "breakpoints": true
     }
   ]
 }

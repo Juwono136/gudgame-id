@@ -37,7 +37,7 @@ import {
 } from "@/components/tournaments/tournament-detail-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PartnerLoadingSpinner } from "@/components/partners/partner-loading";
 import { FadeInView } from "@/components/motion/fade-in";
 import { useTournamentBracket } from "@/hooks/use-tournament-bracket";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
@@ -807,7 +807,7 @@ export function PartnerTournamentPublicPage({
             {tab === "Live Score" ? (
               caps.isAmericano ? (
                 lobbyLoading && !lobbyData ? (
-                  <LoadingSpinner label="Loading live scores…" />
+                  <PartnerLoadingSpinner label="Loading live scores…" />
                 ) : (
                   <FunMatchPublicLiveScore
                     tournament={tournament}
@@ -829,7 +829,7 @@ export function PartnerTournamentPublicPage({
             {tab === "Players" ? (
               caps.isAmericano ? (
                 lobbyLoading && !lobbyData ? (
-                  <LoadingSpinner label="Loading players…" />
+                  <PartnerLoadingSpinner label="Loading players…" />
                 ) : (
                   <FunMatchPublicPlayersTab
                     tournament={tournament}
@@ -838,7 +838,7 @@ export function PartnerTournamentPublicPage({
                   />
                 )
               ) : bracketLoading && isElimination ? (
-                <LoadingSpinner label="Loading players…" />
+                <PartnerLoadingSpinner label="Loading players…" />
               ) : (
                 <OfficialPublicPlayersTab
                   tournament={tournament}
@@ -869,7 +869,7 @@ export function PartnerTournamentPublicPage({
 
             {tab === "History & stats" ? (
               bracketLoading && isElimination ? (
-                <LoadingSpinner label="Loading history & stats…" />
+                <PartnerLoadingSpinner label="Loading history & stats…" />
               ) : (
                 <OfficialPublicHistoryStatsTab
                   tournament={tournament}

@@ -7,20 +7,58 @@ type BaseLayoutParams = {
   bodyHtml: string;
   footerNote?: string;
   heroTag?: string;
+  /** Partner / white-label branding (optional). Falls back to Gud Game. */
+  brand?: {
+    name: string;
+    logoUrl?: string | null;
+    siteUrl?: string | null;
+    /** Shown under brand name, e.g. "Member account · Powered by Gud Game" */
+    heroTag?: string;
+    /** Accent for CTA-adjacent chrome (hex). Defaults to Gud Game emerald. */
+    accentColor?: string | null;
+  };
 };
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 export function renderEmailBaseLayout({
   previewText,
   title,
   bodyHtml,
-  footerNote = `This is an automated message from ${siteConfig.shortName}. Please do not reply to this email.`,
+  footerNote,
   heroTag = "Tournaments · Live scores · Community",
+  brand,
 }: BaseLayoutParams): string {
   const appUrl = (
     process.env.BETTER_AUTH_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
     "http://localhost:3000"
   ).replace(/\/$/, "");
+
+  const isPartner = Boolean(brand?.name?.trim());
+  const brandName = escapeHtml(brand?.name?.trim() || siteConfig.shortName);
+  const logoSrc = brand?.logoUrl?.trim() || EMAIL_LOGO_URL;
+  const logoAlt = brandName;
+  const visitUrl = escapeHtml(brand?.siteUrl?.trim() || appUrl);
+  const resolvedHero = escapeHtml(
+    brand?.heroTag?.trim() ||
+      (isPartner ? "Member account · Powered by Gud Game" : heroTag),
+  );
+  const resolvedFooter =
+    footerNote ??
+    (isPartner
+      ? `${brandName} is a partner site on ${siteConfig.shortName}. This is an automated message — please do not reply.`
+      : `This is an automated message from ${siteConfig.shortName}. Please do not reply to this email.`);
+
+  const heroBg = isPartner
+    ? `linear-gradient(160deg,#1a1a2e 0%,#16213e 45%,#0f3460 100%)`
+    : `linear-gradient(160deg,${brandColors.forest} 0%,${brandColors.forestAlt} 45%,${brandColors.black} 100%)`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -47,10 +85,10 @@ export function renderEmailBaseLayout({
       <td align="center" style="padding:32px 16px;">
         <table role="presentation" class="email-container" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;background-color:#FFFFFF;border:1px solid #D4EBE3;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(3,41,33,0.12);">
           <tr>
-            <td class="email-padding" style="padding:36px 32px 28px;text-align:center;background:linear-gradient(160deg,${brandColors.forest} 0%,${brandColors.forestAlt} 45%,${brandColors.black} 100%);">
-              <img src="${EMAIL_LOGO_URL}" alt="${siteConfig.shortName}" width="160" height="auto" style="display:block;margin:0 auto 16px;max-width:160px;height:auto;border-radius:12px;" />
-              <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:${brandColors.mint};">${siteConfig.shortName}</p>
-              <p style="margin:0;font-size:13px;color:#E2E8F0;">${heroTag}</p>
+            <td class="email-padding" style="padding:36px 32px 28px;text-align:center;background:${heroBg};">
+              <img src="${escapeHtml(logoSrc)}" alt="${logoAlt}" width="160" height="auto" style="display:block;margin:0 auto 16px;max-width:160px;height:auto;border-radius:12px;" />
+              <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:${brandColors.mint};">${brandName}</p>
+              <p style="margin:0;font-size:13px;color:#E2E8F0;">${resolvedHero}</p>
             </td>
           </tr>
           <tr>
@@ -60,9 +98,14 @@ export function renderEmailBaseLayout({
           </tr>
           <tr>
             <td class="email-padding" style="padding:20px 32px 28px;border-top:1px solid #D4EBE3;background-color:#F5FAF8;text-align:center;">
-              <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:#4A6B60;">${footerNote}</p>
-              <p style="margin:0 0 8px;font-size:12px;color:#6B8F82;">Sent from noreply@gudgame.id · Replies go to master@gudgame.id</p>
-              <p style="margin:0;font-size:12px;color:#6B8F82;">© ${new Date().getFullYear()} ${siteConfig.name} · <a href="${appUrl}" style="color:${brandColors.emerald};text-decoration:none;font-weight:600;">Visit ${siteConfig.shortName}</a></p>
+              <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:#4A6B60;">${resolvedFooter}</p>
+              ${
+                isPartner
+                  ? `<p style="margin:0 0 8px;font-size:12px;color:#6B8F82;">Powered by <strong>${escapeHtml(siteConfig.shortName)}</strong> · Partner member mail</p>
+              <p style="margin:0;font-size:12px;color:#6B8F82;">© ${new Date().getFullYear()} ${brandName} · <a href="${visitUrl}" style="color:${brandColors.emerald};text-decoration:none;font-weight:600;">Open ${brandName}</a></p>`
+                  : `<p style="margin:0 0 8px;font-size:12px;color:#6B8F82;">Sent from noreply@gudgame.id · Replies go to master@gudgame.id</p>
+              <p style="margin:0;font-size:12px;color:#6B8F82;">© ${new Date().getFullYear()} ${siteConfig.name} · <a href="${appUrl}" style="color:${brandColors.emerald};text-decoration:none;font-weight:600;">Visit ${siteConfig.shortName}</a></p>`
+              }
             </td>
           </tr>
         </table>

@@ -29,12 +29,14 @@ export type PartnerRegistrationStatus = (typeof PARTNER_REGISTRATION_STATUSES)[n
  * Auto-generated long names get truncated and make `drizzle-kit push` loop forever.
  */
 
-/** Guest/partner-scoped players — never Gud Game auth users. */
+/** Partner-scoped players — never Gud Game auth users. May link to partner_identities. */
 export const partnerPlayers = pgTable(
   "partner_players",
   {
     id: uuidPrimaryKey(),
     partnerId: uuidFk("partner_id").notNull(),
+    /** Set when the player creates / claims a partner login (isolated from Gud Game). */
+    identityId: uuidFk("identity_id"),
     fullName: varchar("full_name", { length: 120 }).notNull(),
     email: varchar("email", { length: 255 }).notNull(),
     phone: varchar("phone", { length: 32 }).notNull(),
@@ -57,6 +59,7 @@ export const partnerPlayers = pgTable(
     }).onDelete("cascade"),
     uniqueIndex("partner_players_partner_email_uidx").on(table.partnerId, table.email),
     uniqueIndex("partner_players_partner_phone_uidx").on(table.partnerId, table.phone),
+    uniqueIndex("partner_players_identity_uidx").on(table.identityId),
     index("partner_players_partner_idx").on(table.partnerId),
     index("partner_players_name_idx").on(table.fullName),
     index("partner_players_archived_idx").on(table.partnerId, table.archivedAt),

@@ -29,7 +29,7 @@ import { PartnerTournamentWizardReview } from "@/components/partners/partner-tou
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import {
   Select,
   SelectContent,
@@ -680,7 +680,11 @@ export function PartnerTournamentWizard({
   return (
     <div className={cn("relative space-y-6 py-8", partnerPageWidthClass)}>
       {pending ? (
-        <LoadingOverlay show label={isEdit ? "Saving…" : "Creating tournament…"} />
+        <PartnerLoadingOverlay
+          show
+          label={isEdit ? "Saving…" : "Creating tournament…"}
+          variant="fullscreen"
+        />
       ) : null}
 
       <PartnerPageHeader

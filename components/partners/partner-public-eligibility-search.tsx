@@ -4,11 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
-import {
-  CompetitionListFetchingOverlay,
-  CompetitionListSkeleton,
-} from "@/components/dashboard/player/competition/competition-list-loading";
+import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
+import { PartnerListFetchingOverlay } from "@/components/partners/partner-loading";
 import { useDebounce } from "@/hooks/use-debounce";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import type { PartnerEligibilityListQuery } from "@/lib/partners/list-query";
@@ -155,7 +153,7 @@ export function PartnerPublicEligibilitySearch({
       ) : null}
 
       <div className="relative overflow-hidden rounded-2xl border border-cp-border bg-cp-card/90 shadow-sm backdrop-blur-sm">
-        {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
+        {isFetching && !isLoading ? <PartnerListFetchingOverlay /> : null}
         {isLoading ? (
           <CompetitionListSkeleton rows={6} />
         ) : records.length === 0 ? (

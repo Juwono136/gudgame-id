@@ -14,7 +14,7 @@ import { getTournamentById } from "@/lib/tournaments/workspace/service";
 import { tournamentUpsertSchema } from "@/lib/validations/tournaments";
 import { getDb } from "@/db/client";
 import { tournamentPayments } from "@/db/schema/tournament-payments";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
@@ -157,6 +157,16 @@ export async function DELETE(
         statusCode: 409,
       });
     }
+
+    // Unpaid / stale payment rows use ON DELETE RESTRICT — clear them first.
+    await getDb()
+      .delete(tournamentPayments)
+      .where(
+        and(
+          eq(tournamentPayments.tournamentId, tournamentId),
+          ne(tournamentPayments.status, "paid"),
+        ),
+      );
 
     await deleteTournament(tournamentId, existing.sportId);
     return jsonSuccess({ deleted: true });

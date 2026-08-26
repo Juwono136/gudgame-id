@@ -6,15 +6,19 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Loader2, Trash2, TrendingUp, Users } from "lucide-react";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
-import {
-  CompetitionListFetchingOverlay,
-  CompetitionListSkeleton,
-} from "@/components/dashboard/player/competition/competition-list-loading";
+import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
+import {
+  PartnerEditPlayerButton,
+  PartnerEditPlayerDialog,
+} from "@/components/partners/partner-edit-player-dialog";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
+import {
+  PartnerListFetchingOverlay,
+  PartnerLoadingOverlay,
+} from "@/components/partners/partner-loading";
 import { PartnerPublicEligibilitySearch } from "@/components/partners/partner-public-eligibility-search";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useArchivePartnerPlayer } from "@/hooks/use-archive-partner-player";
 import { useDebounce } from "@/hooks/use-debounce";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
@@ -78,6 +82,7 @@ export function PartnerPlayersDirectory({
     useState<PartnerPlayersListQuery["sortDir"]>("desc");
   const { archivePlayer, isPending: deleting } = useArchivePartnerPlayer();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingPlayer, setEditingPlayer] = useState<PartnerPlayerListItem | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -159,7 +164,19 @@ export function PartnerPlayersDirectory({
         </div>
       </div>
 
-      {deleting ? <LoadingOverlay show label="Removing player…" /> : null}
+      <PartnerLoadingOverlay
+        show={deleting}
+        label="Removing player…"
+        variant="fullscreen"
+      />
+      <PartnerEditPlayerDialog
+        partnerSlug={partnerSlug}
+        player={editingPlayer}
+        open={Boolean(editingPlayer)}
+        onOpenChange={(open) => {
+          if (!open) setEditingPlayer(null);
+        }}
+      />
 
       <div
         className="inline-flex rounded-full border border-cp-border bg-cp-elevated/40 p-1"
@@ -210,7 +227,7 @@ export function PartnerPlayersDirectory({
           />
 
           <div className="relative min-h-[12rem]">
-            {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
+            {isFetching && !isLoading ? <PartnerListFetchingOverlay /> : null}
 
             {isLoading && !data ? (
               <CompetitionListSkeleton />
@@ -262,6 +279,10 @@ export function PartnerPlayersDirectory({
                             </div>
                             <ArrowRight className="h-4 w-4 shrink-0 text-cp-primary" aria-hidden />
                           </Link>
+                          <PartnerEditPlayerButton
+                            disabled={deleting}
+                            onClick={() => setEditingPlayer(player)}
+                          />
                           <Button
                             type="button"
                             size="icon"
@@ -339,6 +360,16 @@ export function PartnerPlayersDirectory({
                                   View
                                   <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                                 </Link>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2.5 text-xs"
+                                  disabled={deleting}
+                                  onClick={() => setEditingPlayer(player)}
+                                >
+                                  Edit
+                                </Button>
                                 <Button
                                   type="button"
                                   size="sm"

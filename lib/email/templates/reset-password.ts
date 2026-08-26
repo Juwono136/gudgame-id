@@ -83,8 +83,20 @@ export function renderResetPasswordTemplate(data: ResetPasswordTemplateData): {
     title: subject,
     bodyHtml,
     heroTag: "Secure password reset",
-    footerNote:
-      "Never share this email or link. Gud Game will never ask for your password by email.",
+    footerNote: data.brand?.isPartner
+      ? `Never share this email or link. ${data.appName} (on Gud Game) will never ask for your password by email.`
+      : "Never share this email or link. Gud Game will never ask for your password by email.",
+    brand: data.brand
+      ? {
+          name: data.brand.name,
+          logoUrl: data.brand.logoUrl,
+          siteUrl: data.brand.siteUrl,
+          accentColor: data.brand.accentColor,
+          heroTag: data.brand.isPartner
+            ? "Member account · Powered by Gud Game"
+            : undefined,
+        }
+      : undefined,
   });
 
   const text = [

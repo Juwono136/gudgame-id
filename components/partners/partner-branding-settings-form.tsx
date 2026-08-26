@@ -21,7 +21,7 @@ import { FieldCharCounter } from "@/components/tournaments/form/field-char-count
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
 import {
@@ -427,8 +427,9 @@ export function PartnerBrandingSettingsForm() {
       ) : (
         <div className="relative grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
           {busy ? (
-            <LoadingOverlay
+            <PartnerLoadingOverlay
               show
+              variant="fullscreen"
               label={
                 uploading === "icon"
                   ? "Uploading icon…"

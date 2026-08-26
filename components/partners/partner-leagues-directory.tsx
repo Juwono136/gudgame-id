@@ -6,17 +6,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CompetitionListPagination } from "@/components/dashboard/player/competition/competition-list-pagination";
-import {
-  CompetitionListFetchingOverlay,
-  CompetitionListSkeleton,
-} from "@/components/dashboard/player/competition/competition-list-loading";
+import { CompetitionListSkeleton } from "@/components/dashboard/player/competition/competition-list-loading";
 import { PartnerDashboardCardActions } from "@/components/partners/partner-dashboard-card-actions";
 import { PartnerDirectoryToolbar } from "@/components/partners/partner-directory-toolbar";
 import { PartnerEmptyState } from "@/components/partners/partner-empty-state";
 import { PartnerLeagueDiscoveryCard } from "@/components/partners/partner-league-discovery-card";
 import { PartnerLeagueRow } from "@/components/partners/partner-league-row";
+import {
+  PartnerListFetchingOverlay,
+  PartnerLoadingOverlay,
+} from "@/components/partners/partner-loading";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDirectoryViewMode } from "@/hooks/use-directory-view-mode";
 import { parseJsonResponse } from "@/lib/api/parse-json-response";
@@ -154,7 +154,11 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
 
   return (
     <div className="relative space-y-4">
-      {deletingId ? <LoadingOverlay show label="Deleting league…" /> : null}
+      <PartnerLoadingOverlay
+        show={Boolean(deletingId)}
+        label="Deleting league…"
+        variant="fullscreen"
+      />
 
       <PartnerDirectoryToolbar
         search={search}
@@ -173,7 +177,7 @@ export function PartnerLeaguesDirectory({ mode, partnerSlug }: PartnerLeaguesDir
       />
 
       <div className="relative min-h-[12rem]">
-        {isFetching && !isLoading ? <CompetitionListFetchingOverlay /> : null}
+        {isFetching && !isLoading ? <PartnerListFetchingOverlay /> : null}
         {isLoading ? (
           <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card">
             <CompetitionListSkeleton rows={5} />

@@ -6,11 +6,24 @@ import { AppError } from "@/lib/errors";
 import { normalizePartnerSlug } from "@/lib/partners/constants";
 import { isUserPartnerMember } from "@/lib/partners/membership";
 import { archivePartnerPlayer } from "@/lib/partners/players/archive";
+import { updatePartnerPlayer } from "@/lib/partners/players/update";
 import { requirePartnerPlayer } from "@/lib/partners/player-stats";
 import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { getTrustedClientIp } from "@/lib/security/client-ip";
+import { z } from "zod";
 
 export const runtime = "nodejs";
+
+const updatePlayerBodySchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().transform((v) => v.toLowerCase()),
+  phone: z
+    .string()
+    .trim()
+    .min(8)
+    .max(20)
+    .regex(/^[0-9+\-\s()]+$/),
+});
 
 async function requirePartnerStaffContext(rawPartnerSlug: string, playerId: string) {
   const { userId } = await requireApiRoleGuardContext();
@@ -82,6 +95,52 @@ export async function DELETE(
 
     await archivePartnerPlayer({ partnerId: partner.id, playerId });
     return jsonSuccess({ archived: true, playerId });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
+/** Update player contact / name (staff-only). Syncs linked member identity when present. */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ partnerSlug: string; playerId: string }> },
+) {
+  try {
+    await guardApiRequest(request, {
+      tier: "sensitive",
+      keySuffix: "partner-player-patch",
+    });
+
+    const { partnerSlug: raw, playerId: rawPlayerId } = await params;
+    const { partner, playerId, userId } = await requirePartnerStaffContext(raw, rawPlayerId);
+
+    const ip = getTrustedClientIp(request);
+    await enforceRateLimit({
+      key: `partner-player-patch:${partner.id}:${userId}:${ip}`,
+      limit: 40,
+      windowSeconds: 60,
+      failClosedInProduction: true,
+    });
+
+    const body = await request.json();
+    const parsed = updatePlayerBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new AppError(parsed.error.issues[0]?.message ?? "Invalid input", {
+        code: "VALIDATION_ERROR",
+        statusCode: 422,
+      });
+    }
+
+    await updatePartnerPlayer({
+      partnerId: partner.id,
+      playerId,
+      fullName: parsed.data.fullName,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+    });
+
+    const player = await requirePartnerPlayer(partner.id, playerId);
+    return jsonSuccess({ player });
   } catch (error) {
     return jsonError(error);
   }

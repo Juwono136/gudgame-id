@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import {
+  PartnerLoadingOverlay,
+  PartnerLoadingSpinner,
+} from "@/components/partners/partner-loading";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 
 type RegistrationDetail = {
@@ -109,7 +111,7 @@ export function PartnerRegistrationSuccessContent({
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <LoadingSpinner label="Loading your registration…" />
+        <PartnerLoadingSpinner label="Loading your registration…" />
       </div>
     );
   }
@@ -171,7 +173,13 @@ export function PartnerRegistrationSuccessContent({
   if (detail.registration.status === "registered") {
     return (
       <>
-        {cancelling ? <LoadingOverlay show label="Cancelling registration…" /> : null}
+        {cancelling ? (
+          <PartnerLoadingOverlay
+            show
+            label="Cancelling registration…"
+            variant="fullscreen"
+          />
+        ) : null}
         <div className="space-y-6 text-center">
           <div className="flex flex-col items-center gap-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">

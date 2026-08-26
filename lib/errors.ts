@@ -18,7 +18,8 @@ export type ErrorCode =
   | "PAYMENT_GATEWAY_ERROR"
   | "INVALID_TOURNAMENT_TYPE"
   | "REGISTRATION_FAILED"
-  | "TIE_REQUIRES_REMATCH";
+  | "TIE_REQUIRES_REMATCH"
+  | "EMAIL_NOT_VERIFIED";
 
 export class AppError extends Error {
   readonly code: ErrorCode;

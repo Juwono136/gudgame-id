@@ -21,16 +21,36 @@ export type EmailTemplateId =
   | "host-role-request-approved"
   | "host-role-request-rejected";
 
+export type EmailBrandContext = {
+  /** Partner or product display name (also used as appName when set). */
+  name: string;
+  logoUrl?: string | null;
+  siteUrl?: string | null;
+  accentColor?: string | null;
+  /** When true, copy avoids Gud Game-specific dashboard language. */
+  isPartner?: boolean;
+};
+
 export type VerifyEmailTemplateData = {
   userName: string;
   verifyUrl: string;
   appName: string;
+  brand?: EmailBrandContext;
 };
 
 export type ResetPasswordTemplateData = {
   userName: string;
   resetUrl: string;
   appName: string;
+  brand?: EmailBrandContext;
+};
+
+export type PasswordChangedTemplateData = {
+  userName: string;
+  appName: string;
+  loginUrl: string;
+  changedAt: string;
+  brand?: EmailBrandContext;
 };
 
 export type WelcomeEmailTemplateData = {
@@ -45,13 +65,6 @@ export type AdminUserInviteTemplateData = {
   temporaryPassword: string;
   loginUrl: string;
   appName: string;
-};
-
-export type PasswordChangedTemplateData = {
-  userName: string;
-  appName: string;
-  loginUrl: string;
-  changedAt: string;
 };
 
 export type RegistrationConfirmedTemplateData = {

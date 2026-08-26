@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import {
   Select,
   SelectContent,
@@ -261,7 +261,11 @@ export function PartnerLeagueManageClient({
       style={brandStyle}
     >
       {(busy || loading) && (
-        <LoadingOverlay show label={busy ? busyLabel : "Refreshing…"} />
+        <PartnerLoadingOverlay
+          show
+          label={busy ? busyLabel : "Refreshing…"}
+          variant="fullscreen"
+        />
       )}
 
       <PartnerLeagueBanner
