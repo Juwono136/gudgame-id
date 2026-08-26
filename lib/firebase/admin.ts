@@ -69,7 +69,7 @@ export async function verifyFirebaseGoogleIdToken(
 
   if (!decoded.email_verified) {
     throw new AppError(
-      "Please verify your Google email address before signing in to Gud Game.",
+      "Please verify your Google email address before signing in.",
       { code: "FORBIDDEN", statusCode: 403 },
     );
   }

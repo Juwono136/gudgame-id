@@ -14,6 +14,8 @@ export type PartnerPlayerSessionClient = {
   displayName: string;
   emailVerified: boolean;
   playerId: string | null;
+  hasPassword?: boolean;
+  googleLinked?: boolean;
 };
 
 export function usePartnerPlayerSession(partnerSlug: string) {

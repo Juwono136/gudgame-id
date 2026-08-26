@@ -40,7 +40,30 @@ export type PartnerPlayerSessionView = {
   displayName: string;
   emailVerified: boolean;
   playerId: string | null;
+  /** True when a password hash is set (email/password or added after Google). */
+  hasPassword: boolean;
+  /** True when this identity is linked to Google (Firebase UID). */
+  googleLinked: boolean;
 };
+
+export function toPartnerPlayerSessionView(
+  identity: Pick<
+    PartnerIdentity,
+    "id" | "partnerId" | "email" | "displayName" | "emailVerifiedAt" | "passwordHash" | "googleUid"
+  >,
+  playerId: string | null,
+): PartnerPlayerSessionView {
+  return {
+    identityId: identity.id,
+    partnerId: identity.partnerId,
+    email: identity.email,
+    displayName: identity.displayName,
+    emailVerified: Boolean(identity.emailVerifiedAt),
+    playerId,
+    hasPassword: Boolean(identity.passwordHash),
+    googleLinked: Boolean(identity.googleUid),
+  };
+}
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -96,7 +119,7 @@ async function createVerificationToken(input: {
   return token;
 }
 
-async function linkOrCreatePlayerRow(input: {
+export async function linkOrCreatePartnerPlayerRow(input: {
   partnerId: string;
   identityId: string;
   email: string;
@@ -226,7 +249,7 @@ export async function signupPartnerPlayer(input: {
     });
   }
 
-  await linkOrCreatePlayerRow({
+  await linkOrCreatePartnerPlayerRow({
     partnerId: input.partner.id,
     identityId: identity.id,
     email,
@@ -302,11 +325,18 @@ export async function loginPartnerPlayer(input: {
     )
     .limit(1);
 
-  // Always verify against a real hash so missing emails take similar time.
+  // Always verify against a real hash so missing / Google-only emails take similar time.
+  const hasPassword = Boolean(identity?.passwordHash);
   const passwordHash = identity?.passwordHash ?? (await getTimingSafeDummyHash());
   const passwordOk = await verifyPartnerPassword(input.password, passwordHash);
 
-  if (!identity || !passwordOk) {
+  if (!identity || !hasPassword || !passwordOk) {
+    if (identity && !hasPassword) {
+      throw new AppError(
+        "This account uses Google Sign-In. Continue with Google, or set a password via Forgot password.",
+        { code: "GOOGLE_ONLY_ACCOUNT", statusCode: 401 },
+      );
+    }
     throw new AppError("Invalid email or password", {
       code: "UNAUTHORIZED",
       statusCode: 401,
@@ -348,14 +378,7 @@ export async function loginPartnerPlayer(input: {
 
   return {
     token,
-    session: {
-      identityId: identity.id,
-      partnerId: input.partner.id,
-      email: identity.email,
-      displayName: identity.displayName,
-      emailVerified: true,
-      playerId: player?.id ?? null,
-    },
+    session: toPartnerPlayerSessionView(identity, player?.id ?? null),
   };
 }
 
@@ -377,6 +400,8 @@ export async function resolvePartnerPlayerSession(input: {
       email: partnerIdentities.email,
       displayName: partnerIdentities.displayName,
       emailVerifiedAt: partnerIdentities.emailVerifiedAt,
+      passwordHash: partnerIdentities.passwordHash,
+      googleUid: partnerIdentities.googleUid,
     })
     .from(partnerIdentitySessions)
     .innerJoin(
@@ -426,14 +451,18 @@ export async function resolvePartnerPlayerSession(input: {
     return null;
   }
 
-  return {
-    identityId: row.identityId,
-    partnerId: row.partnerId,
-    email: row.email,
-    displayName: row.displayName,
-    emailVerified: Boolean(row.emailVerifiedAt),
-    playerId: player?.id ?? null,
-  };
+  return toPartnerPlayerSessionView(
+    {
+      id: row.identityId,
+      partnerId: row.partnerId,
+      email: row.email,
+      displayName: row.displayName,
+      emailVerifiedAt: row.emailVerifiedAt,
+      passwordHash: row.passwordHash,
+      googleUid: row.googleUid,
+    },
+    player?.id ?? null,
+  );
 }
 
 export async function logoutPartnerPlayerSession(input: {

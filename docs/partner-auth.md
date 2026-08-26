@@ -4,7 +4,7 @@
 | --- | --- |
 | **Dokumen** | Panduan autentikasi member/player partner |
 | **Produk** | Gud Game white-label partners |
-| **Versi konten** | 2026-08-26 (security hardening) |
+| **Versi konten** | 2026-08-26 (Google Sign-In hardening) |
 | **Audiens** | Partner staff, player/member, developer |
 
 > Akun member partner **terpisah** dari akun Gud Game dan dari partner lain. Staff/owner partner tetap login lewat Gud Game.
@@ -51,17 +51,58 @@ Jika member sudah login, `/login` dan `/signup` dialihkan ke `/account`.
 
 ### 3.1 Sign up
 
-1. Isi nama, email, phone, password (aturan password sama Gud Game).
-2. Sistem membuat `partner_identities` + menghubungkan / membuat `partner_players` (claim guest lama dengan email yang sama jika ada).
-3. Email verifikasi dikirim dengan **branding partner** (logo/nama, CTA ke situs partner, footer “Powered by Gud Game”).
-4. User membuka link → email verified → session dibuat → home partner.
+1. **Dengan Google** (tombol di bawah form): langsung akun verified + session — tidak perlu email verifikasi.
+2. **Dengan email**: isi nama, email, phone, password (aturan password sama Gud Game).
+3. Sistem membuat `partner_identities` + menghubungkan / membuat `partner_players` (claim guest lama dengan email yang sama jika ada).
+4. Email verifikasi dikirim dengan **branding partner** (logo/nama, CTA ke situs partner, footer “Powered by Gud Game”).
+5. User membuka link → email verified → session dibuat → home partner.
 
 ### 3.2 Sign in
 
-1. Email + password di partner itu saja.
-2. Email harus sudah verified.
-3. Player yang di-archive staff **tidak bisa** login (session lama juga dibatalkan).
-4. Session cookie `gg_pps_<slug>` diset (HttpOnly, Secure di production, SameSite=Lax, Path=`/`).
+1. Email + password di partner itu saja, **atau** Continue with Google (jika Firebase dikonfigurasi).
+2. Email/password: email harus sudah verified.
+3. Google: email Google harus verified di Google; akun partner langsung marked verified.
+4. Player yang di-archive staff **tidak bisa** login (session lama juga dibatalkan).
+5. Session cookie `gg_pps_<slug>` diset (HttpOnly, Secure di production, SameSite=Lax, Path=`/`).
+6. Akun Google-only yang mencoba password mendapat pesan memakai Google / Forgot password untuk set password.
+
+### 3.2.1 Sign in / Sign up with Google
+
+Alur (sama di login & signup; endpoint tunggal):
+
+1. Client: Firebase popup → ID token.
+2. `POST /api/partner/public/{slug}/auth/google` dengan `{ idToken, callbackUrl? }`.
+3. Server verifikasi token lewat Firebase Admin (`verifyFirebaseGoogleIdToken`).
+4. Resolve identitas **hanya** di `partner_identities` untuk `partnerId` ini:
+   - cocok `google_uid` → login
+   - cocok email → link `google_uid` + verifikasi email → login
+   - baru → buat identity (password null, email verified) + player row → login
+5. Set cookie session partner (bukan Better Auth Gud Game).
+
+| Aturan | Perilaku |
+| --- | --- |
+| Isolasi | Google UID unik per partner; email sama di partner lain / Gud Game = akun terpisah |
+| Linking | Email + password yang sudah ada bisa di-link Google (membuktikan ownership inbox) |
+| Password | Google-only: `password_hash` null; bisa ditambah lewat Forgot/Reset password |
+| Non-interference | Link Google **tidak** menghapus/mengubah `password_hash`; signup/login email+password tetap utuh |
+| Race | Insert baru yang bentrok unique → retry sebagai login (aman concurrent) |
+| Firebase client | Setelah ID token didapat, client `signOut` Firebase — session app tetap cookie-based |
+| Env | Butuh `NEXT_PUBLIC_FIREBASE_*` + `FIREBASE_*` Admin — jika belum ada, tombol Google disembunyikan |
+| Rate limit | Tier `partnerPlayerAuth` + Origin check |
+
+UI: tombol outline + ikon Google di bawah divider “or” pada `/{slug}/login` dan `/{slug}/signup` (`PartnerGoogleAuthButton`).
+
+### 3.2.2 Jaminan tidak mengganggu auth email/password
+
+| Mekanisme existing | Dampak Google |
+| --- | --- |
+| Signup email + password | Tidak berubah; konflik email → 409 (pakai Google atau Forgot password) |
+| Login email + password | Tidak berubah; akun Google-only diarahkan ke Google / set password |
+| Verify email / resend | Tidak dipakai oleh Google signup (sudah verified); alur email tetap untuk akun password |
+| Forgot / reset password | Tetap jalan untuk Google-only (menambah password tanpa melepas Google) |
+| Cookie `gg_pps_<slug>` | Sama untuk kedua metode; tidak menulis cookie Gud Game |
+| Session Gud Game staff | Tidak diubah oleh Google member |
+| Partner A vs B | `partnerId` + `google_uid` scoped — tidak ada SSO antar partner |
 
 ### 3.3 Forgot / reset password
 
@@ -84,7 +125,8 @@ Halaman `/account` → konfirmasi modal → `POST …/auth/logout` + clear cooki
 
 | Kontrol | Perilaku |
 | --- | --- |
-| Password | Hash `better-auth/crypto` (scrypt) |
+| Password | Hash `better-auth/crypto` (scrypt); nullable untuk Google-only |
+| Google token | Firebase Admin `verifyIdToken` (revocation check); email Google wajib verified |
 | Token session / verify / reset | Opaque random; disimpan sebagai **SHA-256** di DB |
 | Cookie | Per slug; resolve selalu cek `session.partnerId === partner.id` |
 | Rate limit | `partnerPlayerAuth`, `partnerPlayerRegister`, `passwordReset` (+ Origin check) |
@@ -163,8 +205,9 @@ Base: `/api/partner/public/{partnerSlug}/auth/`
 | --- | --- | --- |
 | POST | `login` | Sign in + Set-Cookie |
 | POST | `signup` | Create account + send verify |
+| POST | `google` | Sign in / sign up with Firebase Google ID token + Set-Cookie |
 | POST | `logout` | Clear session |
-| GET | `me` | Session saat ini |
+| GET | `me` | Session saat ini (`hasPassword`, `googleLinked`) |
 | POST | `forgot-password` | Request reset (respons generik) |
 | POST | `reset-password` | Apply new password |
 | POST | `verify-email` | Verify + auto sign-in |
@@ -179,16 +222,17 @@ Players (staff): `GET\|PATCH\|DELETE /api/partner/public/{partnerSlug}/players/{
 | Area | Path |
 | --- | --- |
 | Schema | `db/schema/partner-auth.ts`, `partner-players.identityId` |
-| Migration | `db/migrations/0025_partner_player_auth.sql` |
-| Service | `lib/partners/auth/service.ts` |
+| Migration | `db/migrations/0025_partner_player_auth.sql`, `0026_partner_google_auth.sql` |
+| Service | `lib/partners/auth/service.ts`, `google.ts`, `db-errors.ts` |
 | Session / events | `lib/partners/auth/session.ts`, `client-events.ts` |
 | Cookies / tokens | `cookies.ts`, `tokens.ts`, `constants.ts` |
 | Emails | `lib/partners/auth/emails.ts` |
-| UI forms | `components/partners/auth/*` |
+| Firebase | `lib/firebase/admin.ts`, `lib/firebase/client.ts` (sign-out setelah token) |
+| UI forms | `components/partners/auth/*` (+ `partner-google-auth-button.tsx`) |
 | Loading | `components/partners/partner-loading.tsx` |
 | Players UI | `partner-players-directory.tsx`, `partner-edit-player-dialog.tsx` |
 | Nav CTA | `components/partners/partner-public-nav.tsx` |
-| Unit tests | `lib/partners/auth/__tests__/urls.test.ts` |
+| Unit tests | `lib/partners/auth/__tests__/urls.test.ts`, `google.test.ts` |
 
 ---
 
@@ -197,6 +241,12 @@ Players (staff): `GET\|PATCH\|DELETE /api/partner/public/{partnerSlug}/players/{
 - [ ] Sign up Partner A → email berlogo partner → verify → auto session → home
 - [ ] Login/signup saat sudah session → redirect `/account`
 - [ ] Email sama di Partner B / Gud Game = akun terpisah
+- [ ] **Google sign-in/up** → session partner (bukan Gud Game); akun baru langsung verified
+- [ ] Google link ke akun email+password → password tetap bisa dipakai
+- [ ] Google-only + password login → pesan Continue with Google / Forgot password
+- [ ] Concurrent Google signup (race) → tidak 500; login berhasil
+- [ ] Tanpa Firebase env → tombol Google tidak tampil; email/password tetap jalan
+- [ ] Login/signup email+password tanpa Google tetap normal (verify, forgot, reset)
 - [ ] Staff `/login` → console; avatar di situs publik → Partner Console
 - [ ] Forgot/reset hanya slug yang sama; archived tidak bisa reset/login
 - [ ] Navbar update tanpa hard refresh (login/logout)

@@ -27,8 +27,13 @@ export const partnerIdentities = pgTable(
     id: uuidPrimaryKey(),
     partnerId: uuidFk("partner_id").notNull(),
     email: varchar("email", { length: 255 }).notNull(),
-    /** better-auth/crypto scrypt: `${saltHex}:${keyHex}` */
-    passwordHash: text("password_hash").notNull(),
+    /**
+     * better-auth/crypto scrypt: `${saltHex}:${keyHex}`.
+     * Null for Google-only accounts (password can be added later via reset).
+     */
+    passwordHash: text("password_hash"),
+    /** Firebase Auth UID for Google — unique per partner when set. */
+    googleUid: varchar("google_uid", { length: 128 }),
     displayName: varchar("display_name", { length: 120 }).notNull(),
     emailVerifiedAt: timestamp("email_verified_at"),
     lastLoginAt: timestamp("last_login_at"),
@@ -47,6 +52,10 @@ export const partnerIdentities = pgTable(
     uniqueIndex("partner_identities_partner_email_uidx").on(
       table.partnerId,
       table.email,
+    ),
+    uniqueIndex("partner_identities_partner_google_uidx").on(
+      table.partnerId,
+      table.googleUid,
     ),
     index("partner_identities_partner_idx").on(table.partnerId),
   ],

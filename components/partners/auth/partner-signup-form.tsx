@@ -10,9 +10,11 @@ import { Loader2 } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthInput } from "@/components/auth/auth-form-controls";
+import { AuthDivider } from "@/components/auth/auth-divider";
 import { Button } from "@/components/ui/button";
 import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import { PartnerAuthShell } from "@/components/partners/auth/partner-auth-shell";
+import { PartnerGoogleAuthButton } from "@/components/partners/auth/partner-google-auth-button";
 import { partnerAuthRoutes } from "@/lib/partners/auth/urls";
 import {
   partnerPlayerSignupSchema,
@@ -35,6 +37,7 @@ export function PartnerSignupForm({
   const router = useRouter();
   const routes = partnerAuthRoutes(partnerSlug);
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   const form = useForm<PartnerPlayerSignupValues>({
     resolver: zodResolver(partnerPlayerSignupSchema),
@@ -70,6 +73,8 @@ export function PartnerSignupForm({
     }
   });
 
+  const busy = submitting || googleBusy;
+
   return (
     <PartnerAuthShell
       partnerSlug={partnerSlug}
@@ -99,6 +104,7 @@ export function PartnerSignupForm({
             id="partner-signup-name"
             autoComplete="name"
             placeholder="Your name"
+            disabled={busy}
             {...form.register("displayName")}
           />
         </AuthField>
@@ -108,6 +114,7 @@ export function PartnerSignupForm({
             type="email"
             autoComplete="email"
             placeholder="you@email.com"
+            disabled={busy}
             {...form.register("email")}
           />
         </AuthField>
@@ -117,6 +124,7 @@ export function PartnerSignupForm({
             type="tel"
             autoComplete="tel"
             placeholder="08xxxxxxxxxx"
+            disabled={busy}
             {...form.register("phone")}
           />
         </AuthField>
@@ -129,6 +137,7 @@ export function PartnerSignupForm({
             id="partner-signup-password"
             autoComplete="new-password"
             placeholder="Min. 8 chars, upper, lower, number"
+            disabled={busy}
             {...form.register("password")}
           />
         </AuthField>
@@ -141,18 +150,27 @@ export function PartnerSignupForm({
             id="partner-signup-confirm"
             autoComplete="new-password"
             placeholder="Repeat password"
+            disabled={busy}
             {...form.register("confirmPassword")}
           />
         </AuthField>
         <Button
           type="submit"
-          disabled={submitting}
+          disabled={busy}
           className="btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-cp-primary-light"
         >
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Create account
         </Button>
       </form>
+      <AuthDivider />
+      <PartnerGoogleAuthButton
+        partnerSlug={partnerSlug}
+        partnerName={partnerName}
+        mode="signup"
+        disabled={submitting}
+        onBusyChange={setGoogleBusy}
+      />
     </PartnerAuthShell>
   );
 }

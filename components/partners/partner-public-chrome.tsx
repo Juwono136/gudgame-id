@@ -92,6 +92,15 @@ export function PartnerPublicChrome({
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">{partnerName}</p>
             <p className="text-xs text-cp-muted">© {new Date().getFullYear()}</p>
+            <p className="text-xs text-cp-muted">
+              Powered by{" "}
+              <Link
+                href="/"
+                className="font-semibold text-foreground/80 underline-offset-2 transition-colors hover:text-cp-primary hover:underline"
+              >
+                Gud Game
+              </Link>
+            </p>
           </div>
           <nav
             className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-cp-muted sm:justify-end"

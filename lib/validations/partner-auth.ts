@@ -70,3 +70,12 @@ export const partnerPlayerVerifyEmailSchema = z.object({
 export const partnerPlayerResendVerifySchema = z.object({
   email: emailField,
 });
+
+export const partnerPlayerGoogleAuthSchema = z.object({
+  idToken: z.string().min(10, "Missing Google sign-in token"),
+  callbackUrl: z.string().optional(),
+});
+
+export type PartnerPlayerGoogleAuthValues = z.infer<
+  typeof partnerPlayerGoogleAuthSchema
+>;

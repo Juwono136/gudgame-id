@@ -577,7 +577,7 @@ export function PartnerTournamentWizard({
             <>
               Publish{" "}
               <span className="font-medium text-foreground">&ldquo;{form.name.trim()}&rdquo;</span>{" "}
-              on your partner site. Results stay separate from Gud Game rankings.
+              on your partner site.
             </>
           ),
       confirmLabel: isEdit ? "Save changes" : "Create tournament",

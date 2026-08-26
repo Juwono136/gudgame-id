@@ -5,6 +5,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
   type Auth,
 } from "firebase/auth";
 import { getFirebaseClientConfig, isFirebaseClientConfigured } from "@/lib/firebase/config";
@@ -29,6 +30,12 @@ export function getFirebaseAuth(): Auth | null {
   return getAuth(app);
 }
 
+/**
+ * Popup Google sign-in → fresh ID token.
+ * Signs out of the Firebase client session afterward so app auth stays
+ * cookie-based (partner `gg_pps_*` / Gud Game Better Auth) and flows don't
+ * leak a lingering Firebase Auth state across products.
+ */
 export async function signInWithGooglePopup(): Promise<string> {
   const auth = getFirebaseAuth();
   if (!auth) {
@@ -45,6 +52,12 @@ export async function signInWithGooglePopup(): Promise<string> {
 
   if (!idToken) {
     throw new Error("Could not obtain a Google sign-in token. Please try again.");
+  }
+
+  try {
+    await signOut(auth);
+  } catch {
+    // Non-fatal — server verifies the ID token independently.
   }
 
   return idToken;

@@ -28,6 +28,8 @@ type Props = {
     email: string;
     emailVerified: boolean;
     playerId: string | null;
+    hasPassword?: boolean;
+    googleLinked?: boolean;
   };
 };
 
@@ -70,7 +72,7 @@ export function PartnerAccountClient({
         logoUrl={logoUrl}
         primaryColor={primaryColor}
         formTitle="My account"
-        formSubtitle={`Your ${partnerName} member profile (separate from Gud Game).${
+        formSubtitle={`Your ${partnerName} member profile.${
           session.playerId
             ? " Tournament and league results sync to your player stats."
             : ""
@@ -92,8 +94,18 @@ export function PartnerAccountClient({
               </p>
               <p className="truncate text-sm text-cp-muted">{session.email}</p>
               <p className="mt-1 text-[11px] text-cp-muted">
-                {session.emailVerified ? "Email verified" : "Email not verified"}
-                {session.playerId ? " · Player profile linked" : ""}
+                {[
+                  session.emailVerified ? "Email verified" : "Email not verified",
+                  session.playerId ? "Player profile linked" : null,
+                  session.googleLinked ? "Google linked" : null,
+                  session.hasPassword
+                    ? "Password set"
+                    : session.googleLinked
+                      ? "Use Google to sign in (or set a password via Forgot password)"
+                      : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             </div>
           </div>

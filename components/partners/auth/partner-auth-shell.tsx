@@ -66,7 +66,7 @@ export function PartnerAuthShell({
             <span className="text-sm font-semibold text-foreground">{partnerName}</span>
           </Link>
           <p className="mt-1 max-w-xs text-[11px] leading-relaxed text-cp-muted">
-            Member account for this partner only — separate from Gud Game.
+            Member account for this partner only
           </p>
         </div>
 

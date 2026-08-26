@@ -19,7 +19,8 @@ export type ErrorCode =
   | "INVALID_TOURNAMENT_TYPE"
   | "REGISTRATION_FAILED"
   | "TIE_REQUIRES_REMATCH"
-  | "EMAIL_NOT_VERIFIED";
+  | "EMAIL_NOT_VERIFIED"
+  | "GOOGLE_ONLY_ACCOUNT";
 
 export class AppError extends Error {
   readonly code: ErrorCode;

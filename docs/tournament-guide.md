@@ -97,12 +97,13 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | Skill / tournament tier | Tidak ada |
 | Format | Double Stage / Elimination / Americano (wizard partner) |
 | Guest registration | `registered` → partner Confirm → `confirmed` |
-| **Member auth** | Login/sign-up di `/{slug}/login` — identitas terpisah dari Gud Game & partner lain (lihat [`docs/partner-auth.md`](./partner-auth.md)) |
+| **Member auth** | Login/sign-up di `/{slug}/login` (email/password **atau Google**) — identitas terpisah dari Gud Game & partner lain (lihat [`docs/partner-auth.md`](./partner-auth.md)) |
 | **Staff auth** | Tetap Gud Game `/login` → `/dashboard/partner` |
 | **Data isolation** | Turnamen, liga, player, pembayaran scoped `partnerId` — tidak muncul di discovery Gud Game atau partner lain |
 | **Players management** | Staff bisa edit/remove player di Players list (lihat partner-auth §8) |
 | **Security** | Cookie per slug, rate limit, callback sanitize, archived players blocked (lihat partner-auth §4) |
 | **Stats sync** | Match turnamen → `partner_player_matches`; liga standings + optional team roster → player W/L (partner-auth §13) |
+| **Public footer** | “Powered by **Gud Game**” (link ke `/`) di chrome situs publik partner |
 
 Wizard UI: `components/partners/partner-tournament-wizard.tsx`.  
 Manual auth member: [`docs/partner-auth.md`](./partner-auth.md).

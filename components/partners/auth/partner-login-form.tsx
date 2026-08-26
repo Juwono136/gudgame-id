@@ -10,9 +10,11 @@ import { Loader2 } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthInput } from "@/components/auth/auth-form-controls";
+import { AuthDivider } from "@/components/auth/auth-divider";
 import { Button } from "@/components/ui/button";
 import { PartnerLoadingOverlay } from "@/components/partners/partner-loading";
 import { PartnerAuthShell } from "@/components/partners/auth/partner-auth-shell";
+import { PartnerGoogleAuthButton } from "@/components/partners/auth/partner-google-auth-button";
 import { partnerAuthRoutes } from "@/lib/partners/auth/urls";
 import { emitPartnerPlayerAuthEvent } from "@/lib/partners/auth/client-events";
 import {
@@ -38,6 +40,7 @@ export function PartnerLoginForm({
   const routes = partnerAuthRoutes(partnerSlug);
   const callbackUrl = searchParams.get("callbackUrl");
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   const form = useForm<PartnerPlayerLoginValues>({
     resolver: zodResolver(partnerPlayerLoginSchema),
@@ -93,6 +96,8 @@ export function PartnerLoginForm({
     }
   });
 
+  const busy = submitting || googleBusy;
+
   return (
     <PartnerAuthShell
       partnerSlug={partnerSlug}
@@ -124,6 +129,7 @@ export function PartnerLoginForm({
             type="email"
             autoComplete="email"
             placeholder="you@email.com"
+            disabled={busy}
             {...form.register("email")}
           />
         </AuthField>
@@ -136,6 +142,7 @@ export function PartnerLoginForm({
             id="partner-login-password"
             autoComplete="current-password"
             placeholder="Your password"
+            disabled={busy}
             {...form.register("password")}
           />
         </AuthField>
@@ -149,13 +156,22 @@ export function PartnerLoginForm({
         </div>
         <Button
           type="submit"
-          disabled={submitting}
+          disabled={busy}
           className="btn-interactive h-11 w-full rounded-lg bg-cp-primary text-sm font-semibold text-white hover:bg-cp-primary-light"
         >
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Sign in
         </Button>
       </form>
+      <AuthDivider />
+      <PartnerGoogleAuthButton
+        partnerSlug={partnerSlug}
+        partnerName={partnerName}
+        mode="signin"
+        callbackUrl={callbackUrl}
+        disabled={submitting}
+        onBusyChange={setGoogleBusy}
+      />
     </PartnerAuthShell>
   );
 }
