@@ -5,7 +5,6 @@ import {
   getTournamentCourtCount,
   getTournamentMatchScoringHint,
   getTournamentMexicanoSettings,
-  getTournamentPointsPerMatch,
   getMaxRounds,
 } from "@/lib/tournaments/settings";
 import { getOfficialBillingLabel } from "@/lib/tournaments/ui/labels";
@@ -25,10 +24,15 @@ export function LiveFormatConfigBanner({
 }: LiveFormatConfigBannerProps) {
   const courtCount = getTournamentCourtCount(tournament);
   const matchHint = getTournamentMatchScoringHint(tournament);
-  const points = getTournamentPointsPerMatch(tournament);
   const maxRounds = getMaxRounds(tournament);
   const isOfficial = isOfficialType(tournament.tournamentType);
+  const isPartner = Boolean(tournament.partnerId);
   const mexicano = getTournamentMexicanoSettings(tournament);
+  const surfaceLabel = isPartner
+    ? "Partner event"
+    : isOfficial
+      ? getOfficialBillingLabel(tournament.officialBilling)
+      : "Fun match";
 
   const chips =
     mode === "americano"
@@ -38,7 +42,7 @@ export function LiveFormatConfigBanner({
           `${courtCount} ${courtCount === 1 ? "court" : "courts"}`,
           maxRounds != null ? `Up to ${maxRounds} rounds` : null,
           "Same-squad partners preferred",
-          isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
+          surfaceLabel,
           tournament.categoryLabel ?? null,
         ] as const)
       : mode === "mexicano"
@@ -48,16 +52,15 @@ export function LiveFormatConfigBanner({
             `${courtCount} ${courtCount === 1 ? "court" : "courts"}`,
             maxRounds != null ? `${maxRounds} rounds` : null,
             "Later rounds seed from leaderboard",
-            isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
+            surfaceLabel,
             tournament.categoryLabel ?? null,
           ] as const)
         : ([
             "Single elimination",
             matchHint,
             `${courtCount} ${courtCount === 1 ? "court" : "courts"}`,
-            `First to ${points}`,
             "Assign ready bracket matches to courts",
-            isOfficial ? getOfficialBillingLabel(tournament.officialBilling) : "Fun match",
+            surfaceLabel,
             tournament.categoryLabel ?? null,
           ] as const);
 

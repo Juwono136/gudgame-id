@@ -33,6 +33,7 @@ import { TournamentShareCard } from "@/components/tournaments/tournament-share-c
 import {
   TournamentDetailPageShell,
   TournamentHeroBanner,
+  TournamentInfoCard,
   TournamentTabNav,
   tournamentHeroStyles,
 } from "@/components/tournaments/tournament-detail-ui";
@@ -823,13 +824,13 @@ export function OfficialTournamentPage({
           {tab === "Overview" ? (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-                <InfoCard
+                <TournamentInfoCard
                   icon={Trophy}
                   title="Prize pool"
                   value={formatIdr(tournament.prizePoolIdr)}
                   hint="Top placements"
                 />
-                <InfoCard
+                <TournamentInfoCard
                   icon={Users}
                   title="Format"
                   value={matchTypeLabel}
@@ -839,7 +840,7 @@ export function OfficialTournamentPage({
                       : `${tournament.playersPerTeam} players per team`
                   }
                 />
-                <InfoCard
+                <TournamentInfoCard
                   icon={Radio}
                   title="Scoring"
                   value={scoringPrimaryLabel}
@@ -1295,36 +1296,5 @@ export function OfficialTournamentPage({
         ) : null}
       </div>
     </TournamentDetailPageShell>
-  );
-}
-
-function InfoCard({
-  icon: Icon,
-  title,
-  value,
-  hint,
-}: {
-  icon: typeof Trophy;
-  title: string;
-  value: string;
-  hint?: string | null;
-}) {
-  return (
-    <div className="flex h-full min-w-0 flex-col rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
-      <div className="flex items-center gap-2 text-cp-primary">
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="text-[10px] font-semibold uppercase tracking-wider sm:text-xs">
-          {title}
-        </span>
-      </div>
-      <p className="mt-2.5 break-words text-base font-bold leading-snug text-foreground sm:mt-3 sm:text-lg">
-        {value}
-      </p>
-      {hint ? (
-        <p className="mt-1 break-words text-xs leading-relaxed text-cp-muted sm:text-sm">
-          {hint}
-        </p>
-      ) : null}
-    </div>
   );
 }

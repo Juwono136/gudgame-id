@@ -38,6 +38,7 @@ import {
   getTournamentMatchScoreMode,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
+  isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
 import { computeReclubSessionStatsWithBracket } from "@/lib/tournaments/stats/from-reclub";
 import { resolveBracketMatchDurationSeconds } from "@/lib/tournaments/stats/bracket-duration";
@@ -450,8 +451,9 @@ export async function buildTournamentLivePayload(
           ? getTournamentRoundDurationMinutes(tournament)
           : 45;
       const matchScoreMode = getTournamentMatchScoreMode(tournament, stage);
+      const classicSets = isClassicSetsFormat(tournament, stage);
       if (matchScoreMode !== "games") {
-        return { matchScoreMode, roundDurationMinutes };
+        return { matchScoreMode, roundDurationMinutes, classicSets };
       }
       const rules = getTournamentGameRules(tournament, stage);
       return {
@@ -461,6 +463,7 @@ export async function buildTournamentLivePayload(
         pointsToWinGame: rules.pointsToWinGame,
         pointStyle: rules.pointStyle,
         roundDurationMinutes,
+        classicSets,
       };
     })(),
     matchHistory:

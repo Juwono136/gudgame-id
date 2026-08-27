@@ -79,17 +79,44 @@ const optionalMemberPhoneSchema = z.preprocess(
     .transform((value) => (value === "" ? undefined : value)),
 );
 
+const optionalPartnerPlayerIdSchema = z.preprocess(
+  (value) => (value == null || value === "" ? undefined : value),
+  z.string().uuid("Invalid player id").optional(),
+);
+
 const captainSchema = z.object({
   fullName: partnerPersonNameSchema,
   email: partnerEmailSchema,
   phone: captainPhoneSchema,
 });
 
-const memberSchema = z.object({
-  fullName: partnerPersonNameSchema,
-  email: optionalMemberEmailSchema,
-  phone: optionalMemberPhoneSchema,
-});
+/**
+ * Teammate default = claimable (name + email and/or phone).
+ * Soft profile (name only) requires softProfile: true — explicit walk-up fallback.
+ * partnerPlayerId links an existing partner_players row from search (never Gud Game users).
+ */
+const memberSchema = z
+  .object({
+    fullName: partnerPersonNameSchema,
+    email: optionalMemberEmailSchema,
+    phone: optionalMemberPhoneSchema,
+    partnerPlayerId: optionalPartnerPlayerIdSchema,
+    softProfile: z
+      .union([z.boolean(), z.literal("true"), z.literal("false")])
+      .optional()
+      .transform((value) => value === true || value === "true"),
+  })
+  .superRefine((member, ctx) => {
+    const soft = member.softProfile === true;
+    if (!soft && !member.email && !member.phone) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Add an email or phone so they can claim their player profile, or choose name-only.",
+        path: ["email"],
+      });
+    }
+  });
 
 function safePhoneKey(raw: string): string | null {
   try {
@@ -177,6 +204,19 @@ export function partnerGuestRegistrationSchema(playersPerTeam: number) {
           });
         }
         phones.add(key);
+      }
+
+      const linkedIds = new Set<string>();
+      for (const [index, member] of data.members.entries()) {
+        if (!member.partnerPlayerId) continue;
+        if (linkedIds.has(member.partnerPlayerId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Each teammate can only be selected once",
+            path: ["members", index, "partnerPlayerId"],
+          });
+        }
+        linkedIds.add(member.partnerPlayerId);
       }
     });
 }

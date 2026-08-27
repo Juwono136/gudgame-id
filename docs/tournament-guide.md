@@ -7,7 +7,7 @@
 | **Audiens** | Host / admin turnamen, operator lapangan, QA, dan developer yang merawat fitur turnamen |
 | **Bahasa UI** | Inggris (nama field mengikuti layar aplikasi) |
 | **Bahasa panduan** | Indonesia (penjelasan operasional) |
-| **Versi konten** | 2026-08-26 |
+| **Versi konten** | 2026-08-27 |
 | **Status** | Dokumen hidup — diperbarui setiap ada perubahan fitur turnamen |
 
 > **Cara memakai dokumen ini.** Baca [Bagian A](#bagian-a--konsep-dasar) untuk memahami jenis & format turnamen, [Bagian B](#bagian-b--membuat--mengedit-turnamen) saat membuat event, [Bagian C](#bagian-c--operasional-hari-h) saat pertandingan Live, lalu [Lampiran](#lampiran) untuk seed QA, matriks uji, dan referensi teknis.  
@@ -33,7 +33,9 @@
 
 7. [Alur operasional per format](#7-alur-operasional-per-format)
 8. [Realtime: public & manage saat Live](#8-realtime-public--manage-saat-live)
+   - 8.5 [Partner create / public / manage / display](#85-partner-white-label--create--public--manage--display)
 9. [Registrasi Official (tim & klaim slot)](#9-registrasi-official-tim--klaim-slot)
+   - 9.5 [Player search & registrasi Partner](#95-player-search-official--registrasi-partner)
 
 ### Lampiran
 
@@ -96,7 +98,8 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | Billing | Free / Paid untuk guest checkout |
 | Skill / tournament tier | Tidak ada |
 | Format | Double Stage / Elimination / Americano (wizard partner) |
-| Guest registration | `registered` → partner Confirm → `confirmed`; member login autofills captain + sync identity (lihat partner-auth §13) |
+| Guest registration | Claimable teammates (nama + email/phone); search `partner_players`; soft name-only fallback; UI parity Official register (lihat §9.5) |
+| **Create → public → manage sync** | Format, pool, classic/race scoring, courts, billing, `playersPerTeam`, Americano `maxRounds`, 3rd-place — label Overview & manage dashboard mengikuti create (lihat §8.5) |
 | **Member auth** | Login/sign-up di `/{slug}/login` (email/password **atau Google**) — identitas terpisah dari Gud Game & partner lain (lihat [`docs/partner-auth.md`](./partner-auth.md)) |
 | **Staff auth** | Tetap Gud Game `/login` → `/dashboard/partner` |
 | **Data isolation** | Turnamen, liga, player, pembayaran scoped `partnerId` — tidak muncul di discovery Gud Game atau partner lain |
@@ -104,8 +107,14 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | **Security** | Cookie per slug, rate limit, callback sanitize, archived players blocked (lihat partner-auth §4) |
 | **Stats sync** | Match turnamen → `partner_player_matches`; liga standings + optional team roster → player W/L (partner-auth §13) |
 | **Public footer** | “Powered by **Gud Game**” (link ke `/`) di chrome situs publik partner |
+| **UI look** | Public / manage / create–edit **parity visual dengan Official Gud Game** (hero, overview tiles, aside CTA, tabs, wizard card `max-w-4xl`); **register** layout `max-w-5xl` + sidebar Entry seperti Official; mekanisme tetap white-label (guest register, no tiers/ranking) |
 
-Wizard UI: `components/partners/partner-tournament-wizard.tsx`.  
+**UI files:**  
+- Public: `components/partners/partner-tournament-public-page.tsx` (+ shared `TournamentInfoCard` di `tournament-detail-ui.tsx`)  
+- Manage: shared `tournament-manage-shell.tsx` + `partner-guest-registrations-panel.tsx`  
+- Create/edit: `components/partners/partner-tournament-wizard.tsx`  
+- Register: `components/partners/registration/partner-registration-form.tsx` + `partner-player-search-picker.tsx`  
+
 Manual auth member: [`docs/partner-auth.md`](./partner-auth.md).
 
 ---
@@ -610,7 +619,36 @@ API menolak operasi ilegal (contoh: generate KO pada `group_only` / `mexicano`; 
 | **Sponsor banners** | Manage → Display → max 6 logo; hanya di TV display, tidak di halaman publik. |
 | **Score entry Live vs Paper** | Manage → Display: Live tablet atau paper pad lapangan; engine scoring sama. |
 
-### 8.5 File acuan realtime
+### 8.5 Partner white-label — create / public / manage / display
+
+Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`, layout presets, fullscreen, sponsor, live poll). Isolasi: URL `/{partnerSlug}/…/display`, event `partnerId`, session leaderboard (bukan ranking Gud Game).
+
+| Create field | Public | Manage | Display TV |
+| --- | --- | --- | --- |
+| Format (DS / SE / Americano) | Overview Format + tabs capabilities | Dashboard + Live scoring mode | Bracket / multi-court / leaderboard presets |
+| Classic sets vs race-to | Scoring card = classic / race (bukan “Race to N” palsu untuk classic) | Live engine + classicSetRules | Multi-court label Classic sets / Race to |
+| Pool (pairs, advance, runner-ups) | Format hint Overview | Dashboard pool detail + Groups | — |
+| Courts | Scoring detail + Format hint | Dashboard courts · Live provision | Multi-court grid |
+| Billing / fee / prize | Entry / prize cards | Dashboard Entry/Billing | — |
+| `playersPerTeam` | Format hint + register slots | Dashboard players/team | — |
+| Americano `maxRounds` | Format hint | Live banner + round cap | — |
+| 3rd place | — | Knockout generation | — |
+| Brand theme / sponsors | — | Manage → Display | CSS vars + logo on TV |
+
+**Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `bracket`, `leaderboard`, `rotation`.
+
+**URL partner:**
+
+| Surface | Path |
+| --- | --- |
+| Fullscreen TV | `/{partnerSlug}/tournaments/{slug}/display` |
+| Pin court | `…/display?courtId=…&layout=single` |
+| Pin match | `…/display?matchId=…` |
+| Manage Display | `…/manage?section=display` |
+
+Sport route `/sports/…/display` **404** untuk event `partnerId` (isolasi white-label).
+
+### 8.6 File acuan realtime
 
 | Area | Path |
 | --- | --- |
@@ -623,9 +661,11 @@ API menolak operasi ilegal (contoh: generate KO pada `group_only` / `mexicano`; 
 | Group RR round | `lib/tournaments/double-stage/round-number.ts` |
 | Hooks | `hooks/use-tournament-live.ts`, `use-tournament-manage-scoring.ts`, `use-double-stage-group-score.ts`, `use-tournament-lobby.ts`, `use-tournament-bracket.ts` |
 | Public page | `components/tournaments/official-tournament-page.tsx` |
+| Partner public | `components/partners/partner-tournament-public-page.tsx` |
 | Venue display | `tournament-display-client.tsx`, `display-multi-court-grid.tsx`, `display/display-venue-controls.tsx`, `display-session-leaderboard.tsx`, `display-bracket-slide.tsx`, `display-sponsor-strip.tsx` |
 | Manage scoring UI | `fun-match-scoring-workspace.tsx`, `courtside-scorepad.tsx`, `fun-match-rounds-panel.tsx`, `match-round-tabs.tsx`, `fun-match-round-match-card.tsx` |
 | Display config | `lib/tournaments/display-config-service.ts`, `upload-sponsor-banner.ts`, `manage/display-sponsor-banners-panel.tsx` |
+| Partner create wizard | `components/partners/partner-tournament-wizard.tsx` |
 
 **Smoke otomatis (tanpa DB):**
 
@@ -705,6 +745,35 @@ Urutan sub-tab di halaman public **Players**:
 2. **Registered teams** — roster per tim
 
 Overview menyediakan CTA **Leaderboard** dan **Registered teams**.
+
+### 9.5 Player search (Official) & registrasi Partner
+
+#### Official — search teammate
+
+| Item | Detail |
+| --- | --- |
+| UI | `PlayerSearchPicker` + `usePlayerSearch` (debounce **300ms**, min 2 karakter) |
+| API | `GET /api/tournaments/players/search?sportSlug=&q=` |
+| Query | `searchTournamentPlayers` — join wiki **wajib** `ownerUserId = user.id` + sport/player/published; `ORDER BY name`; hanya `user.isActive` |
+| Empty state | Ditampilkan hanya setelah debounce selesai **dan** request selesai; error API tidak disamarkan sebagai “No players found” |
+
+#### Partner white-label — claimable teammates
+
+Partner **tidak** memakai claim-token Gud Game. Setiap slot teammate menjadi baris `partner_players` (scoped `partnerId`).
+
+| Mode slot | Data | Claim nanti |
+| --- | --- | --- |
+| **Search** | Pilih dari `partner_players` situs ini (`GET …/players/search`) | Sudah punya kontak / member |
+| **Invite contact** (default) | Nama + **email atau phone** (atau keduanya) | Signup/login member dengan kontak yang sama → link `identityId` |
+| **Name only** | Nama saja (`softProfile`) | Placeholder; **belum** bisa di-claim lewat email/phone |
+
+| Item | Path |
+| --- | --- |
+| Form daftar | `/{partnerSlug}/tournaments/{slug}/register` |
+| API register | `POST /api/partner/public/{partnerSlug}/tournaments/{slug}/register` |
+| API search | `GET /api/partner/public/{partnerSlug}/players/search?q=` (rate-limited; **bukan** Gud Game users) |
+
+Kapten: guest (email+phone) atau member login (autofill + email locked). Alur status tetap `registered` → Confirm → `confirmed` (atau `awaiting_payment` jika paid).
 
 ---
 

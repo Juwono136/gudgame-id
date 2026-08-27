@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, ilike, or } from "drizzle-orm";
+import { and, asc, eq, ilike, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
 import { wikiEntities } from "@/db/schema/wiki";
@@ -14,6 +14,12 @@ export type TournamentPlayerSearchResult = {
   image: string | null;
 };
 
+/**
+ * Search active Gud Game users for Official registration teammate linking.
+ * Wiki join is scoped to the user's published player profile for the sport
+ * (must include ownerUserId — otherwise every wiki player row multiplies users
+ * and LIMIT returns an arbitrary / empty-looking set).
+ */
 export async function searchTournamentPlayers(
   sportId: string,
   query: string,
@@ -38,6 +44,7 @@ export async function searchTournamentPlayers(
     .leftJoin(
       wikiEntities,
       and(
+        eq(wikiEntities.ownerUserId, user.id),
         eq(wikiEntities.sportId, sportId),
         eq(wikiEntities.entityType, "player"),
         eq(wikiEntities.status, "published"),
@@ -54,6 +61,7 @@ export async function searchTournamentPlayers(
         ),
       ),
     )
+    .orderBy(asc(user.name))
     .limit(limit);
 
   const seen = new Set<string>();

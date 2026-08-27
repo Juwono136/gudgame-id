@@ -63,6 +63,8 @@ export const partnerPublicRoutes = {
     `/${partnerSlug}/tournaments/${slug}/display`,
   tournamentDisplayCourt: (partnerSlug: string, slug: string, courtId: string) =>
     `/${partnerSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
+  tournamentDisplayMatch: (partnerSlug: string, slug: string, matchId: string) =>
+    `/${partnerSlug}/tournaments/${slug}/display?matchId=${encodeURIComponent(matchId)}`,
   tournamentInvite: (partnerSlug: string, slug: string) =>
     `/${partnerSlug}/tournaments/${slug}/invite`,
   tournamentRegister: (partnerSlug: string, slug: string) =>

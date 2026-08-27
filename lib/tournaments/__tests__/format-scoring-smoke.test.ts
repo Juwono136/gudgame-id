@@ -653,6 +653,7 @@ describe("smoke · live + fullscreen display realtime wiring", () => {
       raceToGames: 8,
       pointsToWinGame: 40,
       lengthMode: "total",
+      classicSets: false,
     });
   });
 });

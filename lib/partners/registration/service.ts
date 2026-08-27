@@ -284,18 +284,35 @@ export async function startPartnerGuestRegistration(
   for (const [index, member] of input.members.entries()) {
     const roleOrder = index + 1;
     const memberFullName = member.fullName.trim();
-    const memberEmail = member.email?.trim() || null;
+    const memberEmail = member.email?.trim().toLowerCase() || null;
     const memberPhone = member.phone?.trim() || null;
-    const hasBothContacts = Boolean(memberEmail && memberPhone);
-    const contact = hasBothContacts
-      ? { email: memberEmail!, phone: memberPhone! }
-      : buildSyntheticMemberContact(registration.id, roleOrder);
 
-    const player = await upsertPartnerPlayer(partner.id, {
-      fullName: memberFullName,
-      email: contact.email,
-      phone: contact.phone,
-    });
+    // Claimable (default): keep real email and/or phone on partner_players.
+    // Soft profile (name only): full synthetic contact. Partial: fill the missing side only.
+    let contact: { email: string; phone: string };
+    if (memberEmail && memberPhone) {
+      contact = { email: memberEmail, phone: memberPhone };
+    } else if (!memberEmail && !memberPhone) {
+      contact = buildSyntheticMemberContact(registration.id, roleOrder);
+    } else {
+      const synthetic = buildSyntheticMemberContact(registration.id, roleOrder);
+      contact = {
+        email: memberEmail ?? synthetic.email,
+        phone: memberPhone ?? synthetic.phone,
+      };
+    }
+
+    const player = await upsertPartnerPlayer(
+      partner.id,
+      {
+        fullName: memberFullName,
+        email: contact.email,
+        phone: contact.phone,
+      },
+      {
+        preferPlayerId: member.partnerPlayerId ?? null,
+      },
+    );
 
     memberRows.push({
       registrationId: registration.id,

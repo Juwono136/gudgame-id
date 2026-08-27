@@ -17,9 +17,10 @@ import { RichHtmlContent } from "@/components/wiki/rich-html-content";
 import { TournamentAddToCalendar } from "@/components/tournaments/tournament-add-to-calendar";
 import { TournamentCountdown } from "@/components/tournaments/tournament-countdown";
 import { TournamentHeroVenueLink } from "@/components/tournaments/tournament-hero-venue-link";
+import { TournamentRecentMatchesSection } from "@/components/tournaments/tournament-recent-matches-section";
 import { TournamentShareCard } from "@/components/tournaments/tournament-share-card";
 import { TournamentSessionChrome } from "@/components/tournaments/tournament-session-chrome";
-import { TournamentVenueMapPreview } from "@/components/tournaments/form/tournament-venue-map-preview";
+import { VenueMapsPreview } from "@/components/tournaments/venue-maps-preview";
 import { FunMatchPublicLiveScore } from "@/components/tournaments/fun-match/fun-match-public-live-score";
 import { FunMatchPublicPlayersTab } from "@/components/tournaments/fun-match/fun-match-public-players-tab";
 import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
@@ -32,6 +33,7 @@ import { TournamentLiveBanner } from "@/components/tournaments/public/tournament
 import {
   TournamentDetailPageShell,
   TournamentHeroBanner,
+  TournamentInfoCard,
   TournamentTabNav,
   tournamentHeroStyles,
 } from "@/components/tournaments/tournament-detail-ui";
@@ -44,7 +46,6 @@ import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { useTournamentLobby } from "@/hooks/use-tournament-lobby";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
-import { partnerPageClass } from "@/lib/partners/layout";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
 import { hasPublicBracketTree } from "@/lib/tournaments/brackets/has-public-bracket";
 import { groupHistoryEntryToReclubView } from "@/lib/tournaments/double-stage/view-mappers";
@@ -55,12 +56,21 @@ import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { liveMatchesToReclubViews } from "@/lib/tournaments/reclub/live-match-mappers";
 import { dedupeReclubMatchViews } from "@/lib/tournaments/reclub/round-groups";
 import {
+  mapBracketMatchesToRecentRows,
+  mapLivePayloadToRecentRows,
+  mapReclubMatchesToRecentRows,
+  mergeRecentMatchRows,
+} from "@/lib/tournaments/recent-matches";
+import {
+  getMaxRounds,
+  getTournamentCourtCount,
   getTournamentDisplayConfig,
   getTournamentFormatLabel,
   getTournamentScoringDetailLabel,
   getTournamentScoringPrimaryLabel,
   getVenueMapsUrl,
 } from "@/lib/tournaments/settings";
+import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   computeReclubSessionStats,
@@ -136,13 +146,13 @@ function formatIdr(amount: number | null | undefined) {
   }).format(amount);
 }
 
-/** Aligned with partner manage sections (Groups / Matches / Bracket). */
+/** Aligned with Official Gud Game public tab order (Matches → Groups → Players). */
 const TABS = [
   "Overview",
   "Live Score",
-  "Players",
-  "Groups",
   "Matches",
+  "Groups",
+  "Players",
   "Bracket",
   "History & stats",
 ] as const;
@@ -165,31 +175,6 @@ type PartnerTournamentPublicPageProps = {
   /** Authoritative slot holds (pending + confirmed). Used to gate Register CTA. */
   registrationCapacity?: PartnerTournamentRegistrationCapacity;
 };
-
-function InfoCard({
-  icon: Icon,
-  title,
-  value,
-  hint,
-}: {
-  icon: typeof Trophy;
-  title: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="flex h-full min-w-0 flex-col rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
-      <div className="flex items-center gap-2 text-cp-primary">
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="truncate text-xs font-semibold uppercase tracking-wider">{title}</span>
-      </div>
-      <p className="mt-3 break-words text-lg font-bold tracking-tight text-foreground sm:text-xl">
-        {value}
-      </p>
-      <p className="mt-1 text-xs leading-relaxed text-cp-muted">{hint}</p>
-    </div>
-  );
-}
 
 export function PartnerTournamentPublicPage({
   partnerSlug,
@@ -307,6 +292,31 @@ export function PartnerTournamentPublicPage({
   const eventAccent = brandTheme?.accentColor?.trim() || eventPrimary;
   const scoringPrimary = getTournamentScoringPrimaryLabel(tournament);
   const scoringDetail = getTournamentScoringDetailLabel(tournament);
+  const courtCount = getTournamentCourtCount(tournament);
+  const dsPool = parseDoubleStageSettings(tournament.settings);
+  const formatHint = (() => {
+    const parts: string[] = [];
+    if (tournament.maxTeams) parts.push(`Up to ${tournament.maxTeams} teams`);
+    parts.push(
+      tournament.playersPerTeam === 1
+        ? "Singles"
+        : `${tournament.playersPerTeam} players/team`,
+    );
+    parts.push(`${courtCount} ${courtCount === 1 ? "court" : "courts"}`);
+    if (tournament.format === "double_stage") {
+      parts.push(
+        `Pools of ${dsPool.maxTeamsPerGroup ?? 4} · advance ${dsPool.teamsAdvancePerGroup ?? 1}`,
+      );
+      if ((dsPool.bestRunnerUpSlots ?? 0) > 0) {
+        parts.push(`+${dsPool.bestRunnerUpSlots} runner-ups`);
+      }
+    }
+    if (tournament.format === "americano") {
+      const rounds = getMaxRounds(tournament);
+      if (rounds != null) parts.push(`Max ${rounds} rounds`);
+    }
+    return parts.join(" · ");
+  })();
 
   const registeredTeams =
     lobbyData?.summary.registeredTeams ?? participantsData?.teamCount ?? 0;
@@ -324,9 +334,6 @@ export function PartnerTournamentPublicPage({
     registrationCapacity?.isFull === true ||
     (maxTeams != null && reservedSpots >= maxTeams);
   const canRegister = registrationOpen && !isRegistrationFull;
-  // Progress reflects confirmed lobby teams; Register CTA uses reserved holds above.
-  const capacityRatio =
-    maxTeams && maxTeams > 0 ? Math.min(1, registeredTeams / maxTeams) : 0;
 
   const lobbyTeams = lobbyData?.teams ?? [];
 
@@ -417,6 +424,37 @@ export function PartnerTournamentPublicPage({
 
   const liveScoreMode = caps.isDoubleStage && !isDoubleStageKnockout ? "group_stage" : "rounds";
 
+  const recentMatchRows = useMemo(() => {
+    if (caps.isDoubleStage) {
+      const groupRows = mapReclubMatchesToRecentRows(
+        officialReclubMatches,
+        displayStatus,
+        null,
+      );
+      const bracketRows = mapBracketMatchesToRecentRows(
+        officialBracketMatches,
+        displayStatus,
+        null,
+      );
+      const liveRows = mapLivePayloadToRecentRows(liveData, displayStatus, null);
+      return mergeRecentMatchRows(groupRows, bracketRows, liveRows);
+    }
+    if (caps.isAmericano) {
+      const fromLive = mapLivePayloadToRecentRows(liveData, displayStatus);
+      if (fromLive.length) return fromLive;
+      return mapReclubMatchesToRecentRows(lobbyData?.matches ?? [], displayStatus);
+    }
+    return mapBracketMatchesToRecentRows(officialBracketMatches, displayStatus);
+  }, [
+    caps.isAmericano,
+    caps.isDoubleStage,
+    displayStatus,
+    liveData,
+    lobbyData?.matches,
+    officialBracketMatches,
+    officialReclubMatches,
+  ]);
+
   const bannerMatches = useMemo(() => {
     const courts = liveData?.courts ?? lobbyData?.courts ?? [];
     const fromLive =
@@ -479,7 +517,6 @@ export function PartnerTournamentPublicPage({
       <TournamentHeroBanner
         coverImageUrl={tournament.coverImageUrl}
         variant="official"
-        contentClassName="max-w-7xl px-3 sm:px-6 lg:px-8"
       >
         <Link
           href={partnerPublicRoutes.tournaments(partnerSlug)}
@@ -612,12 +649,12 @@ export function PartnerTournamentPublicPage({
 
       <TournamentLiveBanner
         matches={bannerMatches}
-        variant="fun"
+        variant="official"
         onViewLive={() => navigateTab("Live Score")}
         viewLiveLabel="View live score"
       />
 
-      <div className={partnerPageClass("space-y-5 py-6 sm:space-y-6 sm:py-8")}>
+      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8">
         <TournamentTabNav
           tabs={visibleTabs}
           active={tab}
@@ -628,36 +665,26 @@ export function PartnerTournamentPublicPage({
         {tab === "Overview" ? (
           <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,300px)] lg:gap-8">
             <div className="order-2 min-w-0 space-y-5 sm:space-y-6 lg:order-1">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                <InfoCard
-                  icon={CreditCard}
-                  title="Entry"
-                  value={feeLabel}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+                <TournamentInfoCard
+                  icon={prizeLabel ? Trophy : CreditCard}
+                  title={prizeLabel ? "Prize pool" : "Entry"}
+                  value={prizeLabel ?? feeLabel}
                   hint={
-                    isPaidRegistration
-                      ? "Guest team registration via partner checkout."
-                      : "Free entry — organizer confirms after registration."
+                    prizeLabel
+                      ? "Top placements"
+                      : isPaidRegistration
+                        ? "Guest team registration via partner checkout."
+                        : "Free entry — organizer confirms after registration."
                   }
                 />
-                {prizeLabel ? (
-                  <InfoCard
-                    icon={Trophy}
-                    title="Prize pool"
-                    value={prizeLabel}
-                    hint="Total prizes for this event."
-                  />
-                ) : null}
-                <InfoCard
+                <TournamentInfoCard
                   icon={Users}
                   title="Format"
                   value={formatLabel}
-                  hint={
-                    tournament.maxTeams
-                      ? `Up to ${tournament.maxTeams} teams · ${tournament.playersPerTeam} players/team`
-                      : `${tournament.playersPerTeam} players per team`
-                  }
+                  hint={formatHint}
                 />
-                <InfoCard
+                <TournamentInfoCard
                   icon={Radio}
                   title="Scoring"
                   value={scoringPrimary}
@@ -666,40 +693,101 @@ export function PartnerTournamentPublicPage({
               </div>
 
               <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <h2 className="font-semibold text-foreground">Who&apos;s playing</h2>
                     <p className="mt-1 text-sm text-cp-muted">
-                      Confirmed teams only. Pending registrations are not shown until the organizer
+                      Confirmed teams only. Pending registrations appear after the organizer
                       confirms them.
-                      {registeredPlayers > 0
-                        ? ` ${registeredPlayers} confirmed players.`
-                        : ""}
-                      {spotsRemaining != null ? ` ${spotsRemaining} team spots left.` : ""}
+                      {spotsRemaining == null
+                        ? ""
+                        : spotsRemaining === 0
+                          ? " The field is full."
+                          : ` ${spotsRemaining} team spot${spotsRemaining === 1 ? "" : "s"} still open.`}
                     </p>
                   </div>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-cp-primary">
-                    {registeredTeams}
-                    {maxTeams != null ? ` / ${maxTeams}` : ""} teams
-                  </span>
-                </div>
-                {maxTeams != null ? (
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-cp-elevated">
-                    <div
-                      className="h-full rounded-full bg-cp-primary transition-all duration-500"
-                      style={{ width: `${Math.round(capacityRatio * 100)}%` }}
-                    />
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button
+                      size="sm"
+                      className="h-9 w-full shrink-0 bg-cp-primary font-semibold hover:bg-cp-primary-light sm:w-auto"
+                      onClick={() => navigateTab("Players")}
+                    >
+                      <Trophy className="mr-1.5 h-3.5 w-3.5" />
+                      Leaderboard
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-full shrink-0 border-cp-border sm:w-auto"
+                      onClick={() => navigateTab("Players")}
+                    >
+                      Registered teams
+                    </Button>
                   </div>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-4 w-full border-cp-border sm:w-auto"
-                  onClick={() => navigateTab("Players")}
-                >
-                  View full player list
-                </Button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Teams
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                      {registeredTeams}
+                      {maxTeams != null ? (
+                        <span className="text-base font-semibold text-cp-muted">
+                          {" "}
+                          / {maxTeams}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Players
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
+                      {registeredPlayers}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-cp-muted">
+                      {tournament.playersPerTeam} per team
+                    </p>
+                  </div>
+                  <div className="col-span-2 rounded-xl border border-cp-border/80 bg-cp-elevated/30 px-3 py-3 sm:col-span-1 sm:px-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                      Availability
+                    </p>
+                    <p
+                      className={cn(
+                        "mt-1 text-sm font-semibold sm:text-base",
+                        spotsRemaining === 0
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-cp-primary",
+                      )}
+                    >
+                      {spotsRemaining == null
+                        ? "Open field"
+                        : spotsRemaining === 0
+                          ? "Full"
+                          : `${spotsRemaining} spot${spotsRemaining === 1 ? "" : "s"} left`}
+                    </p>
+                  </div>
+                </div>
               </section>
+
+              <TournamentRecentMatchesSection
+                variant="official"
+                rows={recentMatchRows}
+                alwaysShow
+                emptyMessage={
+                  caps.isDoubleStage
+                    ? "Group and knockout results will appear here as matches are recorded."
+                    : caps.isAmericano
+                      ? "Results will appear after rounds are recorded."
+                      : "Results will show here once matches are played."
+                }
+                onViewAll={() => navigateTab("History & stats")}
+                emptyActionLabel="View history"
+              />
 
               <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-6">
                 <h2 className="font-semibold text-foreground">About</h2>
@@ -719,27 +807,19 @@ export function PartnerTournamentPublicPage({
               </section>
 
               {tournament.venue ? (
-                <section className="min-w-0 space-y-3">
-                  <h2 className="font-semibold text-foreground">Location</h2>
-                  <TournamentVenueMapPreview
-                    venue={tournament.venue}
-                    mapsUrl={venueMapsUrl}
-                  />
-                </section>
+                <VenueMapsPreview venue={tournament.venue} mapsUrl={venueMapsUrl} />
               ) : null}
             </div>
 
-            <aside className="order-1 min-w-0 space-y-4 lg:order-2 lg:sticky lg:top-24">
-              <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-sm sm:p-5">
+            <aside className="order-1 min-w-0 space-y-4 lg:order-2 lg:sticky lg:top-24 lg:self-start">
+              <div className="rounded-2xl border border-cp-primary/30 bg-cp-card p-4 shadow-[0_8px_32px_rgba(0,191,139,0.12)] sm:p-6">
                 <p className="text-xs font-semibold uppercase tracking-wider text-cp-muted">
-                  Entry
+                  {isPaidRegistration ? "Registration fee" : "Entry"}
                 </p>
-                <p className="mt-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                <p className="mt-2 text-3xl font-bold text-foreground">
                   {feeLabel}
                   {isPaidRegistration ? (
-                    <span className="ml-1 text-sm font-medium text-cp-muted sm:text-base">
-                      / team
-                    </span>
+                    <span className="ml-1 text-base font-medium text-cp-muted">/ team</span>
                   ) : null}
                 </p>
                 {prizeLabel ? (
@@ -785,7 +865,7 @@ export function PartnerTournamentPublicPage({
                 {canRegister ? (
                   <Button
                     asChild
-                    className="mt-5 h-11 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light sm:mt-6 sm:h-12"
+                    className="btn-interactive mt-6 h-12 w-full bg-cp-primary text-base font-semibold hover:bg-cp-primary-light"
                   >
                     <Link href={registerHref}>
                       <UserPlus className="mr-2 h-4 w-4" />

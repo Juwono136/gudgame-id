@@ -17,12 +17,14 @@ import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   getMaxRounds,
+  getTournamentClassicSetRules,
   getTournamentDeuceConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
+  isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
 
 export type PublicMultiCourtLiveScoreVariant = "official" | "fun_match";
@@ -211,8 +213,19 @@ export function PublicMultiCourtLiveScore({
     const phase = scopedLiveData?.doubleStage?.phase;
     const stage =
       phase === "knockout" ? "knockout" : phase === "group" ? "group" : "default";
+    // Classic sets still uses the games engine for rally points, but race-to labels
+    // must not win — FunMatchLiveHub prefers classicSetRules when present.
     if (getTournamentMatchScoreMode(tournament, stage) !== "games") return null;
     return getTournamentGameRules(tournament, stage);
+  }, [tournament, scopedLiveData?.doubleStage?.phase]);
+
+  const classicSetRules = useMemo(() => {
+    const phase = scopedLiveData?.doubleStage?.phase;
+    const stage =
+      phase === "knockout" ? "knockout" : phase === "group" ? "group" : "default";
+    return isClassicSetsFormat(tournament, stage)
+      ? getTournamentClassicSetRules(tournament, stage)
+      : null;
   }, [tournament, scopedLiveData?.doubleStage?.phase]);
 
   const allMatches = useMemo(
@@ -291,6 +304,7 @@ export function PublicMultiCourtLiveScore({
           pointsPerMatch={pointsPerMatch}
           scoringRules={scoringRules}
           gameRules={gameRules}
+          classicSetRules={classicSetRules}
           maxRounds={maxRounds}
           accentVariant={variant === "official" ? "official" : "fun"}
           isGroupStageMode
@@ -329,6 +343,7 @@ export function PublicMultiCourtLiveScore({
       pointsPerMatch={pointsPerMatch}
       scoringRules={scoringRules}
       gameRules={gameRules}
+      classicSetRules={classicSetRules}
       maxRounds={maxRounds}
       accentVariant={variant === "official" ? "official" : "fun"}
       isGroupStageMode={false}

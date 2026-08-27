@@ -19,6 +19,7 @@ export function resolveGamesDisplayMode(
       raceToGames: number;
       pointsToWinGame: number;
       lengthMode: "race_to" | "total";
+      classicSets?: boolean;
     }
   | undefined {
   if (!scoring || scoring.matchScoreMode !== "games") return undefined;
@@ -30,5 +31,6 @@ export function resolveGamesDisplayMode(
     raceToGames,
     pointsToWinGame: scoring.pointsToWinGame ?? 40,
     lengthMode: scoring.lengthMode ?? "race_to",
+    classicSets: scoring.classicSets === true,
   };
 }

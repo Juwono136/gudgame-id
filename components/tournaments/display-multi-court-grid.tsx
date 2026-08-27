@@ -25,12 +25,14 @@ type MultiCourtDisplayCardProps = {
     raceToGames: number;
     pointsToWinGame?: number;
     lengthMode?: "race_to" | "total";
+    classicSets?: boolean;
   };
 };
 
 /**
  * TV multi-court card — same schema as public Live Score court cards
  * (team | score | team + LiveMatchTimer + rules line), styled for venue monitors.
+ * Uses `--display-primary` / `--display-accent` from DisplayVenueShell when set.
  */
 export function MultiCourtDisplayCard({
   courtName,
@@ -49,12 +51,18 @@ export function MultiCourtDisplayCard({
   return (
     <article
       className={cn(
-        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-emerald-500/30",
-        "bg-[#0c1613] p-3 shadow-lg sm:p-3.5 lg:p-4",
+        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border p-3 shadow-lg sm:p-3.5 lg:p-4",
+        "bg-[#0c1613]",
       )}
+      style={{
+        borderColor: "color-mix(in srgb, var(--display-primary, #10b981) 35%, transparent)",
+      }}
     >
       <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300/80 sm:text-[11px]">
+        <p
+          className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] sm:text-[11px]"
+          style={{ color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 85%, white)" }}
+        >
           {courtName}
         </p>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-200">
@@ -80,14 +88,19 @@ export function MultiCourtDisplayCard({
           {gamesMode ? (
             <>
               <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45">
-                Games
+                {gamesMode.classicSets ? "Sets" : "Games"}
               </p>
               <p className="text-base font-bold tabular-nums text-white sm:text-lg">
                 {scoreA}
                 <span className="mx-1 font-normal text-white/40">–</span>
                 {scoreB}
               </p>
-              <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-300/90">
+              <p
+                className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider"
+                style={{
+                  color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 90%, white)",
+                }}
+              >
                 Points
               </p>
               <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
@@ -131,10 +144,11 @@ export function MultiCourtDisplayCard({
 
       {gamesMode ? (
         <p className="mt-2 shrink-0 text-center text-[9px] text-white/40 sm:text-[10px]">
-          {(gamesMode.lengthMode ?? "race_to") === "total"
-            ? `Total ${gamesMode.raceToGames}`
-            : `Race to ${gamesMode.raceToGames}`}{" "}
-          · first to {gamesMode.pointsToWinGame ?? 40} pts
+          {gamesMode.classicSets
+            ? `Classic sets · first to ${gamesMode.pointsToWinGame ?? 40} pts`
+            : (gamesMode.lengthMode ?? "race_to") === "total"
+              ? `Total ${gamesMode.raceToGames} · first to ${gamesMode.pointsToWinGame ?? 40} pts`
+              : `Race to ${gamesMode.raceToGames} · first to ${gamesMode.pointsToWinGame ?? 40} pts`}
         </p>
       ) : null}
     </article>

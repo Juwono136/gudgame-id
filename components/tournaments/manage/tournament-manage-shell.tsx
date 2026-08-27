@@ -546,8 +546,12 @@ export function TournamentManageShell({
                     ) : null}
                   </div>
                 </div>
-                {isOfficial ? (
-                  <ManageOfficialDashboardPanel tournament={tournament} summary={summary} />
+                {isOfficial || isPartnerEvent ? (
+                  <ManageOfficialDashboardPanel
+                    tournament={tournament}
+                    summary={summary}
+                    variant={isPartnerEvent ? "partner" : "official"}
+                  />
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-cp-border bg-cp-elevated/25 p-4">

@@ -109,23 +109,26 @@ export function PartnerGuestRegistrationsPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-cp-border bg-cp-card p-4 shadow-sm sm:p-5">
+    <div className="rounded-2xl border border-cp-border bg-cp-card p-4 shadow-[0_4px_24px_rgba(0,0,0,0.04)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-cp-primary" aria-hidden />
-            <h3 className="text-base font-semibold text-foreground">Guest registrations</h3>
+            <h3 className="text-base font-semibold text-foreground sm:text-lg">
+              Guest registrations
+            </h3>
           </div>
-          <p className="mt-1 text-sm text-cp-muted">
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-cp-muted">
             New sign-ups stay <span className="font-medium text-foreground">Registered</span> until
-            you confirm them. Only confirmed teams appear on the public Players tab.
+            you confirm them. Only confirmed teams appear on the public Players tab and live
+            scoring roster.
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="border-cp-border"
+          className="h-9 border-cp-border"
           disabled={isFetching}
           onClick={() => void refetch()}
         >
@@ -135,32 +138,32 @@ export function PartnerGuestRegistrationsPanel({
       </div>
 
       {isLoading ? (
-        <div className="mt-6 flex justify-center py-8">
+        <div className="mt-6 flex justify-center py-10">
           <PartnerLoadingSpinner label="Loading registrations…" />
         </div>
       ) : isError ? (
-        <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
           {error instanceof Error ? error.message : "Could not load registrations"}
         </p>
       ) : (
-        <div className="mt-5 space-y-5">
+        <div className="mt-6 space-y-6">
           <section>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-cp-muted">
               Needs review ({pending.length})
             </p>
             {pending.length === 0 ? (
-              <p className="mt-2 rounded-xl border border-dashed border-cp-border px-4 py-6 text-center text-sm text-cp-muted">
+              <p className="mt-2 rounded-xl border border-dashed border-cp-border bg-cp-elevated/20 px-4 py-8 text-center text-sm text-cp-muted">
                 No registrations waiting for confirmation.
               </p>
             ) : (
-              <ul className="mt-2 divide-y divide-cp-border overflow-hidden rounded-xl border border-cp-border">
+              <ul className="mt-3 divide-y divide-cp-border overflow-hidden rounded-xl border border-cp-border bg-cp-elevated/10">
                 {pending.map((reg) => {
                   const meta = statusMeta(reg.status);
                   const busy = busyId === reg.id && curate.isPending;
                   return (
                     <li
                       key={reg.id}
-                      className="flex flex-col gap-3 px-3 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+                      className="flex flex-col gap-3 px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -168,11 +171,11 @@ export function PartnerGuestRegistrationsPanel({
                           <Badge className={cn("border", meta.className)}>{meta.label}</Badge>
                         </div>
                         <p className="mt-0.5 text-xs text-cp-muted">{meta.hint}</p>
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
+                        <ul className="mt-2.5 flex flex-wrap gap-1.5">
                           {reg.members.map((m) => (
                             <li
                               key={`${reg.id}-${m.roleOrder}`}
-                              className="inline-flex items-center gap-1 rounded-lg border border-cp-border bg-cp-elevated/40 px-2 py-1 text-xs text-foreground"
+                              className="inline-flex items-center gap-1 rounded-lg border border-cp-border bg-cp-card px-2 py-1 text-xs text-foreground"
                             >
                               <Users className="h-3 w-3 text-cp-muted" aria-hidden />
                               {m.fullName}
@@ -190,7 +193,7 @@ export function PartnerGuestRegistrationsPanel({
                           <Button
                             type="button"
                             size="sm"
-                            className="bg-cp-primary hover:bg-cp-primary-light"
+                            className="h-9 bg-cp-primary hover:bg-cp-primary-light"
                             disabled={busy}
                             onClick={() => void onConfirm(reg.id, reg.teamName)}
                           >
@@ -205,7 +208,7 @@ export function PartnerGuestRegistrationsPanel({
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                            className="h-9 border-destructive/40 text-destructive hover:bg-destructive/10"
                             disabled={busy}
                             onClick={() => void onDecline(reg.id, reg.teamName)}
                           >
@@ -234,6 +237,27 @@ export function PartnerGuestRegistrationsPanel({
               <p className="mt-1 text-xs text-cp-muted">
                 These teams are on the public roster below.
               </p>
+              <ul className="mt-3 divide-y divide-cp-border overflow-hidden rounded-xl border border-cp-border/80 bg-cp-elevated/10">
+                {confirmed.map((reg) => {
+                  const meta = statusMeta(reg.status);
+                  return (
+                    <li
+                      key={reg.id}
+                      className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">{reg.teamName}</p>
+                          <Badge className={cn("border", meta.className)}>{meta.label}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-cp-muted">
+                          {reg.members.map((m) => m.fullName).join(" · ")}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </section>
           ) : null}
         </div>

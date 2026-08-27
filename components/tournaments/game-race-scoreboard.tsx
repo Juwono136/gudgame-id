@@ -731,6 +731,7 @@ export function LiveGameRaceDisplay({
   raceToGames,
   pointsToWinGame = 40,
   lengthMode = "race_to",
+  classicSets = false,
   subtitle,
   className,
 }: {
@@ -743,6 +744,7 @@ export function LiveGameRaceDisplay({
   raceToGames: number;
   pointsToWinGame?: number;
   lengthMode?: "race_to" | "total";
+  classicSets?: boolean;
   /** @deprecated Unused — sequential points only. */
   pointStyle?: "tennis" | "simple";
   subtitle?: string;
@@ -753,13 +755,15 @@ export function LiveGameRaceDisplay({
       ? GAME_RALLY_MILESTONES
       : ([pointsToWinGame] as readonly number[]);
   const lead = Math.max(pointsA, pointsB);
-  const lengthLabel = formatGamesMatchLengthLabel({
-    raceToGames,
-    lengthMode,
-    pointsToWinGame,
-    gameDecider: "golden_point",
-    pointStyle: "simple",
-  });
+  const lengthLabel = classicSets
+    ? `Classic sets · first to ${pointsToWinGame} pts`
+    : formatGamesMatchLengthLabel({
+        raceToGames,
+        lengthMode,
+        pointsToWinGame,
+        gameDecider: "golden_point",
+        pointStyle: "simple",
+      });
 
   return (
     <div
@@ -776,7 +780,7 @@ export function LiveGameRaceDisplay({
 
       <div className="mb-4 rounded-2xl border border-white/12 bg-[#0c1613] px-5 py-2.5 text-center sm:mb-6 sm:px-8 sm:py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45 sm:text-[11px]">
-          {lengthLabel} · Games won
+          {lengthLabel} · {classicSets ? "Sets won" : "Games won"}
         </p>
         <p className="mt-0.5 text-3xl font-bold tabular-nums sm:text-4xl lg:text-5xl">
           {gamesA}
@@ -791,17 +795,32 @@ export function LiveGameRaceDisplay({
             key={m}
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide sm:px-3 sm:text-[11px]",
-              lead >= m
-                ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-200"
-                : "border-white/15 text-white/45",
+              lead >= m ? "text-white" : "border-white/15 text-white/45",
             )}
+            style={
+              lead >= m
+                ? {
+                    borderColor:
+                      "color-mix(in srgb, var(--display-primary, #34d399) 50%, transparent)",
+                    backgroundColor:
+                      "color-mix(in srgb, var(--display-primary, #10b981) 20%, transparent)",
+                    color:
+                      "color-mix(in srgb, var(--display-primary, #a7f3d0) 90%, white)",
+                  }
+                : undefined
+            }
           >
             {m}
           </span>
         ))}
       </div>
 
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300/90 sm:mb-4 sm:text-[11px]">
+      <p
+        className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] sm:mb-4 sm:text-[11px]"
+        style={{
+          color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 90%, white)",
+        }}
+      >
         Points this game
       </p>
 

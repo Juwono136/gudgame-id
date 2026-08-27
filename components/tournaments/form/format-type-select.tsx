@@ -67,11 +67,13 @@ export function FormatTypeSelect({
         {required ? <RequiredMark /> : null}
       </Label>
       <p className="text-xs leading-relaxed text-cp-muted">
-        {partnerTenant || officialOnly
-          ? formatFamily === "custom"
-            ? "Custom family: pick a format, then set meetings/legs. Mexicano is Original-only."
-            : "Choose Group+KO, Americano, Mexicano, Knockout, or Group only."
-          : "Choose how players compete. Options depend on the sport — some sports favor rotation formats, others use knockout brackets."}
+        {partnerTenant
+          ? "Choose Group+KO, knockout only, or Americano. Mexicano and Group-only are not available on partner sites."
+          : officialOnly
+            ? formatFamily === "custom"
+              ? "Custom family: pick a format, then set meetings/legs. Mexicano is Original-only."
+              : "Choose Group+KO, Americano, Mexicano, Knockout, or Group only."
+            : "Choose how players compete. Options depend on the sport — some sports favor rotation formats, others use knockout brackets."}
       </p>
       <div
         className={cn(gridClass, error && "rounded-2xl p-1 ring-1 ring-red-500/50")}

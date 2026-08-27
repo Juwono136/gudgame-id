@@ -5,7 +5,6 @@ import Image from "next/image";
 import { Check, Loader2, Search, UserPlus, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { usePlayerSearch } from "@/hooks/use-player-search";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import type { TournamentPlayerSearchResult } from "@/lib/tournaments/players/search";
@@ -16,7 +15,9 @@ type PlayerSearchPickerProps = {
   selected: TournamentPlayerSearchResult[];
   onChange: (players: TournamentPlayerSearchResult[]) => void;
   maxSelections?: number;
+  /** Single id to exclude (legacy). Prefer `excludeUserIds`. */
   excludeUserId?: string;
+  excludeUserIds?: string[];
   className?: string;
 };
 
@@ -26,16 +27,28 @@ export function PlayerSearchPicker({
   onChange,
   maxSelections = 1,
   excludeUserId,
+  excludeUserIds,
   className,
 }: PlayerSearchPickerProps) {
   const [query, setQuery] = useState("");
-  const { data: results = [], isFetching } = usePlayerSearch(sportSlug, query);
+  const { data: results = [], isSearching, isError, error, isFetched } = usePlayerSearch(
+    sportSlug,
+    query,
+  );
+
+  const excluded = new Set<string>([
+    ...(excludeUserIds ?? []),
+    ...(excludeUserId ? [excludeUserId] : []),
+  ]);
 
   const filtered = results.filter(
-    (r) =>
-      !selected.some((s) => s.userId === r.userId) &&
-      r.userId !== excludeUserId,
+    (r) => !selected.some((s) => s.userId === r.userId) && !excluded.has(r.userId),
   );
+
+  const showDropdown = query.trim().length >= 2 && !isSearching && filtered.length > 0;
+  const showEmpty =
+    query.trim().length >= 2 && !isSearching && !isError && isFetched && filtered.length === 0;
+  const showError = query.trim().length >= 2 && !isSearching && isError;
 
   const addPlayer = (player: TournamentPlayerSearchResult) => {
     if (selected.length >= maxSelections) return;
@@ -82,18 +95,21 @@ export function PlayerSearchPicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name, nickname, or email…"
             className="border-cp-border bg-cp-bg-input pl-9"
+            autoComplete="off"
+            aria-busy={isSearching}
           />
-          {isFetching ? (
+          {isSearching ? (
             <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-cp-muted" />
           ) : null}
 
           <AnimatePresence>
-            {query.trim().length >= 2 && filtered.length > 0 ? (
+            {showDropdown ? (
               <motion.ul
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-cp-border bg-cp-card py-1 shadow-lg"
+                role="listbox"
               >
                 {filtered.map((player) => (
                   <li key={player.userId}>
@@ -101,6 +117,7 @@ export function PlayerSearchPicker({
                       type="button"
                       onClick={() => addPlayer(player)}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-cp-elevated"
+                      role="option"
                     >
                       <PlayerChipAvatar player={player} size="md" />
                       <div className="min-w-0 flex-1">
@@ -118,7 +135,13 @@ export function PlayerSearchPicker({
             ) : null}
           </AnimatePresence>
 
-          {query.trim().length >= 2 && !isFetching && filtered.length === 0 ? (
+          {showError ? (
+            <p className="mt-2 text-xs text-destructive" role="alert">
+              {error instanceof Error ? error.message : "Search failed. Try again."}
+            </p>
+          ) : null}
+
+          {showEmpty ? (
             <p className="mt-2 text-xs text-cp-muted">No players found. Try another search.</p>
           ) : null}
         </div>

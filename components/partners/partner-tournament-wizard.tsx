@@ -176,6 +176,10 @@ type FormState = {
   scoreEntryMode: ScoreEntryMode;
   scoringType: ScoringType;
   roundDurationMinutes: number;
+  /** Americano round cap — unlimited when null. */
+  maxRounds: number | null;
+  playersPerTeam: 1 | 2;
+  thirdPlaceEnabled: boolean;
   entryBilling: "paid" | "free";
   registrationFeeIdr: string;
   /** Optional prize pool */
@@ -212,6 +216,9 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
       scoreEntryMode: "live",
       scoringType: "points",
       roundDurationMinutes: 45,
+      maxRounds: 8,
+      playersPerTeam: 2,
+      thirdPlaceEnabled: false,
       entryBilling: "free",
       registrationFeeIdr: "",
       prizePoolIdr: "",
@@ -265,6 +272,9 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
     scoreEntryMode: getTournamentScoreEntryMode(initial),
     scoringType: getTournamentScoringType(initial),
     roundDurationMinutes: getTournamentRoundDurationMinutes(initial),
+    maxRounds: settings.maxRounds ?? null,
+    playersPerTeam: initial.playersPerTeam === 1 ? 1 : 2,
+    thirdPlaceEnabled: ds.thirdPlaceEnabled === true,
     entryBilling,
     registrationFeeIdr:
       entryBilling === "paid" && initial.registrationFeeIdr
@@ -325,6 +335,7 @@ export function PartnerTournamentWizard({
   const step = STEPS[stepIndex]!;
   const isLast = stepIndex === STEPS.length - 1;
   const isDoubleStage = form.format === "double_stage";
+  const isAmericano = form.format === "americano";
   const isRace = form.matchFormat === "race_to_games";
   const scheduleLocked =
     isEdit && (form.status === "live" || form.status === "completed");
@@ -525,7 +536,7 @@ export function PartnerTournamentWizard({
           ? Number(form.prizePoolIdr)
           : null,
       status: form.status,
-      playersPerTeam: 2,
+      playersPerTeam: form.playersPerTeam,
       maxTeams: clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32),
       venue: form.venue.trim().slice(0, TOURNAMENT_FIELD_LIMITS.venue),
       venueMapsUrl: form.venueMapsUrl.trim() || undefined,
@@ -535,6 +546,8 @@ export function PartnerTournamentWizard({
       registrationClosesAt: form.registrationClosesAt
         ? new Date(form.registrationClosesAt).toISOString()
         : endsAt,
+      // Classic sets still uses the games engine under the hood (rally points);
+      // public/manage labels key off matchFormat === classic_sets, not this field alone.
       matchScoreMode: "games",
       matchFormat: form.matchFormat,
       raceToGames: form.raceToGamesGroup,
@@ -550,7 +563,11 @@ export function PartnerTournamentWizard({
       maxTeamsPerGroup: isDoubleStage ? form.maxTeamsPerGroup : undefined,
       teamsAdvancePerGroup: isDoubleStage ? form.teamsAdvancePerGroup : undefined,
       bestRunnerUpSlots: isDoubleStage ? form.bestRunnerUpSlots : undefined,
-      thirdPlaceEnabled: false,
+      thirdPlaceEnabled:
+        form.format === "double_stage" || form.format === "single_elimination"
+          ? form.thirdPlaceEnabled
+          : false,
+      maxRounds: form.format === "americano" ? (form.maxRounds ?? undefined) : undefined,
       partnerLeagueId: form.partnerLeagueId,
     };
   };
@@ -647,6 +664,8 @@ export function PartnerTournamentWizard({
       } else {
         rows.push({ label: "Race-to", value: `First to ${form.raceToGamesGroup}` });
       }
+    } else {
+      rows.push({ label: "Match format", value: "Classic sets (best of 3)" });
     }
     rows.push(
       {
@@ -666,13 +685,34 @@ export function PartnerTournamentWizard({
             : "Untimed",
       },
     );
+    if (isAmericano) {
+      rows.push({
+        label: "Max rounds",
+        value: form.maxRounds != null ? String(form.maxRounds) : "Unlimited",
+      });
+    }
+    rows.push({
+      label: "Players / team",
+      value: form.playersPerTeam === 1 ? "Singles (1)" : "Doubles (2)",
+    });
+    if (form.format === "double_stage" || form.format === "single_elimination") {
+      rows.push({
+        label: "3rd place match",
+        value: form.thirdPlaceEnabled ? "Enabled" : "Off",
+      });
+    }
     return rows;
   }, [
     form.gameDecider,
+    form.maxRounds,
+    form.playersPerTeam,
     form.raceToGamesGroup,
     form.raceToGamesKnockout,
     form.roundDurationMinutes,
     form.scoringType,
+    form.thirdPlaceEnabled,
+    form.format,
+    isAmericano,
     isDoubleStage,
     isRace,
   ]);
@@ -694,6 +734,8 @@ export function PartnerTournamentWizard({
         description="Partner white-label event — format, pools, and scoring stay on your site, never on Gud Game rankings. No skill tiers."
       />
 
+      {/* Match Official create wizard: focused max-w-4xl card under partner chrome */}
+      <div className="mx-auto w-full max-w-4xl">
       <div className="overflow-hidden rounded-2xl border border-cp-border bg-cp-card shadow-sm">
         <div className="border-b border-cp-border bg-cp-elevated/50 px-3 py-3 sm:px-5 sm:py-5">
           <WikiStepper
@@ -739,7 +781,7 @@ export function PartnerTournamentWizard({
                         patch("name", e.target.value.slice(0, TOURNAMENT_FIELD_LIMITS.name));
                         if (nameError) setNameError(null);
                       }}
-                      className="border-cp-border bg-cp-bg-input"
+                      className="border-cp-border bg-cp-elevated/40"
                       placeholder="e.g. Friday Night Open"
                       maxLength={TOURNAMENT_FIELD_LIMITS.name}
                       aria-invalid={nameError ? true : undefined}
@@ -875,13 +917,37 @@ export function PartnerTournamentWizard({
                           }
                           patch("maxTeams", String(clampMaxTeams(parsed)));
                         }}
-                        className="border-cp-border bg-cp-bg-input"
+                        className="border-cp-border bg-cp-elevated/40"
                         placeholder="32"
                         aria-invalid={maxTeamsError ? true : undefined}
                       />
                       <FieldError message={maxTeamsError} />
                       <p className="text-xs text-cp-muted">
                         Capacity for guest registration ({MAX_TEAMS_MIN}–{MAX_TEAMS_MAX} teams).
+                      </p>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Players per team</Label>
+                      <Select
+                        value={String(form.playersPerTeam)}
+                        onValueChange={(v) =>
+                          patch("playersPerTeam", Number(v) === 1 ? 1 : 2)
+                        }
+                      >
+                        <SelectTrigger className={cpSelectTriggerClass}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className={cpSelectContentClass}>
+                          <SelectItem value="2" className={cpSelectItemClass}>
+                            Doubles (2 players)
+                          </SelectItem>
+                          <SelectItem value="1" className={cpSelectItemClass}>
+                            Singles (1 player)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-cp-muted">
+                        Controls registration teammate slots and roster size on your site.
                       </p>
                     </div>
                   </div>
@@ -1057,6 +1123,71 @@ export function PartnerTournamentWizard({
                           common for 12–20 pair amateur fields.
                         </p>
                       </div>
+                      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-cp-border/70 bg-cp-card/40 px-3 py-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 rounded border-cp-border"
+                          checked={form.thirdPlaceEnabled}
+                          onChange={(e) => patch("thirdPlaceEnabled", e.target.checked)}
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-foreground">
+                            Bronze / 3rd place match
+                          </span>
+                          <span className="mt-0.5 block text-xs text-cp-muted">
+                            Add a consolation final for the losing semi-finalists after knockout is
+                            generated.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                  ) : null}
+
+                  {form.format === "single_elimination" ? (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-cp-border/80 bg-cp-elevated/30 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 rounded border-cp-border"
+                        checked={form.thirdPlaceEnabled}
+                        onChange={(e) => patch("thirdPlaceEnabled", e.target.checked)}
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-foreground">
+                          Bronze / 3rd place match
+                        </span>
+                        <span className="mt-0.5 block text-xs text-cp-muted">
+                          Optional match for semi-final losers.
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+
+                  {isAmericano ? (
+                    <div className="space-y-2 rounded-2xl border border-cp-border/80 bg-cp-elevated/30 p-4">
+                      <Label>Maximum rounds</Label>
+                      <Select
+                        value={form.maxRounds == null ? "unlimited" : String(form.maxRounds)}
+                        onValueChange={(v) =>
+                          patch("maxRounds", v === "unlimited" ? null : Number(v))
+                        }
+                      >
+                        <SelectTrigger className={cpSelectTriggerClass}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className={cpSelectContentClass}>
+                          <SelectItem value="unlimited" className={cpSelectItemClass}>
+                            Unlimited
+                          </SelectItem>
+                          {[4, 6, 8, 10, 12, 16].map((n) => (
+                            <SelectItem key={n} value={String(n)} className={cpSelectItemClass}>
+                              {n} rounds
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-cp-muted">
+                        Caps how many Americano rounds hosts can start from Live scoring.
+                      </p>
                     </div>
                   ) : null}
                 </>
@@ -1293,6 +1424,7 @@ export function PartnerTournamentWizard({
           isPending={pending}
           isEdit={isEdit}
         />
+      </div>
       </div>
     </div>
   );

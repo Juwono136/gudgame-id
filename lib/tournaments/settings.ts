@@ -304,10 +304,33 @@ export function getScoringTypeLabel(scoringType: string | null | undefined): str
   return scoringType === "timed" ? "Timed rounds" : "Points";
 }
 
+function formatRaceToLabel(n: number): string {
+  return `Race to ${n}`;
+}
+
+function formatClassicSetsPrimaryLabel(tournament: TournamentDetail): string {
+  const rules = getTournamentClassicSetRules(tournament);
+  return `Best of ${rules.bestOfSets} · to ${rules.gamesToWinSet}`;
+}
+
+function formatGameDeciderShort(
+  decider: "golden_point" | "star_point" | "advantage" | undefined,
+): string | null {
+  if (decider === "golden_point") return "Golden Point";
+  if (decider === "star_point") return "Star Point";
+  if (decider === "advantage") return "Advantage";
+  return null;
+}
+
 /** Primary scoring label for cards and summaries (e.g. "21 points" or "Race to 4"). */
 export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): string {
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min rounds`;
+  }
+  // Partner classic_sets also stores matchScoreMode "games" for the live engine —
+  // prefer matchFormat so Overview / manage never say "Race to N" for classic sets.
+  if (isClassicSetsFormat(tournament)) {
+    return formatClassicSetsPrimaryLabel(tournament);
   }
   const stored = getStoredMatchScoring(tournament);
   if (stored) return summarizeMatchScoring(stored);
@@ -317,25 +340,31 @@ export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): 
   return `${getTournamentPointsPerMatch(tournament)} points`;
 }
 
-function formatRaceToLabel(n: number): string {
-  return `Race to ${n}`;
-}
-
 /** Secondary scoring line with type and court count. */
 export function getTournamentScoringDetailLabel(tournament: TournamentDetail): string {
   const courtCount = getTournamentCourtCount(tournament);
   const courts = `${courtCount} ${courtCount === 1 ? "court" : "courts"}`;
-  const mode =
-    getTournamentMatchScoreMode(tournament) === "games"
-      ? formatRaceToLabel(getTournamentRaceToTarget(tournament))
-      : getScoringTypeLabel(getTournamentScoringType(tournament));
-  return `${mode} · ${courts}`;
+  const decider = formatGameDeciderShort(
+    parseTournamentSettings(tournament.settings).gameDecider,
+  );
+  let mode: string;
+  if (isClassicSetsFormat(tournament)) {
+    mode = "Classic sets";
+  } else if (getTournamentMatchScoreMode(tournament) === "games") {
+    mode = formatRaceToLabel(getTournamentRaceToTarget(tournament));
+  } else {
+    mode = getScoringTypeLabel(getTournamentScoringType(tournament));
+  }
+  return decider ? `${mode} · ${decider} · ${courts}` : `${mode} · ${courts}`;
 }
 
 /** Short hint for match scoring (bracket readiness, live toolbar). */
 export function getTournamentMatchScoringHint(tournament: TournamentDetail): string {
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min per round`;
+  }
+  if (isClassicSetsFormat(tournament)) {
+    return formatClassicSetsPrimaryLabel(tournament);
   }
   const stored = getStoredMatchScoring(tournament);
   if (stored) return summarizeMatchScoring(stored);
@@ -845,13 +874,20 @@ export function isBracketSeedingFinalized(tournament: TournamentDetail): boolean
 }
 
 export function getTournamentDisplayConfig(tournament: TournamentDetail): TournamentDisplayConfig {
-  return (
-    parseTournamentSettings(tournament.settings).displayConfig ?? {
-      layout: "single",
+  const stored = parseTournamentSettings(tournament.settings).displayConfig;
+  const defaultLayout =
+    tournament.tournamentType === "official" ? "single" : "multi_court";
+  if (!stored) {
+    return {
+      layout: defaultLayout,
       showUpcoming: true,
       showHighlights: true,
-    }
-  );
+    };
+  }
+  return {
+    ...stored,
+    layout: stored.layout ?? defaultLayout,
+  };
 }
 
 export function getTournamentRuleSections(

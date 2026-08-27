@@ -13,6 +13,7 @@ import {
   getTournamentCourtCount,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
+import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,8 @@ import { cn } from "@/lib/utils";
 type ManageOfficialDashboardPanelProps = {
   tournament: TournamentDetail;
   summary: TournamentRegistrationSummary;
+  /** Partner white-label uses the same stats with partner-scoped copy. */
+  variant?: "official" | "partner";
   className?: string;
 };
 
@@ -60,8 +63,10 @@ function StatCard({
 export function ManageOfficialDashboardPanel({
   tournament,
   summary,
+  variant = "official",
   className,
 }: ManageOfficialDashboardPanelProps) {
+  const isPartner = variant === "partner" || Boolean(tournament.partnerId);
   const courtCount = getTournamentCourtCount(tournament);
   const scoringPrimary = getTournamentScoringPrimaryLabel(tournament);
   const billingLabel =
@@ -73,11 +78,19 @@ export function ManageOfficialDashboardPanel({
       ? `${summary.registeredTeams} / ${summary.maxTeams}`
       : String(summary.registeredTeams);
 
+  const ds = parseDoubleStageSettings(tournament.settings);
+  const poolDetail =
+    tournament.format === "double_stage"
+      ? `Pools of ${ds.maxTeamsPerGroup ?? 4} · advance ${ds.teamsAdvancePerGroup ?? 1}${
+          (ds.bestRunnerUpSlots ?? 0) > 0 ? ` · +${ds.bestRunnerUpSlots} runner-ups` : ""
+        }`
+      : undefined;
+
   return (
     <section className={cn("space-y-4", className)}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge className="border-cp-border bg-cp-elevated capitalize text-foreground">
-          Official · {billingLabel}
+          {isPartner ? `Partner · ${billingLabel}` : `Official · ${billingLabel}`}
         </Badge>
         <Badge variant="muted" className="capitalize">
           {tournament.format.replace(/_/g, " ")}
@@ -95,7 +108,7 @@ export function ManageOfficialDashboardPanel({
           detail={
             summary.spotsRemaining != null
               ? `${summary.spotsRemaining} spots remaining`
-              : undefined
+              : poolDetail
           }
         />
         <StatCard
@@ -118,8 +131,12 @@ export function ManageOfficialDashboardPanel({
           value={billingLabel}
           detail={
             tournament.officialBilling === "paid"
-              ? "Payment status in Registrations"
-              : "Free registration — no payment required"
+              ? isPartner
+                ? "Guest payments · confirm under Players"
+                : "Payment status in Registrations"
+              : isPartner
+                ? "Free registration — confirm guests under Players"
+                : "Free registration — no payment required"
           }
           accent={tournament.officialBilling === "paid" ? "text-amber-400" : "text-emerald-400"}
         />

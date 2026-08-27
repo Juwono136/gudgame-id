@@ -77,6 +77,8 @@ export type TournamentLivePayload = {
     lengthMode?: "race_to" | "total";
     pointsToWinGame?: number;
     pointStyle?: IntraGamePointStyle;
+    /** Partner/Official classic sets — venue boards should not say "Race to N". */
+    classicSets?: boolean;
     /**
      * Est. match length for LiveMatchTimer (same source as public Live Score).
      * Null when not applicable / unknown.

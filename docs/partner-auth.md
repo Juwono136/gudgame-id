@@ -301,12 +301,26 @@ Setiap match selesai (group / bracket / Americano / reclub) pada turnamen `partn
 
 Jika member sudah login, form registrasi turnamen:
 
-1. Mengisi captain (nama, email, **phone** jika ada nomor nyata di profil) dari session `/auth/me` via `setValue` — **bukan** `reset(fn)` (RHF tidak mendukung functional updater; itu menyebabkan state kosong vs DOM terisi → error palsu).
+1. Mengisi captain (nama, email, **phone** jika ada nomor nyata di profil) dari session `/auth/me` via state form — **bukan** `reset(fn)` (RHF tidak mendukung functional updater).
 2. Email captain dikunci ke email member agar sync statistik tetap valid.
 3. Akun Google tanpa nomor nyata: phone kosong + hint “Add your phone…” (placeholder `p…` di DB tidak di-autofill).
 4. API menempelkan `partnerPlayerId` / `identityId` yang sama (email harus cocok) agar statistik tidak terpecah ke baris guest baru.
 5. Copy section captain membedakan guest vs member (bukan “No Gud Game account…” saat sudah login member).
 
+### Teammate claimable (default)
+
+Setiap anggota roster (bukan hanya kapten) di-upsert ke `partner_players` **hanya** untuk `partnerId` situs itu — tidak pernah menulis ke tabel `user` Gud Game.
+
+| Mode | Input | `partner_players` | Klaim member |
+| --- | --- | --- | --- |
+| Search | Pilih hasil `GET /api/partner/public/{slug}/players/search` | `preferPlayerId` → baris existing | Sudah / siap |
+| Invite contact | Nama + email **atau** phone | Kontak nyata disimpan; sisi yang kosong diisi sintetis internal | Email/phone match saat signup/login |
+| Name only | Nama + `softProfile: true` | Email/phone sintetis `@partner.invalid` | Belum bisa di-claim |
+
+Search debounce 300ms, min 2 karakter, mengecualikan kontak sintetis dan player yang sudah dipilih / kapten session. Soft profile tidak menimpa kontak member yang sudah punya `identityId`.
+
+UI register partner mengikuti layout Official (`max-w-5xl`, sidebar Entry, mode pills per slot) dengan copy & mekanisme partner-native.
+
 ---
 
-*Lihat juga [tournament-guide.md](./tournament-guide.md) §1.3 Partner white-label.*
+*Lihat juga [tournament-guide.md](./tournament-guide.md) §1.3 Partner white-label dan §9.5.*

@@ -6,12 +6,17 @@ import { parseJsonResponse } from "@/lib/api/parse-json-response";
 import { extractApiErrorMessage } from "@/lib/api/extract-api-error";
 import type { TournamentPlayerSearchResult } from "@/lib/tournaments/players/search";
 
-export function usePlayerSearch(sportSlug: string, query: string, enabled = true) {
-  const debounced = useDebounce(query.trim(), 300);
+const DEBOUNCE_MS = 300;
 
-  return useQuery({
+export function usePlayerSearch(sportSlug: string, query: string, enabled = true) {
+  const trimmed = query.trim();
+  const debounced = useDebounce(trimmed, DEBOUNCE_MS);
+  const isDebouncing = trimmed !== debounced;
+  const canSearch = enabled && debounced.length >= 2;
+
+  const queryResult = useQuery({
     queryKey: ["tournaments", "player-search", sportSlug, debounced],
-    enabled: enabled && debounced.length >= 2,
+    enabled: canSearch,
     queryFn: async () => {
       const params = new URLSearchParams({
         sportSlug,
@@ -30,4 +35,12 @@ export function usePlayerSearch(sportSlug: string, query: string, enabled = true
     },
     staleTime: 30_000,
   });
+
+  return {
+    ...queryResult,
+    debouncedQuery: debounced,
+    isDebouncing,
+    /** True while the typed query is waiting to settle or the request is in flight. */
+    isSearching: trimmed.length >= 2 && (isDebouncing || queryResult.isFetching),
+  };
 }

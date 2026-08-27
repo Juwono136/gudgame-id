@@ -72,8 +72,13 @@ export async function upsertPartnerPlayer(
         identityId?: string;
       } = {};
       if (preferred.fullName !== fullName) patch.fullName = fullName;
-      if (preferred.email !== email) patch.email = email;
-      if (preferred.phone !== phone) patch.phone = phone;
+      // Never overwrite a claimed member's contacts with registration placeholders.
+      // Soft/synthetic emails end with @partner.invalid — skip contact sync in that case.
+      const inputIsSynthetic = email.endsWith("@partner.invalid");
+      if (!preferred.identityId && !inputIsSynthetic) {
+        if (preferred.email !== email) patch.email = email;
+        if (preferred.phone !== phone) patch.phone = phone;
+      }
       if (options.identityId && !preferred.identityId) {
         patch.identityId = options.identityId;
       }

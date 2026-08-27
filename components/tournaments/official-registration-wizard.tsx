@@ -443,7 +443,7 @@ function PartnerSlotCard({
           sportSlug={sportSlug}
           selected={slot.linked ? [slot.linked] : []}
           maxSelections={1}
-          excludeUserId={[...excludeUserIds].filter((id) => id !== slot.linked?.userId)[0]}
+          excludeUserIds={[...excludeUserIds].filter((id) => id !== slot.linked?.userId)}
           onChange={(next) => onLinkedChange(next[0] ?? null)}
         />
       ) : null}
