@@ -45,3 +45,21 @@ export function isValidPartnerPhone(raw: string): boolean {
     return false;
   }
 }
+
+/**
+ * Placeholder phones created for Google-only / oauth members without a real number
+ * (`p` + hex from identity id). Not valid for tournament registration forms.
+ */
+export function isSyntheticPartnerPhone(phone: string): boolean {
+  return /^p[a-f0-9]{8,}$/i.test(phone.trim());
+}
+
+/** Phone suitable to autofill captain fields — skips empty / synthetic / invalid. */
+export function partnerPhoneForAutofill(
+  phone: string | null | undefined,
+): string | null {
+  if (!phone?.trim()) return null;
+  if (isSyntheticPartnerPhone(phone)) return null;
+  if (!isValidPartnerPhone(phone)) return null;
+  return phone.trim();
+}

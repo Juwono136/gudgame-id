@@ -1,12 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Building2, Menu, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,9 +38,10 @@ type PartnerPublicNavProps = {
 };
 
 /**
- * Member auth = partner-isolated session.
- * Staff/organizer = Gud Game session with partner role → profile → Partner Console.
- * Auth UI stays Sign-in shaped until hydrated to avoid mismatch.
+ * Two independent auth realms on the same public site:
+ * - Staff/organizer = Gud Game Better Auth (partner role) → Partner Console
+ * - Member/player = partner cookie `gg_pps_<slug>` → register / stats
+ * Both may coexist; they never share privileges. UI must label them clearly.
  */
 export function PartnerPublicNav({
   partnerSlug,
@@ -178,10 +187,12 @@ export function PartnerPublicNav({
               />
             ) : isPartnerStaff && staffUser ? (
               <PartnerStaffProfileMenu
+                partnerName={partnerName}
                 avatarSrc={staffAvatarSrc}
                 initials={staffInitials}
                 displayName={staffUser.name || staffUser.email}
                 memberAuthenticated={showMemberAuthenticated}
+                memberDisplayName={session?.displayName ?? null}
                 memberAccountHref={partnerPublicRoutes.account(partnerSlug)}
                 memberLoginHref={memberLoginHref}
                 className="ml-1"
@@ -203,10 +214,12 @@ export function PartnerPublicNav({
             <ThemeToggle />
             {isPartnerStaff && staffUser ? (
               <PartnerStaffProfileMenu
+                partnerName={partnerName}
                 avatarSrc={staffAvatarSrc}
                 initials={staffInitials}
                 displayName={staffUser.name || staffUser.email}
                 memberAuthenticated={showMemberAuthenticated}
+                memberDisplayName={session?.displayName ?? null}
                 memberAccountHref={partnerPublicRoutes.account(partnerSlug)}
                 memberLoginHref={memberLoginHref}
               />
@@ -286,7 +299,7 @@ export function PartnerPublicNav({
                   </Link>
                 ) : null}
               </>
-            ) : showMemberAuthenticated ? (
+            ) : showMemberAuthenticated && !isPartnerStaff ? (
               <Button asChild variant="outline" className="mt-2 w-full">
                 <Link
                   href={partnerPublicRoutes.account(partnerSlug)}
@@ -304,69 +317,144 @@ export function PartnerPublicNav({
 }
 
 function PartnerStaffProfileMenu({
+  partnerName,
   avatarSrc,
   initials,
   displayName,
   memberAuthenticated,
+  memberDisplayName,
   memberAccountHref,
   memberLoginHref,
   className,
 }: {
+  partnerName: string;
   avatarSrc: string | null;
   initials: string;
   displayName: string;
   memberAuthenticated: boolean;
+  memberDisplayName: string | null;
   memberAccountHref: string;
   memberLoginHref: string;
   className?: string;
 }) {
+  const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const continueAsPlayer = () => {
+    setConfirmOpen(false);
+    router.push(memberLoginHref);
+  };
+
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        className={cn(
-          "inline-flex h-9 w-9 items-center justify-center rounded-full border border-cp-border bg-cp-elevated outline-none transition-colors",
-          "hover:border-cp-primary/50 hover:ring-2 hover:ring-cp-primary/25",
-          "focus-visible:ring-2 focus-visible:ring-cp-primary/50",
-          className,
-        )}
-        aria-label={`Partner account — ${displayName}`}
-      >
-        <Avatar key={avatarSrc ?? "fallback"} className="h-8 w-8">
-          {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-          <AvatarFallback className="bg-cp-primary/20 text-xs font-semibold text-cp-primary">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="z-[200] w-64 border-cp-border bg-cp-card p-2 text-foreground shadow-xl"
-        sideOffset={8}
-      >
-        <div className="px-2 py-1.5">
-          <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-          <p className="text-[11px] text-cp-muted">Partner staff · Gud Game</p>
-        </div>
-        <DropdownMenuSeparator className="bg-cp-border" />
-        <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-0 focus:bg-transparent">
-          <Link
-            href={dashboardRoutes.partner}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-cp-elevated"
-          >
-            <Building2 className="h-4 w-4 text-cp-primary" aria-hidden />
-            Open Partner Console
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-0 focus:bg-transparent">
-          <Link
-            href={memberAuthenticated ? memberAccountHref : memberLoginHref}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-cp-muted hover:bg-cp-elevated hover:text-foreground"
-          >
-            <UserRound className="h-4 w-4" aria-hidden />
-            {memberAuthenticated ? "Member account" : "Member sign in"}
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          className={cn(
+            "inline-flex h-9 w-9 items-center justify-center rounded-full border border-cp-border bg-cp-elevated outline-none transition-colors",
+            "hover:border-cp-primary/50 hover:ring-2 hover:ring-cp-primary/25",
+            "focus-visible:ring-2 focus-visible:ring-cp-primary/50",
+            className,
+          )}
+          aria-label={`Partner staff — ${displayName}`}
+        >
+          <Avatar key={avatarSrc ?? "fallback"} className="h-8 w-8">
+            {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
+            <AvatarFallback className="bg-cp-primary/20 text-xs font-semibold text-cp-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="z-[200] w-72 border-cp-border bg-cp-card p-2 text-foreground shadow-xl"
+          sideOffset={8}
+        >
+          <div className="px-2 py-1.5">
+            <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+            <p className="text-[11px] text-cp-muted">Partner staff · Gud Game</p>
+            {memberAuthenticated && memberDisplayName ? (
+              <p className="mt-1.5 rounded-md bg-cp-elevated/60 px-2 py-1 text-[11px] text-cp-muted">
+                Also signed in as player{" "}
+                <span className="font-medium text-foreground">{memberDisplayName}</span>
+              </p>
+            ) : null}
+          </div>
+          <DropdownMenuSeparator className="bg-cp-border" />
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-0 focus:bg-transparent">
+            <Link
+              href={dashboardRoutes.partner}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-cp-elevated"
+            >
+              <Building2 className="h-4 w-4 text-cp-primary" aria-hidden />
+              Open Partner Console
+            </Link>
+          </DropdownMenuItem>
+          {memberAuthenticated ? (
+            <DropdownMenuItem asChild className="cursor-pointer rounded-lg p-0 focus:bg-transparent">
+              <Link
+                href={memberAccountHref}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-cp-muted hover:bg-cp-elevated hover:text-foreground"
+              >
+                <UserRound className="h-4 w-4" aria-hidden />
+                <span className="min-w-0 truncate">
+                  Player account
+                  {memberDisplayName ? (
+                    <span className="block truncate text-[11px] font-normal opacity-80">
+                      {memberDisplayName}
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium text-cp-muted focus:bg-cp-elevated focus:text-foreground"
+              onSelect={(e) => {
+                e.preventDefault();
+                setConfirmOpen(true);
+              }}
+            >
+              <UserRound className="mr-2.5 h-4 w-4" aria-hidden />
+              Also sign in as player…
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign in as a {partnerName} player?</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-left text-sm text-muted-foreground">
+                <p>
+                  Your Gud Game{" "}
+                  <span className="font-medium text-foreground">staff</span> session stays
+                  active. Player sign-in uses a{" "}
+                  <span className="font-medium text-foreground">separate</span> member cookie for
+                  this partner only.
+                </p>
+                <p>
+                  Staff privileges (Partner Console) and player privileges (register / stats)
+                  never share access. You can sign out of either side independently.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-cp-primary hover:bg-cp-primary-light"
+              onClick={continueAsPlayer}
+            >
+              Continue to player sign in
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

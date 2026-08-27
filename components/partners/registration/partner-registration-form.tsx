@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,7 +15,6 @@ import { usePartnerPlayerSession } from "@/hooks/use-partner-player-session";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import {
   partnerGuestRegistrationSchema,
-  type PartnerGuestRegistrationInput,
 } from "@/lib/partners/registration/validation";
 
 type PartnerRegistrationFormProps = {
@@ -29,6 +28,14 @@ type PartnerRegistrationFormProps = {
   spotsRemaining?: number | null;
 };
 
+/** RHF + zod infer output after transforms; form values are the input shape. */
+type PartnerRegistrationFormValues = {
+  captain: { fullName: string; email: string; phone: string };
+  teamName: string;
+  members: Array<{ fullName: string; email: string; phone: string }>;
+  notes: string;
+};
+
 function firstFieldErrorMessage(issues: unknown): string | null {
   if (!issues || typeof issues !== "object") return null;
   const fieldErrors = (issues as { fieldErrors?: Record<string, string[] | undefined> })
@@ -39,6 +46,14 @@ function firstFieldErrorMessage(issues: unknown): string | null {
     if (Array.isArray(messages) && messages[0]) return messages[0];
   }
   return null;
+}
+
+function emptyMembers(count: number) {
+  return Array.from({ length: count }, () => ({
+    fullName: "",
+    email: "",
+    phone: "",
+  }));
 }
 
 export function PartnerRegistrationForm({
@@ -54,6 +69,7 @@ export function PartnerRegistrationForm({
   const [submitting, setSubmitting] = useState(false);
   const { session, isAuthenticated, hydrated } = usePartnerPlayerSession(partnerSlug);
   const memberCount = Math.max(0, playersPerTeam - 1);
+  const captainAutofilledRef = useRef(false);
   const schema = useMemo(
     () => partnerGuestRegistrationSchema(playersPerTeam),
     [playersPerTeam],
@@ -63,38 +79,57 @@ export function PartnerRegistrationForm({
     register,
     control,
     handleSubmit,
-    reset,
+    setValue,
+    getValues,
     formState: { errors },
-  } = useForm<PartnerGuestRegistrationInput>({
+  } = useForm<PartnerRegistrationFormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- zod transforms widen input vs output for RHF
     resolver: zodResolver(schema) as any,
-    mode: "onBlur",
+    mode: "onSubmit",
     reValidateMode: "onChange",
     defaultValues: {
       captain: { fullName: "", email: "", phone: "" },
       teamName: "",
-      members: Array.from({ length: memberCount }, () => ({
-        fullName: "",
-        email: "",
-        phone: "",
-      })),
+      members: emptyMembers(memberCount),
       notes: "",
     },
   });
 
+  /**
+   * Autofill captain from partner member session once.
+   * IMPORTANT: do not call `reset((prev) => …)` — RHF reset does not accept a
+   * functional updater; that wiped internal form state while the DOM still
+   * showed typed values (false "required" / "min 2 chars" errors).
+   */
   useEffect(() => {
-    if (!hydrated || !isAuthenticated || !session) return;
-    reset((prev) => ({
-      ...prev,
-      captain: {
-        fullName: session.displayName || prev.captain.fullName,
-        email: session.email || prev.captain.email,
-        phone: prev.captain.phone,
-      },
-    }));
-  }, [hydrated, isAuthenticated, session, reset]);
+    if (!hydrated || !isAuthenticated || !session || captainAutofilledRef.current) {
+      return;
+    }
+    captainAutofilledRef.current = true;
+
+    const current = getValues("captain");
+    if (!current.fullName?.trim() && session.displayName) {
+      setValue("captain.fullName", session.displayName, {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
+    }
+    if (!current.email?.trim() && session.email) {
+      setValue("captain.email", session.email, {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
+    }
+    if (!current.phone?.trim() && session.phone) {
+      setValue("captain.phone", session.phone, {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
+    }
+  }, [hydrated, isAuthenticated, session, getValues, setValue]);
 
   const { fields } = useFieldArray({ control, name: "members" });
+  const signedInMember = hydrated && isAuthenticated && Boolean(session);
 
   const onInvalid = () => {
     const memberError = Array.isArray(errors.members)
@@ -114,7 +149,7 @@ export function PartnerRegistrationForm({
     toast.error(String(first));
   };
 
-  const onSubmit = async (values: PartnerGuestRegistrationInput) => {
+  const onSubmit = async (values: PartnerRegistrationFormValues) => {
     setSubmitting(true);
     try {
       // Keep optional strings on the wire — JSON.stringify drops `undefined`, which
@@ -183,7 +218,14 @@ export function PartnerRegistrationForm({
           variant="fullscreen"
         />
       ) : null}
-      <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate className="space-y-6">
+      <form
+        onSubmit={handleSubmit(
+          (values) => onSubmit(values),
+          onInvalid,
+        )}
+        noValidate
+        className="space-y-6"
+      >
         {spotsRemaining != null ? (
           <p className="text-sm text-cp-muted">
             {spotsRemaining === 1
@@ -191,10 +233,15 @@ export function PartnerRegistrationForm({
               : `${spotsRemaining} team spots remaining.`}
           </p>
         ) : null}
-        {hydrated && isAuthenticated && session ? (
+        {signedInMember && session ? (
           <p className="rounded-xl border border-cp-primary/25 bg-cp-primary/8 px-3 py-2 text-sm text-foreground">
             Signed in as <span className="font-semibold">{session.displayName}</span>
             — captain details filled from your member account so results sync to your stats.
+            {!session.phone ? (
+              <span className="mt-1 block text-xs text-cp-muted">
+                Add your phone number below to complete registration.
+              </span>
+            ) : null}
           </p>
         ) : null}
         <section className="rounded-2xl border border-cp-border bg-cp-card p-5 sm:p-6">
@@ -202,7 +249,9 @@ export function PartnerRegistrationForm({
             Team captain
           </h2>
           <p className="mt-1 text-xs text-cp-muted">
-            No Gud Game account required — used only for this registration.
+            {signedInMember
+              ? "Using your partner member account. Keep the same email so results sync to your player stats."
+              : "No Gud Game account required — used only for this registration. Sign in as a member to sync stats automatically."}
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
@@ -226,11 +275,17 @@ export function PartnerRegistrationForm({
                 autoComplete="email"
                 inputMode="email"
                 placeholder="jane@example.com"
+                readOnly={signedInMember}
                 aria-invalid={!!errors.captain?.email}
+                className={signedInMember ? "bg-cp-elevated/40" : undefined}
                 {...register("captain.email")}
               />
               {errors.captain?.email ? (
                 <p className="text-xs text-destructive">{errors.captain.email.message}</p>
+              ) : signedInMember ? (
+                <p className="text-[11px] text-cp-muted">
+                  Locked to your member email for stats sync.
+                </p>
               ) : null}
             </div>
             <div className="space-y-1.5">

@@ -20,6 +20,7 @@ import {
 } from "@/lib/partners/auth/service";
 import type { PartnerPublicView } from "@/lib/partners/service";
 import { logger } from "@/lib/logger";
+import { partnerPhoneForAutofill } from "@/lib/partners/registration/phone";
 
 const log = logger.child({ module: "partner-auth/google" });
 
@@ -85,10 +86,14 @@ async function syncPlayerEmailIfSafe(input: {
 async function assertPlayerNotArchived(
   partnerId: string,
   identityId: string,
-): Promise<string | null> {
+): Promise<{ id: string; phone: string } | null> {
   const db = getDb();
   const [player] = await db
-    .select({ id: partnerPlayers.id, archivedAt: partnerPlayers.archivedAt })
+    .select({
+      id: partnerPlayers.id,
+      phone: partnerPlayers.phone,
+      archivedAt: partnerPlayers.archivedAt,
+    })
     .from(partnerPlayers)
     .where(
       and(
@@ -105,7 +110,7 @@ async function assertPlayerNotArchived(
       statusCode: 403,
     });
   }
-  return player?.id ?? null;
+  return player ? { id: player.id, phone: player.phone } : null;
 }
 
 async function finishSession(input: {
@@ -117,6 +122,7 @@ async function finishSession(input: {
   ipAddress?: string | null;
   displayNameFallback: string;
   email: string;
+  phone?: string | null;
 }): Promise<{
   token: string;
   session: PartnerPlayerSessionView;
@@ -143,7 +149,11 @@ async function finishSession(input: {
   return {
     token,
     isNewUser: input.isNewUser,
-    session: toPartnerPlayerSessionView(input.identity, playerId),
+    session: toPartnerPlayerSessionView(
+      input.identity,
+      playerId,
+      partnerPhoneForAutofill(input.phone),
+    ),
   };
 }
 
@@ -265,16 +275,17 @@ export async function loginOrSignupPartnerPlayerWithGoogle(
       if (updated) identity = updated;
     }
 
-    const playerId = await assertPlayerNotArchived(partnerId, identity.id);
+    const player = await assertPlayerNotArchived(partnerId, identity.id);
     return finishSession({
       partnerId,
       identity,
-      playerId,
+      playerId: player?.id ?? null,
       isNewUser: false,
       userAgent: input.userAgent,
       ipAddress: input.ipAddress,
       displayNameFallback: displayName,
       email: identity.email,
+      phone: player?.phone,
     });
   }
 
@@ -316,16 +327,17 @@ export async function loginOrSignupPartnerPlayerWithGoogle(
       emailVerifiedAt: byEmail.emailVerifiedAt ?? now,
     };
 
-    const playerId = await assertPlayerNotArchived(partnerId, identity.id);
+    const player = await assertPlayerNotArchived(partnerId, identity.id);
     return finishSession({
       partnerId,
       identity,
-      playerId,
+      playerId: player?.id ?? null,
       isNewUser: false,
       userAgent: input.userAgent,
       ipAddress: input.ipAddress,
       displayNameFallback: displayName,
       email,
+      phone: player?.phone,
     });
   }
 
@@ -373,7 +385,7 @@ export async function loginOrSignupPartnerPlayerWithGoogle(
     return {
       token,
       isNewUser: true,
-      session: toPartnerPlayerSessionView(created, playerId),
+      session: toPartnerPlayerSessionView(created, playerId, null),
     };
   } catch (err) {
     if (err instanceof AppError) throw err;

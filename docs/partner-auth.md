@@ -4,7 +4,7 @@
 | --- | --- |
 | **Dokumen** | Panduan autentikasi member/player partner |
 | **Produk** | Gud Game white-label partners |
-| **Versi konten** | 2026-08-26 (Google Sign-In hardening) |
+| **Versi konten** | 2026-08-27 (dual-session UX) |
 | **Audiens** | Partner staff, player/member, developer |
 
 > Akun member partner **terpisah** dari akun Gud Game dan dari partner lain. Staff/owner partner tetap login lewat Gud Game.
@@ -164,7 +164,25 @@ Hook `usePartnerPlayerSession`:
 
 Sehingga CTA navbar (Sign in ↔ nama user) berubah tanpa hard refresh.
 
-**Staff Gud Game** (role `partner` / `super_admin`): pada situs publik partner, tombol Sign in diganti **avatar profil** → menu **Open Partner Console** (`/dashboard/partner`). Member sign-in tetap tersedia dari menu yang sama.
+**Staff Gud Game** (role `partner` / `super_admin`): pada situs publik partner, tombol Sign in diganti **avatar profil** → menu **Open Partner Console**.
+
+### Dual session (staff + member) — aman by design
+
+| Cookie | Siapa | Privilege |
+| --- | --- | --- |
+| Better Auth (Gud Game) | Staff / owner | Partner Console, manage turnamen |
+| `gg_pps_<slug>` | Member / player | Register, account, stats sync |
+
+Keduanya **boleh** aktif di browser yang sama: ini disengaja (realm terpisah), bukan bug. Staff cookie **tidak** bisa dipakai sebagai member, dan sebaliknya.
+
+**UX profesional:**
+
+- Menu staff **tidak** lagi menampilkan “Member sign in” generik (membingungkan).
+- Diganti **“Also sign in as player…”** → Dialog konfirmasi menjelaskan sesi terpisah → baru ke `/{slug}/login`.
+- Jika member juga sudah login: badge “Also signed in as player {name}” + link **Player account**.
+- Sign-out member (`/account`) **tidak** logout staff Gud Game; logout staff tidak clear cookie member.
+
+Untuk uji cepat member tanpa dual session: gunakan jendela privat / browser lain.
 
 ---
 
@@ -247,6 +265,8 @@ Players (staff): `GET\|PATCH\|DELETE /api/partner/public/{partnerSlug}/players/{
 - [ ] Concurrent Google signup (race) → tidak 500; login berhasil
 - [ ] Tanpa Firebase env → tombol Google tidak tampil; email/password tetap jalan
 - [ ] Login/signup email+password tanpa Google tetap normal (verify, forgot, reset)
+- [ ] Staff avatar → Partner Console; “Also sign in as player…” → dialog penjelasan dual session
+- [ ] Staff + member bersamaan: badge player di menu; logout salah satu ≠ logout yang lain
 - [ ] Staff `/login` → console; avatar di situs publik → Partner Console
 - [ ] Forgot/reset hanya slug yang sama; archived tidak bisa reset/login
 - [ ] Navbar update tanpa hard refresh (login/logout)
@@ -279,7 +299,13 @@ Setiap match selesai (group / bracket / Americano / reclub) pada turnamen `partn
 
 ### Registrasi & identitas
 
-Jika member sudah login, form registrasi turnamen mengisi captain dari session; API menempelkan `partnerPlayerId` / `identityId` yang sama (email harus cocok) agar statistik tidak terpecah ke baris guest baru.
+Jika member sudah login, form registrasi turnamen:
+
+1. Mengisi captain (nama, email, **phone** jika ada nomor nyata di profil) dari session `/auth/me` via `setValue` — **bukan** `reset(fn)` (RHF tidak mendukung functional updater; itu menyebabkan state kosong vs DOM terisi → error palsu).
+2. Email captain dikunci ke email member agar sync statistik tetap valid.
+3. Akun Google tanpa nomor nyata: phone kosong + hint “Add your phone…” (placeholder `p…` di DB tidak di-autofill).
+4. API menempelkan `partnerPlayerId` / `identityId` yang sama (email harus cocok) agar statistik tidak terpecah ke baris guest baru.
+5. Copy section captain membedakan guest vs member (bukan “No Gud Game account…” saat sudah login member).
 
 ---
 

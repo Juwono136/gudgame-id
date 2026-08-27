@@ -14,6 +14,8 @@ export type PartnerPlayerSessionClient = {
   displayName: string;
   emailVerified: boolean;
   playerId: string | null;
+  /** Real phone when available (null for Google synthetic placeholders). */
+  phone?: string | null;
   hasPassword?: boolean;
   googleLinked?: boolean;
 };

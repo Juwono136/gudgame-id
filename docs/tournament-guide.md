@@ -96,7 +96,7 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | Billing | Free / Paid untuk guest checkout |
 | Skill / tournament tier | Tidak ada |
 | Format | Double Stage / Elimination / Americano (wizard partner) |
-| Guest registration | `registered` → partner Confirm → `confirmed` |
+| Guest registration | `registered` → partner Confirm → `confirmed`; member login autofills captain + sync identity (lihat partner-auth §13) |
 | **Member auth** | Login/sign-up di `/{slug}/login` (email/password **atau Google**) — identitas terpisah dari Gud Game & partner lain (lihat [`docs/partner-auth.md`](./partner-auth.md)) |
 | **Staff auth** | Tetap Gud Game `/login` → `/dashboard/partner` |
 | **Data isolation** | Turnamen, liga, player, pembayaran scoped `partnerId` — tidak muncul di discovery Gud Game atau partner lain |

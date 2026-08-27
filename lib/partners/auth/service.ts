@@ -32,6 +32,7 @@ import {
   sendPartnerPlayerVerifyEmail,
 } from "@/lib/partners/auth/emails";
 import type { PartnerPublicView } from "@/lib/partners/service";
+import { partnerPhoneForAutofill } from "@/lib/partners/registration/phone";
 
 export type PartnerPlayerSessionView = {
   identityId: string;
@@ -40,6 +41,11 @@ export type PartnerPlayerSessionView = {
   displayName: string;
   emailVerified: boolean;
   playerId: string | null;
+  /**
+   * Real phone from `partner_players` when available (null for synthetic
+   * Google placeholders). Used to autofill tournament registration.
+   */
+  phone: string | null;
   /** True when a password hash is set (email/password or added after Google). */
   hasPassword: boolean;
   /** True when this identity is linked to Google (Firebase UID). */
@@ -52,6 +58,7 @@ export function toPartnerPlayerSessionView(
     "id" | "partnerId" | "email" | "displayName" | "emailVerifiedAt" | "passwordHash" | "googleUid"
   >,
   playerId: string | null,
+  phone: string | null = null,
 ): PartnerPlayerSessionView {
   return {
     identityId: identity.id,
@@ -60,6 +67,7 @@ export function toPartnerPlayerSessionView(
     displayName: identity.displayName,
     emailVerified: Boolean(identity.emailVerifiedAt),
     playerId,
+    phone,
     hasPassword: Boolean(identity.passwordHash),
     googleLinked: Boolean(identity.googleUid),
   };
@@ -351,7 +359,11 @@ export async function loginPartnerPlayer(input: {
   }
 
   const [player] = await db
-    .select({ id: partnerPlayers.id, archivedAt: partnerPlayers.archivedAt })
+    .select({
+      id: partnerPlayers.id,
+      phone: partnerPlayers.phone,
+      archivedAt: partnerPlayers.archivedAt,
+    })
     .from(partnerPlayers)
     .where(
       and(
@@ -378,7 +390,11 @@ export async function loginPartnerPlayer(input: {
 
   return {
     token,
-    session: toPartnerPlayerSessionView(identity, player?.id ?? null),
+    session: toPartnerPlayerSessionView(
+      identity,
+      player?.id ?? null,
+      partnerPhoneForAutofill(player?.phone),
+    ),
   };
 }
 
@@ -434,7 +450,11 @@ export async function resolvePartnerPlayerSession(input: {
   }
 
   const [player] = await db
-    .select({ id: partnerPlayers.id, archivedAt: partnerPlayers.archivedAt })
+    .select({
+      id: partnerPlayers.id,
+      phone: partnerPlayers.phone,
+      archivedAt: partnerPlayers.archivedAt,
+    })
     .from(partnerPlayers)
     .where(
       and(
@@ -462,6 +482,7 @@ export async function resolvePartnerPlayerSession(input: {
       googleUid: row.googleUid,
     },
     player?.id ?? null,
+    partnerPhoneForAutofill(player?.phone),
   );
 }
 
