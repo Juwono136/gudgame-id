@@ -66,8 +66,12 @@ describe("Bestie Cup game rules (double stage)", () => {
   function stub(phase: "group" | "knockout"): TournamentDetail {
     return {
       id: "bc1",
+      name: "Bestie Cup",
+      slug: "bestie-cup",
       format: "double_stage",
       sportSlug: "padel",
+      status: "live",
+      tournamentType: "fun_match",
       settings: {
         poolRules: "bestie_cup",
         doubleStage: { phase, advancePerGroup: 1, pairsPerGroup: 3 },
@@ -78,7 +82,7 @@ describe("Bestie Cup game rules (double stage)", () => {
           knockout: { mode: "race_to", raceTo: { value: 6 } },
         },
       },
-    } as TournamentDetail;
+    } as unknown as TournamentDetail;
   }
 
   it("uses pool rules when double stage is in group phase (even with default stage)", () => {
