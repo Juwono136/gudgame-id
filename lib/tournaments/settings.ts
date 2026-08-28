@@ -31,9 +31,14 @@ import {
 } from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
-  coerceRichHtmlField,
-  sanitizeTournamentRichField,
-} from "@/lib/wiki/sanitize-rich-text";
+  BESTIE_CUP_KO_EARLY_GAME_RULES,
+  BESTIE_CUP_PAIRS_PER_POOL,
+  BESTIE_CUP_POOL_GAME_RULES,
+  getBestieCupKnockoutGameRules,
+  getBestieCupStandingsScoring,
+  tournamentUsesBestieCupPoolRules,
+} from "@/lib/tournaments/partner/bestie-cup-config";
+import { coerceRichHtmlField, sanitizeTournamentRichField } from "@/lib/tournaments/rich-text";
 import {
   deriveMatchScoringFromLegacy,
   matchScoreModeFromScoring,
@@ -116,6 +121,8 @@ export type TournamentSettings = TournamentRuleSections & {
   rankingMode?: TournamentRankingMode;
   /** Original vs Custom match family (Official create flow). */
   formatFamily?: TournamentFormatFamily;
+  /** Partner pool preset (Bestie Cup round-robin rules). */
+  poolRules?: "bestie_cup";
   /** Unified Official match scoring (Best of / Race to / Total / Custom). */
   matchScoring?: MatchScoringConfig;
   /** Custom family: repeated group fixtures + KO series legs. */
@@ -296,6 +303,8 @@ export function getTournamentFormatLabel(format: string | null | undefined): str
   if (format === "double_stage") return "Group stage + knockout";
   if (format === "mexicano") return "Mexicano";
   if (format === "group_only") return "Group only";
+  if (format === "swiss") return "Swiss";
+  if (format === "modified_swiss") return "Modified Swiss";
   if (format === "single_elimination") return "Knockout / Elimination";
   return "Elimination";
 }
@@ -419,6 +428,7 @@ export function parseTournamentSettings(
   const allowedTierLevels = raw.allowedTierLevels;
   const rankingMode = parseRankingMode(raw.rankingMode);
   const formatFamily = parseFormatFamily(raw.formatFamily);
+  const poolRules = raw.poolRules === "bestie_cup" ? ("bestie_cup" as const) : undefined;
   const matchScoringParsed = parseMatchScoringConfig(raw.matchScoring);
   const customMatch = parseCustomMatchSettings(raw.customMatch);
   const mexicano = parseMexicanoSettings(raw.mexicano);
@@ -485,6 +495,7 @@ export function parseTournamentSettings(
     gearEntityIds: parsedGearIds?.length ? parsedGearIds : undefined,
     rankingMode,
     formatFamily,
+    poolRules,
     matchScoring,
     customMatch,
     mexicano,
@@ -664,6 +675,11 @@ export function getTournamentPointsPerMatch(tournament: TournamentDetail): numbe
 
 export type TournamentRaceStage = "group" | "knockout" | "default";
 
+export type TournamentGameRulesContext = {
+  knockoutRoundNumber?: number;
+  knockoutTotalRounds?: number;
+};
+
 /**
  * Match scoring shape.
  * Prefer explicit settings (matchScoreMode / raceToGames) so legacy flat-point
@@ -764,6 +780,7 @@ export function getTournamentRaceToGamesForStage(
 export function getTournamentGameRules(
   tournament: TournamentDetail,
   stage: TournamentRaceStage = "default",
+  context?: TournamentGameRulesContext,
 ): MatchGameRules {
   const settings = parseTournamentSettings(tournament.settings);
   const unit = settings.standingsScoring?.scoreUnit
@@ -775,7 +792,7 @@ export function getTournamentGameRules(
     stage === "default" ? "default" : stage,
   );
   const lengthMode = resolved?.mode === "total" ? "total" : "race_to";
-  return {
+  const rules: MatchGameRules = {
     ...base,
     raceToGames: getTournamentRaceToTarget(tournament, stage),
     lengthMode,
@@ -783,6 +800,46 @@ export function getTournamentGameRules(
     pointStyle: "simple",
     gameDecider: settings.gameDecider ?? base.gameDecider,
   };
+  if (tournamentUsesBestieCupPoolRules(tournament)) {
+    let effectiveStage = stage;
+    if (stage === "default" && tournament.format === "double_stage") {
+      const ds = parseDoubleStageSettings(
+        (tournament.settings as Record<string, unknown> | null | undefined)?.doubleStage,
+      );
+      effectiveStage = ds.phase === "knockout" ? "knockout" : "group";
+    }
+    const isGroupStage =
+      effectiveStage === "group" ||
+      (effectiveStage === "default" &&
+        (tournament.format === "modified_swiss" || tournament.format === "group_only"));
+    if (isGroupStage) {
+      return {
+        ...rules,
+        ...BESTIE_CUP_POOL_GAME_RULES,
+        raceToGames:
+          getTournamentRaceToTarget(tournament, "group") ||
+          BESTIE_CUP_POOL_GAME_RULES.raceToGames,
+        gameDecider: settings.gameDecider ?? BESTIE_CUP_POOL_GAME_RULES.gameDecider,
+      };
+    }
+    if (effectiveStage === "knockout" || effectiveStage === "default") {
+      const koRules =
+        context?.knockoutRoundNumber != null && context.knockoutTotalRounds != null
+          ? getBestieCupKnockoutGameRules(
+              context.knockoutRoundNumber,
+              context.knockoutTotalRounds,
+            )
+          : BESTIE_CUP_KO_EARLY_GAME_RULES;
+      return {
+        ...rules,
+        ...koRules,
+        raceToGames:
+          getTournamentRaceToTarget(tournament, "knockout") || koRules.raceToGames,
+        gameDecider: settings.gameDecider ?? koRules.gameDecider,
+      };
+    }
+  }
+  return rules;
 }
 
 export function getTournamentCourtCount(tournament: TournamentDetail): number {
@@ -910,6 +967,7 @@ export type TournamentSettingsInput = {
   gearEntityIds?: string[];
   rankingMode?: TournamentRankingMode;
   formatFamily?: TournamentFormatFamily;
+  poolRules?: "bestie_cup";
   matchScoring?: MatchScoringConfig;
   customMatch?: CustomMatchSettings;
   mexicano?: MexicanoSettings;
@@ -974,6 +1032,7 @@ export type TournamentSettingsUpsertFields = {
   drawPoints?: number;
   lossPoints?: number;
   thirdPlaceEnabled?: boolean;
+  poolRules?: "bestie_cup";
 };
 
 export function buildFormatSpecificSettingsFromUpsert(
@@ -988,8 +1047,22 @@ export function buildFormatSpecificSettingsFromUpsert(
   | "gameDecider"
   | "matchFormat"
   | "classicSetRules"
+  | "poolRules"
 > {
-  if (input.format !== "double_stage" && input.format !== "group_only") return {};
+  if (
+    input.format !== "double_stage" &&
+    input.format !== "group_only" &&
+    input.format !== "modified_swiss" &&
+    input.format !== "swiss"
+  ) {
+    return {};
+  }
+
+  const isModifiedSwiss = input.format === "modified_swiss";
+  const isBestieCup =
+    isModifiedSwiss || input.poolRules === "bestie_cup";
+  const isGroupLike =
+    input.format === "group_only" || input.format === "modified_swiss" || input.format === "swiss";
 
   const sportDefaults = getDefaultStandingsScoringForSport(sportSlug);
   const usesGames = sportDefaults.scoreUnit === "games" || sportDefaults.scoreUnit === "sets";
@@ -1009,41 +1082,62 @@ export function buildFormatSpecificSettingsFromUpsert(
     tierForPoints != null ? matchPointsForTournamentTier(tierForPoints) : undefined;
 
   const doubleStage =
-    input.format === "group_only"
+    isGroupLike
       ? {
           ...DEFAULT_DOUBLE_STAGE_SETTINGS,
           phase: "group" as const,
-          maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
-          teamsAdvancePerGroup: 0,
+          maxTeamsPerGroup:
+            input.maxTeamsPerGroup ??
+            (isModifiedSwiss || isBestieCup ? 3 : DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup),
+          teamsAdvancePerGroup: isModifiedSwiss
+            ? (input.teamsAdvancePerGroup ?? 1)
+            : 0,
           bestRunnerUpSlots: 0,
           thirdPlaceEnabled: false,
         }
       : {
           ...DEFAULT_DOUBLE_STAGE_SETTINGS,
-          maxTeamsPerGroup: input.maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
+          maxTeamsPerGroup:
+            input.maxTeamsPerGroup ??
+            (isBestieCup ? BESTIE_CUP_PAIRS_PER_POOL : DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup),
           teamsAdvancePerGroup:
-            input.teamsAdvancePerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
-          bestRunnerUpSlots: input.bestRunnerUpSlots ?? 0,
-          thirdPlaceEnabled: input.thirdPlaceEnabled ?? false,
+            input.teamsAdvancePerGroup ??
+            (isBestieCup ? 1 : DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup),
+          bestRunnerUpSlots: isBestieCup ? 0 : (input.bestRunnerUpSlots ?? 0),
+          thirdPlaceEnabled: isBestieCup ? false : (input.thirdPlaceEnabled ?? false),
         };
+
+  const standingsBase = isBestieCup
+    ? getBestieCupStandingsScoring()
+    : sportDefaults;
 
   return {
     doubleStage,
+    ...(isBestieCup ? { poolRules: "bestie_cup" as const } : {}),
     standingsScoring: {
-      ...sportDefaults,
-      allowDraw: input.allowDraw ?? sportDefaults.allowDraw,
-      winPoints: input.winPoints ?? tierWinPoints ?? sportDefaults.winPoints,
-      drawPoints: input.drawPoints ?? sportDefaults.drawPoints,
-      lossPoints: input.lossPoints ?? sportDefaults.lossPoints,
+      ...standingsBase,
+      allowDraw: input.allowDraw ?? standingsBase.allowDraw,
+      winPoints: input.winPoints ?? tierWinPoints ?? standingsBase.winPoints,
+      drawPoints: input.drawPoints ?? standingsBase.drawPoints,
+      lossPoints: input.lossPoints ?? standingsBase.lossPoints,
     },
     matchScoreMode: input.matchScoreMode ?? (usesGames ? "games" : "points"),
-    raceToGames: usesGames || input.matchScoreMode === "games" ? defaultRace : undefined,
+    matchFormat: isBestieCup ? ("race_to_games" as const) : input.matchFormat,
+    raceToGames:
+      usesGames || input.matchScoreMode === "games"
+        ? isBestieCup
+          ? 6
+          : isModifiedSwiss
+            ? 6
+            : defaultRace
+        : undefined,
     gameDecider:
       input.gameDecider ??
-      (sportDefaults.scoreUnit === "sets"
-        ? DEFAULT_GAME_RULES_BY_UNIT.sets.gameDecider
-        : DEFAULT_GAME_RULES_BY_UNIT.games.gameDecider),
-    matchFormat: input.matchFormat,
+      (isBestieCup || isModifiedSwiss
+        ? "golden_point"
+        : sportDefaults.scoreUnit === "sets"
+          ? DEFAULT_GAME_RULES_BY_UNIT.sets.gameDecider
+          : DEFAULT_GAME_RULES_BY_UNIT.games.gameDecider),
     classicSetRules:
       input.classicSetRules ??
       (input.matchFormat === "classic_sets" ? classicDefaultsForSport(sportSlug) : undefined),
@@ -1081,6 +1175,7 @@ export function settingsInputFromUpsert(
     suddenDeathExtensionMinutes: input.suddenDeathExtensionMinutes,
     doubleStage: input.doubleStage ?? formatSpecific.doubleStage,
     standingsScoring: input.standingsScoring ?? formatSpecific.standingsScoring,
+    poolRules: formatSpecific.poolRules ?? input.poolRules,
     allowedTierLevels:
       input.rankingMode === "open" ? [] : input.allowedTierLevels,
   };
@@ -1291,6 +1386,12 @@ export function buildTournamentSettings(
     next.formatFamily = input.formatFamily;
   } else if ("formatFamily" in input) {
     delete next.formatFamily;
+  }
+
+  if (input.poolRules === "bestie_cup") {
+    next.poolRules = "bestie_cup";
+  } else if ("poolRules" in input) {
+    delete next.poolRules;
   }
 
   if (input.matchScoring) {

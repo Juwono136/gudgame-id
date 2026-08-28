@@ -24,6 +24,8 @@ type OfficialFormatSummaryProps = {
   matchScoring: MatchScoringConfig;
   customMatch: CustomMatchSettings;
   mexicano?: MexicanoSettings | null;
+  /** Modified Swiss uses Bestie Cup pool rules (not Mexicano). */
+  modifiedSwiss?: boolean;
   className?: string;
 };
 
@@ -35,6 +37,7 @@ export function OfficialFormatSummary({
   matchScoring,
   customMatch,
   mexicano,
+  modifiedSwiss = false,
   className,
 }: OfficialFormatSummaryProps) {
   const formatLabel = FORMAT_OPTIONS[format as keyof typeof FORMAT_OPTIONS]?.label ?? format;
@@ -83,6 +86,16 @@ export function OfficialFormatSummary({
     rows.push({
       label: "Mexicano",
       value: `${mexicano.mode === "individual" ? "Individual" : "Team"} · ${mexicano.roundCount} rounds`,
+    });
+  }
+  if (format === "modified_swiss" || modifiedSwiss) {
+    rows.push({
+      label: "Pool rules",
+      value: "RR meet once · FT6 · wins → GW% → draw",
+    });
+    rows.push({
+      label: "Rest",
+      value: "Side change + 1 min at odd game totals",
     });
   }
 

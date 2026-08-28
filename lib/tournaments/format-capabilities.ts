@@ -5,6 +5,7 @@ import {
   formatHasGroupStage,
   formatHasKnockout,
   formatHasLobbyRounds,
+  resolveFormatEngine,
 } from "@/lib/tournaments/match-config";
 import { parseTournamentSettings } from "@/lib/tournaments/settings";
 
@@ -26,7 +27,8 @@ export type FormatCapabilities = {
 };
 
 export function getDoubleStagePhase(tournament: TournamentDetail): "group" | "knockout" {
-  if (tournament.format === "group_only") return "group";
+  const engine = resolveFormatEngine(tournament.format);
+  if (engine === "group_only") return "group";
   const settings = tournament.settings as Record<string, unknown> | null | undefined;
   const ds = parseDoubleStageSettings(settings?.doubleStage);
   return ds.phase;
@@ -34,11 +36,13 @@ export function getDoubleStagePhase(tournament: TournamentDetail): "group" | "kn
 
 export function getFormatCapabilities(tournament: TournamentDetail): FormatCapabilities {
   const format = tournament.format;
-  const isAmericano = format === "americano";
-  const isDoubleStage = format === "double_stage";
-  const isSingleElimination = format === "single_elimination";
-  const isMexicano = format === "mexicano";
-  const isGroupOnly = format === "group_only";
+  const engine = resolveFormatEngine(format);
+  const isAmericano = engine === "americano";
+  const isDoubleStage = engine === "double_stage";
+  const isSingleElimination = engine === "single_elimination";
+  const isMexicano = engine === "mexicano";
+  const isGroupOnly =
+    engine === "group_only" || format === "swiss" || format === "modified_swiss";
   const phase = isDoubleStage ? getDoubleStagePhase(tournament) : null;
 
   // Active group-stage workspace only (not "format supports groups someday").
@@ -81,6 +85,7 @@ export function getDoubleStageSettings(tournament: TournamentDetail): DoubleStag
 }
 
 export function getGroupMeetingsPerPair(tournament: TournamentDetail): number {
+  if (tournament.format === "modified_swiss") return 1;
   const settings = parseTournamentSettings(tournament.settings);
   // Original family always plays each pair once (ignore leftover customMatch JSON).
   if ((settings.formatFamily ?? "original") !== "custom") return 1;

@@ -19,6 +19,7 @@ import {
   reconcileDoubleStageGroups,
 } from "@/lib/tournaments/double-stage/service";
 import { getFormatCapabilities } from "@/lib/tournaments/format-capabilities";
+import { formatHasGroupStage } from "@/lib/tournaments/match-config";
 import { buildManageScoringRuntime } from "@/lib/tournaments/manage/scoring-runtime";
 import { computeManageWorkspaceStats } from "@/lib/tournaments/stats/from-manage-workspace";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
@@ -46,7 +47,7 @@ export async function GET(
     await assertTournamentManagePageAccess(tournament, userId, roles);
 
     if (
-      (tournament.format === "double_stage" || tournament.format === "group_only") &&
+      formatHasGroupStage(tournament.format) &&
       tournament.status === "live"
     ) {
       await initializeDoubleStageGroups(tournament);

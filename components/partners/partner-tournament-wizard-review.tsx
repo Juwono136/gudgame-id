@@ -20,7 +20,7 @@ type PartnerTournamentWizardReviewProps = {
   partnerSlug: string;
   name: string;
   categoryLabel: string;
-  leagueLabel?: string | null;
+  seriesLabel?: string | null;
   venue: string;
   venueMapsUrl: string;
   coverPreviewUrl?: string | null;
@@ -31,12 +31,11 @@ type PartnerTournamentWizardReviewProps = {
   registrationClosesAt: string;
   entryBilling: "paid" | "free";
   registrationFeeIdr: string;
-  prizePoolIdr?: string;
+  formatFamilyLabel: string;
   formatLabel: string;
-  matchFormatLabel: string;
+  matchScoringLabel: string;
   poolRows: { label: string; value: string }[];
   scoringRows: { label: string; value: string }[];
-  summary: string;
   description: string;
   isEdit?: boolean;
   onEditStep?: (stepIndex: number) => void;
@@ -102,7 +101,7 @@ export function PartnerTournamentWizardReview({
   partnerSlug: _partnerSlug,
   name,
   categoryLabel,
-  leagueLabel = null,
+  seriesLabel = null,
   venue,
   venueMapsUrl,
   coverPreviewUrl = null,
@@ -113,17 +112,15 @@ export function PartnerTournamentWizardReview({
   registrationClosesAt,
   entryBilling,
   registrationFeeIdr,
-  prizePoolIdr = "",
+  formatFamilyLabel,
   formatLabel,
-  matchFormatLabel,
+  matchScoringLabel,
   poolRows,
   scoringRows,
-  summary,
   description,
   isEdit,
   onEditStep,
 }: PartnerTournamentWizardReviewProps) {
-  const hasSummary = Boolean(stripHtmlToText(summary));
   const hasDescription = Boolean(stripHtmlToText(description));
   const feeIsPaid = entryBilling === "paid";
   const feeDisplay =
@@ -132,10 +129,6 @@ export function PartnerTournamentWizardReview({
       : feeIsPaid
         ? "Paid"
         : "Free";
-  const prizeDisplay =
-    prizePoolIdr && Number(prizePoolIdr) > 0
-      ? `Rp ${formatIdrDisplay(Number(prizePoolIdr))}`
-      : "—";
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -147,8 +140,8 @@ export function PartnerTournamentWizardReview({
           {isEdit ? "Confirm your changes" : "Confirm your tournament details"}
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-cp-muted">
-          These settings drive registration capacity, pool/bracket generation, match scoring, and
-          public pages on your partner site. Use Edit on each section to adjust before saving.
+          These settings drive registration, pool/bracket generation, match scoring, and public
+          pages on your partner site. Use Edit on each section to adjust before saving.
         </p>
       </header>
 
@@ -165,7 +158,7 @@ export function PartnerTournamentWizardReview({
                 {name || "Untitled event"}
               </p>
               <p className="mt-0.5 text-sm text-cp-muted">
-                {formatLabel}
+                {formatFamilyLabel} · {formatLabel}
                 {categoryLabel ? ` · ${categoryLabel}` : ""}
               </p>
             </div>
@@ -180,45 +173,31 @@ export function PartnerTournamentWizardReview({
             {name || "Untitled event"}
           </p>
           <p className="mt-1 text-sm text-cp-muted">
-            {formatLabel}
+            {formatFamilyLabel} · {formatLabel}
             {categoryLabel ? ` · ${categoryLabel}` : ""}
             {venue.trim() ? ` · ${venue.trim()}` : ""}
           </p>
           <p className="mt-2 text-xs text-cp-muted">
-            No banner yet — add one on Basics for a fuller public hero.
+            No banner yet — add one on Step 1 for a fuller public hero.
           </p>
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ReviewSection title="Basics" icon={Trophy} stepIndex={0} onEditStep={onEditStep}>
+        <ReviewSection title="Event info" icon={Trophy} stepIndex={0} onEditStep={onEditStep}>
           <dl className="grid gap-3 sm:grid-cols-2">
             <ReviewItem label="Name" value={name} />
-            <ReviewItem label="Category" value={categoryLabel || "Not set (optional)"} />
-            <ReviewItem label="League" value={leagueLabel?.trim() || "None (optional)"} />
-            <ReviewItem label="Max teams" value={maxTeams || "—"} />
-            <ReviewItem label="Courts" value={courtCount || "—"} />
+            <ReviewItem label="Category" value={categoryLabel || "—"} />
+            <ReviewItem label="Series" value={seriesLabel?.trim() || "None (optional)"} />
             <ReviewItem label="Entry" value={feeDisplay} />
-            <ReviewItem label="Prize pool" value={prizeDisplay} />
-            <ReviewItem label="Players per team" value="2 (fixed pairs)" />
           </dl>
-          <div className="mt-4 space-y-4">
-            <div>
-              <TournamentReviewRichBlock label="Short summary" html={summary} />
-              {!hasSummary ? (
-                <p className="mt-2 text-xs text-cp-muted">
-                  No short summary — hero and cards will look sparse until you add one.
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <TournamentReviewRichBlock label="Description" html={description} />
-              {!hasDescription ? (
-                <p className="mt-2 text-xs text-cp-muted">
-                  No full description yet — the About section will stay empty.
-                </p>
-              ) : null}
-            </div>
+          <div className="mt-4">
+            <TournamentReviewRichBlock label="Description" html={description} />
+            {!hasDescription ? (
+              <p className="mt-2 text-xs text-cp-muted">
+                No description yet — the About section will stay empty.
+              </p>
+            ) : null}
           </div>
         </ReviewSection>
 
@@ -235,14 +214,6 @@ export function PartnerTournamentWizardReview({
               }
             />
           </dl>
-          {startsAt && endsAt ? (
-            <p className="mt-3 text-xs leading-relaxed text-cp-muted">
-              Starts {formatWizardDateTime(startsAt) ?? startsAt}
-              {" · "}
-              Ends {formatWizardDateTime(endsAt) ?? endsAt}. Guests can register until the
-              deadline (including after start, if you allow it).
-            </p>
-          ) : null}
         </ReviewSection>
 
         <ReviewSection
@@ -256,32 +227,32 @@ export function PartnerTournamentWizardReview({
             <TournamentVenueMapPreview venue={venue} mapsUrl={venueMapsUrl} />
           ) : (
             <div className="rounded-xl border border-dashed border-cp-border bg-cp-elevated/30 px-4 py-8 text-center text-sm text-cp-muted">
-              No venue set. Add a location on the Basics step.
+              No venue set. Add a location on Step 1.
             </div>
           )}
         </ReviewSection>
 
-        <ReviewSection title="Format" icon={Users} stepIndex={1} onEditStep={onEditStep}>
+        <ReviewSection title="Format & capacity" icon={Users} stepIndex={1} onEditStep={onEditStep}>
           <dl className="grid gap-3 sm:grid-cols-2">
+            <ReviewItem label="Match family" value={formatFamilyLabel} />
             <ReviewItem label="Structure" value={formatLabel} />
+            <ReviewItem label="Max teams" value={maxTeams || "—"} />
+            <ReviewItem label="Courts" value={courtCount || "—"} />
             {poolRows.map((row) => (
               <ReviewItem key={row.label} label={row.label} value={row.value} />
             ))}
           </dl>
-          <p className="mt-3 text-xs leading-relaxed text-cp-muted">
-            Pool size and advancement control bracket seeding when you generate groups on Manage.
-          </p>
         </ReviewSection>
 
-        <ReviewSection title="Scoring" icon={Gamepad2} stepIndex={2} onEditStep={onEditStep}>
+        <ReviewSection title="Match scoring" icon={Gamepad2} stepIndex={1} onEditStep={onEditStep}>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <ReviewItem label="Match format" value={matchFormatLabel} />
+            <ReviewItem label="Scoring rules" value={matchScoringLabel} />
             {scoringRows.map((row) => (
               <ReviewItem key={row.label} label={row.label} value={row.value} />
             ))}
           </dl>
           <p className="mt-3 text-xs leading-relaxed text-cp-muted">
-            Live tablet vs paper score entry is configured later under Manage → Display.
+            Live tablet vs paper score entry is configured under Manage → Display after publish.
           </p>
         </ReviewSection>
       </div>

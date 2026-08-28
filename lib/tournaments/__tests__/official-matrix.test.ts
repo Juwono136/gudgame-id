@@ -75,6 +75,9 @@ function officialPayload(
     ...(format === "mexicano"
       ? { mexicano: { mode: "team" as const, roundCount: 5 }, maxRounds: 5 }
       : {}),
+    ...(format === "modified_swiss"
+      ? { maxTeamsPerGroup: 3, teamsAdvancePerGroup: 1 }
+      : {}),
     ...(opts.family === "custom" &&
     (format === "double_stage" ||
       format === "group_only" ||
@@ -86,8 +89,12 @@ function officialPayload(
           },
         }
       : {}),
-    ...(format === "double_stage" || format === "group_only"
-      ? { maxTeamsPerGroup: 4, teamsAdvancePerGroup: format === "double_stage" ? 2 : undefined }
+    ...(format === "double_stage" || format === "group_only" || format === "modified_swiss"
+      ? {
+          maxTeamsPerGroup: format === "modified_swiss" ? 3 : 4,
+          teamsAdvancePerGroup:
+            format === "double_stage" ? 2 : format === "modified_swiss" ? 1 : undefined,
+        }
       : {}),
     ...opts.extras,
   };

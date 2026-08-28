@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { CalendarRange } from "lucide-react";
 import { MatchRecapShareCard } from "@/components/partners/match-recap-share-card";
 import { MatchScheduleBoard } from "@/components/tournaments/double-stage/match-schedule-board";
+import { TournamentDetailSection } from "@/components/tournaments/tournament-detail-ui";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
@@ -150,7 +152,7 @@ export function DoubleStageMatchesTab({
 
   if (!groups.length && !bracketMatches.length) {
     return (
-      <Card>
+      <Card className="border-dashed border-cp-border/80">
         <CardContent className="py-12 text-center text-sm text-cp-muted">
           Match schedule will appear when the group stage is live and fixtures are generated.
         </CardContent>
@@ -160,11 +162,22 @@ export function DoubleStageMatchesTab({
 
   return (
     <div className="space-y-4">
-      <MatchScheduleBoard
-        matches={rows}
-        gamesScoreMode={gamesScoreMode}
-        emptyMessage="No fixtures yet."
-      />
+      <TournamentDetailSection
+        title="Order of play"
+        icon={CalendarRange}
+        iconClassName="text-cp-primary"
+        headerAside={
+          <span className="text-xs text-cp-muted sm:text-sm">
+            {rows.length} fixture{rows.length === 1 ? "" : "s"}
+          </span>
+        }
+      >
+        <MatchScheduleBoard
+          matches={rows}
+          gamesScoreMode={gamesScoreMode}
+          emptyMessage="No fixtures yet."
+        />
+      </TournamentDetailSection>
 
       {partnerName && completedForRecap.length > 0 ? (
         <section className="space-y-3">

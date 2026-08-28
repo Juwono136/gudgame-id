@@ -7,7 +7,9 @@ import {
   GAME_RALLY_MILESTONES,
   formatGamesMatchLengthHint,
   formatGamesMatchLengthLabel,
+  isRaceToGamesMatchComplete,
   serveHistoryFromCompletedGames,
+  shouldPromptSideChangeRest,
   type MatchGameRules,
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
@@ -93,10 +95,12 @@ export function GameRaceScoreboard({
     ? Math.max(gamesA, gamesB) >= needSets
     : (rules.lengthMode ?? "race_to") === "total"
       ? gamesA + gamesB >= rules.raceToGames
-      : Math.max(gamesA, gamesB) >= rules.raceToGames;
+      : isRaceToGamesMatchComplete(gamesA, gamesB, rules).complete;
   const phase = gameState.phase ?? "game";
+  const inMatchTiebreak = !classicSets && phase === "match_tiebreak";
   const inTiebreak =
-    classicSets && (phase === "set_tiebreak" || phase === "super_tiebreak");
+    inMatchTiebreak ||
+    (classicSets && (phase === "set_tiebreak" || phase === "super_tiebreak"));
   const pointsA = inTiebreak
     ? (gameState.tbPointsA ?? 0)
     : gameState.currentPointsA;
@@ -119,6 +123,32 @@ export function GameRaceScoreboard({
   const winnerName =
     pendingWinner === "a" ? teamAName : pendingWinner === "b" ? teamBName : null;
 
+  const projectedGamesA = gamesA + (pendingWinner === "a" ? 1 : 0);
+  const projectedGamesB = gamesB + (pendingWinner === "b" ? 1 : 0);
+  const sideChangeRest = shouldPromptSideChangeRest(projectedGamesA, projectedGamesB, rules);
+  const [restRemaining, setRestRemaining] = useState(0);
+
+  useEffect(() => {
+    if (!gameHeld || !sideChangeRest.prompt || matchComplete) {
+      setRestRemaining(0);
+      return;
+    }
+    setRestRemaining(sideChangeRest.restSeconds);
+    const timer = window.setInterval(() => {
+      setRestRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [
+    gameHeld,
+    matchComplete,
+    sideChangeRest.prompt,
+    sideChangeRest.restSeconds,
+    projectedGamesA,
+    projectedGamesB,
+  ]);
+
+  const restBlocking = sideChangeRest.prompt && restRemaining > 0;
+
   const headerLabel = classicSets
     ? inTiebreak
       ? phase === "super_tiebreak"
@@ -128,7 +158,9 @@ export function GameRaceScoreboard({
     : `Match · ${formatGamesMatchLengthLabel(rules)}`;
 
   const scoreUnitLabel = classicSets ? "sets" : "games won";
-  const pointsSectionLabel = inTiebreak
+  const pointsSectionLabel = inMatchTiebreak
+    ? `Match tiebreak (first to ${rules.matchTiebreakTo ?? 7})`
+    : inTiebreak
     ? phase === "super_tiebreak"
       ? "Super TB points"
       : "Tiebreak points"
@@ -373,17 +405,38 @@ export function GameRaceScoreboard({
                   : `${formatGamesMatchLengthLabel(rules)} reached — finish the match when ready.`}
               </p>
             ) : (
-              <Button
-                type="button"
-                className={cn(
-                  "w-full max-w-sm touch-manipulation rounded-full px-6 font-semibold sm:w-auto",
-                  courtside ? "h-12 text-base" : "h-11 text-sm",
-                )}
-                disabled={disabled || syncing || !onNextGame}
-                onClick={() => onNextGame?.(activeServerOpts)}
-              >
-                {nextLabel}
-              </Button>
+              <div className="flex w-full max-w-sm flex-col items-center gap-2">
+                {sideChangeRest.prompt ? (
+                  <div className="w-full rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-center">
+                    <p className="text-xs font-semibold text-amber-950 dark:text-amber-100">
+                      Side change · {restRemaining > 0 ? `${restRemaining}s rest` : "Rest complete"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-amber-900/80 dark:text-amber-200/80">
+                      Total games {sideChangeRest.totalGames} — switch ends before the next game
+                    </p>
+                    {restRemaining > 0 ? (
+                      <button
+                        type="button"
+                        className="mt-1.5 text-[11px] font-medium text-amber-900 underline underline-offset-2 dark:text-amber-100"
+                        onClick={() => setRestRemaining(0)}
+                      >
+                        Skip rest (staff)
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <Button
+                  type="button"
+                  className={cn(
+                    "w-full touch-manipulation rounded-full px-6 font-semibold sm:w-auto",
+                    courtside ? "h-12 text-base" : "h-11 text-sm",
+                  )}
+                  disabled={disabled || syncing || !onNextGame || restBlocking}
+                  onClick={() => onNextGame?.(activeServerOpts)}
+                >
+                  {nextLabel}
+                </Button>
+              </div>
             )}
           </div>
         ) : null}

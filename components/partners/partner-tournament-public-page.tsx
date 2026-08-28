@@ -205,19 +205,14 @@ export function PartnerTournamentPublicPage({
     tournament.slug,
     { enabled: caps.showBracketTab || caps.isDoubleStage },
   );
-  const { data: participantsData } = useTournamentParticipants(
-    tournament.sportSlug,
-    tournament.slug,
-    1,
-    100,
-    { enabled: !caps.isAmericano },
-  );
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<PartnerPublicTab>("Overview");
 
   const visibleTabs = useMemo((): PartnerPublicTab[] => {
     return TABS.filter((item) => {
-      // Groups = pool standings (manage → Groups)
       if (item === "Groups" && !caps.showGroupsTab) return false;
-      // Matches schedule only for double-stage partner events
       if (item === "Matches" && !caps.isDoubleStage) return false;
       if (item === "Bracket") {
         if (!caps.showBracketTab) return false;
@@ -227,9 +222,22 @@ export function PartnerTournamentPublicPage({
     });
   }, [caps, bracketHasTree, isDoubleStageKnockout]);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [tab, setTab] = useState<PartnerPublicTab>("Overview");
+  const statsTabsActive =
+    tab === "Players" ||
+    tab === "History & stats" ||
+    tab === "Groups" ||
+    tab === "Live Score";
+
+  const { data: participantsData } = useTournamentParticipants(
+    tournament.sportSlug,
+    tournament.slug,
+    1,
+    100,
+    {
+      enabled: !caps.isAmericano,
+      refetchInterval: statsTabsActive ? 30_000 : false,
+    },
+  );
 
   const manageHref = partnerPublicRoutes.tournamentManage(partnerSlug, tournament.slug);
   const displayHref = partnerPublicRoutes.tournamentDisplay(partnerSlug, tournament.slug);
@@ -654,7 +662,7 @@ export function PartnerTournamentPublicPage({
         viewLiveLabel="View live score"
       />
 
-      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 pb-24 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8 lg:pb-8">
         <TournamentTabNav
           tabs={visibleTabs}
           active={tab}

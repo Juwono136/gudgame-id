@@ -9,9 +9,8 @@ import {
   tournamentTeams,
 } from "@/db/schema/tournament-registration";
 import { AppError } from "@/lib/errors";
-import {
-  assertBracketInitialGenerationAllowed,
-} from "@/lib/tournaments/lifecycle-guards";
+import { assertBracketInitialGenerationAllowed } from "@/lib/tournaments/lifecycle-guards";
+import { resolveFormatEngine } from "@/lib/tournaments/match-config";
 import { isFunMatchType } from "@/lib/tournaments/core/types";
 import { listBracketEligibleTeamsForGenerate } from "@/lib/tournaments/brackets/eligible-teams";
 import { applyRoundOneSeeding } from "@/lib/tournaments/brackets/round-one";
@@ -41,14 +40,14 @@ export async function generateTournamentBracket(
 ): Promise<{ matchCount: number; seedMode: "random" | "manual" }> {
   assertBracketInitialGenerationAllowed(tournament);
 
-  if (tournament.format === "americano" || tournament.format === "mexicano") {
+  if (tournament.format === "americano" || resolveFormatEngine(tournament.format) === "mexicano") {
     throw new AppError("This tournament format does not use brackets", {
       code: "INVALID_TOURNAMENT_TYPE",
       statusCode: 400,
     });
   }
 
-  if (tournament.format === "group_only") {
+  if (resolveFormatEngine(tournament.format) === "group_only") {
     throw new AppError("Group-only tournaments do not have a knockout bracket.", {
       code: "FORBIDDEN",
       statusCode: 403,

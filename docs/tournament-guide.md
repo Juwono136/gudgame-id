@@ -97,7 +97,9 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | Surface type | Disimpan sebagai `fun_match` + `partnerId` |
 | Billing | Free / Paid untuk guest checkout |
 | Skill / tournament tier | Tidak ada |
-| Format | Double Stage / Elimination / Americano (wizard partner) |
+| Format | **Original** atau **Custom** match family — sama Official: Americano, Group only, Knockout, Double stage, Mexicano; Original + **Swiss**; Custom + **Modified Swiss** |
+| Category | **Wajib** (Male / Female / Mix) |
+| Create wizard | **3 step:** (1) Event info — name, schedule, registration close, series, entry fee, category, banner, description, venue; (2) Format & capacity — match family, format, scoring, courts, max teams, pool; (3) Review |
 | Guest registration | Claimable teammates (nama + email/phone); search `partner_players`; soft name-only fallback; UI parity Official register (lihat §9.5) |
 | **Create → public → manage sync** | Format, pool, classic/race scoring, courts, billing, `playersPerTeam`, Americano `maxRounds`, 3rd-place — label Overview & manage dashboard mengikuti create (lihat §8.5) |
 | **Member auth** | Login/sign-up di `/{slug}/login` (email/password **atau Google**) — identitas terpisah dari Gud Game & partner lain (lihat [`docs/partner-auth.md`](./partner-auth.md)) |
@@ -246,6 +248,33 @@ Infrastruktur group sama seperti Double Stage, **tanpa** knockout.
 2. Round berikutnya: seed dari **leaderboard live** (poin sesi).
 3. Manage memakai court grid yang sama dengan Americano; planner di `lib/tournaments/mexicano/`.
 4. Publik: Live Score + History dari payload live (lobby rounds).
+
+### 2.10 Modified Swiss (`modified_swiss`) — Custom only · Bestie Cup pools
+
+Referensi operasional: [`docs/Panduan Dan Rundown Bestie Cup 2026.pdf`](./Panduan%20Dan%20Rundown%20Bestie%20Cup%202026.pdf).
+
+| Setting | Nilai default partner |
+| --- | --- |
+| Engine | Round-robin **group-only** (bukan Mexicano) |
+| `customMatch.groupMeetingsPerPair` | **1** (setiap pasangan hanya bertemu sekali) |
+| `maxTeamsPerGroup` | **3** pasangan per pool (Bestie Cup) |
+| `teamsAdvancePerGroup` | **1** (juara pool) |
+| `poolRules` | `bestie_cup` (otomatis saat create) |
+| Skor match | **First to 6** games + **Golden Point** |
+| Ranking pool | Menang match → **Game Win %** → undian |
+| Istirahat | Ganti sisi + **1 menit** saat total game ganjil (≥3) |
+
+**Alur**
+
+1. Partner wizard (Custom) → pilih **Modified Swiss** → konfigurasi pool (3 pasangan, advance 1).
+2. Assign tim ke group; generate round-robin (3 match per pool bila 3 tim).
+3. Live scoring: banner istirahat muncul sebelum “Next game” saat total game ganjil.
+4. Standings publik & manage menampilkan kolom **GW%** + badge Qualified/Eliminated.
+5. Event penuh Bestie Cup (16 pool × 3 → R16 knockout) gunakan **Double Stage** + aturan pool yang sama (`poolRules: bestie_cup`).
+
+Preset kode: `lib/tournaments/partner/bestie-cup-config.ts`.
+
+**Manual lengkap:** [`docs/bestie-cup-guide.md`](./bestie-cup-guide.md) — checklist H-day, R16 bracket, scoring KO.
 
 ---
 
@@ -625,15 +654,23 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 | Create field | Public | Manage | Display TV |
 | --- | --- | --- | --- |
-| Format (DS / SE / Americano) | Overview Format + tabs capabilities | Dashboard + Live scoring mode | Bracket / multi-court / leaderboard presets |
-| Classic sets vs race-to | Scoring card = classic / race (bukan “Race to N” palsu untuk classic) | Live engine + classicSetRules | Multi-court label Classic sets / Race to |
+| Match family (Original / Custom) | Overview Format + family hint | Dashboard format detail | — |
+| Format (DS / SE / Americano / Mexicano / Group / Swiss / Mod. Swiss) | Overview Format + tabs capabilities | Dashboard + Live scoring mode | Bracket / multi-court / leaderboard presets |
+| `matchScoring` (Best of / Race to / Total / Custom) | Scoring card dari `matchScoring` | Live engine + stage overrides | Multi-court label dari scoring |
+| Custom meetings / KO legs | Format hint (Custom only) | Groups / bracket generation | — |
 | Pool (pairs, advance, runner-ups) | Format hint Overview | Dashboard pool detail + Groups | — |
-| Courts | Scoring detail + Format hint | Dashboard courts · Live provision | Multi-court grid |
-| Billing / fee / prize | Entry / prize cards | Dashboard Entry/Billing | — |
+| Courts / max teams | Scoring detail + Format hint | Dashboard courts · Live provision | Multi-court grid |
+| Billing / fee | Entry cards | Dashboard Entry/Billing | — |
 | `playersPerTeam` | Format hint + register slots | Dashboard players/team | — |
-| Americano `maxRounds` | Format hint | Live banner + round cap | — |
+| Americano `maxRounds` / Mexicano rounds | Format hint | Live banner + round cap | — |
 | 3rd place | — | Knockout generation | — |
 | Brand theme / sponsors | — | Manage → Display | CSS vars + logo on TV |
+
+**Swiss variants (engine):** `swiss` dan `modified_swiss` keduanya memakai engine **`group_only`** (round-robin pool + standings). `modified_swiss` (Custom) = Bestie Cup pool rules: meet once, FT6, tie-break GW%, side-change rest. **Mexicano** terpisah — pairing dari leaderboard per round, bukan RR pool.
+
+**Manage → Players (roster besar):** Guest registrations hanya menampilkan antrian **Needs review** + ringkasan stat (confirmed tidak diduplikasi). Roster confirmed memakai tabel compact: search, paginasi (10/20/50 tim per halaman), player inline chips, sticky header + scroll area, remove icon-only di desktop. Komponen: `partner-guest-registrations-panel.tsx`, `tournament-participants-panel.tsx` (`compactLayout` untuk partner).
+
+**Wizard partner:** `components/partners/partner-tournament-wizard.tsx` — tidak ada short summary; **Series** (dulu League) opsional di Step 1.
 
 **Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `bracket`, `leaderboard`, `rotation`.
 
@@ -647,6 +684,8 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 | Manage Display | `…/manage?section=display` |
 
 Sport route `/sports/…/display` **404** untuk event `partnerId` (isolasi white-label).
+
+**Mobile UI:** Situs publik partner dan Partner Console memakai **bottom navigation** di layar kecil (`components/partners/partner-mobile-bottom-nav.tsx`). Tab turnamen publik (Live Score, Matches, Groups, …) sticky + scroll horizontal; data live poll 4–6s, roster/stats 30s di tab terkait.
 
 ### 8.6 File acuan realtime
 
@@ -822,6 +861,16 @@ npm run db:seed:fixtures -- --name you@email.com
 | `npm run db:seed:double-stage -- --name you@email --tier=gold --reset` | Satu tier |
 | `npm run db:seed:double-stage -- --name you@email --go-live` | Langsung live (groups init) |
 | `npm run db:seed:double-stage:purge -- --all` | Hapus fixture DS per-tier |
+
+### A.2.1 Partner Bestie Cup dry-run (48 pasangan)
+
+| Command | Isi |
+| --- | --- |
+| `npm run db:seed:partner-bestie-cup -- --name you@email --partner-slug spark-area` | **Local dev only** · 48 confirmed pairs · upcoming · no registration emails |
+| `npm run db:seed:partner-bestie-cup -- --name you@email --reset --go-live` | Reset + langsung **Live** untuk uji Groups/scoring |
+| `npm run db:seed:partner-bestie-cup:purge -- --players` | Hapus fixture + `*@bestie-fixture.local` |
+
+Checklist lengkap: [`docs/bestie-cup-guide.md`](./bestie-cup-guide.md) § Staging / dev dry-run.
 
 ### A.3 Manual smoke saat Live (setelah seed `--go-live`)
 

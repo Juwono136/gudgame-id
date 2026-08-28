@@ -37,6 +37,10 @@ export type TeamStandingRow = {
    * Informational — ranking still uses points / tie-breakers.
    */
   winRate: number;
+  /**
+   * Game win % (gamesFor ÷ games played), two decimals — Bestie Cup pool tie-breaker display.
+   */
+  gameWinPct: number;
   rank: number;
   qualificationStatus: "pending" | "qualified" | "eliminated";
   needsManualResolution?: boolean;
@@ -44,7 +48,7 @@ export type TeamStandingRow = {
 
 type StandingCore = Omit<
   TeamStandingRow,
-  "rank" | "qualificationStatus" | "needsManualResolution" | "winRate"
+  "rank" | "qualificationStatus" | "needsManualResolution" | "winRate" | "gameWinPct"
 >;
 
 
@@ -233,6 +237,7 @@ function sortStandings(
     result.push({
       ...row,
       winRate: matchWinRatePercent(row.wins, row.played),
+      gameWinPct: Math.round(gameWinPct(row) * 10000) / 100,
       rank: i + 1,
       qualificationStatus: "pending",
       needsManualResolution,

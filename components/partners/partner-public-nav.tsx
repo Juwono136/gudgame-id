@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, Menu, UserRound, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Building2, Home, Trophy, UserRound } from "lucide-react";
+import { useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,14 @@ import {
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { usePartnerPlayerSession } from "@/hooks/use-partner-player-session";
 import { getUserInitials } from "@/lib/auth/user-display";
-import { authRoutes, dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
+import { dashboardRoutes, partnerPublicRoutes } from "@/lib/constants/routes";
 import { resolveUserImageUrl } from "@/lib/media/client";
 import { canAccessPartnerDashboard } from "@/lib/roles/route-access";
 import { cn } from "@/lib/utils";
+import {
+  PartnerMobileBottomNav,
+  type PartnerMobileNavItem,
+} from "@/components/partners/partner-mobile-bottom-nav";
 
 type PartnerPublicNavProps = {
   partnerSlug: string;
@@ -58,25 +62,8 @@ export function PartnerPublicNav({
     isAuthenticated: isStaffAuthenticated,
     isAuthLoading: isStaffAuthLoading,
   } = useAuthUser();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   const memberLoginHref = `${partnerPublicRoutes.login(partnerSlug)}?callbackUrl=${encodeURIComponent(
-    pathname || partnerPublicRoutes.home(partnerSlug),
-  )}`;
-  const staffLoginHref = `${authRoutes.login}?callbackUrl=${encodeURIComponent(
     pathname || partnerPublicRoutes.home(partnerSlug),
   )}`;
 
@@ -104,10 +91,10 @@ export function PartnerPublicNav({
         !isPartnerStaff
       : true;
 
-  const links = [
-    { href: partnerPublicRoutes.home(partnerSlug), label: "Home", exact: true },
-    { href: partnerPublicRoutes.tournaments(partnerSlug), label: "Tournaments" },
-    { href: partnerPublicRoutes.leagues(partnerSlug), label: "Leagues" },
+  const links: PartnerMobileNavItem[] = [
+    { href: partnerPublicRoutes.home(partnerSlug), label: "Home", icon: Home, exact: true },
+    { href: partnerPublicRoutes.tournaments(partnerSlug), label: "Tournaments", icon: Trophy },
+    { href: partnerPublicRoutes.leagues(partnerSlug), label: "Leagues", icon: Building2 },
   ];
 
   const isActive = (href: string, exact?: boolean) => {
@@ -119,6 +106,7 @@ export function PartnerPublicNav({
   const staffInitials = getUserInitials(staffUser?.name ?? staffUser?.email ?? "P");
 
   return (
+    <>
     <header className="sticky top-0 z-30 border-b border-cp-border/70 bg-cp-card/90 backdrop-blur-xl supports-[backdrop-filter]:bg-cp-card/75">
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 h-px"
@@ -229,90 +217,22 @@ export function PartnerPublicNav({
                   {session?.displayName?.split(" ")[0] ?? "Account"}
                 </Link>
               </Button>
+            ) : showSignIn ? (
+              <Button asChild size="sm" className="bg-cp-primary hover:bg-cp-primary-light">
+                <Link href={memberLoginHref}>Sign in</Link>
+              </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="border-cp-border"
-              aria-expanded={open}
-              aria-controls="partner-public-menu"
-              aria-label={open ? "Close menu" : "Open menu"}
-              onClick={() => setOpen((v) => !v)}
-            >
-              {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </Button>
           </div>
         </div>
       </div>
-
-      {open ? (
-        <div
-          id="partner-public-menu"
-          className="border-t border-cp-border/60 bg-cp-card px-3 py-3 sm:px-6 lg:hidden"
-        >
-          <div className="mx-auto flex max-w-7xl flex-col gap-0.5">
-            {links.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={cn(
-                  "min-h-11 rounded-xl px-3 py-2.5 text-sm transition-colors",
-                  isActive(l.href, l.exact)
-                    ? "bg-cp-primary/10 font-semibold text-foreground"
-                    : "text-cp-muted hover:bg-cp-elevated hover:text-foreground",
-                )}
-                onClick={() => setOpen(false)}
-              >
-                {l.label}
-              </Link>
-            ))}
-            {isPartnerStaff ? (
-              <Button asChild className="mt-2 w-full bg-cp-primary hover:bg-cp-primary-light">
-                <Link href={dashboardRoutes.partner} onClick={() => setOpen(false)}>
-                  <Building2 className="mr-2 h-4 w-4" />
-                  Open Partner Console
-                </Link>
-              </Button>
-            ) : null}
-            {showSignIn ? (
-              <>
-                <Button
-                  asChild
-                  variant={isPartnerStaff ? "outline" : "default"}
-                  className={cn(
-                    "mt-2 w-full",
-                    !isPartnerStaff && "bg-cp-primary hover:bg-cp-primary-light",
-                  )}
-                >
-                  <Link href={memberLoginHref} onClick={() => setOpen(false)}>
-                    Member sign in
-                  </Link>
-                </Button>
-                {!isPartnerStaff ? (
-                  <Link
-                    href={staffLoginHref}
-                    className="mt-1 px-3 py-2 text-center text-[11px] text-cp-muted hover:text-foreground"
-                    onClick={() => setOpen(false)}
-                  >
-                    Staff / organizer (Gud Game)
-                  </Link>
-                ) : null}
-              </>
-            ) : showMemberAuthenticated && !isPartnerStaff ? (
-              <Button asChild variant="outline" className="mt-2 w-full">
-                <Link
-                  href={partnerPublicRoutes.account(partnerSlug)}
-                  onClick={() => setOpen(false)}
-                >
-                  My account
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
     </header>
+
+    <PartnerMobileBottomNav
+      items={links}
+      pathname={pathname}
+      primaryColor={primaryColor}
+    />
+    </>
   );
 }
 

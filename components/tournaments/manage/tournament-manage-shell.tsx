@@ -678,7 +678,7 @@ export function TournamentManageShell({
                     canCurate={access.isOwner || access.isPartnerMember}
                   />
                 ) : null}
-                <div className="rounded-2xl border border-cp-border bg-cp-card p-5">
+                <div className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
                   <TournamentParticipantsPanel
                     sportSlug={tournament.sportSlug}
                     slug={tournament.slug}
@@ -686,6 +686,7 @@ export function TournamentManageShell({
                     variant="reclub"
                     canRemoveTeams={access.isOwner || access.isPartnerMember}
                     partnerEvent={isPartnerEvent}
+                    compactLayout={isPartnerEvent}
                     liveRefresh
                   />
                 </div>

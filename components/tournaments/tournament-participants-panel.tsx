@@ -53,6 +53,8 @@ type TournamentParticipantsPanelProps = {
   partnerEvent?: boolean;
   /** Poll roster while manage workspace is open. */
   liveRefresh?: boolean;
+  /** Dense table for partner manage with large rosters (pagination + inline players). */
+  compactLayout?: boolean;
 };
 
 type GroupedTeamEntry = {
@@ -227,6 +229,53 @@ function FunMatchScore({
   );
 }
 
+function CompactTeamPlayersRow({
+  players,
+  variant,
+}: {
+  players: TournamentParticipantRow[];
+  variant: "official" | "reclub";
+}) {
+  return (
+    <div className="flex min-w-0 flex-wrap gap-1.5">
+      {players.map((player) => {
+        const hoverAccent =
+          variant === "official"
+            ? "hover:text-cp-primary"
+            : "hover:text-emerald-300";
+        return (
+          <span
+            key={`${player.teamId}-${player.userId}`}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-cp-border/70 bg-cp-elevated/15 px-2 py-1 text-xs text-foreground"
+          >
+            <Avatar className="h-6 w-6 shrink-0 border border-cp-border/80">
+              <AvatarImage src={player.image ?? undefined} alt="" />
+              <AvatarFallback className="bg-cp-elevated text-[10px]">
+                {initials(player.displayName)}
+              </AvatarFallback>
+            </Avatar>
+            {player.profileUrl ? (
+              <Link
+                href={player.profileUrl}
+                className={cn("min-w-0 truncate transition-colors", hoverAccent)}
+              >
+                {player.displayName}
+              </Link>
+            ) : (
+              <span className="min-w-0 truncate">{player.displayName}</span>
+            )}
+            {player.role.toLowerCase() === "captain" ? (
+              <span className="shrink-0 text-[9px] font-semibold uppercase text-cp-primary">
+                Cap
+              </span>
+            ) : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function TeamPlayersList({
   players,
   variant,
@@ -302,12 +351,14 @@ function TeamActionButton({
   isRemoving,
   removePending,
   onRemove,
+  compact = false,
 }: {
   team: GroupedTeamEntry;
   canRemoveTeams: boolean;
   isRemoving: boolean;
   removePending: boolean;
   onRemove: (row: TournamentParticipantRow) => void;
+  compact?: boolean;
 }) {
   if (!canRemoveTeams) return null;
   const actionRow = team.captain ?? team.players[0];
@@ -319,12 +370,15 @@ function TeamActionButton({
         type="button"
         size="sm"
         variant="outline"
-        className="h-10 w-full cursor-not-allowed border-cp-border text-cp-muted lg:w-[170px]"
+        className={cn(
+          "cursor-not-allowed border-cp-border text-cp-muted",
+          compact ? "h-8 w-8 shrink-0 px-0 lg:w-8" : "h-10 w-full lg:w-[170px]",
+        )}
         disabled
         title="This team has already competed. Career stats are preserved."
       >
-        <Lock className="mr-1.5 h-3.5 w-3.5" />
-        Locked
+        <Lock className={cn("h-3.5 w-3.5", !compact && "mr-1.5")} />
+        {!compact ? "Locked" : null}
       </Button>
     );
   }
@@ -334,16 +388,22 @@ function TeamActionButton({
       type="button"
       size="sm"
       variant="outline"
-      className="h-10 w-full border-red-300/80 text-red-700 hover:bg-red-50 hover:text-red-800 lg:w-[170px] dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+      className={cn(
+        "border-red-300/80 text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300",
+        compact
+          ? "h-8 w-8 shrink-0 px-0 lg:w-8"
+          : "h-10 w-full border-red-300/80 lg:w-[170px]",
+      )}
       disabled={isRemoving || removePending}
+      title={`Remove ${team.teamName}`}
       onClick={() => onRemove(actionRow)}
     >
       {isRemoving ? (
-        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+        <Loader2 className={cn("h-3.5 w-3.5 animate-spin", !compact && "mr-1.5")} />
       ) : (
-        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+        <Trash2 className={cn("h-3.5 w-3.5", !compact && "mr-1.5")} />
       )}
-      Remove team
+      {!compact ? "Remove team" : null}
     </Button>
   );
 }
@@ -359,10 +419,11 @@ export function TournamentParticipantsPanel({
   canRemoveTeams = false,
   partnerEvent = false,
   liveRefresh = false,
+  compactLayout = false,
 }: TournamentParticipantsPanelProps) {
   const { confirm } = useConfirmDialog();
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(compactLayout ? 10 : DEFAULT_PAGE_SIZE);
   const [searchInput, setSearchInput] = useState("");
   const [removingTeamId, setRemovingTeamId] = useState<string | null>(null);
   const debouncedSearch = useDebounce(searchInput, SEARCH_DEBOUNCE_MS);
@@ -632,36 +693,53 @@ export function TournamentParticipantsPanel({
             showFetching && "opacity-80",
           )}
         >
-          <div className="border-b border-cp-border/80 bg-cp-elevated/20 px-4 py-3 lg:hidden">
-            <p className="text-xs text-cp-muted">
-              Teams are grouped together so each roster stays easier to scan on smaller screens.
-            </p>
-          </div>
+          {!compactLayout ? (
+            <div className="border-b border-cp-border/80 bg-cp-elevated/20 px-4 py-3 lg:hidden">
+              <p className="text-xs text-cp-muted">
+                Teams are grouped together so each roster stays easier to scan on smaller screens.
+              </p>
+            </div>
+          ) : null}
 
           <div
             className={cn(
+              compactLayout && "max-h-[min(70vh,720px)] overflow-y-auto",
+            )}
+          >
+          <div
+            className={cn(
               "hidden items-center border-b border-cp-border/80 bg-cp-elevated/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-wider text-cp-muted lg:grid lg:gap-4 xl:gap-5",
+              compactLayout && "sticky top-0 z-10 backdrop-blur-sm",
               canRemoveTeams
-                ? "lg:grid-cols-[minmax(160px,0.75fr)_minmax(260px,1.45fr)_minmax(140px,0.8fr)_minmax(140px,156px)] xl:grid-cols-[minmax(190px,0.8fr)_minmax(320px,1.55fr)_minmax(180px,0.9fr)_minmax(150px,170px)]"
-                : "lg:grid-cols-[minmax(190px,0.85fr)_minmax(320px,1.7fr)_minmax(180px,1fr)]",
+                ? compactLayout
+                  ? "lg:grid-cols-[minmax(140px,0.7fr)_minmax(240px,1.6fr)_minmax(120px,0.65fr)_48px]"
+                  : "lg:grid-cols-[minmax(160px,0.75fr)_minmax(260px,1.45fr)_minmax(140px,0.8fr)_minmax(140px,156px)] xl:grid-cols-[minmax(190px,0.8fr)_minmax(320px,1.55fr)_minmax(180px,0.9fr)_minmax(150px,170px)]"
+                : compactLayout
+                  ? "lg:grid-cols-[minmax(140px,0.75fr)_minmax(260px,1.75fr)_minmax(120px,0.7fr)]"
+                  : "lg:grid-cols-[minmax(190px,0.85fr)_minmax(320px,1.7fr)_minmax(180px,1fr)]",
             )}
           >
             <span>Team / squad</span>
             <span>Players</span>
             <span>{isOfficial ? "Status" : "Score"}</span>
-            {canRemoveTeams ? <span className="text-right">Actions</span> : null}
+            {canRemoveTeams ? <span className="text-right">{compactLayout ? "" : "Actions"}</span> : null}
           </div>
 
-          <ul className="space-y-3 p-3 lg:hidden">
+          <ul className={cn("space-y-3 p-3 lg:hidden", compactLayout && "space-y-2 p-2")}>
             {groupedTeams.map((team) => (
               <li
                 key={team.teamId}
-                className="rounded-2xl border border-cp-border/80 bg-cp-card/90 p-4 shadow-sm transition-colors hover:bg-cp-elevated/10"
+                className={cn(
+                  "rounded-2xl border border-cp-border/80 bg-cp-card/90 shadow-sm transition-colors hover:bg-cp-elevated/10",
+                  compactLayout ? "p-3" : "p-4",
+                )}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className={cn("truncate text-base font-semibold", teamAccent)}>{team.teamName}</p>
-                    <p className="mt-1 text-xs text-cp-muted">
+                    <p className={cn("truncate font-semibold", teamAccent, compactLayout ? "text-sm" : "text-base")}>
+                      {team.teamName}
+                    </p>
+                    <p className="mt-0.5 text-xs text-cp-muted">
                       {team.players.length} player{team.players.length === 1 ? "" : "s"}
                     </p>
                   </div>
@@ -675,15 +753,22 @@ export function TournamentParticipantsPanel({
                   </div>
                 </div>
 
-                <TeamPlayersList players={team.players} variant={variant} compact />
+                {compactLayout ? (
+                  <div className="mt-2.5">
+                    <CompactTeamPlayersRow players={team.players} variant={variant} />
+                  </div>
+                ) : (
+                  <TeamPlayersList players={team.players} variant={variant} compact />
+                )}
 
                 {canRemoveTeams ? (
-                  <div className="mt-4">
+                  <div className={cn(compactLayout ? "mt-3 flex justify-end" : "mt-4")}>
                     <TeamActionButton
                       team={team}
                       canRemoveTeams={canRemoveTeams}
                       isRemoving={removingTeamId === team.teamId}
                       removePending={removeTeam.isPending}
+                      compact={compactLayout}
                       onRemove={(row) => void handleRemoveTeam(row)}
                     />
                   </div>
@@ -697,20 +782,33 @@ export function TournamentParticipantsPanel({
               <li
                 key={team.teamId}
                 className={cn(
-                  "grid items-start px-5 py-4 transition-colors hover:bg-cp-elevated/20 lg:gap-4 xl:gap-5",
+                  "grid items-center transition-colors hover:bg-cp-elevated/20 lg:gap-4 xl:gap-5",
+                  compactLayout ? "px-4 py-2.5" : "items-start px-5 py-4",
                   canRemoveTeams
-                    ? "lg:grid-cols-[minmax(160px,0.75fr)_minmax(260px,1.45fr)_minmax(140px,0.8fr)_minmax(140px,156px)] xl:grid-cols-[minmax(190px,0.8fr)_minmax(320px,1.55fr)_minmax(180px,0.9fr)_minmax(150px,170px)]"
-                    : "lg:grid-cols-[minmax(190px,0.85fr)_minmax(320px,1.7fr)_minmax(180px,1fr)]",
+                    ? compactLayout
+                      ? "lg:grid-cols-[minmax(140px,0.7fr)_minmax(240px,1.6fr)_minmax(120px,0.65fr)_48px]"
+                      : "lg:grid-cols-[minmax(160px,0.75fr)_minmax(260px,1.45fr)_minmax(140px,0.8fr)_minmax(140px,156px)] xl:grid-cols-[minmax(190px,0.8fr)_minmax(320px,1.55fr)_minmax(180px,0.9fr)_minmax(150px,170px)]"
+                    : compactLayout
+                      ? "lg:grid-cols-[minmax(140px,0.75fr)_minmax(260px,1.75fr)_minmax(120px,0.7fr)]"
+                      : "lg:grid-cols-[minmax(190px,0.85fr)_minmax(320px,1.7fr)_minmax(180px,1fr)]",
                 )}
               >
                 <div className="min-w-0">
-                  <p className={cn("truncate text-sm font-semibold", teamAccent)}>{team.teamName}</p>
-                  <p className="mt-1 text-xs text-cp-muted">
-                    {team.players.length} player{team.players.length === 1 ? "" : "s"}
+                  <p className={cn("truncate font-semibold", teamAccent, compactLayout && "text-sm")}>
+                    {team.teamName}
                   </p>
+                  {!compactLayout ? (
+                    <p className="mt-1 text-xs text-cp-muted">
+                      {team.players.length} player{team.players.length === 1 ? "" : "s"}
+                    </p>
+                  ) : null}
                 </div>
 
-                <TeamPlayersList players={team.players} variant={variant} compact />
+                {compactLayout ? (
+                  <CompactTeamPlayersRow players={team.players} variant={variant} />
+                ) : (
+                  <TeamPlayersList players={team.players} variant={variant} compact />
+                )}
 
                 <div className="min-w-0">
                   <TeamStatusCell
@@ -728,6 +826,7 @@ export function TournamentParticipantsPanel({
                       canRemoveTeams={canRemoveTeams}
                       isRemoving={removingTeamId === team.teamId}
                       removePending={removeTeam.isPending}
+                      compact={compactLayout}
                       onRemove={(row) => void handleRemoveTeam(row)}
                     />
                   </div>
@@ -735,6 +834,7 @@ export function TournamentParticipantsPanel({
               </li>
             ))}
           </ul>
+          </div>
 
           <DataTablePagination
             page={page}
@@ -746,6 +846,8 @@ export function TournamentParticipantsPanel({
               setPageSize(size);
               setPage(1);
             }}
+            pageSizeOptions={compactLayout ? [10, 20, 50] : undefined}
+            rowLabel={compactLayout ? "Teams per page" : "Rows"}
             disabled={isFetching}
           />
         </div>

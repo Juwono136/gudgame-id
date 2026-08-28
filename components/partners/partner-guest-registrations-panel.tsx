@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Clock, Loader2, ShieldCheck, Users, X } from "lucide-react";
+import { Check, CheckCircle2, Clock, Loader2, ShieldCheck, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PartnerLoadingSpinner } from "@/components/partners/partner-loading";
@@ -60,8 +60,8 @@ export function PartnerGuestRegistrationsPanel({
     () => (data ?? []).filter((r) => r.status === "registered" || r.status === "awaiting_payment"),
     [data],
   );
-  const confirmed = useMemo(
-    () => (data ?? []).filter((r) => r.status === "confirmed"),
+  const confirmedCount = useMemo(
+    () => (data ?? []).filter((r) => r.status === "confirmed").length,
     [data],
   );
 
@@ -146,7 +146,46 @@ export function PartnerGuestRegistrationsPanel({
           {error instanceof Error ? error.message : "Could not load registrations"}
         </p>
       ) : (
-        <div className="mt-6 space-y-6">
+        <div className="mt-6 space-y-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+            {[
+              { label: "Needs review", value: pending.length, accent: pending.length > 0 },
+              { label: "Confirmed", value: confirmedCount, accent: false },
+              { label: "Total sign-ups", value: (data ?? []).length, accent: false },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl border border-cp-border/80 bg-cp-elevated/25 px-3 py-2.5"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
+                  {stat.label}
+                </p>
+                <p
+                  className={cn(
+                    "mt-0.5 text-lg font-semibold tabular-nums",
+                    stat.accent ? "text-amber-700 dark:text-amber-300" : "text-foreground",
+                  )}
+                >
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {pending.length === 0 && confirmedCount > 0 ? (
+            <div className="flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-950/20">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  All {confirmedCount} teams confirmed
+                </p>
+                <p className="mt-0.5 text-xs text-cp-muted">
+                  Full roster is in the table below.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <section>
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-cp-muted">
               Needs review ({pending.length})
@@ -228,38 +267,6 @@ export function PartnerGuestRegistrationsPanel({
               </ul>
             )}
           </section>
-
-          {confirmed.length > 0 ? (
-            <section>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-cp-muted">
-                Confirmed ({confirmed.length})
-              </p>
-              <p className="mt-1 text-xs text-cp-muted">
-                These teams are on the public roster below.
-              </p>
-              <ul className="mt-3 divide-y divide-cp-border overflow-hidden rounded-xl border border-cp-border/80 bg-cp-elevated/10">
-                {confirmed.map((reg) => {
-                  const meta = statusMeta(reg.status);
-                  return (
-                    <li
-                      key={reg.id}
-                      className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium text-foreground">{reg.teamName}</p>
-                          <Badge className={cn("border", meta.className)}>{meta.label}</Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-cp-muted">
-                          {reg.members.map((m) => m.fullName).join(" · ")}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
         </div>
       )}
     </div>

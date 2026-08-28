@@ -75,6 +75,30 @@ export const FORMAT_OPTIONS: Partial<Record<TournamentFormat, FormatOption>> = {
       "No bracket or knockout stage",
     ],
   },
+  swiss: {
+    value: "swiss",
+    label: "Swiss",
+    shortLabel: "Swiss",
+    description:
+      "Round-based pairing from the live standings — players or teams face opponents with similar records each round.",
+    bullets: [
+      "Pairings refresh after every round",
+      "No early elimination",
+      "Final rank from accumulated results",
+    ],
+  },
+  modified_swiss: {
+    value: "modified_swiss",
+    label: "Modified Swiss",
+    shortLabel: "Mod. Swiss",
+    description:
+      "Custom round-robin pools — each pair meets once, First to 6, ranked by wins then game win %.",
+    bullets: [
+      "Round robin within each pool (meet once)",
+      "First to 6 + Golden Point · GW% tie-break",
+      "Side change + 1 min rest at odd game totals",
+    ],
+  },
 };
 
 /** Formats enabled for a sport (defaults to both; extend via sport admin config later). */
@@ -94,11 +118,7 @@ export function getAllowedFormatsForSport(
     if (options.formatFamily === "original") {
       return [...ORIGINAL_FORMATS];
     }
-    // Legacy / unspecified: keep previous three + new formats for Official
-    if (options.officialOnly && !options.partnerTenant) {
-      return [...ORIGINAL_FORMATS];
-    }
-    return ["double_stage", "single_elimination", "americano"];
+    return [...ORIGINAL_FORMATS];
   }
   if (defaults.defaultFormat === "americano") {
     return ["americano", "single_elimination"];

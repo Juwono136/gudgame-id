@@ -4,12 +4,14 @@ import { asc, eq } from "drizzle-orm";
 import { nextPowerOfTwo } from "@/lib/tournaments/double-stage/allocate-groups";
 import {
   assignGlobalSeeds,
+  buildBestieCupRoundOneSlotOrder,
   buildCrossGroupRoundOneSlotOrder,
   pairPlayInTeams,
   planPlayInAndByes,
   type QualifiedTeam,
   type SeededTeam,
 } from "@/lib/tournaments/double-stage/seeding";
+import { tournamentUsesBestieCupPoolRules } from "@/lib/tournaments/partner/bestie-cup-config";
 import { advanceWinnerToNextMatch } from "@/lib/tournaments/brackets/round-one";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
 import { getDb } from "@/db/client";
@@ -63,7 +65,9 @@ async function applyKnockoutRoundOneSeeding(
 ): Promise<void> {
   const db = getDb();
   const bracketSize = plan.bracketSize;
-  const slotOrder = buildCrossGroupRoundOneSlotOrder(plan.byeTeams, bracketSize);
+  const slotOrder = tournamentUsesBestieCupPoolRules(tournament)
+    ? buildBestieCupRoundOneSlotOrder(plan.byeTeams, bracketSize)
+    : buildCrossGroupRoundOneSlotOrder(plan.byeTeams, bracketSize);
 
   const teamsInSlotOrder: { id: string; name: string }[] = slotOrder.map((t) =>
     t ? { id: t.teamId, name: t.teamName } : { id: "", name: "" },

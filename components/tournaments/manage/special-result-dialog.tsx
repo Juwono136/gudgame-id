@@ -128,7 +128,7 @@ export function SpecialResultDialog({
               </SelectTrigger>
               <SelectContent className={cpSelectContentClass}>
                 <SelectItem value="walkover" className={cpSelectItemClass}>
-                  Walkover (default) — 6–0 sets to winner
+                  Walkover — full match score to winner (e.g. 6–0 games)
                 </SelectItem>
                 <SelectItem value="retirement" className={cpSelectItemClass}>
                   Retirement — finish set from last score

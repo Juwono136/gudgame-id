@@ -94,6 +94,15 @@ export function buildQualifiedTeamsFromStandings(
           gamesFor: row.gamesFor ?? row.scoreFor ?? 0,
           gamesAgainst: row.gamesAgainst ?? row.scoreAgainst ?? 0,
           winRate: row.winRate ?? 0,
+          gameWinPct:
+            (row.gamesFor ?? row.scoreFor ?? 0) + (row.gamesAgainst ?? row.scoreAgainst ?? 0) > 0
+              ? Math.round(
+                  ((row.gamesFor ?? row.scoreFor ?? 0) /
+                    ((row.gamesFor ?? row.scoreFor ?? 0) +
+                      (row.gamesAgainst ?? row.scoreAgainst ?? 0))) *
+                    10000,
+                ) / 100
+              : 0,
           rank: row.rank,
           qualificationStatus: row.qualificationStatus as
             | "pending"

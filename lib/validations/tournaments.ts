@@ -130,6 +130,7 @@ export const tournamentUpsertSchema = z
     lossPoints: z.coerce.number().min(0).max(10).optional(),
     thirdPlaceEnabled: z.boolean().optional(),
     bestRunnerUpSlots: z.coerce.number().int().min(0).max(16).optional(),
+    poolRules: z.literal("bestie_cup").optional(),
     scoreEntryMode: z.enum(["live", "paper"]).optional(),
     partnerTenant: z.boolean().optional(),
     partnerLeagueId: z.union([z.string().uuid(), z.literal(""), z.null()]).optional(),
@@ -167,7 +168,9 @@ export const tournamentUpsertSchema = z
     const creatable = OFFICIAL_CREATABLE_FORMATS as readonly string[];
     const partnerLegacyOk =
       data.partnerTenant &&
-      ["americano", "single_elimination", "double_stage"].includes(data.format);
+      ["americano", "single_elimination", "double_stage", "group_only", "mexicano"].includes(
+        data.format,
+      );
 
     if (!creatable.includes(data.format) && !partnerLegacyOk) {
       ctx.addIssue({
@@ -188,21 +191,30 @@ export const tournamentUpsertSchema = z
         code: "custom",
         message:
           family === "custom"
-            ? "Custom match does not support Mexicano."
+            ? "Selected format is not available under Custom match."
             : "Selected format is not available for this match family.",
         path: ["format"],
       });
     }
 
-    if (data.format === "mexicano" && family === "custom") {
+    if (
+      data.partnerTenant &&
+      !isFormatAllowedForFamily(family, data.format)
+    ) {
       ctx.addIssue({
         code: "custom",
-        message: "Mexicano is only available under Original match formats.",
+        message:
+          family === "custom"
+            ? "Selected format is not available under Custom match."
+            : "Selected format is not available under Original match.",
         path: ["format"],
       });
     }
 
-    if (data.format === "mexicano" && !data.mexicano) {
+    if (
+      data.format === "mexicano" &&
+      !data.mexicano
+    ) {
       ctx.addIssue({
         code: "custom",
         message: "Select Mexicano mode (Individual or Team) and round count.",
@@ -211,7 +223,12 @@ export const tournamentUpsertSchema = z
     }
 
     if (
-      (data.format === "double_stage" || data.format === "group_only") &&
+      (
+        data.format === "double_stage" ||
+        data.format === "group_only" ||
+        data.format === "modified_swiss" ||
+        data.format === "swiss"
+      ) &&
       data.tournamentType !== "official" &&
       !data.partnerTenant
     ) {
@@ -222,9 +239,10 @@ export const tournamentUpsertSchema = z
       });
     }
 
-    if (data.format === "double_stage") {
-      const maxPer = data.maxTeamsPerGroup ?? 4;
-      const advance = data.teamsAdvancePerGroup ?? 2;
+    if (data.format === "double_stage" || data.format === "modified_swiss") {
+      const maxPer = data.maxTeamsPerGroup ?? (data.format === "modified_swiss" ? 3 : 4);
+      const advance =
+        data.teamsAdvancePerGroup ?? (data.format === "modified_swiss" ? 1 : 2);
       if (advance > maxPer) {
         ctx.addIssue({
           code: "custom",
@@ -300,6 +318,13 @@ export const tournamentUpsertSchema = z
 
     if (data.tournamentType === "fun_match") {
       if (data.partnerTenant) {
+        if (!data.categoryLabel) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Category is required (Male, Female, or Mix).",
+            path: ["categoryLabel"],
+          });
+        }
         if (data.officialBilling === "paid") {
           if (!data.registrationFeeIdr || data.registrationFeeIdr <= 0) {
             ctx.addIssue({

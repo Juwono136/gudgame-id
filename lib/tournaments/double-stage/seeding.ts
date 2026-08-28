@@ -1,4 +1,8 @@
 import { nextPowerOfTwo } from "@/lib/tournaments/double-stage/allocate-groups";
+import {
+  BESTIE_CUP_R16_GROUP_PAIRS,
+  parseGroupLetter,
+} from "@/lib/tournaments/partner/bestie-cup-config";
 
 export type QualifiedTeam = {
   teamId: string;
@@ -139,6 +143,41 @@ export function buildCrossGroupRoundOneSlotOrder(
     const empty = slots.findIndex((s) => s == null);
     if (empty < 0) break;
     slots[empty] = team;
+  }
+
+  return slots;
+}
+
+/**
+ * Bestie Cup fixed R16: A–I, B–J, …, H–P (pool winners only).
+ */
+export function buildBestieCupRoundOneSlotOrder(
+  teams: SeededTeam[],
+  bracketSize: number,
+): (SeededTeam | null)[] {
+  const size = Math.max(2, bracketSize);
+  const slots: (SeededTeam | null)[] = Array.from({ length: size }, () => null);
+  const winners = teams.filter((t) => t.groupRank === 1);
+  const byLetter = new Map<string, SeededTeam>();
+  for (const t of winners) {
+    const letter = parseGroupLetter(t.groupName);
+    if (letter) byLetter.set(letter, t);
+  }
+
+  const matchCount = size / 2;
+  for (let i = 0; i < BESTIE_CUP_R16_GROUP_PAIRS.length && i < matchCount; i++) {
+    const [left, right] = BESTIE_CUP_R16_GROUP_PAIRS[i]!;
+    slots[i * 2] = byLetter.get(left) ?? null;
+    slots[i * 2 + 1] = byLetter.get(right) ?? null;
+  }
+
+  const placed = new Set(slots.filter(Boolean).map((t) => t!.teamId));
+  for (const t of winners) {
+    if (placed.has(t.teamId)) continue;
+    const empty = slots.findIndex((s) => s == null);
+    if (empty < 0) break;
+    slots[empty] = t;
+    placed.add(t.teamId);
   }
 
   return slots;

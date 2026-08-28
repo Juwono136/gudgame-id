@@ -44,14 +44,17 @@ export const ORIGINAL_FORMATS = [
   "mexicano",
   "single_elimination",
   "group_only",
+  "swiss",
 ] as const;
 
-/** Formats available under Custom family (no mexicano). */
+/** Formats available under Custom family. */
 export const CUSTOM_FORMATS = [
   "double_stage",
   "americano",
   "single_elimination",
   "group_only",
+  "mexicano",
+  "modified_swiss",
 ] as const;
 
 export const OFFICIAL_CREATABLE_FORMATS = [
@@ -60,7 +63,17 @@ export const OFFICIAL_CREATABLE_FORMATS = [
   "double_stage",
   "mexicano",
   "group_only",
+  "swiss",
+  "modified_swiss",
 ] as const;
+
+/** Map UI format keys to scoring/bracket engines (Swiss variants reuse closest engine). */
+export function resolveFormatEngine(format: string): string {
+  if (format === "swiss") return "group_only";
+  /** Custom Modified Swiss = round-robin pools (meet once), not Mexicano rotation. */
+  if (format === "modified_swiss") return "group_only";
+  return format;
+}
 export type OfficialCreatableFormat = (typeof OFFICIAL_CREATABLE_FORMATS)[number];
 
 export const GROUP_MEETINGS_PER_PAIR_MIN = 1;
@@ -122,15 +135,18 @@ export function isFormatAllowedForFamily(
 }
 
 export function formatHasGroupStage(format: string): boolean {
-  return format === "double_stage" || format === "group_only";
+  const engine = resolveFormatEngine(format);
+  return engine === "double_stage" || engine === "group_only";
 }
 
 export function formatHasKnockout(format: string): boolean {
-  return format === "double_stage" || format === "single_elimination";
+  const engine = resolveFormatEngine(format);
+  return engine === "double_stage" || engine === "single_elimination";
 }
 
 export function formatHasLobbyRounds(format: string): boolean {
-  return format === "americano" || format === "mexicano";
+  const engine = resolveFormatEngine(format);
+  return engine === "americano" || engine === "mexicano";
 }
 
 function parsePositiveInt(

@@ -20,6 +20,7 @@ type DataTablePaginationProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
   pageSizeOptions?: readonly number[];
+  rowLabel?: string;
   disabled?: boolean;
   className?: string;
 };
@@ -32,6 +33,7 @@ export function DataTablePagination({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = PAGE_SIZE_OPTIONS,
+  rowLabel = "Rows",
   disabled,
   className,
 }: DataTablePaginationProps) {
@@ -59,7 +61,7 @@ export function DataTablePagination({
         </p>
         {onPageSizeChange ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-cp-muted">Rows</span>
+            <span className="text-xs text-cp-muted">{rowLabel}</span>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => onPageSizeChange(Number(value))}

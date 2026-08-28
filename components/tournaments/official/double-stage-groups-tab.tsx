@@ -10,6 +10,8 @@ import { useTournamentLive } from "@/hooks/use-tournament-live";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getTournamentMatchScoreMode, isClassicSetsFormat } from "@/lib/tournaments/settings";
+import { tournamentUsesBestieCupPoolRules } from "@/lib/tournaments/partner/bestie-cup-config";
+import { cn } from "@/lib/utils";
 
 type DoubleStageGroupsTabProps = {
   tournament: TournamentDetail;
@@ -29,6 +31,7 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
     : getTournamentMatchScoreMode(tournament, "group") === "games"
       ? "games"
       : "diff";
+  const showGameWinPct = tournamentUsesBestieCupPoolRules(tournament);
 
   if (!groups.length) {
     return (
@@ -43,7 +46,7 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
   return (
     <div className="space-y-3 sm:space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} />
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} showGameWinPct={showGameWinPct} />
         {groups.length > 2 ? (
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="public-group-filter" className="text-xs text-cp-muted sm:text-sm">
@@ -93,8 +96,11 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
             .slice(-4);
 
           return (
-            <Card key={group.id} className="overflow-hidden">
-              <CardHeader className="border-b border-cp-border/60 py-3">
+            <Card
+              key={group.id}
+              className="overflow-hidden border-cp-border/80 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <CardHeader className="border-b border-cp-border/60 bg-cp-elevated/20 py-3">
                 <CardTitle className="text-sm sm:text-base">{group.name}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 p-3 sm:p-4">
@@ -103,6 +109,7 @@ export function DoubleStageGroupsTab({ tournament }: DoubleStageGroupsTabProps) 
                   showQualification={Boolean(doubleStage?.allGroupMatchesCompleted)}
                   compact
                   scoreDisplay={scoreDisplay}
+                  showGameWinPct={showGameWinPct}
                 />
 
                 {recent.length > 0 ? (

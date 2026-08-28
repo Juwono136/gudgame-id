@@ -26,6 +26,8 @@ export const FORMAT_SHORT: Record<OfficialCreatableFormat, string> = {
   mexicano: "mx",
   single_elimination: "ko",
   group_only: "go",
+  swiss: "sw",
+  modified_swiss: "msw",
 };
 
 export const FORMAT_LABEL: Record<OfficialCreatableFormat, string> = {
@@ -34,6 +36,8 @@ export const FORMAT_LABEL: Record<OfficialCreatableFormat, string> = {
   mexicano: "Mexicano",
   single_elimination: "Knockout",
   group_only: "Group only",
+  swiss: "Swiss",
+  modified_swiss: "Modified Swiss",
 };
 
 export const SCORING_LABEL: Record<QaScoringKey, string> = {

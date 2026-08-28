@@ -85,7 +85,12 @@ function baseOfficialPayload(
     registrationFeeIdr: 0,
     categoryLabel: "Mix" as const,
     format,
-    formatFamily: format === "mexicano" ? ("original" as const) : ("custom" as const),
+    formatFamily:
+      format === "modified_swiss"
+        ? ("custom" as const)
+        : format === "swiss" || format === "mexicano"
+          ? ("original" as const)
+          : ("custom" as const),
     rankingMode: "tiered" as const,
     allowedTierLevels: ["bronze" as const],
     matchScoring: { mode: "race_to" as const, raceTo: { value: 4 } },
@@ -102,22 +107,36 @@ function baseOfficialPayload(
 }
 
 describe("smoke · format family matrix", () => {
-  it("covers every Official creatable format exactly once in family catalogs", () => {
-    expect(new Set(OFFICIAL_CREATABLE_FORMATS)).toEqual(
-      new Set([...ORIGINAL_FORMATS]),
-    );
-    expect(CUSTOM_FORMATS).not.toContain("mexicano");
+  it("partitions Official creatable formats across Original and Custom families", () => {
     for (const format of OFFICIAL_CREATABLE_FORMATS) {
-      expect(isFormatAllowedForFamily("original", format)).toBe(true);
+      const inOriginal = isFormatAllowedForFamily("original", format);
+      const inCustom = isFormatAllowedForFamily("custom", format);
+      expect(inOriginal || inCustom).toBe(true);
+      expect(inOriginal && inCustom).toBe(
+        format === "double_stage" ||
+          format === "americano" ||
+          format === "single_elimination" ||
+          format === "group_only" ||
+          format === "mexicano",
+      );
     }
-    expect(isFormatAllowedForFamily("custom", "mexicano")).toBe(false);
+    expect(CUSTOM_FORMATS).toContain("mexicano");
+    expect(CUSTOM_FORMATS).toContain("modified_swiss");
+    expect(ORIGINAL_FORMATS).toContain("swiss");
+    expect(isFormatAllowedForFamily("custom", "mexicano")).toBe(true);
+    expect(isFormatAllowedForFamily("original", "swiss")).toBe(true);
+    expect(isFormatAllowedForFamily("custom", "swiss")).toBe(false);
+    expect(isFormatAllowedForFamily("original", "modified_swiss")).toBe(false);
   });
 
   it.each(OFFICIAL_CREATABLE_FORMATS)(
     "layer helpers are consistent for %s",
     (format) => {
       expect(formatHasGroupStage(format)).toBe(
-        format === "double_stage" || format === "group_only",
+        format === "double_stage" ||
+          format === "group_only" ||
+          format === "swiss" ||
+          format === "modified_swiss",
       );
       expect(formatHasKnockout(format)).toBe(
         format === "double_stage" || format === "single_elimination",
@@ -264,6 +283,17 @@ describe("smoke · create upsert validation per format", () => {
         maxRounds: 6,
       },
     ],
+    [
+      "modified_swiss",
+      {
+        formatFamily: "custom",
+        maxTeamsPerGroup: 3,
+        teamsAdvancePerGroup: 1,
+        customMatch: { groupMeetingsPerPair: 1, knockoutLegsPerSlot: 1 },
+        matchScoring: { mode: "race_to", raceTo: { value: 6 } },
+      },
+    ],
+    ["swiss", { formatFamily: "original", maxTeamsPerGroup: 4 }],
   ] as const)("accepts valid Official %s payload", (format, extras) => {
     const parsed = tournamentUpsertSchema.safeParse(
       baseOfficialPayload(format, extras as Record<string, unknown>),
@@ -271,11 +301,22 @@ describe("smoke · create upsert validation per format", () => {
     expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
   });
 
-  it("rejects Mexicano under Custom family", () => {
+  it("accepts Mexicano under Custom family", () => {
     const parsed = tournamentUpsertSchema.safeParse(
       baseOfficialPayload("mexicano", {
         formatFamily: "custom",
         mexicano: { mode: "team", roundCount: 5 },
+        maxRounds: 5,
+      }),
+    );
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects Swiss under Custom family", () => {
+    const parsed = tournamentUpsertSchema.safeParse(
+      baseOfficialPayload("swiss", {
+        formatFamily: "custom",
+        maxTeamsPerGroup: 4,
       }),
     );
     expect(parsed.success).toBe(false);

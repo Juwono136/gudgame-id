@@ -488,6 +488,19 @@ export async function updateBracketLiveScore(
     });
   }
 
+  const roundRows = await db
+    .select({ roundNumber: tournamentBracketMatches.roundNumber })
+    .from(tournamentBracketMatches)
+    .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+  const knockoutTotalRounds = Math.max(
+    ...roundRows.map((r) => r.roundNumber).filter((r) => r > 0),
+    1,
+  );
+  const koRulesContext = {
+    knockoutRoundNumber: match.roundNumber,
+    knockoutTotalRounds,
+  };
+
   const rules = buildScoringRules(tournament);
   const useGamesMode = getTournamentMatchScoreMode(tournament, "knockout") === "games";
   const prevMeta = parseBracketMatchMetadata(match.metadata);
@@ -552,7 +565,12 @@ export async function updateBracketLiveScore(
       eventScoreA = 0;
       eventScoreB = 0;
     } else {
-      const started = startNextGameAfterWin(nextGameState);
+      const gameRules = getTournamentGameRules(tournament, "knockout", koRulesContext);
+      const started = startNextGameAfterWin(nextGameState, {
+        gamesA: scoreA,
+        gamesB: scoreB,
+        rules: gameRules,
+      });
       if (!started) {
         throw new AppError("No completed game is waiting to advance", {
           code: "VALIDATION_ERROR",
@@ -607,7 +625,7 @@ export async function updateBracketLiveScore(
           ? (applied.gameState.tbPointsB ?? 0)
           : applied.gameState.currentPointsB;
     } else if (useGamesMode) {
-      const gameRules = getTournamentGameRules(tournament, "knockout");
+      const gameRules = getTournamentGameRules(tournament, "knockout", koRulesContext);
       const applied = applyGamePointDelta(
         scoreA,
         scoreB,
@@ -632,8 +650,18 @@ export async function updateBracketLiveScore(
       const synced = reconcileMatchGamesScores(scoreA, scoreB, nextGameState);
       scoreA = synced.scoreA;
       scoreB = synced.scoreB;
-      eventScoreA = nextGameState.currentPointsA;
-      eventScoreB = nextGameState.currentPointsB;
+      eventScoreA =
+        nextGameState.phase === "match_tiebreak" ||
+        nextGameState.phase === "set_tiebreak" ||
+        nextGameState.phase === "super_tiebreak"
+          ? (nextGameState.tbPointsA ?? 0)
+          : nextGameState.currentPointsA;
+      eventScoreB =
+        nextGameState.phase === "match_tiebreak" ||
+        nextGameState.phase === "set_tiebreak" ||
+        nextGameState.phase === "super_tiebreak"
+          ? (nextGameState.tbPointsB ?? 0)
+          : nextGameState.currentPointsB;
     } else {
       const next = engineApplyDelta(scoreA, scoreB, input.side, delta, rules);
       if (!next) {

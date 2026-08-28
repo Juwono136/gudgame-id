@@ -3,6 +3,7 @@ import "server-only";
 import { sendTemplatedEmailInBackground } from "@/lib/email/send";
 import { siteConfig } from "@/lib/config/site";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
+import { shouldSkipPartnerRegistrationEmail } from "@/lib/partners/registration/fixture-email";
 
 function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
@@ -37,6 +38,8 @@ export type PartnerPaymentEmailInput = {
 };
 
 export function sendPartnerRegistrationPaymentEmail(input: PartnerPaymentEmailInput): void {
+  if (shouldSkipPartnerRegistrationEmail(input.captainEmail)) return;
+
   const payUrl = `${appBaseUrl()}${partnerPublicRoutes.tournamentRegisterPay(
     input.partnerSlug,
     input.tournamentSlug,
@@ -77,6 +80,8 @@ export type PartnerPendingEmailInput = {
 };
 
 export function sendPartnerRegistrationPendingEmail(input: PartnerPendingEmailInput): void {
+  if (shouldSkipPartnerRegistrationEmail(input.captainEmail)) return;
+
   const tournamentUrl = `${appBaseUrl()}${partnerPublicRoutes.tournament(
     input.partnerSlug,
     input.tournamentSlug,
@@ -119,6 +124,8 @@ export type PartnerConfirmedEmailInput = {
 };
 
 export function sendPartnerRegistrationConfirmedEmail(input: PartnerConfirmedEmailInput): void {
+  if (shouldSkipPartnerRegistrationEmail(input.captainEmail)) return;
+
   const tournamentUrl = `${appBaseUrl()}${partnerPublicRoutes.tournament(
     input.partnerSlug,
     input.tournamentSlug,

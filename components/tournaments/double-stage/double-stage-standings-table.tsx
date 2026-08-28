@@ -16,12 +16,15 @@ type DoubleStageStandingsTableProps = {
   scoreDisplay?: "diff" | "games" | "sets";
   /** Per-group legends are omitted by default — use {@link DoubleStageStandingsLegend} once above. */
   showLegend?: boolean;
+  /** Show GW% column (Bestie Cup / Modified Swiss pool ranking). */
+  showGameWinPct?: boolean;
 };
 
 export type StandingsLegendItem = { key: string; label: string };
 
 export function getDoubleStageStandingsLegend(
   scoreDisplay: "diff" | "games" | "sets" = "diff",
+  showGameWinPct = false,
 ): StandingsLegendItem[] {
   const showGames = scoreDisplay === "games";
   const showSets = scoreDisplay === "sets";
@@ -33,6 +36,14 @@ export function getDoubleStageStandingsLegend(
       key: "WR",
       label: "Match win rate (%) = wins ÷ matches played",
     },
+    ...(showGameWinPct
+      ? [
+          {
+            key: "GW%",
+            label: "Game win % = games won ÷ (games won + games lost)",
+          },
+        ]
+      : []),
     showSets
       ? { key: "SET", label: "Sets won–lost (ITF/FIP classic)" }
       : showGames
@@ -51,12 +62,14 @@ export function getDoubleStageStandingsLegend(
 
 export function DoubleStageStandingsLegend({
   scoreDisplay = "diff",
+  showGameWinPct = false,
   className,
 }: {
   scoreDisplay?: "diff" | "games" | "sets";
+  showGameWinPct?: boolean;
   className?: string;
 }) {
-  const legend = getDoubleStageStandingsLegend(scoreDisplay);
+  const legend = getDoubleStageStandingsLegend(scoreDisplay, showGameWinPct);
   return (
     <ul
       className={cn(
@@ -86,6 +99,7 @@ export function DoubleStageStandingsTable({
   compact = false,
   scoreDisplay = "diff",
   showLegend = false,
+  showGameWinPct = false,
 }: DoubleStageStandingsTableProps) {
   const showGames = scoreDisplay === "games";
   const showSets = scoreDisplay === "sets";
@@ -101,7 +115,7 @@ export function DoubleStageStandingsTable({
         <table
           className={cn(
             "w-full table-fixed text-sm",
-            showSets ? "min-w-[30rem]" : "min-w-[26rem]",
+            showSets ? "min-w-[30rem]" : showGameWinPct ? "min-w-[28rem]" : "min-w-[26rem]",
             compact && "text-xs",
           )}
         >
@@ -112,6 +126,7 @@ export function DoubleStageStandingsTable({
             <col className="w-9" />
             <col className="w-9" />
             <col className="w-12" />
+            {showGameWinPct ? <col className="w-[3.25rem]" /> : null}
             <col className="w-[3.25rem]" />
             {showSets ? <col className="w-[3.25rem]" /> : null}
             <col className="w-11" />
@@ -137,6 +152,14 @@ export function DoubleStageStandingsTable({
               >
                 WR
               </th>
+              {showGameWinPct ? (
+                <th
+                  className={thStat}
+                  title="Game win % = games won ÷ (games won + games lost)"
+                >
+                  GW%
+                </th>
+              ) : null}
               <th className={thStat} title={scoreTitle}>
                 {showSets ? "SET" : "S"}
               </th>
@@ -181,6 +204,14 @@ export function DoubleStageStandingsTable({
                       {row.qualificationStatus === "qualified" ? "Qualified" : "Eliminated"}
                     </Badge>
                   ) : null}
+                  {row.needsManualResolution ? (
+                    <Badge
+                      variant="warning"
+                      className="mt-1 text-[10px] normal-case tracking-normal"
+                    >
+                      Tie — resolve manually
+                    </Badge>
+                  ) : null}
                 </td>
                 <td className={tdStat}>{row.played}</td>
                 <td className={tdStat}>{row.wins}</td>
@@ -189,6 +220,14 @@ export function DoubleStageStandingsTable({
                   {row.winRate}
                   <span className="text-[9px] opacity-70">%</span>
                 </td>
+                {showGameWinPct ? (
+                  <td className={cn(tdStat, "text-[11px] font-medium sm:text-sm")}>
+                    {typeof row.gameWinPct === "number"
+                      ? row.gameWinPct.toFixed(2)
+                      : "0.00"}
+                    <span className="text-[9px] opacity-70">%</span>
+                  </td>
+                ) : null}
                 <td className={cn(tdStat, "text-[11px] sm:text-sm")}>
                   {showSets
                     ? `${row.setsFor}–${row.setsAgainst}`
@@ -207,7 +246,9 @@ export function DoubleStageStandingsTable({
           </tbody>
         </table>
       </div>
-      {showLegend ? <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} /> : null}
+      {showLegend ? (
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} showGameWinPct={showGameWinPct} />
+      ) : null}
     </div>
   );
 }

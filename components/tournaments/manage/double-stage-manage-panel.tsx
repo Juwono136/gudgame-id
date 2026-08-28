@@ -39,6 +39,7 @@ import { useTournamentManageScoring } from "@/hooks/use-tournament-manage-scorin
 import { resolveTournamentSurfaceUrls } from "@/lib/constants/routes";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { getTournamentMatchScoreMode, isClassicSetsFormat } from "@/lib/tournaments/settings";
+import { tournamentUsesBestieCupPoolRules } from "@/lib/tournaments/partner/bestie-cup-config";
 
 type DoubleStageManagePanelProps = {
   tournament: TournamentDetail;
@@ -284,6 +285,7 @@ export function DoubleStageManagePanel({
     : gamesScoreMode
       ? "games"
       : "diff";
+  const showGameWinPct = tournamentUsesBestieCupPoolRules(tournament);
   const showQualification = Boolean(overview?.allGroupMatchesCompleted);
 
   const advanceToKnockout = useCallback(async () => {
@@ -357,7 +359,7 @@ export function DoubleStageManagePanel({
           </div>
         </div>
 
-        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} />
+        <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} showGameWinPct={showGameWinPct} />
 
         <div className="grid gap-3 lg:grid-cols-2">
           {overview.groups.map((group) => (
@@ -370,6 +372,7 @@ export function DoubleStageManagePanel({
                   group={group}
                   showQualification={showQualification}
                   scoreDisplay={scoreDisplay}
+                  showGameWinPct={showGameWinPct}
                   compact
                 />
               </CardContent>
@@ -400,7 +403,11 @@ export function DoubleStageManagePanel({
               </Badge>
             ) : null}
           </div>
-          <DoubleStageStandingsLegend scoreDisplay={scoreDisplay} className="mt-1.5" />
+          <DoubleStageStandingsLegend
+            scoreDisplay={scoreDisplay}
+            showGameWinPct={showGameWinPct}
+            className="mt-1.5"
+          />
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <Button
@@ -515,6 +522,7 @@ export function DoubleStageManagePanel({
                 group={group}
                 showQualification={showQualification}
                 scoreDisplay={scoreDisplay}
+                showGameWinPct={showGameWinPct}
                 compact
               />
             </CardContent>

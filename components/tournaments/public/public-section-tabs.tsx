@@ -44,10 +44,10 @@ export function PublicSectionTabs<T extends string>({
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "h-9 shrink-0 rounded-lg px-3 text-sm font-medium transition-colors",
+              "h-9 shrink-0 rounded-lg px-3 text-sm font-medium transition-all duration-200 sm:px-4",
               isActive
-                ? "bg-cp-card text-foreground shadow-sm"
-                : "text-cp-muted hover:text-foreground",
+                ? "bg-cp-card text-foreground shadow-sm ring-1 ring-cp-border/80"
+                : "text-cp-muted hover:bg-cp-card/60 hover:text-foreground",
             )}
           >
             {tab.label}

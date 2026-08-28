@@ -18,6 +18,10 @@ import { closeDatabase, getDb } from "@/db/client";
 import { sports } from "@/db/schema/sports";
 import { LEGACY_SEED_PLAYER_PREFIXES } from "@/lib/dev/official-free-qa-fixtures";
 import {
+  deleteAllBestieCupFixturePartnerPlayers,
+  purgeAllPartnerBestieCupFixtures,
+} from "@/lib/dev/partner-bestie-cup-fixture";
+import {
   assertDevOnlySeed,
   deleteAllGudgameLocalSeedPlayers,
   deleteSeedPlayersByPrefix,
@@ -95,6 +99,13 @@ async function main(): Promise<void> {
     paymentsDeleted += purged.paymentsDeleted;
   }
 
+  const partnerBestie = await purgeAllPartnerBestieCupFixtures();
+  removed += partnerBestie.removed;
+  paymentsDeleted += partnerBestie.paymentsDeleted;
+  if (partnerBestie.removed > 0) {
+    console.log(`[purge-qa] Partner Bestie Cup fixtures removed: ${partnerBestie.removed}`);
+  }
+
   console.log(
     `[purge-qa] Removed ${removed} tournament(s) across ${sportRows.length} sport(s); payments=${paymentsDeleted}`,
   );
@@ -105,6 +116,7 @@ async function main(): Promise<void> {
       deleted += await deleteSeedPlayersByPrefix(prefix);
     }
     deleted += await deleteAllGudgameLocalSeedPlayers();
+    deleted += await deleteAllBestieCupFixturePartnerPlayers();
     console.log(`[purge-qa] Seed players deleted: ${deleted}`);
   } else {
     console.log("  Tip: add --players to also remove *@gudgame.local accounts.");

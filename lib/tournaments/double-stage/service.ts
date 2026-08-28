@@ -54,6 +54,10 @@ import {
 } from "@/lib/tournaments/scoring/config";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
+  getBestieCupStandingsScoring,
+  tournamentUsesBestieCupPoolRules,
+} from "@/lib/tournaments/partner/bestie-cup-config";
+import {
   appendScoreEvent,
   parseReclubMatchMetadata,
 } from "@/lib/tournaments/reclub/score-events";
@@ -153,6 +157,8 @@ export type GroupStandingView = {
   gamesAgainst: number;
   /** Match win rate % (wins ÷ played), one decimal — same formula as Live Score WR. */
   winRate: number;
+  /** Game win % (games won ÷ games played) — Bestie Cup pool tie-breaker display. */
+  gameWinPct: number;
   rank: number;
   qualificationStatus: "pending" | "qualified" | "eliminated";
   needsManualResolution?: boolean;
@@ -218,6 +224,15 @@ async function patchDoubleStageSettings(
 }
 
 function getStandingsConfig(tournament: TournamentDetail) {
+  if (tournamentUsesBestieCupPoolRules(tournament)) {
+    const base = getBestieCupStandingsScoring();
+    const skillTier = getTournamentSkillTier(tournament);
+    if (skillTier) {
+      return { ...base, winPoints: matchPointsForTournamentTier(skillTier) };
+    }
+    return base;
+  }
+
   const raw = (tournament.settings as Record<string, unknown>)?.standingsScoring;
   const base = raw
     ? parseStandingsScoring(raw)
@@ -1016,7 +1031,12 @@ export async function updateGroupStageLiveScore(
         eventScoreA = 0;
         eventScoreB = 0;
       } else {
-        const started = startNextGameAfterWin(nextGameState);
+        const gameRules = getTournamentGameRules(tournament, "group");
+        const started = startNextGameAfterWin(nextGameState, {
+          gamesA: scoreA,
+          gamesB: scoreB,
+          rules: gameRules,
+        });
         if (!started) {
           throw new AppError("No completed game is waiting to advance", {
             code: "VALIDATION_ERROR",

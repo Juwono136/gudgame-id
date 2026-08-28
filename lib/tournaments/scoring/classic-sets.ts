@@ -40,7 +40,7 @@ export type SetScoreLine = {
   viaSuperTiebreak?: boolean;
 };
 
-export type ClassicSetPhase = "game" | "set_tiebreak" | "super_tiebreak";
+export type ClassicSetPhase = "game" | "set_tiebreak" | "super_tiebreak" | "match_tiebreak";
 
 /** Extend MatchGameState with optional classic-set fields (backward compatible). */
 export type ClassicMatchGameState = MatchGameState & {

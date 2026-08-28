@@ -125,6 +125,10 @@ describe("computeCrossPoolBestRunnerUps", () => {
         gamesFor: r.scoreFor,
         gamesAgainst: r.scoreAgainst,
         winRate: r.played > 0 ? Math.round((r.wins / r.played) * 1000) / 10 : 0,
+        gameWinPct:
+          r.scoreFor + r.scoreAgainst > 0
+            ? Math.round((r.scoreFor / (r.scoreFor + r.scoreAgainst)) * 10000) / 100
+            : 0,
         qualificationStatus:
           r.rank <= teamsAdvance ? ("qualified" as const) : ("eliminated" as const),
       })),

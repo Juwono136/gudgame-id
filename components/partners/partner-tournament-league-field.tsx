@@ -120,16 +120,16 @@ export function PartnerTournamentLeagueField({
   return (
     <div className="space-y-3 rounded-xl border border-cp-border bg-cp-elevated/30 p-4">
       <div className="space-y-1.5">
-        <Label>League (optional)</Label>
+        <Label>Series (optional)</Label>
         <p className="text-xs leading-relaxed text-cp-muted">
-          Attach this event to an active or completed league season so it appears on the league
+          Attach this event to an active or completed series season so it appears on the series
           page and in public filters. Leave empty if this tournament stands alone. Branding lives
           under{" "}
           <Link
             href={dashboardRoutes.partnerLeagues}
             className="font-medium text-cp-primary underline-offset-2 hover:underline"
           >
-            Leagues
+            Series
           </Link>
           .
         </p>
@@ -153,11 +153,11 @@ export function PartnerTournamentLeagueField({
         }}
       >
         <SelectTrigger className={cpSelectTriggerClass}>
-          <SelectValue placeholder={isLoading ? "Loading leagues…" : "No league"} />
+          <SelectValue placeholder={isLoading ? "Loading series…" : "No series"} />
         </SelectTrigger>
         <SelectContent className={cpSelectContentClass}>
           <SelectItem value={NONE_VALUE} className={cpSelectItemClass}>
-            No league
+            No series
           </SelectItem>
           {options.map((league) => (
             <SelectItem key={league.id} value={league.id} className={cpSelectItemClass}>
@@ -168,7 +168,7 @@ export function PartnerTournamentLeagueField({
           <SelectItem value={CREATE_VALUE} className={cpSelectItemClass}>
             <span className="inline-flex items-center gap-1.5">
               <Plus className="h-3.5 w-3.5" aria-hidden />
-              Create new league…
+              Create new series…
             </span>
           </SelectItem>
         </SelectContent>
@@ -177,7 +177,7 @@ export function PartnerTournamentLeagueField({
       {mode === "create" ? (
         <div className="space-y-3 rounded-lg border border-dashed border-cp-border bg-cp-card/60 p-3">
           <div className="space-y-2">
-            <Label htmlFor="inline-league-name">New league name</Label>
+            <Label htmlFor="inline-league-name">New series name</Label>
             <Input
               id="inline-league-name"
               value={newName}

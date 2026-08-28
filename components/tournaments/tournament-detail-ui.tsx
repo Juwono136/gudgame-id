@@ -129,33 +129,39 @@ export function TournamentTabNav<T extends string>({
   return (
     <div
       className={cn(
-        "-mx-1 flex gap-1 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "sticky top-[var(--site-header-height,3.75rem)] z-20 -mx-4 border-b border-cp-border/50 bg-cp-bg/92 px-4 py-2 backdrop-blur-md sm:-mx-6 sm:px-6",
+        "lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none",
         className,
       )}
-      role="tablist"
     >
-      {tabs.map((tab) => {
-        const isActive = tab === active;
-        return (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(tab)}
-            className={cn(
-              "shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:px-4",
-              isActive
-                ? isReclub
-                  ? reclubTabActiveClass
-                  : officialTabActiveClass
-                : "text-cp-muted hover:bg-cp-elevated/60 hover:text-foreground",
-            )}
-          >
-            {tab}
-          </button>
-        );
-      })}
+      <div
+        className="-mx-1 flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] snap-x snap-mandatory [&::-webkit-scrollbar]:hidden"
+        role="tablist"
+        aria-label="Tournament sections"
+      >
+        {tabs.map((tab) => {
+          const isActive = tab === active;
+          return (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab)}
+              className={cn(
+                "relative shrink-0 snap-start rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all sm:px-4",
+                isActive
+                  ? isReclub
+                    ? cn(reclubTabActiveClass, "shadow-sm")
+                    : cn(officialTabActiveClass, "shadow-sm")
+                  : "text-cp-muted hover:bg-cp-elevated/60 hover:text-foreground",
+              )}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

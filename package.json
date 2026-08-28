@@ -22,6 +22,8 @@
     "db:seed:double-stage:purge": "node --conditions=react-server --import tsx scripts/purge-double-stage-32.ts",
     "db:seed:fixtures": "node --conditions=react-server --import tsx scripts/seed-tournament-fixtures.ts",
     "db:seed:fixtures:purge": "node --conditions=react-server --import tsx scripts/purge-tournament-fixtures.ts",
+    "db:seed:partner-bestie-cup": "node --conditions=react-server --import tsx scripts/seed-partner-bestie-cup.ts",
+    "db:seed:partner-bestie-cup:purge": "node --conditions=react-server --import tsx scripts/purge-partner-bestie-cup.ts",
     "db:bootstrap-admin": "tsx scripts/bootstrap-admin-user.ts",
     "db:migrate-host-role": "tsx scripts/migrate-host-role.ts",
     "db:promote-user": "tsx scripts/promote-user-role.ts",

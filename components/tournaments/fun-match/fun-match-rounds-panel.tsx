@@ -9,9 +9,9 @@ import {
   Rows3,
   Search,
   Shuffle,
-  Users,
 } from "lucide-react";
 import { FunMatchRoundMatchCard } from "@/components/tournaments/fun-match/fun-match-round-match-card";
+import { RestTeamsPanel } from "@/components/tournaments/fun-match/rest-teams-panel";
 import {
   MatchRoundTabs,
   type MatchRoundTabItem,
@@ -811,13 +811,10 @@ export function FunMatchRoundsPanel({
         ) : null}
 
         {resting.length > 0 && (isGroupStageMode || isAmericanoMode) ? (
-          <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-3 py-2">
-            <p className="flex items-center gap-2 text-xs font-medium text-foreground">
-              <Users className="h-3.5 w-3.5 text-cp-muted" />
-              Rest teams
-            </p>
-            <p className="mt-1 text-xs text-cp-muted">{resting.join(", ")}</p>
-          </div>
+          <RestTeamsPanel
+            teamNames={resting}
+            variant={accentVariant === "official" ? "official" : "fun"}
+          />
         ) : null}
       </div>
     </section>

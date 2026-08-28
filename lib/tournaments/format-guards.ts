@@ -1,4 +1,4 @@
-import { formatHasGroupStage } from "@/lib/tournaments/match-config";
+import { formatHasGroupStage, resolveFormatEngine } from "@/lib/tournaments/match-config";
 import { AppError } from "@/lib/errors";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
@@ -12,10 +12,11 @@ export function assertGroupStageTournament(tournament: TournamentDetail): void {
 }
 
 export function assertCanGenerateKnockout(tournament: TournamentDetail): void {
+  const engine = resolveFormatEngine(tournament.format);
   if (
-    tournament.format === "group_only" ||
-    tournament.format === "americano" ||
-    tournament.format === "mexicano"
+    engine === "group_only" ||
+    engine === "americano" ||
+    engine === "mexicano"
   ) {
     throw new AppError("This tournament format does not support knockout generation.", {
       code: "FORBIDDEN",

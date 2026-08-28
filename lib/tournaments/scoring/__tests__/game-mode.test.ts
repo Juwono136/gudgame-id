@@ -1,3 +1,7 @@
+import {
+  BESTIE_CUP_KO_EARLY_GAME_RULES,
+  BESTIE_CUP_KO_LATE_GAME_RULES,
+} from "@/lib/tournaments/partner/bestie-cup-config";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GAME_RULES_BY_UNIT,
@@ -201,5 +205,27 @@ describe("game-mode scoring", () => {
       ],
     });
     expect(reconciled).toEqual({ scoreA: 2, scoreB: 1 });
+  });
+});
+
+describe("Bestie Cup knockout game rules", () => {
+  it("early KO completes at 6-5 but enters tiebreak at 5-5 via startNextGameAfterWin", () => {
+    const rules = BESTIE_CUP_KO_EARLY_GAME_RULES;
+    expect(isRaceToGamesMatchComplete(6, 5, rules).complete).toBe(true);
+    expect(isRaceToGamesMatchComplete(5, 5, rules).complete).toBe(false);
+
+    const held = {
+      ...emptyMatchGameState(),
+      pendingGameWinner: "a" as const,
+    };
+    const next = startNextGameAfterWin(held, { gamesA: 5, gamesB: 5, rules })!;
+    expect(next.phase).toBe("match_tiebreak");
+  });
+
+  it("late KO requires win-by-2 margin", () => {
+    const rules = BESTIE_CUP_KO_LATE_GAME_RULES;
+    expect(isRaceToGamesMatchComplete(6, 5, rules).complete).toBe(false);
+    expect(isRaceToGamesMatchComplete(6, 4, rules).complete).toBe(true);
+    expect(isRaceToGamesMatchComplete(7, 5, rules).complete).toBe(true);
   });
 });

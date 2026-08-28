@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       bestRunnerUpSlots: body.bestRunnerUpSlots ?? 0,
       courtCount: body.courtCount ?? 2,
       scoreEntryMode: body.scoreEntryMode ?? "live",
-      matchFormat: body.matchFormat ?? "classic_sets",
+      matchFormat: body.matchFormat ?? "race_to_games",
       matchScoreMode: body.matchScoreMode ?? "games",
       gameDecider: body.gameDecider ?? "golden_point",
     });

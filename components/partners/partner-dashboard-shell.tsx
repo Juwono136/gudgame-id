@@ -1,4 +1,5 @@
 import { PartnerDashboardNav } from "@/components/partners/partner-dashboard-nav";
+import { partnerMobileNavContentClass } from "@/lib/partners/mobile-nav-layout";
 import { partnerBrandCssVars } from "@/lib/partners/brand-style";
 import { partnerPageWidthClass } from "@/lib/partners/layout";
 import type { PartnerDashboardView } from "@/lib/partners/service";
@@ -44,7 +45,9 @@ export function PartnerDashboardShell({
         primaryColor={primary}
       />
 
-      <main className={cn("relative z-10", className)}>{children}</main>
+      <main className={cn("relative z-10", partnerMobileNavContentClass("xl"), className)}>
+        {children}
+      </main>
 
       <footer className="mt-auto border-t border-cp-border/70">
         <div

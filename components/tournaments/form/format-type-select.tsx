@@ -17,6 +17,8 @@ const FORMAT_ICONS = {
   double_stage: LayoutGrid,
   mexicano: Waves,
   group_only: Users,
+  swiss: Users,
+  modified_swiss: Waves,
 } as const;
 
 type FormatTypeSelectProps = {
@@ -68,11 +70,15 @@ export function FormatTypeSelect({
       </Label>
       <p className="text-xs leading-relaxed text-cp-muted">
         {partnerTenant
-          ? "Choose Group+KO, knockout only, or Americano. Mexicano and Group-only are not available on partner sites."
+          ? formatFamily === "custom"
+            ? "Custom match: knockout/group formats plus Modified Swiss and Mexicano with configurable meetings."
+            : formatFamily === "original"
+              ? "Original match: Americano, Group only, Knockout, Double stage, Swiss, or Mexicano."
+              : "Choose Original or Custom match family first, then pick the tournament structure."
           : officialOnly
             ? formatFamily === "custom"
-              ? "Custom family: pick a format, then set meetings/legs. Mexicano is Original-only."
-              : "Choose Group+KO, Americano, Mexicano, Knockout, or Group only."
+              ? "Custom family: pick a format, then set meetings/legs."
+              : "Choose Group+KO, Americano, Mexicano, Knockout, Group only, or Swiss."
             : "Choose how players compete. Options depend on the sport — some sports favor rotation formats, others use knockout brackets."}
       </p>
       <div

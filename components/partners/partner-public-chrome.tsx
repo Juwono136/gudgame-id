@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { PartnerPublicNav } from "@/components/partners/partner-public-nav";
 import { partnerBrandCssVars } from "@/lib/partners/brand-style";
 import { partnerPublicRoutes } from "@/lib/constants/routes";
+import { partnerMobileNavContentClass } from "@/lib/partners/mobile-nav-layout";
+import { cn } from "@/lib/utils";
 
 type PartnerPublicChromeProps = {
   partnerSlug: string;
@@ -85,7 +87,7 @@ export function PartnerPublicChrome({
         primaryColor={primaryColor}
       />
 
-      <main className="min-h-[72vh]">{children}</main>
+      <main className={cn("min-h-[72vh]", partnerMobileNavContentClass("lg"))}>{children}</main>
 
       <footer className="mt-10 border-t border-cp-border/70 sm:mt-12">
         <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-4 px-3 py-7 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-8 sm:text-left lg:px-8">

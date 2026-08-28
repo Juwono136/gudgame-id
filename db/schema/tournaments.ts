@@ -47,6 +47,8 @@ export const TOURNAMENT_FORMATS = [
   "double_stage",
   "mexicano",
   "group_only",
+  "swiss",
+  "modified_swiss",
   "double_elimination",
   "round_robin",
   "groups",

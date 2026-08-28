@@ -71,7 +71,12 @@ function baseUpsert(
     registrationFeeIdr: 0,
     categoryLabel: "Mix" as const,
     format,
-    formatFamily: format === "mexicano" ? ("original" as const) : ("custom" as const),
+    formatFamily:
+      format === "modified_swiss"
+        ? ("custom" as const)
+        : format === "swiss" || format === "mexicano"
+          ? ("original" as const)
+          : ("custom" as const),
     rankingMode: "open" as const,
     matchScoring,
     venue: "GBK",
@@ -112,6 +117,13 @@ describe("official format × scoring mode matrix · create validation", () => {
                     maxRounds: 5,
                     matchScoring: leaf,
                   }
+                : format === "modified_swiss"
+                  ? {
+                      maxTeamsPerGroup: 3,
+                      teamsAdvancePerGroup: 1,
+                      customMatch: { groupMeetingsPerPair: 1, knockoutLegsPerSlot: 1 },
+                      matchScoring: { mode: "race_to", raceTo: { value: 6 } },
+                    }
                 : format === "single_elimination"
                   ? {
                       customMatch: { groupMeetingsPerPair: 1, knockoutLegsPerSlot: 1 },

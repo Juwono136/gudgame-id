@@ -47,6 +47,16 @@ export type MatchGameRules = {
    */
   gameDecider: "golden_point" | "star_point" | "advantage";
   pointStyle: IntraGamePointStyle;
+  /** When true, prompt side change + rest after each game if total games won is odd (≥3). */
+  sideChangeOnOddGameTotal?: boolean;
+  /** Rest duration shown to operators (seconds). Default 60 (Bestie Cup). */
+  sideChangeRestSeconds?: number;
+  /** Minimum game margin to win the match (Bestie SF/Final = 2). Default 1. */
+  matchWinMargin?: number;
+  /** When games are tied at this count, play match tiebreak to `matchTiebreakTo`. */
+  matchTiebreakAt?: number;
+  /** Points to win the match tiebreak (Bestie = 7). */
+  matchTiebreakTo?: number;
 };
 
 /** Persist decider as-is; star_point is distinct from golden_point (FIP vs No-Ad). */
@@ -99,7 +109,7 @@ export type MatchGameState = {
   servingUserId?: string | null;
   servingName?: string | null;
   /** Classic sets (ITF/FIP) — optional; ignored in race-to-N mode. */
-  phase?: "game" | "set_tiebreak" | "super_tiebreak";
+  phase?: "game" | "set_tiebreak" | "super_tiebreak" | "match_tiebreak";
   gamesInSetA?: number;
   gamesInSetB?: number;
   tbPointsA?: number;
@@ -420,10 +430,100 @@ export function isRaceToGamesMatchComplete(
   if (gamesA === gamesB) return { complete: false, winner: null };
   const max = Math.max(gamesA, gamesB);
   const min = Math.min(gamesA, gamesB);
-  // First-to-N: winner must land exactly on the race target (no inflated tallies).
-  if (max !== rules.raceToGames) return { complete: false, winner: null };
-  if (min >= rules.raceToGames) return { complete: false, winner: null };
-  return { complete: true, winner: gamesA > gamesB ? "a" : "b" };
+  const margin = rules.matchWinMargin ?? 1;
+  const target = rules.raceToGames;
+
+  if (margin <= 1) {
+    // First-to-N: winner lands exactly on target (6-0 … 6-5).
+    if (max !== target) return { complete: false, winner: null };
+    if (min >= target) return { complete: false, winner: null };
+    return { complete: true, winner: gamesA > gamesB ? "a" : "b" };
+  }
+
+  // Win-by-2 margin (Bestie SF/Final): e.g. 6-4, 7-5; 6-5 continues until 7-5 or TB at 6-6.
+  if (max >= target && max - min >= margin) {
+    return { complete: true, winner: gamesA > gamesB ? "a" : "b" };
+  }
+  return { complete: false, winner: null };
+}
+
+function isMatchTiebreakComplete(
+  tbA: number,
+  tbB: number,
+  to: number,
+): GameCompletion {
+  const max = Math.max(tbA, tbB);
+  const min = Math.min(tbA, tbB);
+  if (max >= to && max > min) {
+    return { complete: true, winner: tbA > tbB ? "a" : "b" };
+  }
+  return { complete: false, winner: null };
+}
+
+function applyMatchTiebreakPointDelta(
+  gamesA: number,
+  gamesB: number,
+  gameState: MatchGameState,
+  side: "a" | "b",
+  delta: 1 | -1,
+  rules: MatchGameRules,
+): GameScoreApplyResult | null {
+  const to = rules.matchTiebreakTo ?? 7;
+  let tbA = gameState.tbPointsA ?? 0;
+  let tbB = gameState.tbPointsB ?? 0;
+
+  if (delta < 0) {
+    if (side === "a") {
+      if (tbA <= 0) return null;
+      tbA -= 1;
+    } else {
+      if (tbB <= 0) return null;
+      tbB -= 1;
+    }
+  } else {
+    if (side === "a") tbA += 1;
+    else tbB += 1;
+  }
+
+  const tbDone = isMatchTiebreakComplete(tbA, tbB, to);
+  if (!tbDone.complete || !tbDone.winner) {
+    return {
+      gamesA,
+      gamesB,
+      gameState: {
+        ...gameState,
+        phase: "match_tiebreak",
+        tbPointsA: tbA,
+        tbPointsB: tbB,
+        pendingGameWinner: null,
+      },
+      gameJustWon: null,
+      matchComplete: false,
+      matchWinner: null,
+    };
+  }
+
+  const at = rules.matchTiebreakAt ?? 5;
+  const finalA = tbDone.winner === "a" ? at + 1 : at;
+  const finalB = tbDone.winner === "b" ? at + 1 : at;
+
+  return {
+    gamesA: finalA,
+    gamesB: finalB,
+    gameState: {
+      ...gameState,
+      phase: "game",
+      currentPointsA: 0,
+      currentPointsB: 0,
+      tbPointsA: 0,
+      tbPointsB: 0,
+      pendingGameWinner: null,
+      deuceCount: 0,
+    },
+    gameJustWon: null,
+    matchComplete: true,
+    matchWinner: tbDone.winner,
+  };
 }
 
 /**
@@ -474,6 +574,10 @@ export function applyGamePointDelta(
   delta: 1 | -1,
   rules: MatchGameRules,
 ): GameScoreApplyResult | null {
+  if (gameState.phase === "match_tiebreak") {
+    return applyMatchTiebreakPointDelta(gamesA, gamesB, gameState, side, delta, rules);
+  }
+
   const matchDone = isRaceToGamesMatchComplete(gamesA, gamesB, rules);
   const pending = gameState.pendingGameWinner ?? null;
 
@@ -684,11 +788,38 @@ export function applyGamePointSet(
 /**
  * After a game win is held at the finishing score (e.g. 40–x), reset points to 0–0
  * for the next game and flip serve to the other side. No-op if nothing is pending.
+ * When Bestie rules require a match tiebreak at 5–5 / 6–6, enters tiebreak mode instead.
  */
 export function startNextGameAfterWin(
   gameState: MatchGameState,
+  options?: { gamesA?: number; gamesB?: number; rules?: MatchGameRules },
 ): MatchGameState | null {
   if (!gameState.pendingGameWinner) return null;
+
+  const gamesA = options?.gamesA ?? 0;
+  const gamesB = options?.gamesB ?? 0;
+  const rules = options?.rules;
+  const at = rules?.matchTiebreakAt;
+
+  if (
+    at != null &&
+    rules != null &&
+    gamesA === at &&
+    gamesB === at &&
+    rules.matchTiebreakTo != null
+  ) {
+    return {
+      ...flipServingSide(gameState),
+      currentPointsA: 0,
+      currentPointsB: 0,
+      pendingGameWinner: null,
+      deuceCount: 0,
+      phase: "match_tiebreak",
+      tbPointsA: 0,
+      tbPointsB: 0,
+    };
+  }
+
   return flipServingSide({
     ...gameState,
     currentPointsA: 0,
@@ -696,6 +827,7 @@ export function startNextGameAfterWin(
     completedGames: gameState.completedGames,
     pendingGameWinner: null,
     deuceCount: 0,
+    phase: "game",
   });
 }
 
@@ -720,6 +852,24 @@ export function formatGamesMatchLengthHint(rules: MatchGameRules): string {
 
 export function formatMatchGamesScore(gamesA: number, gamesB: number): string {
   return `${gamesA}–${gamesB}`;
+}
+
+/** Bestie Cup §7 — side change + 1 min rest when total games in the match is odd (from 3). */
+export function shouldPromptSideChangeRest(
+  gamesA: number,
+  gamesB: number,
+  rules: Pick<MatchGameRules, "sideChangeOnOddGameTotal" | "sideChangeRestSeconds">,
+): { prompt: boolean; totalGames: number; restSeconds: number } {
+  if (!rules.sideChangeOnOddGameTotal) {
+    return { prompt: false, totalGames: gamesA + gamesB, restSeconds: 0 };
+  }
+  const totalGames = gamesA + gamesB;
+  const prompt = totalGames >= 3 && totalGames % 2 === 1;
+  return {
+    prompt,
+    totalGames,
+    restSeconds: rules.sideChangeRestSeconds ?? 60,
+  };
 }
 
 /** Count games won from completed rally records (source of truth when columns drift). */

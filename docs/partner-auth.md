@@ -249,7 +249,7 @@ Players (staff): `GET\|PATCH\|DELETE /api/partner/public/{partnerSlug}/players/{
 | UI forms | `components/partners/auth/*` (+ `partner-google-auth-button.tsx`) |
 | Loading | `components/partners/partner-loading.tsx` |
 | Players UI | `partner-players-directory.tsx`, `partner-edit-player-dialog.tsx` |
-| Nav CTA | `components/partners/partner-public-nav.tsx` |
+| Nav CTA | `components/partners/partner-public-nav.tsx`, `partner-mobile-bottom-nav.tsx` (mobile bottom bar) |
 | Unit tests | `lib/partners/auth/__tests__/urls.test.ts`, `google.test.ts` |
 
 ---
