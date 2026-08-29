@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   Columns3,
@@ -103,6 +103,8 @@ type FunMatchRoundsPanelProps = {
   onOpenCourtside?: (courtId: string) => void;
   /** Prefocus a court (e.g. from ?court= deep link). */
   initialFocusedCourtId?: string | null;
+  /** Called when host focuses or collapses a live court card (manage URL sync). */
+  onFocusedCourtChange?: (courtId: string | null) => void;
   /** Hide idle planning when tournament is finished or not live. */
   scoringFrozen?: boolean;
   /**
@@ -187,6 +189,7 @@ export function FunMatchRoundsPanel({
   onManageAmericanoPairings,
   onOpenCourtside,
   initialFocusedCourtId = null,
+  onFocusedCourtChange,
   scoringFrozen = false,
   startFixturesFromSchedule = false,
   resolveGameRules,
@@ -196,12 +199,17 @@ export function FunMatchRoundsPanel({
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [expandedMatchIds, setExpandedMatchIds] = useState<Set<string>>(() => new Set());
   const [focusedCourtId, setFocusedCourtId] = useState<string | null>(initialFocusedCourtId);
+  /** Host explicitly collapsed live focus — do not auto-re-expand first live court. */
+  const userDismissedFocusRef = useRef(false);
   const [roundsLayout, setRoundsLayout] = useState<"tabs" | "stack">("tabs");
   /** When courts are live, idle planning stays collapsed unless host expands it. */
   const [idleExpandedWhileLive, setIdleExpandedWhileLive] = useState(false);
 
   useEffect(() => {
-    if (initialFocusedCourtId) setFocusedCourtId(initialFocusedCourtId);
+    if (initialFocusedCourtId) {
+      userDismissedFocusRef.current = false;
+      setFocusedCourtId(initialFocusedCourtId);
+    }
   }, [initialFocusedCourtId]);
 
   useEffect(() => {
@@ -391,12 +399,29 @@ export function FunMatchRoundsPanel({
     if (!liveCourtIds.length) {
       if (focusedCourtId) setFocusedCourtId(null);
       setIdleExpandedWhileLive(false);
+      userDismissedFocusRef.current = false;
+      return;
+    }
+    if (userDismissedFocusRef.current) {
+      if (focusedCourtId && !liveCourtIds.includes(focusedCourtId)) {
+        setFocusedCourtId(null);
+      }
       return;
     }
     if (!focusedCourtId || !liveCourtIds.includes(focusedCourtId)) {
       setFocusedCourtId(liveCourtIds[0]!);
     }
   }, [liveCourtIds, focusedCourtId]);
+
+  const focusLiveCourt = (courtId: string | null) => {
+    if (courtId) {
+      userDismissedFocusRef.current = false;
+    } else {
+      userDismissedFocusRef.current = true;
+    }
+    setFocusedCourtId(courtId);
+    onFocusedCourtChange?.(courtId);
+  };
 
   const canShowIdlePlanning =
     !startFixturesFromSchedule &&
@@ -617,7 +642,7 @@ export function FunMatchRoundsPanel({
                     type="button"
                     onClick={() => {
                       if (status === "live") {
-                        setFocusedCourtId(court.id);
+                        focusLiveCourt(focused ? null : court.id);
                         return;
                       }
                       if (match) {
@@ -741,8 +766,8 @@ export function FunMatchRoundsPanel({
                   forceExpanded={isFocusedLive || expanded}
                   onToggleExpanded={() => {
                     if (isLiveMatch && match.courtId) {
-                      setFocusedCourtId((prev) =>
-                        prev === match.courtId ? null : match.courtId!,
+                      focusLiveCourt(
+                        focusedCourtId === match.courtId ? null : match.courtId,
                       );
                       return;
                     }

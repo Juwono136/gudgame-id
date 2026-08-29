@@ -79,6 +79,7 @@ type FunMatchLiveHubProps = {
   onManageAmericanoPairings?: (courtId: string) => void;
   onOpenCourtside?: (courtId: string) => void;
   initialFocusedCourtId?: string | null;
+  onFocusedCourtChange?: (courtId: string | null) => void;
   scoringFrozen?: boolean;
   startFixturesFromSchedule?: boolean;
   resolveGameRules?: (
@@ -135,6 +136,7 @@ export function FunMatchLiveHub({
   onManageAmericanoPairings,
   onOpenCourtside,
   initialFocusedCourtId = null,
+  onFocusedCourtChange,
   scoringFrozen = false,
   startFixturesFromSchedule = false,
   resolveGameRules,
@@ -189,6 +191,7 @@ export function FunMatchLiveHub({
         onManageAmericanoPairings={onManageAmericanoPairings}
         onOpenCourtside={onOpenCourtside}
         initialFocusedCourtId={initialFocusedCourtId}
+        onFocusedCourtChange={onFocusedCourtChange}
         scoringFrozen={scoringFrozen}
         startFixturesFromSchedule={startFixturesFromSchedule}
         resolveGameRules={resolveGameRules}

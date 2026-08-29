@@ -2,86 +2,64 @@
 
 import { useMemo } from "react";
 import {
-  MultiCourtDisplayCard,
-  MultiCourtDisplayGrid,
-} from "@/components/tournaments/display-multi-court-grid";
+  DoubleStageStandingsLegend,
+  DoubleStageStandingsTable,
+} from "@/components/tournaments/double-stage/double-stage-standings-table";
 import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
-import { resolveGamesDisplayMode } from "@/lib/tournaments/live/display-scoring";
-import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
+import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
+import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { cn } from "@/lib/utils";
 
 type DisplayGroupStageSlideProps = {
   tournamentName: string;
-  liveData: Pick<TournamentLivePayload, "matches" | "courts" | "scoring" | "tournament">;
+  liveData: Pick<
+    TournamentLivePayload,
+    "matches" | "courts" | "scoring" | "tournament" | "doubleStage"
+  >;
+  scoreDisplay?: "diff" | "games" | "sets";
+  showGameWinPct?: boolean;
   className?: string;
 };
 
 /**
- * Venue TV group-stage slide — live pool matches on all courts (same card style as multi-court).
+ * Venue TV group-stage slide — live pool standings (not multi-court grid).
  */
 export function DisplayGroupStageSlide({
   tournamentName,
   liveData,
+  scoreDisplay = "games",
+  showGameWinPct = false,
   className,
 }: DisplayGroupStageSlideProps) {
   const courts = liveData.courts ?? [];
-  const groupMatches = useMemo(
+  const groups = (liveData.doubleStage?.groups ?? []) as GroupOverview[];
+
+  const liveByGroupId = useMemo(() => {
+    const map = new Map<string, NonNullable<TournamentLivePayload["matches"]>[number][]>();
+    for (const m of liveData.matches ?? []) {
+      if (m.type !== "group_stage" || !m.groupId) continue;
+      if (
+        !isMatchLiveForTournament(m.status ?? "pending", liveData.tournament.status)
+      ) {
+        continue;
+      }
+      const list = map.get(m.groupId) ?? [];
+      list.push(m);
+      map.set(m.groupId, list);
+    }
+    return map;
+  }, [liveData.matches, liveData.tournament.status]);
+
+  const liveCount = useMemo(
     () =>
       (liveData.matches ?? []).filter(
-        (m) => m.type === "group_stage" && m.teamAName && m.teamBName,
-      ),
-    [liveData.matches],
+        (m) =>
+          m.type === "group_stage" &&
+          isMatchLiveForTournament(m.status ?? "pending", liveData.tournament.status),
+      ).length,
+    [liveData.matches, liveData.tournament.status],
   );
-
-  const groupLive = useMemo(
-    () =>
-      groupMatches.filter((m) =>
-        isMatchLiveForTournament(m.status ?? "pending", liveData.tournament.status),
-      ),
-    [groupMatches, liveData.tournament.status],
-  );
-
-  const sortedCourts = useMemo(
-    () => [...courts].sort((a, b) => (a.sortOrder ?? a.courtNumber) - (b.sortOrder ?? b.courtNumber)),
-    [courts],
-  );
-
-  const cards = useMemo(() => {
-    // Prefer live courts, then any assigned court fixtures, then remaining group matches.
-    const preferred =
-      groupLive.length > 0
-        ? groupLive
-        : groupMatches.filter((m) => m.status !== "completed").length > 0
-          ? groupMatches.filter((m) => m.status !== "completed")
-          : groupMatches;
-
-    const byCourt = new Map(
-      preferred.filter((m) => m.courtId).map((m) => [m.courtId as string, m]),
-    );
-    const ordered = sortedCourts
-      .map((court) => {
-        const m = byCourt.get(court.id);
-        if (!m) return null;
-        return { court, match: m };
-      })
-      .filter(Boolean) as Array<{
-      court: (typeof sortedCourts)[number];
-      match: (typeof groupMatches)[number];
-    }>;
-
-    if (ordered.length > 0) return ordered;
-    return preferred.map((match, index) => ({
-      court: {
-        id: match.courtId ?? match.id,
-        name: resolveCourtLabel(match.courtId, courts, index),
-        courtNumber: index + 1,
-        sortOrder: index,
-        activeMatchId: match.id,
-      },
-      match,
-    }));
-  }, [courts, groupLive, groupMatches, sortedCourts]);
 
   return (
     <div
@@ -95,59 +73,89 @@ export function DisplayGroupStageSlide({
           {tournamentName}
         </h1>
         <p className="mt-0.5 text-xs text-white/55 sm:text-sm">
-          Group stage
-          {groupLive.length > 0 ? (
+          Group stage · pool standings
+          {liveCount > 0 ? (
             <>
               {" · "}
-              <span className="font-medium text-white/75">{groupLive.length} live</span>
+              <span className="font-medium text-emerald-300">{liveCount} live</span>
             </>
-          ) : cards.length > 0 ? (
+          ) : groups.length > 0 ? (
             <>
               {" · "}
-              <span className="font-medium text-white/75">{cards.length} on board</span>
+              <span className="font-medium text-white/75">{groups.length} pools</span>
             </>
           ) : null}
         </p>
       </header>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-hidden sm:mt-4">
-        {cards.length === 0 ? (
+      <div className="mt-2 shrink-0">
+        <DoubleStageStandingsLegend
+          scoreDisplay={scoreDisplay}
+          showGameWinPct={showGameWinPct}
+          className="text-white/50 [&_span.font-semibold]:text-white/80"
+        />
+      </div>
+
+      <div className="mt-3 min-h-0 flex-1 overflow-y-auto sm:mt-4">
+        {groups.length === 0 ? (
           <p className="flex h-full items-center justify-center px-6 text-center text-sm text-white/55">
-            Group fixtures appear here once pools are generated — live or finished matches stay on
-            this board.
+            Pool standings appear here once groups are generated and matches are recorded.
           </p>
         ) : (
-          <MultiCourtDisplayGrid
-            tournamentName={tournamentName}
-            courtCount={cards.length}
-            liveCount={groupLive.length || cards.length}
-          >
-            {cards.map(({ court, match: m }) => {
-              const gamesMode = resolveGamesDisplayMode(liveData.scoring, m);
-              const matchActive = isMatchLiveForTournament(
-                m.status ?? "pending",
-                liveData.tournament.status,
-              );
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+            {groups.map((group) => {
+              const liveInGroup = liveByGroupId.get(group.id) ?? [];
               return (
-                <MultiCourtDisplayCard
-                  key={m.id}
-                  courtName={court.name}
-                  teamAName={m.teamAName!}
-                  teamBName={m.teamBName!}
-                  teamAPlayers={m.teamAPlayers}
-                  teamBPlayers={m.teamBPlayers}
-                  scoreA={m.scoreA ?? 0}
-                  scoreB={m.scoreB ?? 0}
-                  startedAt={m.startedAt}
-                  timerEndsAt={m.timerEndsAt}
-                  estimatedDurationMinutes={liveData.scoring?.roundDurationMinutes ?? null}
-                  matchActive={matchActive}
-                  scorekeeperName={m.scorekeeperName}
-                  gamesMode={gamesMode}
-                />
+                <section
+                  key={group.id}
+                  className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
+                >
+                  <div className="border-b border-white/10 bg-white/[0.06] px-3 py-2 sm:px-4">
+                    <h2 className="text-sm font-semibold text-white sm:text-base">
+                      {group.name}
+                    </h2>
+                    {liveInGroup.length > 0 ? (
+                      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                        {liveInGroup.length} live
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2 p-2 sm:p-3">
+                    <DoubleStageStandingsTable
+                      group={group}
+                      compact
+                      scoreDisplay={scoreDisplay}
+                      showGameWinPct={showGameWinPct}
+                    />
+                    {liveInGroup.length > 0 ? (
+                      <ul className="space-y-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-2">
+                        {liveInGroup.map((m) => (
+                          <li
+                            key={m.id}
+                            className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/90"
+                          >
+                            <span className="min-w-0 truncate font-medium">
+                              {m.teamAName}{" "}
+                              <span className="font-normal text-white/50">vs</span>{" "}
+                              {m.teamBName}
+                            </span>
+                            <span className="shrink-0 font-mono tabular-nums">
+                              {m.scoreA ?? 0}–{m.scoreB ?? 0}
+                              {m.courtId ? (
+                                <span className="ml-2 text-[10px] text-white/50">
+                                  {resolveCourtLabel(m.courtId, courts)}
+                                </span>
+                              ) : null}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                </section>
               );
             })}
-          </MultiCourtDisplayGrid>
+          </div>
         )}
       </div>
     </div>

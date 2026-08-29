@@ -737,7 +737,16 @@ export function TournamentDisplayClient({
                 courts: data.courts,
                 scoring: data.scoring,
                 tournament: data.tournament,
+                doubleStage: data.doubleStage,
               }}
+              scoreDisplay="games"
+              showGameWinPct={Boolean(
+                (data.doubleStage?.groups ?? []).some((g) =>
+                  (g as { standings?: Array<{ gameWinPct?: number }> }).standings?.some(
+                    (row) => typeof row.gameWinPct === "number",
+                  ),
+                ),
+              )}
             />
           </div>
         );

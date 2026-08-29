@@ -96,6 +96,8 @@ Pick one pool (e.g. Group A) and score all 3 matches:
 
 - [ ] Court display URL loads (`…/display`)
 - [ ] Copy layout URLs from Manage → Display: `single`, `multi_court`, `group_stage`, `leaderboard`, `bracket`, plus public `?tab=Matches` schedule
+- [ ] `group_stage` layout shows **pool standings tables** (not multi-court grid); public Live Score group tab matches
+- [ ] Scorekeeper label on TV/manage uses staff **full name** (Manage → Invites), not account nickname
 - [ ] TV shows **40–40 deuce** label and per-side **15/30/40** milestones during live games
 - [ ] Completed pool fixtures show **Done/Finished** on Order of Play (not Queued)
 - [ ] Special result dialog (WO / RET) from match card

@@ -1711,6 +1711,7 @@ export function FunMatchScoringWorkspace({
       }
       onOpenCourtside={canManageCourts ? openCourtside : undefined}
       initialFocusedCourtId={courtsideCourtId ?? courtFromUrl}
+      onFocusedCourtChange={canManageCourts ? syncCourtInUrl : undefined}
       scoringFrozen={scoringFrozen}
       startFixturesFromSchedule={startFixturesFromSchedule}
       resolveGameRules={

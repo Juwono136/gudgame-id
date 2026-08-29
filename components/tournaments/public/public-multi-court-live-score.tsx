@@ -3,15 +3,13 @@
 import { useMemo } from "react";
 import { Radio } from "lucide-react";
 import { FunMatchLiveHub } from "@/components/tournaments/fun-match/fun-match-live-hub";
-import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
-import { TeamPlayerList } from "@/components/tournaments/team-player-list";
+import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
 import { getFunMatchSessionViews } from "@/lib/tournaments/fun-match/session-views";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import {
   getCurrentSessionRound,
   groupMatchesByRound,
 } from "@/lib/tournaments/reclub/round-groups";
-import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -79,110 +77,6 @@ function filterLivePayloadByMode(
     ...liveData,
     matches: matches.filter((m) => m.type !== "bracket" && m.type !== "group_stage"),
   };
-}
-
-function PublicGroupStageLiveCourts({
-  activeMatches,
-  courts,
-  gameRules,
-  estimatedDurationMinutes,
-}: {
-  activeMatches: ReclubMatchView[];
-  courts: NonNullable<TournamentLivePayload["courts"]>;
-  gameRules: ReturnType<typeof getTournamentGameRules> | null;
-  estimatedDurationMinutes: number | null;
-}) {
-  return (
-    <section className="rounded-2xl border border-cp-primary/25 bg-cp-card p-4 sm:p-6">
-      <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cp-primary">
-        <Radio className="h-4 w-4 animate-pulse" />
-        {activeMatches.length} court{activeMatches.length === 1 ? "" : "s"} live
-      </p>
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-        {activeMatches.map((match) => {
-          const pointsA = match.gameState?.currentPointsA ?? 0;
-          const pointsB = match.gameState?.currentPointsB ?? 0;
-          return (
-            <li
-              key={match.id}
-              className="rounded-xl border border-cp-primary/20 bg-cp-elevated/20 p-3 sm:p-4"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-cp-muted">
-                  {resolveCourtLabel(match.courtId, courts)}
-                </p>
-              </div>
-
-              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-3">
-                <div className="min-w-0 text-left">
-                  <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-                    {match.teamAName ?? "TBD"}
-                  </p>
-                  <TeamPlayerList names={match.teamAPlayers} maxNames={3} />
-                </div>
-
-                <div className="flex min-w-[4.5rem] flex-col items-center justify-center px-1 sm:min-w-[5.5rem]">
-                  {gameRules ? (
-                    <>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-cp-muted">
-                        Games
-                      </p>
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {match.scoreA ?? 0}
-                        <span className="mx-1 font-normal text-cp-muted">–</span>
-                        {match.scoreB ?? 0}
-                      </p>
-                      <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider text-cp-primary">
-                        Points
-                      </p>
-                      <p className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
-                        {pointsA}
-                        <span className="mx-1.5 font-light text-cp-muted">:</span>
-                        {pointsB}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
-                      {match.scoreA ?? 0}
-                      <span className="mx-1.5 font-light text-cp-muted">:</span>
-                      {match.scoreB ?? 0}
-                    </p>
-                  )}
-                </div>
-
-                <div className="min-w-0 text-right">
-                  <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-                    {match.teamBName ?? "TBD"}
-                  </p>
-                  <TeamPlayerList names={match.teamBPlayers} maxNames={3} align="right" />
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <LiveMatchTimer
-                  startedAt={match.startedAt}
-                  timerEndsAt={match.timerEndsAt}
-                  estimatedDurationMinutes={
-                    match.timerEndsAt ? null : estimatedDurationMinutes
-                  }
-                  active={match.status === "in_progress"}
-                />
-              </div>
-
-              {gameRules ? (
-                <p className="mt-2 text-center text-[10px] text-cp-muted sm:text-[11px]">
-                  {(gameRules.lengthMode ?? "race_to") === "total"
-                    ? `Total ${gameRules.raceToGames}`
-                    : `Race to ${gameRules.raceToGames}`}{" "}
-                  · first to {gameRules.pointsToWinGame} pts
-                </p>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
 }
 
 export function PublicMultiCourtLiveScore({
@@ -257,12 +151,13 @@ export function PublicMultiCourtLiveScore({
 
   if (mode === "group_stage") {
     const hasGroupContent =
+      Boolean(liveData?.doubleStage?.groups?.length) ||
       allMatches.some(
         (m) =>
           m.status === "in_progress" ||
           m.status === "completed" ||
           m.status === "pending",
-      ) || courts.length > 0;
+      );
 
     if (!hasGroupContent && activeMatches.length === 0) {
       return (
@@ -278,37 +173,35 @@ export function PublicMultiCourtLiveScore({
       );
     }
 
-    // Same FunMatchLiveHub as Manage Live scoring (read-only) so completed
-    // round rows / tabs / court strip stay visually synchronized.
     return (
       <div className="space-y-6">
-        {activeMatches.length > 0 ? (
-          <PublicGroupStageLiveCourts
-            activeMatches={activeMatches}
-            courts={courts}
-            gameRules={gameRules}
-            estimatedDurationMinutes={
-              getTournamentScoringType(tournament) === "timed"
-                ? getTournamentRoundDurationMinutes(tournament)
-                : 45
-            }
-          />
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">Pool standings</h3>
+          <p className="text-xs text-cp-muted">
+            Live group tables — same data as the Groups tab, refreshed every few seconds.
+          </p>
+          <DoubleStageGroupsTab tournament={tournament} />
+        </section>
+        {allMatches.length > 0 ? (
+          <section className="space-y-2">
+            <h3 className="text-sm font-semibold text-foreground">Live & round matches</h3>
+            <FunMatchLiveHub
+              roundGroups={roundGroups}
+              currentRound={currentRound}
+              courts={courts}
+              teams={teams}
+              matchByCourt={matchByCourt}
+              readOnly
+              pointsPerMatch={pointsPerMatch}
+              scoringRules={scoringRules}
+              gameRules={gameRules}
+              classicSetRules={classicSetRules}
+              maxRounds={maxRounds}
+              accentVariant={variant === "official" ? "official" : "fun"}
+              isGroupStageMode
+            />
+          </section>
         ) : null}
-        <FunMatchLiveHub
-          roundGroups={roundGroups}
-          currentRound={currentRound}
-          courts={courts}
-          teams={teams}
-          matchByCourt={matchByCourt}
-          readOnly
-          pointsPerMatch={pointsPerMatch}
-          scoringRules={scoringRules}
-          gameRules={gameRules}
-          classicSetRules={classicSetRules}
-          maxRounds={maxRounds}
-          accentVariant={variant === "official" ? "official" : "fun"}
-          isGroupStageMode
-        />
       </div>
     );
   }

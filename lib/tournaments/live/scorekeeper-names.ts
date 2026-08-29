@@ -3,8 +3,14 @@ import "server-only";
 import { inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { user } from "@/db/schema/auth";
+import {
+  formatScorekeeperDisplayName,
+  scorekeeperLabelFromMap,
+} from "@/lib/tournaments/live/scorekeeper-display";
 
-/** Resolve display names for scorekeeper user ids (nickname preferred). */
+export { formatScorekeeperDisplayName, scorekeeperLabelFromMap };
+
+/** Resolve display names for scorekeeper user ids (name preferred over nickname). */
 export async function resolveScorekeeperNameMap(
   userIds: Array<string | null | undefined>,
 ): Promise<Map<string, string>> {
@@ -19,14 +25,9 @@ export async function resolveScorekeeperNameMap(
     .from(user)
     .where(inArray(user.id, unique));
   return new Map(
-    rows.map((row) => [row.id, row.nickname?.trim() || row.name?.trim() || "Scorekeeper"]),
+    rows.map((row) => [
+      row.id,
+      formatScorekeeperDisplayName(row.name, row.nickname),
+    ]),
   );
-}
-
-export function scorekeeperLabelFromMap(
-  map: Map<string, string>,
-  userId: string | null | undefined,
-): string | null {
-  if (!userId) return null;
-  return map.get(userId) ?? null;
 }
