@@ -76,7 +76,26 @@ export type TournamentDisplayLayout =
   | "bracket"
   | "leaderboard"
   | "group_stage"
+  | "match_schedule"
   | "rotation";
+
+/** All persistable / URL-pinable venue display layouts (excludes rotation meta). */
+export const TOURNAMENT_DISPLAY_LAYOUTS: readonly TournamentDisplayLayout[] = [
+  "single",
+  "multi_court",
+  "bracket",
+  "leaderboard",
+  "group_stage",
+  "match_schedule",
+  "rotation",
+] as const;
+
+export function isTournamentDisplayLayout(value: unknown): value is TournamentDisplayLayout {
+  return (
+    typeof value === "string" &&
+    (TOURNAMENT_DISPLAY_LAYOUTS as readonly string[]).includes(value)
+  );
+}
 
 export type TournamentDisplayBrandTheme = {
   primaryColor?: string;
@@ -219,15 +238,7 @@ function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const v = raw as Record<string, unknown>;
   const layout = v.layout;
-  const validLayouts: TournamentDisplayLayout[] = [
-    "single",
-    "multi_court",
-    "bracket",
-    "leaderboard",
-    "group_stage",
-    "rotation",
-  ];
-  if (typeof layout !== "string" || !validLayouts.includes(layout as TournamentDisplayLayout)) {
+  if (!isTournamentDisplayLayout(layout)) {
     return undefined;
   }
   const courtIds = Array.isArray(v.courtIds)
@@ -236,7 +247,9 @@ function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
   const rotationLayouts = Array.isArray(v.rotationLayouts)
     ? v.rotationLayouts.filter(
         (l): l is TournamentDisplayLayout =>
-          typeof l === "string" && validLayouts.includes(l as TournamentDisplayLayout),
+          typeof l === "string" &&
+          isTournamentDisplayLayout(l) &&
+          l !== "rotation",
       )
     : undefined;
   return {

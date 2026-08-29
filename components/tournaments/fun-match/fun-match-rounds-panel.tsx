@@ -695,6 +695,7 @@ export function FunMatchRoundsPanel({
                   match={match}
                   courtId={match.courtId ?? undefined}
                   courtName={resolveCourtLabel(match.courtId, courts, courtIndex)}
+                  scorekeeperName={match.scorekeeperName ?? null}
                   teams={teams}
                   activeGroupMatches={isGroupStageMode ? activeGroupMatches : []}
                   isGroupStageMode={isGroupStageMode}

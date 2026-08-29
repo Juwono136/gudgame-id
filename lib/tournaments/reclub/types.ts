@@ -33,6 +33,8 @@ export type ReclubMatchView = {
   /** Intra-game rally state for race-to-N games matches. */
   gameState?: import("@/lib/tournaments/scoring/game-mode").MatchGameState | null;
   recordedByUserId?: string | null;
+  /** Resolved display name for {@link recordedByUserId} when enriched by live/manage APIs. */
+  scorekeeperName?: string | null;
 };
 
 export type ReclubMatchesListQuery = {

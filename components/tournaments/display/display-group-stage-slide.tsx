@@ -26,16 +26,20 @@ export function DisplayGroupStageSlide({
   className,
 }: DisplayGroupStageSlideProps) {
   const courts = liveData.courts ?? [];
-  const groupLive = useMemo(
+  const groupMatches = useMemo(
     () =>
       (liveData.matches ?? []).filter(
-        (m) =>
-          m.type === "group_stage" &&
-          isMatchLiveForTournament(m.status ?? "pending", liveData.tournament.status) &&
-          m.teamAName &&
-          m.teamBName,
+        (m) => m.type === "group_stage" && m.teamAName && m.teamBName,
       ),
-    [liveData.matches, liveData.tournament.status],
+    [liveData.matches],
+  );
+
+  const groupLive = useMemo(
+    () =>
+      groupMatches.filter((m) =>
+        isMatchLiveForTournament(m.status ?? "pending", liveData.tournament.status),
+      ),
+    [groupMatches, liveData.tournament.status],
   );
 
   const sortedCourts = useMemo(
@@ -44,7 +48,17 @@ export function DisplayGroupStageSlide({
   );
 
   const cards = useMemo(() => {
-    const byCourt = new Map(groupLive.map((m) => [m.courtId ?? m.id, m]));
+    // Prefer live courts, then any assigned court fixtures, then remaining group matches.
+    const preferred =
+      groupLive.length > 0
+        ? groupLive
+        : groupMatches.filter((m) => m.status !== "completed").length > 0
+          ? groupMatches.filter((m) => m.status !== "completed")
+          : groupMatches;
+
+    const byCourt = new Map(
+      preferred.filter((m) => m.courtId).map((m) => [m.courtId as string, m]),
+    );
     const ordered = sortedCourts
       .map((court) => {
         const m = byCourt.get(court.id);
@@ -53,11 +67,11 @@ export function DisplayGroupStageSlide({
       })
       .filter(Boolean) as Array<{
       court: (typeof sortedCourts)[number];
-      match: (typeof groupLive)[number];
+      match: (typeof groupMatches)[number];
     }>;
 
     if (ordered.length > 0) return ordered;
-    return groupLive.map((match, index) => ({
+    return preferred.map((match, index) => ({
       court: {
         id: match.courtId ?? match.id,
         name: resolveCourtLabel(match.courtId, courts, index),
@@ -67,7 +81,7 @@ export function DisplayGroupStageSlide({
       },
       match,
     }));
-  }, [courts, groupLive, sortedCourts]);
+  }, [courts, groupLive, groupMatches, sortedCourts]);
 
   return (
     <div
@@ -87,6 +101,11 @@ export function DisplayGroupStageSlide({
               {" · "}
               <span className="font-medium text-white/75">{groupLive.length} live</span>
             </>
+          ) : cards.length > 0 ? (
+            <>
+              {" · "}
+              <span className="font-medium text-white/75">{cards.length} on board</span>
+            </>
           ) : null}
         </p>
       </header>
@@ -94,16 +113,21 @@ export function DisplayGroupStageSlide({
       <div className="mt-3 min-h-0 flex-1 overflow-hidden sm:mt-4">
         {cards.length === 0 ? (
           <p className="flex h-full items-center justify-center px-6 text-center text-sm text-white/55">
-            No live group matches — scores appear here when pool play starts on court.
+            Group fixtures appear here once pools are generated — live or finished matches stay on
+            this board.
           </p>
         ) : (
           <MultiCourtDisplayGrid
             tournamentName={tournamentName}
             courtCount={cards.length}
-            liveCount={groupLive.length}
+            liveCount={groupLive.length || cards.length}
           >
             {cards.map(({ court, match: m }) => {
               const gamesMode = resolveGamesDisplayMode(liveData.scoring, m);
+              const matchActive = isMatchLiveForTournament(
+                m.status ?? "pending",
+                liveData.tournament.status,
+              );
               return (
                 <MultiCourtDisplayCard
                   key={m.id}
@@ -117,7 +141,7 @@ export function DisplayGroupStageSlide({
                   startedAt={m.startedAt}
                   timerEndsAt={m.timerEndsAt}
                   estimatedDurationMinutes={liveData.scoring?.roundDurationMinutes ?? null}
-                  matchActive
+                  matchActive={matchActive}
                   scorekeeperName={m.scorekeeperName}
                   gamesMode={gamesMode}
                 />

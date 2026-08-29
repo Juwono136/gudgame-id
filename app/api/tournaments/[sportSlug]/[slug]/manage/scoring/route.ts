@@ -24,6 +24,10 @@ import { buildManageScoringRuntime } from "@/lib/tournaments/manage/scoring-runt
 import { computeManageWorkspaceStats } from "@/lib/tournaments/stats/from-manage-workspace";
 import type { TournamentSessionStats } from "@/lib/tournaments/stats/types";
 import {
+  resolveScorekeeperNameMap,
+  scorekeeperLabelFromMap,
+} from "@/lib/tournaments/live/scorekeeper-names";
+import {
   isMatchLiveForTournament,
   normalizeBracketMatchesForDisplay,
   normalizeReclubMatchesForDisplay,
@@ -128,12 +132,56 @@ export async function GET(
       isMatchLiveForTournament(m.status, tournament.status),
     );
 
+    const scorekeeperNameMap = await resolveScorekeeperNameMap([
+      ...reclubMatches.flatMap((m) => [
+        m.recordedByUserId,
+        ...(m.scoreEvents ?? []).map((e) => e.userId),
+      ]),
+      ...bracketMatches.flatMap((m) => [
+        m.recordedByUserId,
+        ...(m.scoreEvents ?? []).map((e) => e.userId),
+      ]),
+      ...groupMatchesRaw.flatMap((m) => [
+        m.recordedByUserId,
+        ...(m.scoreEvents ?? []).map((e) => e.userId),
+      ]),
+      ...activeGroupMatchesRaw.flatMap((m) => [
+        m.recordedByUserId,
+        ...(m.scoreEvents ?? []).map((e) => e.userId),
+      ]),
+    ]);
+    const withScorekeeper = <
+      T extends {
+        recordedByUserId?: string | null;
+        scoreEvents?: Array<{ userId?: string; userName?: string }> | null;
+        scorekeeperName?: string | null;
+      },
+    >(
+      m: T,
+    ) => {
+      const fromRecorded = scorekeeperLabelFromMap(scorekeeperNameMap, m.recordedByUserId);
+      if (fromRecorded) return { ...m, scorekeeperName: fromRecorded };
+      const events = m.scoreEvents ?? [];
+      for (let i = events.length - 1; i >= 0; i -= 1) {
+        const e = events[i];
+        const fromEventId = scorekeeperLabelFromMap(scorekeeperNameMap, e?.userId);
+        if (fromEventId) return { ...m, scorekeeperName: fromEventId };
+        const fromEventName = e?.userName?.trim();
+        if (fromEventName) return { ...m, scorekeeperName: fromEventName };
+      }
+      return { ...m, scorekeeperName: null };
+    };
+    const reclubMatchesEnriched = reclubMatches.map(withScorekeeper);
+    const activeReclubMatchesEnriched = activeReclubMatches.map(withScorekeeper);
+    const groupMatchesEnriched = groupMatchesRaw.map(withScorekeeper);
+    const activeGroupMatchesEnriched = activeGroupMatchesRaw.map(withScorekeeper);
+
     const sessionStats: TournamentSessionStats = computeManageWorkspaceStats({
       tournament,
       teams,
-      reclubMatches,
+      reclubMatches: reclubMatchesEnriched,
       bracketMatches,
-      groupMatches: groupMatchesRaw,
+      groupMatches: groupMatchesEnriched,
       summary,
     });
 
@@ -143,12 +191,12 @@ export async function GET(
       mode: caps.manageScoringMode,
       courts,
       teams,
-      reclubMatches,
-      activeReclubMatches,
+      reclubMatches: reclubMatchesEnriched,
+      activeReclubMatches: activeReclubMatchesEnriched,
       bracketMatches,
       activeBracketMatches,
-      groupMatches: groupMatchesRaw,
-      activeGroupMatches: activeGroupMatchesRaw,
+      groupMatches: groupMatchesEnriched,
+      activeGroupMatches: activeGroupMatchesEnriched,
       doubleStage: doubleStageOverview,
       summary,
       teamsInActiveBracket,

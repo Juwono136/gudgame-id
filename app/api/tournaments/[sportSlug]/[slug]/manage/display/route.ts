@@ -12,13 +12,21 @@ const hexColor = z
   .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
   .optional();
 
+const displayLayoutEnum = z.enum([
+  "single",
+  "multi_court",
+  "bracket",
+  "leaderboard",
+  "group_stage",
+  "match_schedule",
+  "rotation",
+]);
+
 const bodySchema = z.object({
-  layout: z.enum(["single", "multi_court", "bracket", "leaderboard", "group_stage", "rotation"]),
+  layout: displayLayoutEnum,
   autoRotate: z.boolean().optional(),
   rotationIntervalSec: z.number().int().min(5).max(120).optional(),
-  rotationLayouts: z
-    .array(z.enum(["single", "multi_court", "bracket", "leaderboard", "group_stage", "rotation"]))
-    .optional(),
+  rotationLayouts: z.array(displayLayoutEnum).optional(),
   brandTheme: z
     .object({
       primaryColor: hexColor,

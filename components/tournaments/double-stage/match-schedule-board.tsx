@@ -48,7 +48,7 @@ function MatchList({
 
   return (
     <>
-      <ul className="divide-y divide-cp-border/40 overflow-hidden rounded-xl border border-cp-border bg-cp-card/80">
+      <ul className="space-y-2.5 sm:space-y-3">
         {visible.map((m) => (
           <MatchRow
             key={`${m.kind}-${m.id}`}
@@ -133,136 +133,169 @@ function MatchRow({
     (m.kind === "group" ? "Group stage" : m.stageLabel.split("·")[0]?.trim() || "Knockout");
   const groupLabel = m.groupName ?? null;
   const courtLabel = hideCourtInLabel ? null : m.courtName?.trim() || null;
+  const hasActions = canStart || canEdit;
 
   return (
-    <li className="px-3 py-3 transition-colors hover:bg-cp-elevated/20 sm:px-4">
-      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(7.5rem,9rem)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(4.5rem,5.5rem)_auto] lg:items-center lg:gap-3">
-        {/* Meta */}
-        <div className="min-w-0">
-          <p className="text-xs tabular-nums text-cp-muted">
+    <li className="rounded-xl border border-cp-border/80 bg-cp-card/80 px-3 py-3.5 shadow-sm transition-colors hover:bg-cp-elevated/25 sm:px-4 sm:py-4">
+      {/* Header: #queue · stage · group + status */}
+      <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 sm:mb-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs">
+          <span className="shrink-0 tabular-nums font-medium text-cp-muted">
             {m.playOrder != null ? `#${m.playOrder}` : "—"}
-          </p>
-          <p className="mt-0.5 text-[11px] font-medium text-foreground sm:text-xs">{stageKind}</p>
+          </span>
+          <span className="text-cp-muted/50" aria-hidden>
+            ·
+          </span>
+          <span className="font-medium text-foreground">{stageKind}</span>
           {groupLabel ? (
-            <p
-              className={cn(
-                "mt-0.5 text-[11px] font-semibold sm:text-xs",
-                groupNameAccentClass(groupLabel),
-              )}
-            >
-              {groupLabel}
-            </p>
-          ) : null}
-          {courtLabel ? (
-            <p className="mt-0.5 text-[10px] text-cp-muted sm:text-[11px]">{courtLabel}</p>
+            <>
+              <span className="text-cp-muted/50" aria-hidden>
+                ·
+              </span>
+              <span className={cn("font-semibold", groupNameAccentClass(groupLabel))}>
+                {groupLabel}
+              </span>
+            </>
           ) : null}
         </div>
-
-        {/* Team A */}
-        <div className="min-w-0 lg:text-right">
-          <p className="truncate text-sm font-semibold text-foreground">{m.teamAName ?? "TBD"}</p>
-          <div className="lg:flex lg:justify-end">
-            <TeamPlayerList names={m.teamAPlayers} maxNames={3} align="right" />
-          </div>
-        </div>
-
-        {/* Score / time */}
-        <div className="flex justify-center">
-          <div
+        {showCallStatus && !isLive && !isFinished ? (
+          <span
             className={cn(
-              "flex min-w-[4.75rem] flex-col items-center rounded-lg px-2 py-1",
-              displayScore ? "border border-cp-border/70 bg-cp-elevated/40" : "",
+              "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide sm:text-[10px]",
+              call.className,
             )}
           >
-            {displayScore ? (
-              <>
-                <p className="text-base font-bold tabular-nums text-foreground">
-                  {m.scoreA ?? 0}
-                  <span className="mx-0.5 font-normal text-cp-muted">–</span>
-                  {m.scoreB ?? 0}
-                </p>
-                {gamesScoreMode ? (
-                  <p className="text-[8px] font-bold uppercase tracking-wider text-cp-muted">
-                    Games
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <p
-                  className={cn(
-                    "text-sm font-bold tabular-nums",
-                    kickoff.time === "TBA" ? "text-cp-muted" : "text-cp-primary",
-                  )}
-                >
-                  {kickoff.time}
-                </p>
-                {kickoff.date ? (
-                  <p className="text-[10px] text-cp-muted">{kickoff.date}</p>
-                ) : null}
-              </>
+            {call.short}
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide sm:text-[10px]",
+              status.className,
             )}
-          </div>
+            title={status.full}
+          >
+            {isLive ? "Live" : status.short}
+          </span>
+        )}
+      </div>
+
+      {/* Matchup: Team A | Time/Score | Team B — same on mobile + desktop */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-4">
+        <div className="min-w-0 text-left">
+          <p
+            className="truncate text-[15px] font-bold leading-tight text-foreground sm:text-base"
+            title={m.teamAName ?? "TBD"}
+          >
+            {m.teamAName ?? "TBD"}
+          </p>
+          <TeamPlayerList
+            names={m.teamAPlayers}
+            maxNames={3}
+            align="left"
+            className="mt-1"
+          />
         </div>
 
-        {/* Team B */}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{m.teamBName ?? "TBD"}</p>
-          <TeamPlayerList names={m.teamBPlayers} maxNames={3} />
-        </div>
-
-        {/* Status */}
-        <div className="flex items-center gap-1.5 lg:justify-center">
-          {showCallStatus && !isLive && !isFinished ? (
-            <span
-              className={cn(
-                "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                call.className,
-              )}
-            >
-              {call.short}
-            </span>
+        <div className="flex min-w-[4.5rem] flex-col items-center justify-center px-1 pt-0.5 sm:min-w-[5.5rem]">
+          {displayScore ? (
+            <>
+              <p className="text-lg font-bold tabular-nums leading-none text-foreground sm:text-xl">
+                {m.scoreA ?? 0}
+                <span className="mx-0.5 font-normal text-cp-muted">–</span>
+                {m.scoreB ?? 0}
+              </p>
+              {gamesScoreMode ? (
+                <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-cp-muted">
+                  Games
+                </p>
+              ) : null}
+            </>
           ) : (
-            <span
-              className={cn(
-                "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                status.className,
-              )}
-              title={status.full}
-            >
-              {isLive ? "Live" : status.short}
-            </span>
+            <>
+              <p
+                className={cn(
+                  "text-base font-bold tabular-nums leading-none sm:text-lg",
+                  kickoff.time === "TBA" ? "text-cp-muted" : "text-cp-primary",
+                )}
+              >
+                {kickoff.time}
+              </p>
+              {kickoff.date ? (
+                <p className="mt-1 text-[10px] leading-tight text-cp-muted sm:text-[11px]">
+                  {kickoff.date}
+                </p>
+              ) : null}
+            </>
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          {canStart ? (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 gap-1.5 px-3"
-              onClick={() => onStartMatch?.(m)}
-            >
-              <Play className="h-3.5 w-3.5" aria-hidden />
-              Start
-            </Button>
-          ) : null}
-          {canEdit ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 px-2.5"
-              onClick={() => onEditSchedule?.(m)}
-              aria-label={`Edit schedule for ${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`}
-            >
-              <Pencil className="h-3.5 w-3.5" aria-hidden />
-              <span className="hidden sm:inline">Schedule</span>
-            </Button>
-          ) : null}
+        <div className="min-w-0 text-right">
+          <p
+            className="truncate text-[15px] font-bold leading-tight text-foreground sm:text-base"
+            title={m.teamBName ?? "TBD"}
+          >
+            {m.teamBName ?? "TBD"}
+          </p>
+          <TeamPlayerList
+            names={m.teamBPlayers}
+            maxNames={3}
+            align="right"
+            className="mt-1"
+          />
         </div>
       </div>
+
+      {/* Court pill + manage actions */}
+      {(courtLabel || hasActions) && (
+        <div
+          className={cn(
+            "mt-3 flex items-center gap-2",
+            hasActions ? "justify-between" : "justify-center",
+          )}
+        >
+          {courtLabel ? (
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full border border-emerald-500/45 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 sm:text-[11px]",
+                !hasActions && "mx-auto",
+              )}
+            >
+              {courtLabel}
+            </span>
+          ) : (
+            <span className="flex-1" aria-hidden />
+          )}
+          {hasActions ? (
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {canStart ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5 px-3"
+                  onClick={() => onStartMatch?.(m)}
+                >
+                  <Play className="h-3.5 w-3.5" aria-hidden />
+                  Start
+                </Button>
+              ) : null}
+              {canEdit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 px-2.5"
+                  onClick={() => onEditSchedule?.(m)}
+                  aria-label={`Edit schedule for ${m.teamAName ?? "TBD"} vs ${m.teamBName ?? "TBD"}`}
+                >
+                  <Pencil className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">Schedule</span>
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
     </li>
   );
 }

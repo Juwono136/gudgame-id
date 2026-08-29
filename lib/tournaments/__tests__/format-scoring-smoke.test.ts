@@ -695,6 +695,7 @@ describe("smoke · live + fullscreen display realtime wiring", () => {
       pointsToWinGame: 40,
       lengthMode: "total",
       classicSets: false,
+      gameDecider: "golden_point",
     });
   });
 });

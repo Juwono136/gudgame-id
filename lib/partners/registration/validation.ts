@@ -90,6 +90,23 @@ const captainSchema = z.object({
   phone: captainPhoneSchema,
 });
 
+/** Signed-in member: phone optional — server keeps existing partner_players phone. */
+const memberCaptainSchema = z.object({
+  fullName: partnerPersonNameSchema,
+  email: partnerEmailSchema,
+  phone: z.preprocess(
+    asOptionalString,
+    z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === "" || isValidPartnerPhone(value),
+        "Enter a valid phone number (e.g. 0812xxxxxxx)",
+      )
+      .transform((value) => value),
+  ),
+});
+
 /**
  * Teammate default = claimable (name + email and/or phone).
  * Soft profile (name only) requires softProfile: true — explicit walk-up fallback.
@@ -127,12 +144,16 @@ function safePhoneKey(raw: string): string | null {
 }
 
 /** Guest registration form schema — member count depends on tournament playersPerTeam. */
-export function partnerGuestRegistrationSchema(playersPerTeam: number) {
+export function partnerGuestRegistrationSchema(
+  playersPerTeam: number,
+  options?: { memberCaptain?: boolean },
+) {
   const memberCount = Math.max(0, playersPerTeam - 1);
+  const captain = options?.memberCaptain ? memberCaptainSchema : captainSchema;
 
   return z
     .object({
-      captain: captainSchema,
+      captain,
       teamName:
         playersPerTeam > 1
           ? z

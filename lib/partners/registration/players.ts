@@ -49,7 +49,7 @@ export async function upsertPartnerPlayer(
   const db = getDb();
   const fullName = input.fullName.trim();
   const email = normalizeEmail(input.email);
-  const phone = normalizePartnerPhone(input.phone);
+  const phoneRaw = input.phone?.trim() ?? "";
 
   if (options?.preferPlayerId) {
     const [preferred] = await db
@@ -65,6 +65,9 @@ export async function upsertPartnerPlayer(
       .limit(1);
 
     if (preferred) {
+      const phone = phoneRaw
+        ? normalizePartnerPhone(phoneRaw)
+        : preferred.phone;
       const patch: {
         fullName?: string;
         email?: string;
@@ -77,7 +80,7 @@ export async function upsertPartnerPlayer(
       const inputIsSynthetic = email.endsWith("@partner.invalid");
       if (!preferred.identityId && !inputIsSynthetic) {
         if (preferred.email !== email) patch.email = email;
-        if (preferred.phone !== phone) patch.phone = phone;
+        if (phoneRaw && preferred.phone !== phone) patch.phone = phone;
       }
       if (options.identityId && !preferred.identityId) {
         patch.identityId = options.identityId;
@@ -97,6 +100,8 @@ export async function upsertPartnerPlayer(
       return preferred;
     }
   }
+
+  const phone = normalizePartnerPhone(phoneRaw);
 
   const [existing] = await db
     .select()

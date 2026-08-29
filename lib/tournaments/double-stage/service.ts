@@ -130,6 +130,10 @@ export type GroupMatchView = {
   startedAt: string | null;
   completedAt: string | null;
   courtId: string | null;
+  /** Staff user who started / last scored this match (venue display + live scoring). */
+  recordedByUserId: string | null;
+  /** Resolved when enriched by manage/live APIs. */
+  scorekeeperName?: string | null;
   playOrder: number | null;
   /** RR / ITF day round (1-based). Derived from metadata + playOrder. */
   roundNumber: number;
@@ -1510,6 +1514,7 @@ function mapGroupMatchView(
     startedAt: m.startedAt?.toISOString() ?? null,
     completedAt: m.completedAt?.toISOString() ?? null,
     courtId: m.courtId,
+    recordedByUserId: m.recordedByUserId ?? null,
     playOrder: m.playOrder ?? null,
     roundNumber: deriveGroupStageRoundNumber({
       playOrder: m.playOrder,

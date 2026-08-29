@@ -64,6 +64,8 @@ type FunMatchRoundMatchCardProps = {
   match?: ReclubMatchView | null;
   courtName: string;
   courtId?: string;
+  /** Display name of the staff currently scoring (shown beside court). */
+  scorekeeperName?: string | null;
   teams?: LobbyTeamView[];
   teamAId?: string;
   teamBId?: string;
@@ -240,6 +242,7 @@ export function FunMatchRoundMatchCard({
   match,
   courtName,
   courtId,
+  scorekeeperName = null,
   teams = [],
   teamAId = "",
   teamBId = "",
@@ -958,17 +961,32 @@ export function FunMatchRoundMatchCard({
       )}
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-cp-border/60 pt-2.5">
-        <div className="flex items-center gap-1.5 text-xs text-cp-muted">
-          <span className="font-medium text-foreground">{courtName}</span>
-          {canManage && onEditCourtName && !readOnly ? (
-            <button
-              type="button"
-              onClick={onEditCourtName}
-              className="rounded p-0.5 text-cp-muted hover:bg-cp-elevated hover:text-foreground"
-              aria-label="Rename court"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-cp-muted">
+          <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+            {courtName}
+            {canManage && onEditCourtName && !readOnly ? (
+              <button
+                type="button"
+                onClick={onEditCourtName}
+                className="rounded p-0.5 text-cp-muted hover:bg-cp-elevated hover:text-foreground"
+                aria-label="Rename court"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            ) : null}
+          </span>
+          {(scorekeeperName?.trim() || match?.scorekeeperName?.trim()) ? (
+            <>
+              <span className="text-cp-muted/50" aria-hidden>
+                ·
+              </span>
+              <span className="truncate text-cp-muted">
+                <span className="text-[10px] uppercase tracking-wide text-cp-muted/80">SK </span>
+                <span className="font-medium text-foreground">
+                  {scorekeeperName?.trim() || match?.scorekeeperName?.trim()}
+                </span>
+              </span>
+            </>
           ) : null}
         </div>
 

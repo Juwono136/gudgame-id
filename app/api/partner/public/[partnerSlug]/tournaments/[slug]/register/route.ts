@@ -8,6 +8,7 @@ import { getActivePartnerBySlug } from "@/lib/partners/service";
 import { getPartnerTournamentDetailBySlug } from "@/lib/partners/tournaments";
 import { getPartnerPlayerSessionForSlug } from "@/lib/partners/auth/session";
 import { generateAccessToken } from "@/lib/partners/registration/tokens";
+import { partnerPhoneForAutofill } from "@/lib/partners/registration/phone";
 import { partnerGuestRegistrationSchema } from "@/lib/partners/registration/validation";
 import { startPartnerGuestRegistration } from "@/lib/partners/registration/service";
 import { zodErrorToAppError } from "@/lib/validations/format-zod-error";
@@ -35,7 +36,33 @@ export async function POST(
     }
 
     const body = await request.json();
-    const parsed = partnerGuestRegistrationSchema(tournament.playersPerTeam).safeParse(body);
+    const memberSession = await getPartnerPlayerSessionForSlug(partner.slug, request);
+    const sessionEmail = memberSession?.session.email?.trim().toLowerCase() ?? null;
+    const sessionPlayerId = memberSession?.session.playerId ?? null;
+    const bodyEmail =
+      typeof body?.captain?.email === "string"
+        ? body.captain.email.trim().toLowerCase()
+        : "";
+    const sessionMatchesCaptain =
+      Boolean(sessionPlayerId) &&
+      Boolean(sessionEmail) &&
+      (!bodyEmail || bodyEmail === sessionEmail);
+
+    // Trusted member path: override captain contacts from session (ignore forged body fields).
+    const registrationBody = sessionMatchesCaptain && memberSession
+      ? {
+          ...body,
+          captain: {
+            fullName: memberSession.session.displayName,
+            email: memberSession.session.email,
+            phone: partnerPhoneForAutofill(memberSession.session.phone) ?? "",
+          },
+        }
+      : body;
+
+    const parsed = partnerGuestRegistrationSchema(tournament.playersPerTeam, {
+      memberCaptain: sessionMatchesCaptain,
+    }).safeParse(registrationBody);
     if (!parsed.success) {
       throw zodErrorToAppError(parsed.error);
     }
@@ -59,22 +86,22 @@ export async function POST(
       failClosedInProduction: true,
     });
 
-    const memberSession = await getPartnerPlayerSessionForSlug(partner.slug, request);
-    const sessionEmail = memberSession?.session.email?.trim().toLowerCase() ?? null;
-    const sessionMatchesCaptain =
-      Boolean(memberSession?.session.playerId) &&
-      Boolean(sessionEmail) &&
-      sessionEmail === captainEmail;
-
     const accessTokenPlain = generateAccessToken();
     const result = await startPartnerGuestRegistration(
       tournament,
       partner,
-      parsed.data,
+      {
+        ...parsed.data,
+        captain: {
+          fullName: parsed.data.captain.fullName,
+          email: parsed.data.captain.email,
+          phone: parsed.data.captain.phone ?? "",
+        },
+      },
       accessTokenPlain,
       sessionMatchesCaptain
         ? {
-            sessionPlayerId: memberSession!.session.playerId,
+            sessionPlayerId,
             sessionIdentityId: memberSession!.session.identityId,
           }
         : undefined,

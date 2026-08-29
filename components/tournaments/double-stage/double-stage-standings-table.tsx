@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { TeamPlayerList } from "@/components/tournaments/team-player-list";
+import { TeamAvatarStack, TeamPlayerList } from "@/components/tournaments/team-player-list";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import { cn } from "@/lib/utils";
 
@@ -181,37 +181,50 @@ export function DoubleStageStandingsTable({
               >
                 <td className={cn(tdStat, "text-left font-medium")}>{row.rank}</td>
                 <td className="min-w-0 px-2 py-2 sm:px-3">
-                  <p className="truncate font-medium text-foreground" title={row.teamName}>
-                    {row.teamName}
-                  </p>
-                  {row.players.length > 0 ? (
-                    <TeamPlayerList
-                      names={row.players}
-                      maxNames={4}
-                      compact={compact}
+                  <div className="flex min-w-0 items-start gap-2">
+                    <TeamAvatarStack
+                      members={row.players.map((p) => ({
+                        name: p.displayName,
+                        image: p.image,
+                      }))}
+                      max={3}
+                      className="mt-0.5"
                     />
-                  ) : null}
-                  {showQualification && row.qualificationStatus !== "pending" ? (
-                    <Badge
-                      variant="muted"
-                      className={cn(
-                        "mt-1 text-[10px]",
-                        row.qualificationStatus === "qualified"
-                          ? "border-emerald-600/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-                          : "opacity-70",
-                      )}
-                    >
-                      {row.qualificationStatus === "qualified" ? "Qualified" : "Eliminated"}
-                    </Badge>
-                  ) : null}
-                  {row.needsManualResolution ? (
-                    <Badge
-                      variant="warning"
-                      className="mt-1 text-[10px] normal-case tracking-normal"
-                    >
-                      Tie — resolve manually
-                    </Badge>
-                  ) : null}
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground" title={row.teamName}>
+                        {row.teamName}
+                      </p>
+                      {row.players.length > 0 ? (
+                        <TeamPlayerList
+                          names={row.players}
+                          maxNames={4}
+                          compact={compact}
+                          variant="avatar"
+                        />
+                      ) : null}
+                      {showQualification && row.qualificationStatus !== "pending" ? (
+                        <Badge
+                          variant="muted"
+                          className={cn(
+                            "mt-1 text-[10px]",
+                            row.qualificationStatus === "qualified"
+                              ? "border-emerald-600/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
+                              : "opacity-70",
+                          )}
+                        >
+                          {row.qualificationStatus === "qualified" ? "Qualified" : "Eliminated"}
+                        </Badge>
+                      ) : null}
+                      {row.needsManualResolution ? (
+                        <Badge
+                          variant="warning"
+                          className="mt-1 text-[10px] normal-case tracking-normal"
+                        >
+                          Tie — resolve manually
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
                 </td>
                 <td className={tdStat}>{row.played}</td>
                 <td className={tdStat}>{row.wins}</td>

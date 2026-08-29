@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { TeamAvatarStack } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
+
+export type DisplayLeaderboardMember = {
+  name: string;
+  image?: string | null;
+};
 
 export type DisplayLeaderboardRow = {
   id: string;
   name: string;
   /** Players / team subtitle under the primary name. */
   subtitle?: string;
+  /** Roster for avatar stack beside the entity name. */
+  members?: DisplayLeaderboardMember[];
+  /** Single-entity avatar (player leaderboard). */
+  image?: string | null;
   groupName?: string | null;
   wins: number;
   losses: number;
@@ -15,6 +25,7 @@ export type DisplayLeaderboardRow = {
   /** Total matches / games played. */
   games?: number;
   winRate?: number;
+  /** Score / points differential (S column). */
   diff?: number;
   points: number;
   /** Optional legacy one-line stats (unused when wins/points present). */
@@ -116,8 +127,8 @@ export function DisplaySessionLeaderboard({
   const startRank = pageIndex * pageSize + 1;
 
   const gridCols = showGroupColumn
-    ? "grid-cols-[2.25rem_minmax(0,1.1fr)_minmax(0,0.75fr)_2.5rem_2.75rem_2.75rem_2.25rem] sm:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(0,0.85fr)_3rem_3rem_3rem_2.5rem] lg:grid-cols-[2.75rem_minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,1fr)_3.25rem_3.25rem_3.25rem_2.75rem]"
-    : "grid-cols-[2.25rem_minmax(0,1.2fr)_2.5rem_2.75rem_2.75rem_2.25rem] sm:grid-cols-[2.5rem_minmax(0,1.35fr)_3rem_3rem_3rem_2.5rem] lg:grid-cols-[2.75rem_minmax(0,1.4fr)_minmax(0,1fr)_3.25rem_3.25rem_3.25rem_2.75rem]";
+    ? "grid-cols-[2rem_minmax(0,1fr)_2.25rem_2.25rem_2.25rem_2.5rem_2.5rem_2.5rem_2.25rem] sm:grid-cols-[2.25rem_minmax(0,1.1fr)_minmax(0,0.7fr)_2.5rem_2.5rem_2.5rem_2.75rem_2.75rem_2.5rem] lg:grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(0,0.75fr)_minmax(0,0.9fr)_2.75rem_2.75rem_2.75rem_3rem_3rem_3rem_2.75rem]"
+    : "grid-cols-[2rem_minmax(0,1.1fr)_2.25rem_2.25rem_2.25rem_2.5rem_2.5rem_2.25rem] sm:grid-cols-[2.25rem_minmax(0,1.25fr)_2.5rem_2.5rem_2.5rem_2.75rem_2.75rem_2.5rem] lg:grid-cols-[2.5rem_minmax(0,1.3fr)_minmax(0,0.95fr)_2.75rem_2.75rem_2.75rem_3rem_3rem_2.75rem]";
 
   return (
     <div
@@ -153,7 +164,7 @@ export function DisplaySessionLeaderboard({
           >
             <div
               className={cn(
-                "grid shrink-0 items-center gap-x-2 border-b border-white/10 px-2 py-2 text-[9px] font-semibold uppercase tracking-wide text-white/45 sm:gap-x-2.5 sm:px-3 sm:text-[10px] lg:gap-x-3 lg:px-4",
+                "grid shrink-0 items-center gap-x-1.5 border-b border-white/10 px-2 py-2 text-[9px] font-semibold uppercase tracking-wide text-white/45 sm:gap-x-2 sm:px-3 sm:text-[10px] lg:gap-x-2.5 lg:px-4",
                 gridCols,
               )}
               role="row"
@@ -162,14 +173,20 @@ export function DisplaySessionLeaderboard({
               <span>{entityLabel}</span>
               {showGroupColumn ? <span className="hidden lg:block">Group</span> : null}
               <span className="hidden lg:block">Players</span>
-              <span className="text-center" title="Total games">
+              <span className="text-center" title="Matches played">
                 G
+              </span>
+              <span className="text-center" title="Match wins">
+                W
+              </span>
+              <span className="text-center" title="Match losses">
+                L
+              </span>
+              <span className="text-center" title="Score difference (for − against)">
+                S
               </span>
               <span className="text-center" title="Win rate">
                 WR
-              </span>
-              <span className="text-center" title="Score difference">
-                +/−
               </span>
               <span className="text-right" title="Points">
                 P
@@ -190,7 +207,7 @@ export function DisplaySessionLeaderboard({
                   <li
                     key={row.id}
                     className={cn(
-                      "grid h-[calc(100%/var(--lb-rows,12))] min-h-[2.35rem] items-center gap-x-2 px-2 py-1 sm:gap-x-2.5 sm:px-3 lg:gap-x-3 lg:px-4",
+                      "grid h-[calc(100%/var(--lb-rows,12))] min-h-[2.35rem] items-center gap-x-1.5 px-2 py-1 sm:gap-x-2 sm:px-3 lg:gap-x-2.5 lg:px-4",
                       gridCols,
                       isTop3 && "bg-[color:var(--display-primary,#3dba96)]/8",
                     )}
@@ -210,15 +227,28 @@ export function DisplaySessionLeaderboard({
                     >
                       {rank}
                     </span>
-                    <div className="min-w-0 pr-1">
-                      <p className="truncate text-sm font-semibold leading-tight text-white sm:text-[15px] lg:text-base">
-                        {row.name}
-                      </p>
-                      {row.subtitle && !showGroupColumn ? (
-                        <p className="mt-0.5 truncate text-[10px] text-white/45 lg:hidden">
-                          {row.subtitle}
+                    <div className="flex min-w-0 items-center gap-2 pr-1">
+                      <TeamAvatarStack
+                        members={
+                          row.members?.length
+                            ? row.members
+                            : row.image || row.name
+                              ? [{ name: row.name, image: row.image ?? null }]
+                              : []
+                        }
+                        max={3}
+                        tone="display"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold leading-tight text-white sm:text-[15px] lg:text-base">
+                          {row.name}
                         </p>
-                      ) : null}
+                        {row.subtitle && !showGroupColumn ? (
+                          <p className="mt-0.5 truncate text-[10px] text-white/45 lg:hidden">
+                            {row.subtitle}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                     {showGroupColumn ? (
                       <p className="hidden truncate text-[11px] text-white/50 lg:block">
@@ -231,8 +261,11 @@ export function DisplaySessionLeaderboard({
                     <span className="text-center text-xs tabular-nums text-white/65 sm:text-sm">
                       {games}
                     </span>
+                    <span className="text-center text-xs font-semibold tabular-nums text-white sm:text-sm">
+                      {row.wins}
+                    </span>
                     <span className="text-center text-xs tabular-nums text-white/65 sm:text-sm">
-                      {winRate}%
+                      {row.losses}
                     </span>
                     <span
                       className={cn(
@@ -245,6 +278,9 @@ export function DisplaySessionLeaderboard({
                       )}
                     >
                       {formatDiff(row.diff)}
+                    </span>
+                    <span className="text-center text-xs tabular-nums text-white/65 sm:text-sm">
+                      {winRate}%
                     </span>
                     <span className="text-right text-sm font-bold tabular-nums text-[color:var(--display-primary,#3dba96)] sm:text-base">
                       {row.points}

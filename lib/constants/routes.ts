@@ -68,7 +68,7 @@ export const partnerPublicRoutes = {
   tournamentDisplayMatch: (partnerSlug: string, slug: string, matchId: string) =>
     `/${partnerSlug}/tournaments/${slug}/display?matchId=${encodeURIComponent(matchId)}`,
   tournamentDisplaySchedule: (partnerSlug: string, slug: string) =>
-    `/${partnerSlug}/tournaments/${slug}?tab=${encodeURIComponent("Matches")}`,
+    `/${partnerSlug}/tournaments/${slug}/display?layout=match_schedule`,
   tournamentInvite: (partnerSlug: string, slug: string) =>
     `/${partnerSlug}/tournaments/${slug}/invite`,
   tournamentRegister: (partnerSlug: string, slug: string) =>
@@ -136,7 +136,7 @@ export const publicSportRoutes = {
   tournamentDisplayCourt: (sportSlug: string, slug: string, courtId: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
   tournamentDisplaySchedule: (sportSlug: string, slug: string) =>
-    `/sports/${sportSlug}/tournaments/${slug}?tab=${encodeURIComponent("Matches")}`,
+    `/sports/${sportSlug}/tournaments/${slug}/display?layout=match_schedule`,
   tournamentInvite: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/invite`,
   tournamentClaim: (sportSlug: string, slug: string) =>

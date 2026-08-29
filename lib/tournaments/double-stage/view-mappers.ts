@@ -86,6 +86,8 @@ export function groupMatchToReclubView(
       ? `${groupName} · Round ${round}`
       : `Group stage · Round ${round}`,
     gameState: match.gameState ?? null,
+    recordedByUserId: match.recordedByUserId ?? null,
+    scorekeeperName: match.scorekeeperName ?? null,
   };
 }
 

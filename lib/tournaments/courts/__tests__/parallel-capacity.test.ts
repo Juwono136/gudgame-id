@@ -41,6 +41,7 @@ function groupMatch(
     startedAt: null,
     completedAt: null,
     courtId,
+    recordedByUserId: null,
     playOrder: null,
     roundNumber: 1,
     callStatus: "queued",

@@ -14,8 +14,12 @@ type MultiCourtDisplayCardProps = {
   courtName: string;
   teamAName: string;
   teamBName: string;
-  teamAPlayers?: string[];
-  teamBPlayers?: string[];
+  teamAPlayers?: Array<
+    string | { displayName?: string | null; name?: string | null; image?: string | null }
+  >;
+  teamBPlayers?: Array<
+    string | { displayName?: string | null; name?: string | null; image?: string | null }
+  >;
   /** Games won (race-to-N / total-N) or flat match points. */
   scoreA: number;
   scoreB: number;
@@ -94,7 +98,8 @@ export function MultiCourtDisplayCard({
               names={teamAPlayers}
               maxNames={3}
               compact
-              className="[&_li]:text-white/50 [&_svg]:text-white/35"
+              variant="avatar"
+              tone="display"
             />
           </div>
 
@@ -181,7 +186,8 @@ export function MultiCourtDisplayCard({
               maxNames={3}
               align="right"
               compact
-              className="[&_li]:text-white/50 [&_svg]:text-white/35"
+              variant="avatar"
+              tone="display"
             />
           </div>
         </div>

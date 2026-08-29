@@ -60,12 +60,18 @@ const LAYOUTS: { value: TournamentDisplayLayout; label: string; description: str
     label: "Group stage live",
     description: "Live pool / group matches across all courts",
   },
+  {
+    value: "match_schedule",
+    label: "Match schedule",
+    description: "Order of Play / fixtures board for venue TVs",
+  },
 ];
 
 const ROTATION_OPTIONS: TournamentDisplayLayout[] = [
   "multi_court",
   "single",
   "group_stage",
+  "match_schedule",
   "leaderboard",
   "bracket",
 ];
@@ -74,7 +80,6 @@ const DISPLAY_URL_PRESETS: {
   layout?: TournamentDisplayLayout;
   label: string;
   description: string;
-  schedule?: boolean;
 }[] = [
   { label: "Featured court (default)", description: "Single live match full-screen", layout: "single" },
   { label: "Multi-court grid", description: "All live courts at once", layout: "multi_court" },
@@ -83,8 +88,8 @@ const DISPLAY_URL_PRESETS: {
   { label: "Knockout bracket", description: "Full elimination tree with connectors", layout: "bracket" },
   {
     label: "Match schedule",
-    description: "Public Order of Play / fixtures board (not full-screen TV)",
-    schedule: true,
+    description: "Order of Play / fixtures board (fullscreen TV)",
+    layout: "match_schedule",
   },
 ];
 
@@ -166,11 +171,7 @@ export function DisplayControlPanel({
 
   const copyPresetUrl = async (preset: (typeof DISPLAY_URL_PRESETS)[number]) => {
     let path: string;
-    if (preset.schedule) {
-      path = usePartnerDisplay
-        ? partnerPublicRoutes.tournamentDisplaySchedule(partnerSlug!, tournament.slug)
-        : publicSportRoutes.tournamentDisplaySchedule(tournament.sportSlug, tournament.slug);
-    } else if (preset.layout) {
+    if (preset.layout) {
       path = usePartnerDisplay
         ? partnerPublicRoutes.tournamentDisplayLayout(partnerSlug!, tournament.slug, preset.layout)
         : publicSportRoutes.tournamentDisplayLayout(
@@ -318,8 +319,9 @@ export function DisplayControlPanel({
               <span>
                 <span className="block text-sm font-semibold text-foreground">Auto-play slideshow</span>
                 <span className="mt-0.5 block text-xs text-cp-muted">
-                  Cycle through single match, multi-court, group stage, leaderboard, and bracket
-                  views with smooth transitions.
+                  Cycle layouts on the main display URL only. Links with{" "}
+                  <code className="rounded bg-cp-elevated px-1 py-px text-[10px]">?layout=</code>{" "}
+                  stay pinned (no auto-slide).
                 </span>
               </span>
             </button>

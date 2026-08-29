@@ -10,7 +10,9 @@ import { assertTournamentManagePageAccess } from "@/lib/tournaments/manage-acces
 import {
   buildTournamentSettings,
   getTournamentDisplayConfig,
+  isTournamentDisplayLayout,
   MAX_DISPLAY_SPONSOR_BANNERS,
+  TOURNAMENT_DISPLAY_LAYOUTS,
   type TournamentDisplayConfig,
   type TournamentDisplayLayout,
   type TournamentDisplaySponsorBanner,
@@ -20,13 +22,7 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
 import { deleteObject } from "@/lib/storage/client";
 
-const VALID_LAYOUTS: TournamentDisplayLayout[] = [
-  "single",
-  "multi_court",
-  "bracket",
-  "leaderboard",
-  "rotation",
-];
+const VALID_LAYOUTS: TournamentDisplayLayout[] = [...TOURNAMENT_DISPLAY_LAYOUTS];
 
 export type DisplayConfigPatch = {
   layout: TournamentDisplayLayout;
@@ -90,12 +86,14 @@ export async function patchTournamentDisplayConfig(
 ): Promise<TournamentDisplayConfig> {
   await assertDisplayOrganizerAccess(tournament, userId, roles);
 
-  if (!VALID_LAYOUTS.includes(patch.layout)) {
+  if (!isTournamentDisplayLayout(patch.layout) || !VALID_LAYOUTS.includes(patch.layout)) {
     throw new AppError("Invalid display layout", { code: "VALIDATION_ERROR", statusCode: 422 });
   }
 
   const previous = getTournamentDisplayConfig(tournament);
-  const rotationLayouts = (patch.rotationLayouts ?? []).filter((l) => VALID_LAYOUTS.includes(l));
+  const rotationLayouts = (patch.rotationLayouts ?? []).filter(
+    (l) => isTournamentDisplayLayout(l) && l !== "rotation" && VALID_LAYOUTS.includes(l),
+  );
   const autoRotate = patch.autoRotate ?? false;
   const interval = clampDisplayRotationIntervalSec(patch.rotationIntervalSec);
 

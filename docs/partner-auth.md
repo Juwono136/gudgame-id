@@ -301,11 +301,12 @@ Setiap match selesai (group / bracket / Americano / reclub) pada turnamen `partn
 
 Jika member sudah login, form registrasi turnamen:
 
-1. Mengisi captain (nama, email, **phone** jika ada nomor nyata di profil) dari session `/auth/me` via state form — **bukan** `reset(fn)` (RHF tidak mendukung functional updater).
-2. Email captain dikunci ke email member agar sync statistik tetap valid.
-3. Akun Google tanpa nomor nyata: phone kosong + hint “Add your phone…” (placeholder `p…` di DB tidak di-autofill).
+1. **Signed-in member (parity Gud Game Official):** Kartu captain menampilkan nama saja — **tanpa** input Full name / Email / Phone — hanya bila session memiliki `playerId` + email. Kontak diambil dari session `/auth/me` + baris `partner_players` di server (body palsu diabaikan bila session cocok). Session tanpa `playerId` tetap memakai form guest (nama/email/phone).
+2. Email tetap terikat identitas member agar sync statistik valid.
+3. Akun Google tanpa nomor nyata: hint opsional ke `/{partnerSlug}/account`; registrasi tetap jalan memakai baris player yang ada.
 4. API menempelkan `partnerPlayerId` / `identityId` yang sama (email harus cocok) agar statistik tidak terpecah ke baris guest baru.
-5. Copy section captain membedakan guest vs member (bukan “No Gud Game account…” saat sudah login member).
+5. **Guest:** Full name, email, dan phone tetap wajib di form.
+6. Copy section captain membedakan guest vs member (bukan “No Gud Game account…” saat sudah login member).
 
 ### Teammate claimable (default)
 

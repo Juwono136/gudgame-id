@@ -194,7 +194,7 @@ export async function startPartnerGuestRegistration(
     {
       fullName: captainName,
       email: captainEmail,
-      phone: input.captain.phone,
+      phone: input.captain.phone?.trim() ?? "",
     },
     {
       preferPlayerId: options?.sessionPlayerId,
@@ -275,7 +275,7 @@ export async function startPartnerGuestRegistration(
       partnerPlayerId: captainPlayer.id,
       fullName: captainPlayer.fullName,
       email: captainEmail,
-      phone: input.captain.phone.trim(),
+      phone: (input.captain.phone?.trim() || captainPlayer.phone) ?? "",
       roleOrder: 0,
       isCaptain: true,
     },

@@ -7,7 +7,8 @@ import { Loader2 } from "lucide-react";
 import { DisplayIdleScoreboard } from "@/components/tournaments/display/display-idle-scoreboard";
 import { DisplayBracketSlide } from "@/components/tournaments/display/display-bracket-slide";
 import { DisplayGroupStageSlide } from "@/components/tournaments/display/display-group-stage-slide";
-import { DisplaySessionLeaderboard } from "@/components/tournaments/display/display-session-leaderboard";
+import { DisplayMatchScheduleSlide } from "@/components/tournaments/display/display-match-schedule-slide";
+import { DisplaySessionLeaderboard, type DisplayLeaderboardRow } from "@/components/tournaments/display/display-session-leaderboard";
 import { DisplaySponsorStrip } from "@/components/tournaments/display/display-sponsor-strip";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
 import { DisplayVenueControls } from "@/components/tournaments/display/display-venue-controls";
@@ -24,9 +25,12 @@ import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { isOfficialType } from "@/lib/tournaments/core/types";
 import { isMatchLiveForTournament } from "@/lib/tournaments/match-display-status";
-import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
+import { resolveCourtLabel, resolveFeaturedCourtLabel, isPlausibleCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import type { MatchGameState } from "@/lib/tournaments/scoring/game-mode";
-import type { TournamentDisplayLayout } from "@/lib/tournaments/settings";
+import {
+  isTournamentDisplayLayout,
+  type TournamentDisplayLayout,
+} from "@/lib/tournaments/settings";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { resolveGamesDisplayMode } from "@/lib/tournaments/live/display-scoring";
 
@@ -44,6 +48,8 @@ type LiveMatchView = {
   type?: string;
   roundNumber?: number;
   matchNumber?: number;
+  teamAId?: string | null;
+  teamBId?: string | null;
   teamAName?: string | null;
   teamBName?: string | null;
   teamAPlayers?: string[];
@@ -58,10 +64,51 @@ type LiveMatchView = {
   scorekeeperName?: string | null;
 };
 
+type DisplayRosterPlayer = {
+  displayName: string;
+  image: string | null;
+};
+
+function buildPlayersByTeamId(
+  squads: Array<{
+    teamId: string;
+    members: Array<{ name: string | null; image: string | null }>;
+  }> | null | undefined,
+): Map<string, DisplayRosterPlayer[]> {
+  const map = new Map<string, DisplayRosterPlayer[]>();
+  for (const squad of squads ?? []) {
+    map.set(
+      squad.teamId,
+      squad.members
+        .map((m) => ({
+          displayName: m.name?.trim() || "Player",
+          image: m.image ?? null,
+        }))
+        .filter((m) => m.displayName),
+    );
+  }
+  return map;
+}
+
+function resolveDisplayRoster(
+  teamId: string | null | undefined,
+  fallbackNames: string[] | undefined,
+  playersByTeam: Map<string, DisplayRosterPlayer[]>,
+): DisplayRosterPlayer[] {
+  if (teamId && playersByTeam.has(teamId)) {
+    return playersByTeam.get(teamId) ?? [];
+  }
+  return (fallbackNames ?? [])
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((displayName) => ({ displayName, image: null }));
+}
+
 const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
   "multi_court",
   "single",
   "group_stage",
+  "match_schedule",
   "leaderboard",
   "bracket",
 ];
@@ -95,28 +142,27 @@ function buildSubtitle(
   tournamentName: string,
   match: LiveMatchView,
   isOfficial: boolean,
-  courtLabel?: string,
   isPartnerEvent = false,
 ) {
-  const courtPrefix = courtLabel ? `${courtLabel} · ` : "";
+  // Court lives in the scoreboard footer — keep subtitle as tournament context only.
   if (match.type === "bracket") {
     const round = match.roundNumber != null ? `Round ${match.roundNumber}` : "Bracket";
     const matchNo =
       match.matchNumber != null ? ` · Match ${match.matchNumber}` : "";
-    return `${courtPrefix}${tournamentName} · ${round}${matchNo}`;
+    return `${tournamentName} · ${round}${matchNo}`;
   }
 
   if (match.type === "lobby_round" || match.type === "americano_round") {
-    return `${courtPrefix}${tournamentName} · Live Round ${match.roundNumber ?? ""}`.trim();
+    return `${tournamentName} · Live Round ${match.roundNumber ?? ""}`.trim();
   }
 
   if (isPartnerEvent) {
-    return `${courtPrefix}${tournamentName} · Live`;
+    return `${tournamentName} · Live`;
   }
 
   return isOfficial
-    ? `${courtPrefix}${tournamentName} · Official live`
-    : `${courtPrefix}${tournamentName} · Fun Match live`;
+    ? `${tournamentName} · Official live`
+    : `${tournamentName} · Fun Match live`;
 }
 
 function resolveMatchForCourt(
@@ -154,8 +200,11 @@ export function TournamentDisplayClient({
   const searchParams = useSearchParams();
   const matchId = searchParams.get("matchId");
   const courtIdParam = searchParams.get("courtId");
-  const layoutParam = searchParams.get("layout") as TournamentDisplayLayout | null;
-  const isPinned = Boolean(matchId || courtIdParam);
+  const layoutParamRaw = searchParams.get("layout");
+  const layoutParam = isTournamentDisplayLayout(layoutParamRaw) ? layoutParamRaw : null;
+  /** URL `layout=` pins this TV to one board — never auto-rotate over it. */
+  const layoutPinnedByUrl = Boolean(layoutParam && layoutParam !== "rotation");
+  const isCourtOrMatchPinned = Boolean(matchId || courtIdParam);
   const { data, isLoading, isError, refetch, isFetching } = useTournamentLive(
     sportSlug,
     slug,
@@ -167,11 +216,22 @@ export function TournamentDisplayClient({
 
   const layout: TournamentDisplayLayout = useMemo(() => {
     if (courtIdParam) return layoutParam ?? "single";
+    // Explicit layout query always wins over saved autoRotate / rotation preset.
+    if (layoutPinnedByUrl && layoutParam) return layoutParam;
     const cfg = data?.displayConfig;
     if (cfg?.autoRotate || cfg?.layout === "rotation") return "rotation";
     if (layoutParam) return layoutParam;
-    return (cfg?.layout as TournamentDisplayLayout | undefined) ?? (isOfficialType(data?.tournament.tournamentType ?? "") ? "single" : "multi_court");
-  }, [courtIdParam, data?.displayConfig, data?.tournament.tournamentType, layoutParam]);
+    return (
+      (cfg?.layout as TournamentDisplayLayout | undefined) ??
+      (isOfficialType(data?.tournament.tournamentType ?? "") ? "single" : "multi_court")
+    );
+  }, [
+    courtIdParam,
+    data?.displayConfig,
+    data?.tournament.tournamentType,
+    layoutParam,
+    layoutPinnedByUrl,
+  ]);
 
   const rotationLayouts = useMemo((): TournamentDisplayLayout[] => {
     const fromCfg = data?.displayConfig?.rotationLayouts;
@@ -189,13 +249,18 @@ export function TournamentDisplayClient({
   }, [layout, rotationIndex, rotationLayouts]);
 
   useEffect(() => {
-    if (layout !== "rotation") return;
+    if (layout !== "rotation" || layoutPinnedByUrl) return;
     const intervalSec = data?.displayConfig?.rotationIntervalSec ?? 15;
     const id = setInterval(() => {
       setRotationIndex((i) => i + 1);
     }, intervalSec * 1000);
     return () => clearInterval(id);
-  }, [data?.displayConfig?.rotationIntervalSec, layout, rotationLayouts.length]);
+  }, [
+    data?.displayConfig?.rotationIntervalSec,
+    layout,
+    layoutPinnedByUrl,
+    rotationLayouts.length,
+  ]);
 
   useEffect(() => {
     setRotationIndex(0);
@@ -303,7 +368,8 @@ export function TournamentDisplayClient({
 
   const pinnedCourtLabel = useMemo(() => {
     if (!courtIdParam || !data?.courts) return undefined;
-    return resolveCourtLabel(courtIdParam, data.courts);
+    const label = resolveCourtLabel(courtIdParam, data.courts);
+    return isPlausibleCourtLabel(label) ? label : undefined;
   }, [courtIdParam, data?.courts]);
 
   const featuredMatch = useMemo(() => {
@@ -314,13 +380,29 @@ export function TournamentDisplayClient({
     return activeMatch;
   }, [activeMatch, activeMatches, courtIdParam, featuredIndex]);
 
+  const featuredCourtLabel = useMemo(
+    () =>
+      resolveFeaturedCourtLabel({
+        match: featuredMatch,
+        courts: data?.courts ?? [],
+        activeMatches,
+        pinnedLabel: pinnedCourtLabel,
+      }),
+    [activeMatches, data?.courts, featuredMatch, pinnedCourtLabel],
+  );
+
+  const playersByTeamId = useMemo(
+    () => buildPlayersByTeamId(data?.players),
+    [data?.players],
+  );
+
   useEffect(() => {
-    if (effectiveLayout !== "single" || activeMatches.length <= 1 || isPinned) return;
+    if (effectiveLayout !== "single" || activeMatches.length <= 1 || isCourtOrMatchPinned) return;
     const id = setInterval(() => {
       setFeaturedIndex((i) => i + 1);
     }, 10_000);
     return () => clearInterval(id);
-  }, [activeMatches.length, effectiveLayout, isPinned]);
+  }, [activeMatches.length, effectiveLayout, isCourtOrMatchPinned]);
 
   useEffect(() => {
     setFeaturedIndex(0);
@@ -419,17 +501,19 @@ export function TournamentDisplayClient({
           )) {
             const m = matchByCourtId.get(court.id);
             if (m?.teamAName && m.teamBName) {
-              liveCards.push({ key: court.id, courtName: court.name, match: m });
+              const courtName = isPlausibleCourtLabel(court.name)
+                ? court.name.trim()
+                : resolveCourtLabel(court.id, sortedCourts);
+              liveCards.push({ key: court.id, courtName, match: m });
             }
           }
         } else {
           for (const m of activeMatches.slice(pageStart, pageStart + MULTI_COURT_PER_SLIDE)) {
-            const court = sortedCourts.find((c) => c.id === m.courtId);
-            const courtLabel =
-              court?.name ??
-              (m.type === "bracket"
-                ? `Bracket · R${m.roundNumber ?? "?"}${m.matchNumber != null ? ` M${m.matchNumber}` : ""}`
-                : "Court");
+            const courtLabel = resolveFeaturedCourtLabel({
+              match: m,
+              courts: sortedCourts,
+              activeMatches,
+            });
             liveCards.push({ key: m.id, courtName: courtLabel, match: m });
           }
         }
@@ -449,14 +533,24 @@ export function TournamentDisplayClient({
               >
                 {liveCards.map(({ key, courtName, match: m }) => {
                   const gamesMode = resolveGamesDisplayMode(data.scoring, m);
+                  const rosterA = resolveDisplayRoster(
+                    m.teamAId,
+                    m.teamAPlayers,
+                    playersByTeamId,
+                  );
+                  const rosterB = resolveDisplayRoster(
+                    m.teamBId,
+                    m.teamBPlayers,
+                    playersByTeamId,
+                  );
                   return (
                     <MultiCourtDisplayCard
                       key={key}
                       courtName={courtName}
                       teamAName={m.teamAName!}
                       teamBName={m.teamBName!}
-                      teamAPlayers={m.teamAPlayers}
-                      teamBPlayers={m.teamBPlayers}
+                      teamAPlayers={rosterA}
+                      teamBPlayers={rosterB}
                       scoreA={m.scoreA ?? 0}
                       scoreB={m.scoreB ?? 0}
                       startedAt={m.startedAt}
@@ -484,6 +578,62 @@ export function TournamentDisplayClient({
       }
 
       case "leaderboard": {
+        const groupStandingsRows: DisplayLeaderboardRow[] = [];
+        for (const group of data.doubleStage?.groups ?? []) {
+          const g = group as {
+            name?: string;
+            standings?: Array<{
+              teamId?: string | null;
+              teamName?: string;
+              players?: Array<{
+                displayName?: string;
+                image?: string | null;
+              }>;
+              played?: number;
+              wins?: number;
+              losses?: number;
+              draws?: number;
+              winRate?: number;
+              scoreDiff?: number;
+              points?: number;
+            }>;
+          };
+          for (const standing of g.standings ?? []) {
+            if (!standing.teamId) continue;
+            const fromStanding = (standing.players ?? [])
+              .map((p) => ({
+                name: p.displayName?.trim() || "",
+                image: p.image ?? null,
+              }))
+              .filter((p) => p.name);
+            const fromSquad = (playersByTeamId.get(standing.teamId) ?? []).map((p) => ({
+              name: p.displayName,
+              image: p.image,
+            }));
+            const members = fromStanding.length > 0 ? fromStanding : fromSquad;
+            groupStandingsRows.push({
+              id: standing.teamId,
+              name: standing.teamName ?? "Team",
+              subtitle: members.map((p) => p.name).join(", "),
+              members,
+              groupName: g.name ?? null,
+              wins: standing.wins ?? 0,
+              losses: standing.losses ?? 0,
+              ties: standing.draws ?? 0,
+              games: standing.played ?? 0,
+              winRate: standing.winRate ?? 0,
+              diff: standing.scoreDiff ?? 0,
+              points: standing.points ?? 0,
+            });
+          }
+        }
+        groupStandingsRows.sort(
+          (a, b) =>
+            b.points - a.points ||
+            b.wins - a.wins ||
+            (b.diff ?? 0) - (a.diff ?? 0),
+        );
+
         const teamRows = [...(data.playerStats?.teams ?? [])].sort(
           (a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor,
         );
@@ -509,45 +659,64 @@ export function TournamentDisplayClient({
             }
           }
         }
-        const showGroupColumn = groupByTeamId.size > 0;
+        const showGroupColumn =
+          groupStandingsRows.some((r) => Boolean(r.groupName)) || groupByTeamId.size > 0;
         const leaderboardRows =
-          teamRows.length > 0
-            ? teamRows.map((t) => ({
-                id: t.teamId ?? t.name,
-                name: t.name,
-                subtitle: (t.teamId ? playersByTeam.get(t.teamId) : undefined)?.join(", "),
-                groupName: t.teamId ? groupByTeamId.get(t.teamId) : null,
-                wins: t.wins,
-                losses: t.losses,
-                ties: t.draws,
-                games: t.played,
-                winRate: t.winRate,
-                diff: t.pointsFor - t.pointsAgainst,
-                points: t.pointsFor,
-              }))
-            : playerRows.map((p) => ({
-                id: p.userId,
-                name: p.displayName,
-                subtitle: p.teamName,
-                groupName: null,
-                wins: p.teamWins,
-                losses: p.teamLosses,
-                ties: 0,
-                games: p.teamPlayed,
-                winRate:
-                  p.teamPlayed > 0
-                    ? Math.round((p.teamWins / p.teamPlayed) * 100)
-                    : 0,
-                diff: p.teamPointsFor - p.teamPointsAgainst,
-                points: p.teamPointsFor,
-              }));
+          groupStandingsRows.length > 0
+            ? groupStandingsRows
+            : teamRows.length > 0
+              ? teamRows.map((t) => {
+                  const members = t.teamId
+                    ? (playersByTeamId.get(t.teamId) ?? []).map((p) => ({
+                        name: p.displayName,
+                        image: p.image,
+                      }))
+                    : (playersByTeam.get(t.teamId ?? t.name) ?? []).map((name) => ({
+                        name,
+                        image: null as string | null,
+                      }));
+                  return {
+                    id: t.teamId ?? t.name,
+                    name: t.name,
+                    subtitle: members.map((m) => m.name).join(", "),
+                    members,
+                    groupName: t.teamId ? groupByTeamId.get(t.teamId) : null,
+                    wins: t.wins,
+                    losses: t.losses,
+                    ties: t.draws,
+                    games: t.played,
+                    winRate: t.winRate,
+                    diff: t.pointsFor - t.pointsAgainst,
+                    points: t.pointsFor,
+                  };
+                })
+              : playerRows.map((p) => ({
+                  id: p.userId,
+                  name: p.displayName,
+                  subtitle: p.teamName,
+                  image: p.image ?? null,
+                  members: [{ name: p.displayName, image: p.image ?? null }],
+                  groupName: null,
+                  wins: p.teamWins,
+                  losses: p.teamLosses,
+                  ties: 0,
+                  games: p.teamPlayed,
+                  winRate:
+                    p.teamPlayed > 0
+                      ? Math.round((p.teamWins / p.teamPlayed) * 100)
+                      : 0,
+                  diff: p.teamPointsFor - p.teamPointsAgainst,
+                  points: p.teamPointsFor,
+                }));
 
         return (
           <div className="relative h-full min-h-0" key={slideKey}>
             <DisplaySessionLeaderboard
               tournamentName={data.tournament.name}
               title="Session leaderboard"
-              entityLabel={teamRows.length > 0 ? "Team" : "Player"}
+              entityLabel={
+                groupStandingsRows.length > 0 || teamRows.length > 0 ? "Team" : "Player"
+              }
               rows={leaderboardRows}
               showGroupColumn={showGroupColumn}
             />
@@ -568,6 +737,25 @@ export function TournamentDisplayClient({
                 courts: data.courts,
                 scoring: data.scoring,
                 tournament: data.tournament,
+              }}
+            />
+          </div>
+        );
+
+      case "match_schedule":
+        return (
+          <div
+            className="animate-in fade-in h-full min-h-0 overflow-hidden duration-500"
+            key={slideKey}
+          >
+            <DisplayMatchScheduleSlide
+              tournamentName={data.tournament.name}
+              liveData={{
+                matches: data.matches,
+                courts: data.courts,
+                bracket: data.bracket,
+                tournament: data.tournament,
+                doubleStage: data.doubleStage,
               }}
             />
           </div>
@@ -623,7 +811,6 @@ export function TournamentDisplayClient({
     data.tournament.name,
     featuredMatch,
     isOfficial,
-    pinnedCourtLabel,
     isPartnerEvent,
   );
   const isLiveNow = isMatchLiveForTournament(
@@ -642,18 +829,30 @@ export function TournamentDisplayClient({
           Live
         </div>
       ) : null}
-      {activeMatches.length > 1 && !isPinned ? (
+      {activeMatches.length > 1 && !isCourtOrMatchPinned ? (
         <p className="pointer-events-none absolute right-4 top-4 z-10 text-xs text-white/50 sm:right-6">
           Court {featuredIndex % activeMatches.length + 1} of {activeMatches.length}
         </p>
       ) : null}
       {(() => {
         const gamesMode = resolveGamesDisplayMode(data.scoring, featuredMatch);
+        const rosterA = resolveDisplayRoster(
+          featuredMatch.teamAId,
+          featuredMatch.teamAPlayers,
+          playersByTeamId,
+        );
+        const rosterB = resolveDisplayRoster(
+          featuredMatch.teamBId,
+          featuredMatch.teamBPlayers,
+          playersByTeamId,
+        );
         if (gamesMode) {
           return (
             <LiveGameRaceDisplay
               teamAName={featuredMatch.teamAName}
               teamBName={featuredMatch.teamBName}
+              teamAPlayers={rosterA}
+              teamBPlayers={rosterB}
               gamesA={featuredMatch.scoreA ?? 0}
               gamesB={featuredMatch.scoreB ?? 0}
               pointsA={gamesMode.pointsA}
@@ -667,7 +866,7 @@ export function TournamentDisplayClient({
               timerEndsAt={featuredMatch.timerEndsAt}
               estimatedDurationMinutes={data.scoring?.roundDurationMinutes ?? null}
               scorekeeperName={featuredMatch.scorekeeperName}
-              courtLabel={subtitle?.split("•")[0]?.trim() ?? null}
+              courtLabel={featuredCourtLabel ?? null}
               subtitle={subtitle}
               className="bg-transparent"
             />

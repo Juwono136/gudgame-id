@@ -100,7 +100,7 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 | Format | **Original** atau **Custom** match family — sama Official: Americano, Group only, Knockout, Double stage, Mexicano; Original + **Swiss**; Custom + **Modified Swiss** |
 | Category | **Wajib** (Male / Female / Mix) |
 | Create wizard | **3 step:** (1) Event info — name, schedule, registration close, series, entry fee, category, banner, description, venue; (2) Format & capacity — match family, format, scoring, courts, max teams, pool; (3) Review |
-| Guest registration | Claimable teammates (nama + email/phone); search `partner_players`; soft name-only fallback; UI parity Official register (lihat §9.5) |
+| Guest registration | Member signed-in: captain contacts dari session (tanpa form nama/email/phone). Guest: claimable teammates (nama + email/phone); search `partner_players`; soft name-only fallback; UI parity Official register (lihat §9.5 / partner-auth) |
 | **Create → public → manage sync** | Format, pool, classic/race scoring, courts, billing, `playersPerTeam`, Americano `maxRounds`, 3rd-place — label Overview & manage dashboard mengikuti create (lihat §8.5) |
 | **Member auth** | Login/sign-up di `/{slug}/login` (email/password **atau Google**) — identitas terpisah dari Gud Game & partner lain (lihat [`docs/partner-auth.md`](./partner-auth.md)) |
 | **Staff auth** | Tetap Gud Game `/login` → `/dashboard/partner` |
@@ -639,8 +639,8 @@ API menolak operasi ilegal (contoh: generate KO pada `group_only` / `mexicano`; 
 | **Group round sync** | Live payload menyertakan `roundNumber` / `roundLabel`; fixture pending ikut agar tab Round publik = manage. |
 | **Standings grup** | Tab Groups publik termasuk semua meetings + kolom WR. |
 | **Knockout series** | Parent slot + legs; advance setelah mayoritas; pohon publik memakai parent slots. |
-| **Schedule / Order of Play** | Host edit di manage **Match Schedule**; publik tab Matches read-only. |
-| **Roster display** | `TeamPlayerList` (ikon + baris) di Groups / Matches / Live Score / History / bracket. |
+| **Schedule / Order of Play** | Host edit di manage **Match Schedule**; publik tab Matches read-only. Kartu mobile: layout **Team A \| waktu \| Team B** (bukan stack vertikal), court pill hijau di bawah. |
+| **Roster display** | `TeamPlayerList` — `icon` (default) atau `avatar` + initials fallback; venue TV memakai `tone=display`. |
 | **Bracket tree roster** | Tinggi kartu menyesuaikan roster (hingga 6 pemain/side, sisanya `+N more`) agar connector tidak clipping. |
 | **Live timer** | `LiveMatchTimer` di Live Score publik, manage, dan venue display. |
 | **Live scoring dual surface** | Command center vs Courtside fullscreen; idle courts collapsed saat ada live; rematch completed hanya lewat konfirmasi Play again. |
@@ -674,9 +674,19 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Wizard partner:** `components/partners/partner-tournament-wizard.tsx` — tidak ada short summary; **Series** (dulu League) opsional di Step 1.
 
-**Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `group_stage`, `bracket`, `leaderboard`, `rotation`.
+**Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `group_stage`, `match_schedule`, `bracket`, `leaderboard`, `rotation`.
 
-**Leaderboard (manage + publik + TV):** Tabel compact dengan kolom **G** (total game), **WR%**, **Diff** (+/−), plus W-L-T / P. Nama player sedikit diperbesar; team & player lebih rapat. TV leaderboard (`display-session-leaderboard.tsx`) menambah kolom yang sama + **Group** bila double-stage; ruang bawah untuk sponsor banner.
+**URL pin (no auto-slide):** Query `?layout=<preset>` **selalu menang** atas Auto-play slideshow — TV tetap di layout itu. Auto-rotate hanya berlaku pada URL display utama tanpa `layout=`.
+
+**Match schedule TV:** Layout `match_schedule` fullscreen Order of Play / By day / By court (`display-match-schedule-slide.tsx`). Copy URL: `…/display?layout=match_schedule`.
+
+**Group stage preset:** Dapat di-save (VALID_LAYOUTS mencakup `group_stage`). Board menampilkan fixture pool live, upcoming, atau selesai — tidak hanya saat in-progress.
+
+**Court footer label:** Kartu featured menampilkan label court nyata lewat `resolveFeaturedCourtLabel` / `resolveCourtLabel` + sanitizer `isPlausibleCourtLabel` (menolak string status seperti `"Event · Live"`). Subtitle TV hanya konteks turnamen — Court selalu di footer.
+
+**Leaderboard (manage + publik + TV):** Kolom **G** (matches), **W**, **L**, **S** (score diff / games W–L per format), **WR%**, **P**. Avatar profil di kiri nama tim/player (stack hingga 3). Data dari standings sesi / double-stage groups (bukan angka statis). TV (`display-session-leaderboard.tsx`) menambah kolom Group + Players bila double-stage; ruang bawah untuk sponsor banner.
+
+**Venue live scoreboard:** Di bawah nama tim, roster player ditampilkan dengan avatar + nama (`TeamPlayerList` variant avatar, tone display) pada single + multi-court.
 
 **Intra-game / deuce (games mode):** Skor rally 0→40 dengan milestone **15 / 30 / 40** per sisi (bukan hanya “lead”). **40–40** ditampilkan sebagai deuce; golden point / advantage / star point mengikuti `gameDecider` di rules. Manage + venue TV memakai label yang sama (`formatPadelIntraGameScoreLine`).
 
@@ -684,7 +694,7 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Knockout bracket TV:** `display-bracket-slide.tsx` menampilkan **full tree** dengan slot kosong + connector SVG (`showEmptySlots`). Nama **pemenang** (match selesai) ditandai ikon **crown** di samping nama/skor.
 
-**Venue live scoring card (multi-court + single):** Kartu TV memakai footer **Court · Scorekeeper · Duration**; skor games/points menampilkan **crown** di sisi yang unggul; skor kecil rally (15/30/40) tetap ada di tengah. Komponen: `display-multi-court-grid.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`), `display-leading-crown.tsx`.
+**Venue live scoring card (multi-court + single):** Kartu TV memakai footer **Court · Scorekeeper · Duration**; skor games/points menampilkan **crown** di sisi yang unggul; skor kecil rally (15/30/40) tetap ada di tengah. Court label hanya dari `courtId` / daftar court + `isPlausibleCourtLabel` (tidak memakai subtitle turnamen). Scorekeeper di-resolve dari `recordedByUserId`, fallback last score-event `userId`/`userName` (group / lobby / bracket). Di manage Live scoring, nama scorekeeper tampil di samping label court. Komponen: `display-multi-court-grid.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`), `fun-match-round-match-card.tsx`, `display-leading-crown.tsx`, `lib/tournaments/live/scorekeeper-names.ts`, `lib/tournaments/reclub/court-label.ts`.
 
 **Knockout seeding sebelum live:** Penempatan squad di bracket (Fun Match / partner knockout) diizinkan **sebelum** jam mulai sesi — tidak lagi memblokir dengan “Play unlocks when the session start time is reached”. Guard server: `assignTeamToBracketSlot` memakai `assertBracketSetupAllowed` + seeding lock (match sudah mulai/selesai). Client: `canArrangeBracketPairings()` di `session-lifecycle.ts`.
 
@@ -700,9 +710,10 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 | Featured court | `…/display?layout=single` |
 | Multi-court grid | `…/display?layout=multi_court` |
 | Group stage live | `…/display?layout=group_stage` |
+| Match schedule | `…/display?layout=match_schedule` |
 | Leaderboard | `…/display?layout=leaderboard` |
 | Knockout bracket | `…/display?layout=bracket` |
-| Match schedule (publik, bukan fullscreen) | `/{partnerSlug}/tournaments/{slug}?tab=Matches` |
+| Match schedule (publik tab, bukan TV) | `/{partnerSlug}/tournaments/{slug}?tab=Matches` |
 | Pin court | `…/display?courtId=…&layout=single` |
 | Pin match | `…/display?matchId=…` |
 | Manage Display | `…/manage?section=display` |
@@ -725,7 +736,7 @@ Sport route `/sports/…/display` **404** untuk event `partnerId` (isolasi white
 | Hooks | `hooks/use-tournament-live.ts`, `use-tournament-manage-scoring.ts`, `use-double-stage-group-score.ts`, `use-tournament-lobby.ts`, `use-tournament-bracket.ts` |
 | Public page | `components/tournaments/official-tournament-page.tsx` |
 | Partner public | `components/partners/partner-tournament-public-page.tsx` |
-| Venue display | `tournament-display-client.tsx`, `display-multi-court-grid.tsx`, `display/display-venue-controls.tsx`, `display-session-leaderboard.tsx`, `display-group-stage-slide.tsx`, `display-bracket-slide.tsx`, `display-sponsor-strip.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`) |
+| Venue display | `tournament-display-client.tsx`, `display-multi-court-grid.tsx`, `display/display-venue-controls.tsx`, `display-session-leaderboard.tsx`, `display-group-stage-slide.tsx`, `display-match-schedule-slide.tsx`, `display-bracket-slide.tsx`, `display-sponsor-strip.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`) |
 | Manage scoring UI | `fun-match-scoring-workspace.tsx`, `courtside-scorepad.tsx`, `fun-match-rounds-panel.tsx`, `match-round-tabs.tsx`, `fun-match-round-match-card.tsx` |
 | Display config | `lib/tournaments/display-config-service.ts`, `upload-sponsor-banner.ts`, `manage/display-sponsor-banners-panel.tsx` |
 | Partner create wizard | `components/partners/partner-tournament-wizard.tsx` |
@@ -836,7 +847,7 @@ Partner **tidak** memakai claim-token Gud Game. Setiap slot teammate menjadi bar
 | API register | `POST /api/partner/public/{partnerSlug}/tournaments/{slug}/register` |
 | API search | `GET /api/partner/public/{partnerSlug}/players/search?q=` (rate-limited; **bukan** Gud Game users) |
 
-Kapten: guest (email+phone) atau member login (autofill + email locked). Alur status tetap `registered` → Confirm → `confirmed` (atau `awaiting_payment` jika paid).
+Kapten: guest (email+phone) atau member login dengan `playerId` + email (kartu nama saja; kontak dari session/server). Session tanpa `playerId` tetap form guest. Alur status tetap `registered` → Confirm → `confirmed` (atau `awaiting_payment` jika paid).
 
 ---
 

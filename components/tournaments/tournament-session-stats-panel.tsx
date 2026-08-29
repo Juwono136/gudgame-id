@@ -122,16 +122,25 @@ function TeamStandingsTable({
               <tr className="border-b border-cp-border bg-cp-elevated/50 text-[10px] font-semibold uppercase tracking-wider text-cp-muted">
                 <th className="px-4 py-3 sm:px-5">#</th>
                 <th className="px-4 py-3">{teamLabel}</th>
-                <th className="px-4 py-3 text-center">Wins</th>
-                <th className="px-4 py-3 text-center">Losses</th>
-                <th className="px-4 py-3 text-center">Matches</th>
-                <th className="px-4 py-3 text-center">Scored</th>
-                <th className="px-4 py-3 text-center">Conceded</th>
+                <th className="px-4 py-3 text-center" title="Matches played">
+                  G
+                </th>
+                <th className="px-4 py-3 text-center" title="Match wins">
+                  W
+                </th>
+                <th className="px-4 py-3 text-center" title="Match losses">
+                  L
+                </th>
+                <th className="px-4 py-3 text-center" title="Score difference">
+                  S
+                </th>
                 <th className="px-4 py-3">Win rate</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cp-border/70">
-              {teams.map((team, i) => (
+              {teams.map((team, i) => {
+                const diff = team.pointsFor - team.pointsAgainst;
+                return (
                 <tr key={team.teamId ?? team.name} className="transition-colors hover:bg-cp-elevated/25">
                   <td className="px-4 py-3.5 text-cp-muted sm:px-5">{i + 1}</td>
                   <td className="px-4 py-3.5">
@@ -140,29 +149,34 @@ function TeamStandingsTable({
                       {team.memberCount} player{team.memberCount === 1 ? "" : "s"}
                     </p>
                   </td>
+                  <td className="px-4 py-3.5 text-center tabular-nums text-foreground">
+                    {team.played}
+                  </td>
                   <td className={cn("px-4 py-3.5 text-center font-semibold", winColor)}>
                     {team.wins}
                   </td>
                   <td className="px-4 py-3.5 text-center text-red-300/90">{team.losses}</td>
-                  <td className="px-4 py-3.5 text-center tabular-nums text-foreground">
-                    {team.played}
-                  </td>
-                  <td className="px-4 py-3.5 text-center tabular-nums text-foreground">
-                    {team.pointsFor}
-                  </td>
-                  <td className="px-4 py-3.5 text-center tabular-nums text-cp-muted">
-                    {team.pointsAgainst}
+                  <td
+                    className={cn(
+                      "px-4 py-3.5 text-center tabular-nums font-medium",
+                      diff > 0 ? winColor : diff < 0 ? "text-red-300/90" : "text-cp-muted",
+                    )}
+                  >
+                    {diff > 0 ? `+${diff}` : diff}
                   </td>
                   <td className="px-4 py-3.5">
                     <WinRateBar value={team.winRate} variant={variant} />
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
         <div className="divide-y divide-cp-border md:hidden">
-          {teams.map((team, i) => (
+          {teams.map((team, i) => {
+            const diff = team.pointsFor - team.pointsAgainst;
+            return (
             <article key={team.teamId ?? team.name} className="space-y-2 p-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -175,8 +189,7 @@ function TeamStandingsTable({
                   </p>
                 </div>
                 <Badge className={badgeClass}>
-                  {team.wins} win{team.wins === 1 ? "" : "s"} · {team.losses} loss
-                  {team.losses === 1 ? "" : "es"}
+                  {team.wins}W · {team.losses}L · {diff > 0 ? `+${diff}` : diff}S
                 </Badge>
               </div>
               <div className="flex flex-wrap gap-3 text-xs text-cp-muted">
@@ -192,7 +205,8 @@ function TeamStandingsTable({
               </div>
               <WinRateBar value={team.winRate} variant={variant} />
             </article>
-          ))}
+          );
+          })}
         </div>
       </div>
     </div>

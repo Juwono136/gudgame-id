@@ -19,6 +19,8 @@ import {
 } from "@/lib/tournaments/scoring/game-mode";
 import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
 import { DisplayLeadingCrown } from "@/components/tournaments/display/display-leading-crown";
+import { TeamPlayerList } from "@/components/tournaments/team-player-list";
+import { isPlausibleCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
 
@@ -804,6 +806,8 @@ export function GameRaceScoreBadge({
 export function LiveGameRaceDisplay({
   teamAName,
   teamBName,
+  teamAPlayers = [],
+  teamBPlayers = [],
   gamesA,
   gamesB,
   pointsA,
@@ -823,6 +827,8 @@ export function LiveGameRaceDisplay({
 }: {
   teamAName: string;
   teamBName: string;
+  teamAPlayers?: Array<string | { displayName?: string | null; name?: string | null; image?: string | null }>;
+  teamBPlayers?: Array<string | { displayName?: string | null; name?: string | null; image?: string | null }>;
   gamesA: number;
   gamesB: number;
   pointsA: number;
@@ -862,7 +868,8 @@ export function LiveGameRaceDisplay({
   const gamesLeadB = gamesB > gamesA;
   const pointsLeadA = pointsA > pointsB;
   const pointsLeadB = pointsB > pointsA;
-  const resolvedCourt = courtLabel?.trim() || subtitle?.split("•")[0]?.trim() || "Live court";
+  /** Court label only — never use tournament subtitle (avoids "Event · Live" in Court cell). */
+  const resolvedCourt = isPlausibleCourtLabel(courtLabel) ? courtLabel!.trim() : "Court —";
 
   return (
     <div
@@ -892,6 +899,13 @@ export function LiveGameRaceDisplay({
             <p className="mt-1 line-clamp-2 text-lg font-bold leading-tight text-white sm:text-2xl lg:text-3xl">
               {teamAName}
             </p>
+            <TeamPlayerList
+              names={teamAPlayers}
+              maxNames={4}
+              variant="avatar"
+              tone="display"
+              className="mt-2"
+            />
           </div>
           <div className="text-center">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
@@ -919,6 +933,14 @@ export function LiveGameRaceDisplay({
             <p className="mt-1 line-clamp-2 text-lg font-bold leading-tight text-white sm:text-2xl lg:text-3xl">
               {teamBName}
             </p>
+            <TeamPlayerList
+              names={teamBPlayers}
+              maxNames={4}
+              align="right"
+              variant="avatar"
+              tone="display"
+              className="mt-2"
+            />
           </div>
         </div>
       </div>

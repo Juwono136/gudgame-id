@@ -24,6 +24,7 @@ import { partnerPublicRoutes } from "@/lib/constants/routes";
 import { formatIdrDisplay } from "@/lib/format/currency";
 import type { PartnerPlayerSearchResult } from "@/lib/partners/registration/search-players";
 import { partnerGuestRegistrationSchema } from "@/lib/partners/registration/validation";
+import { partnerPhoneForAutofill } from "@/lib/partners/registration/phone";
 import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import { cn } from "@/lib/utils";
 
@@ -91,9 +92,11 @@ export function PartnerRegistrationForm({
 
   const partnerCount = Math.max(0, playersPerTeam - 1);
   const isSingles = partnerCount === 0;
+  const signedInMember =
+    hydrated && isAuthenticated && Boolean(session?.playerId && session.email);
   const schema = useMemo(
-    () => partnerGuestRegistrationSchema(playersPerTeam),
-    [playersPerTeam],
+    () => partnerGuestRegistrationSchema(playersPerTeam, { memberCaptain: signedInMember }),
+    [playersPerTeam, signedInMember],
   );
 
   const [captain, setCaptain] = useState({ fullName: "", email: "", phone: "" });
@@ -103,18 +106,16 @@ export function PartnerRegistrationForm({
     Array.from({ length: partnerCount }, () => emptySlot()),
   );
 
-  const signedInMember = hydrated && isAuthenticated && Boolean(session);
-
   useEffect(() => {
     if (!hydrated || !isAuthenticated || !session || captainAutofilledRef.current) {
       return;
     }
     captainAutofilledRef.current = true;
-    setCaptain((prev) => ({
-      fullName: prev.fullName.trim() || session.displayName || "",
-      email: prev.email.trim() || session.email || "",
-      phone: prev.phone.trim() || session.phone || "",
-    }));
+    setCaptain({
+      fullName: session.displayName || "",
+      email: session.email || "",
+      phone: partnerPhoneForAutofill(session.phone) ?? "",
+    });
   }, [hydrated, isAuthenticated, session]);
 
   const filledTeammates = useMemo(
@@ -187,12 +188,21 @@ export function PartnerRegistrationForm({
       };
     });
 
+    const captainFromSession =
+      signedInMember && session
+        ? {
+            fullName: session.displayName.trim(),
+            email: session.email.trim(),
+            phone: partnerPhoneForAutofill(session.phone) ?? captain.phone.trim(),
+          }
+        : {
+            fullName: captain.fullName.trim(),
+            email: captain.email.trim(),
+            phone: captain.phone.trim(),
+          };
+
     return {
-      captain: {
-        fullName: captain.fullName.trim(),
-        email: captain.email.trim(),
-        phone: captain.phone.trim(),
-      },
+      captain: captainFromSession,
       teamName: teamName.trim(),
       members,
       notes: notes.trim(),
@@ -228,7 +238,7 @@ export function PartnerRegistrationForm({
         captain: {
           fullName: parsed.data.captain.fullName,
           email: parsed.data.captain.email,
-          phone: parsed.data.captain.phone,
+          phone: parsed.data.captain.phone ?? "",
         },
         teamName: parsed.data.teamName ?? "",
         members: Array.from({ length: partnerCount }, (_, index) => {
@@ -355,8 +365,20 @@ export function PartnerRegistrationForm({
                 <>
                   <p className="mt-1 text-sm font-medium text-foreground">{session.displayName}</p>
                   <p className="text-xs text-cp-muted">
-                    Signed-in {partnerDisplayName} member — email locked for stats sync
+                    Signed-in {partnerDisplayName} member — details from your account (like Gud Game)
                   </p>
+                  {!session.phone?.trim() ? (
+                    <p className="mt-2 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
+                      Add a phone number on your{" "}
+                      <Link
+                        href={partnerPublicRoutes.account(partnerSlug)}
+                        className="font-medium underline underline-offset-2"
+                      >
+                        player profile
+                      </Link>{" "}
+                      so organizers can reach you. Registration still works with your saved account.
+                    </p>
+                  ) : null}
                 </>
               ) : (
                 <p className="mt-1 text-xs text-cp-muted">
@@ -369,54 +391,46 @@ export function PartnerRegistrationForm({
               )}
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="captain-name">Full name *</Label>
-                <Input
-                  id="captain-name"
-                  value={captain.fullName}
-                  onChange={(e) => setCaptain((c) => ({ ...c, fullName: e.target.value }))}
-                  placeholder="Jane Doe"
-                  autoComplete="name"
-                  className="border-cp-border bg-cp-bg-input"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="captain-email">Email *</Label>
-                <Input
-                  id="captain-email"
-                  type="email"
-                  value={captain.email}
-                  onChange={(e) => setCaptain((c) => ({ ...c, email: e.target.value }))}
-                  placeholder="jane@example.com"
-                  autoComplete="email"
-                  readOnly={signedInMember}
-                  className={cn(
-                    "border-cp-border bg-cp-bg-input",
-                    signedInMember && "bg-cp-elevated/40",
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="captain-phone">Phone *</Label>
-                <Input
-                  id="captain-phone"
-                  type="tel"
-                  value={captain.phone}
-                  onChange={(e) => setCaptain((c) => ({ ...c, phone: e.target.value }))}
-                  placeholder="0812xxxxxxx"
-                  autoComplete="tel"
-                  className="border-cp-border bg-cp-bg-input"
-                />
-                {!session?.phone && signedInMember ? (
-                  <p className="text-[11px] text-cp-muted">
-                    Add your phone number to complete registration.
-                  </p>
-                ) : (
+            {!signedInMember ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="captain-name">Full name *</Label>
+                  <Input
+                    id="captain-name"
+                    value={captain.fullName}
+                    onChange={(e) => setCaptain((c) => ({ ...c, fullName: e.target.value }))}
+                    placeholder="Jane Doe"
+                    autoComplete="name"
+                    className="border-cp-border bg-cp-bg-input"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="captain-email">Email *</Label>
+                  <Input
+                    id="captain-email"
+                    type="email"
+                    value={captain.email}
+                    onChange={(e) => setCaptain((c) => ({ ...c, email: e.target.value }))}
+                    placeholder="jane@example.com"
+                    autoComplete="email"
+                    className="border-cp-border bg-cp-bg-input"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="captain-phone">Phone *</Label>
+                  <Input
+                    id="captain-phone"
+                    type="tel"
+                    value={captain.phone}
+                    onChange={(e) => setCaptain((c) => ({ ...c, phone: e.target.value }))}
+                    placeholder="0812xxxxxxx"
+                    autoComplete="tel"
+                    className="border-cp-border bg-cp-bg-input"
+                  />
                   <p className="text-[11px] text-cp-muted">Indonesian mobile, e.g. 0812… or +62…</p>
-                )}
+                </div>
               </div>
-            </div>
+            ) : null}
           </section>
 
           {partnerCount > 0 ? (

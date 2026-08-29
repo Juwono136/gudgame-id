@@ -16,7 +16,7 @@ import {
   cpFunAccentTextClass,
   cpLossTextClass,
 } from "@/lib/styles/surface-classes";
-import { TeamPlayerList } from "@/components/tournaments/team-player-list";
+import { TeamAvatarStack, TeamPlayerList } from "@/components/tournaments/team-player-list";
 import { cn } from "@/lib/utils";
 
 type HistoryRow = {
@@ -205,8 +205,18 @@ export function ManageScoringHistoryPanel({
                 <thead className="sticky top-0 z-10 bg-cp-elevated/95 backdrop-blur-sm">
                   <tr className="border-b border-cp-border text-[10px] uppercase tracking-wider text-cp-muted">
                     <th className="px-3 py-2 font-semibold">Team</th>
-                    <th className="px-3 py-2 text-center font-semibold">W</th>
-                    <th className="px-3 py-2 text-center font-semibold">L</th>
+                    <th className="px-3 py-2 text-center font-semibold" title="Match wins">
+                      W
+                    </th>
+                    <th className="px-3 py-2 text-center font-semibold" title="Match losses">
+                      L
+                    </th>
+                    <th
+                      className="px-3 py-2 text-center font-semibold"
+                      title="Score difference (points for − against)"
+                    >
+                      S
+                    </th>
                     {standingsMode === "americano" ? (
                       <th className="px-3 py-2 text-center font-semibold">Pts</th>
                     ) : null}
@@ -215,19 +225,46 @@ export function ManageScoringHistoryPanel({
                 <tbody>
                   {sessionStats.teams.map((team) => {
                     const roster = playersByTeam.get(team.name) ?? [];
+                    const diff = team.pointsFor - team.pointsAgainst;
                     return (
                       <tr key={team.name} className="border-b border-cp-border/60 last:border-0">
                         <td className="px-3 py-2">
-                          <p className="font-medium text-foreground">{team.name}</p>
-                          {roster.length ? (
-                            <TeamPlayerList names={roster} maxNames={4} compact />
-                          ) : null}
+                          <div className="flex min-w-0 items-start gap-2">
+                            <TeamAvatarStack
+                              members={roster.map((name) => ({ name }))}
+                              max={3}
+                              className="mt-0.5"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground">{team.name}</p>
+                              {roster.length ? (
+                                <TeamPlayerList
+                                  names={roster}
+                                  maxNames={4}
+                                  compact
+                                  variant="avatar"
+                                />
+                              ) : null}
+                            </div>
+                          </div>
                         </td>
                         <td className={cn("px-3 py-2 text-center font-semibold", accent)}>
                           {team.wins}
                         </td>
                         <td className={cn("px-3 py-2 text-center", cpLossTextClass)}>
                           {team.losses}
+                        </td>
+                        <td
+                          className={cn(
+                            "px-3 py-2 text-center tabular-nums",
+                            diff > 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : diff < 0
+                                ? cpLossTextClass
+                                : "text-cp-muted",
+                          )}
+                        >
+                          {diff > 0 ? `+${diff}` : diff}
                         </td>
                         {standingsMode === "americano" ? (
                           <td className="px-3 py-2 text-center tabular-nums text-foreground">

@@ -237,6 +237,7 @@ export function CourtsideScorepad({
               match={activeMatch}
               courtId={activeCourt.id}
               courtName={activeCourt.name}
+              scorekeeperName={activeMatch.scorekeeperName ?? null}
               canManage={canManage}
               pointsPerMatch={pointsPerMatch}
               scoringRules={scoringRules}
