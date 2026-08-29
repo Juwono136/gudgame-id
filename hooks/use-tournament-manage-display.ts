@@ -82,6 +82,32 @@ export function useRemoveTournamentParticipant(sportSlug: string, slug: string) 
   });
 }
 
+export function useSwapTeamPair(sportSlug: string, slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (teamId: string) => {
+      const res = await fetch(
+        `/api/tournaments/${sportSlug}/${slug}/teams/${teamId}/swap-pair`,
+        { method: "POST" },
+      );
+      const json = await parseJsonResponse<{ success: boolean; data?: unknown; error?: unknown }>(
+        res,
+      );
+      if (!res.ok) {
+        throw new Error(extractApiErrorMessage(json, "Could not swap pair order"));
+      }
+      return json.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["tournaments", sportSlug, slug, "participants"] });
+      void qc.invalidateQueries({ queryKey: ["tournaments", "manage-scoring", sportSlug, slug] });
+      void qc.invalidateQueries({ queryKey: tournamentQueryKeys.live(sportSlug, slug) });
+      toast.success("Player order updated for this team");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useRemoveTournamentTeam(sportSlug: string, slug: string) {
   const qc = useQueryClient();
   return useMutation({

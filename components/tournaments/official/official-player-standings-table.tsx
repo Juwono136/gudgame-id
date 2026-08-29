@@ -28,23 +28,35 @@ function PlayerName({
   row,
   profileBasePath,
   showTeamBelow,
+  onPlayerClick,
 }: {
   row: OfficialPlayerStandingRow;
   profileBasePath?: string;
   showTeamBelow?: boolean;
+  onPlayerClick?: (row: OfficialPlayerStandingRow) => void;
 }) {
+  const nameEl = onPlayerClick ? (
+    <button
+      type="button"
+      className="block truncate text-left text-sm font-medium text-cp-primary hover:underline sm:text-[15px]"
+      onClick={() => onPlayerClick(row)}
+    >
+      {row.name}
+    </button>
+  ) : profileBasePath ? (
+    <Link
+      href={`${profileBasePath}/${row.userId}`}
+      className="block truncate font-medium text-cp-primary hover:underline sm:text-[15px]"
+    >
+      {row.name}
+    </Link>
+  ) : (
+    <span className="block truncate text-sm font-medium text-foreground sm:text-[15px]">{row.name}</span>
+  );
+
   return (
     <div className="min-w-0">
-      {profileBasePath ? (
-        <Link
-          href={`${profileBasePath}/${row.userId}`}
-          className="block truncate font-medium text-cp-primary hover:underline"
-        >
-          {row.name}
-        </Link>
-      ) : (
-        <span className="block truncate font-medium text-foreground">{row.name}</span>
-      )}
+      {nameEl}
       {showTeamBelow ? (
         <span className="mt-0.5 block truncate text-[10px] text-cp-muted">{row.teamName}</span>
       ) : null}
@@ -56,9 +68,11 @@ function PlayerName({
 function OfficialMobileStandings({
   rows,
   profileBasePath,
+  onPlayerClick,
 }: {
   rows: OfficialPlayerStandingRow[];
   profileBasePath?: string;
+  onPlayerClick?: (row: OfficialPlayerStandingRow) => void;
 }) {
   return (
     <div className="w-full md:hidden">
@@ -87,7 +101,12 @@ function OfficialMobileStandings({
               className="grid w-full grid-cols-[2rem_minmax(0,1fr)_4.75rem_2.75rem] items-center gap-x-3 py-2.5 text-xs"
             >
               <span className="tabular-nums text-cp-muted">{idx + 1}</span>
-              <PlayerName row={row} profileBasePath={profileBasePath} showTeamBelow />
+              <PlayerName
+                row={row}
+                profileBasePath={profileBasePath}
+                showTeamBelow
+                onPlayerClick={onPlayerClick}
+              />
               <span className="text-center tabular-nums text-cp-muted">
                 {row.wins}-{row.losses}-{row.ties}
               </span>
@@ -109,6 +128,7 @@ export function OfficialPlayerStandingsTable({
   hideLegend = false,
   visibleColumns,
   compactOnMobile = false,
+  onPlayerClick,
 }: {
   rows: OfficialPlayerStandingRow[];
   profileBasePath?: string;
@@ -120,6 +140,7 @@ export function OfficialPlayerStandingsTable({
    * full table from `md` up.
    */
   compactOnMobile?: boolean;
+  onPlayerClick?: (row: OfficialPlayerStandingRow) => void;
 }) {
   const cols = new Set(visibleColumns ?? ALL_OPTIONAL);
   const show = (id: OfficialStandingsColumnId) => cols.has(id);
@@ -140,7 +161,11 @@ export function OfficialPlayerStandingsTable({
   return (
     <div className={cn("w-full", className)}>
       {compactOnMobile ? (
-        <OfficialMobileStandings rows={rows} profileBasePath={profileBasePath} />
+        <OfficialMobileStandings
+          rows={rows}
+          profileBasePath={profileBasePath}
+          onPlayerClick={onPlayerClick}
+        />
       ) : null}
 
       <div
@@ -153,8 +178,8 @@ export function OfficialPlayerStandingsTable({
         <table className="w-full min-w-[36rem] text-left text-xs sm:text-sm">
           <thead className="bg-cp-elevated/50 text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:text-[11px]">
             <tr className="border-b border-cp-border">
-              <th className="px-3 py-2 sm:px-4">#</th>
-              <th className="px-2 py-2">Player</th>
+              <th className="px-2 py-1.5 sm:px-3">#</th>
+              <th className="px-2 py-1.5">Player</th>
               {show("team") ? <th className="px-2 py-2 text-left">Team</th> : null}
               {show("wlt") ? (
                 <th className={th} title={OFFICIAL_PLAYER_STAT_COLUMN_TITLES.wlt}>
@@ -203,12 +228,13 @@ export function OfficialPlayerStandingsTable({
             ) : (
               rows.map((row, idx) => (
                 <tr key={playerRowKey(row)} className="border-b border-cp-border/60 last:border-0">
-                  <td className="px-3 py-2.5 tabular-nums text-cp-muted sm:px-4">{idx + 1}</td>
-                  <td className="max-w-[9rem] px-2 py-2.5 sm:max-w-[12rem]">
+                  <td className="px-2 py-2 tabular-nums text-cp-muted sm:px-3">{idx + 1}</td>
+                  <td className="max-w-[9rem] px-2 py-2 sm:max-w-[12rem]">
                     <PlayerName
                       row={row}
                       profileBasePath={profileBasePath}
                       showTeamBelow={!show("team")}
+                      onPlayerClick={onPlayerClick}
                     />
                   </td>
                   {show("team") ? (

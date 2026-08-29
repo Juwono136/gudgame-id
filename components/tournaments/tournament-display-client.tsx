@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { DisplayIdleScoreboard } from "@/components/tournaments/display/display-idle-scoreboard";
 import { DisplayBracketSlide } from "@/components/tournaments/display/display-bracket-slide";
+import { DisplayGroupStageSlide } from "@/components/tournaments/display/display-group-stage-slide";
 import { DisplaySessionLeaderboard } from "@/components/tournaments/display/display-session-leaderboard";
 import { DisplaySponsorStrip } from "@/components/tournaments/display/display-sponsor-strip";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
@@ -59,6 +60,7 @@ type LiveMatchView = {
 const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
   "multi_court",
   "single",
+  "group_stage",
   "leaderboard",
   "bracket",
 ];
@@ -487,30 +489,54 @@ export function TournamentDisplayClient({
           (a, b) => b.teamPointsFor - a.teamPointsFor || b.teamWins - a.teamWins,
         );
         const playersByTeam = new Map<string, string[]>();
+        const groupByTeamId = new Map<string, string>();
         for (const squad of data.players ?? []) {
           playersByTeam.set(
             squad.teamId,
             squad.members.map((m) => m.name?.trim() || "Player").filter(Boolean),
           );
         }
+        for (const group of data.doubleStage?.groups ?? []) {
+          const g = group as {
+            name?: string;
+            standings?: Array<{ teamId?: string | null }>;
+          };
+          for (const standing of g.standings ?? []) {
+            if (standing.teamId && g.name) {
+              groupByTeamId.set(standing.teamId, g.name);
+            }
+          }
+        }
+        const showGroupColumn = groupByTeamId.size > 0;
         const leaderboardRows =
           teamRows.length > 0
             ? teamRows.map((t) => ({
                 id: t.teamId ?? t.name,
                 name: t.name,
                 subtitle: (t.teamId ? playersByTeam.get(t.teamId) : undefined)?.join(", "),
+                groupName: t.teamId ? groupByTeamId.get(t.teamId) : null,
                 wins: t.wins,
                 losses: t.losses,
                 ties: t.draws,
+                games: t.played,
+                winRate: t.winRate,
+                diff: t.pointsFor - t.pointsAgainst,
                 points: t.pointsFor,
               }))
             : playerRows.map((p) => ({
                 id: p.userId,
                 name: p.displayName,
                 subtitle: p.teamName,
+                groupName: null,
                 wins: p.teamWins,
                 losses: p.teamLosses,
                 ties: 0,
+                games: p.teamPlayed,
+                winRate:
+                  p.teamPlayed > 0
+                    ? Math.round((p.teamWins / p.teamPlayed) * 100)
+                    : 0,
+                diff: p.teamPointsFor - p.teamPointsAgainst,
                 points: p.teamPointsFor,
               }));
 
@@ -521,10 +547,29 @@ export function TournamentDisplayClient({
               title="Session leaderboard"
               entityLabel={teamRows.length > 0 ? "Team" : "Player"}
               rows={leaderboardRows}
+              showGroupColumn={showGroupColumn}
             />
           </div>
         );
       }
+
+      case "group_stage":
+        return (
+          <div
+            className="animate-in fade-in h-full min-h-0 overflow-hidden duration-500"
+            key={slideKey}
+          >
+            <DisplayGroupStageSlide
+              tournamentName={data.tournament.name}
+              liveData={{
+                matches: data.matches,
+                courts: data.courts,
+                scoring: data.scoring,
+                tournament: data.tournament,
+              }}
+            />
+          </div>
+        );
 
       case "bracket": {
         const bracketMatches = (data.bracket?.matches ?? []) as BracketMatchView[];
@@ -615,6 +660,10 @@ export function TournamentDisplayClient({
               pointsToWinGame={gamesMode.pointsToWinGame}
               lengthMode={gamesMode.lengthMode}
               classicSets={gamesMode.classicSets}
+              gameDecider={gamesMode.gameDecider}
+              startedAt={featuredMatch.startedAt}
+              timerEndsAt={featuredMatch.timerEndsAt}
+              estimatedDurationMinutes={data.scoring?.roundDurationMinutes ?? null}
               subtitle={subtitle}
               className="bg-transparent"
             />

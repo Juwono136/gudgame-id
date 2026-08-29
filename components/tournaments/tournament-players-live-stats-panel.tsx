@@ -39,6 +39,7 @@ type ManageScoringHistoryPanelProps = {
   variant: "official" | "reclub";
   standingsMode?: "americano" | "elimination";
   isLoading?: boolean;
+  onMatchClick?: (row: HistoryRow) => void;
 };
 
 function formatHistoryRoundLabel(m: ReclubMatchView): string {
@@ -123,6 +124,7 @@ export function ManageScoringHistoryPanel({
   variant,
   standingsMode = "americano",
   isLoading,
+  onMatchClick,
 }: ManageScoringHistoryPanelProps) {
   const accent = variant === "official" ? "text-cp-primary" : cpFunAccentTextClass;
   const completed = buildHistoryRows(matches, bracketMatches);
@@ -258,10 +260,16 @@ export function ManageScoringHistoryPanel({
         ) : (
           <ul className="mt-3 divide-y divide-cp-border/60">
             {[...completed].slice(0, 24).map((m) => (
-                <li
-                  key={m.id}
-                  className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full flex-col gap-1 py-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between",
+                      onMatchClick && "rounded-xl px-2 hover:bg-cp-elevated/25",
+                    )}
+                    onClick={onMatchClick ? () => onMatchClick(m) : undefined}
+                    disabled={!onMatchClick}
+                  >
                   <div className="min-w-0">
                     <p className="break-words text-sm font-medium text-foreground">
                       {m.teamAName ?? "Team A"}{" "}
@@ -292,6 +300,7 @@ export function ManageScoringHistoryPanel({
                     <span className="mx-1 text-cp-muted">:</span>
                     {m.scoreB ?? 0}
                   </p>
+                  </button>
                 </li>
               ))}
           </ul>

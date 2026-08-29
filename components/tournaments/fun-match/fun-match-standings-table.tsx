@@ -154,8 +154,8 @@ export function FunMatchPlayerStandingsTable({
         <table className="w-full min-w-[32rem] text-left text-xs sm:text-sm">
           <thead className="bg-cp-elevated/50 text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:text-[11px]">
             <tr className="border-b border-cp-border">
-              <th className="px-3 py-2 sm:px-4">#</th>
-              <th className="px-2 py-2">Player</th>
+              <th className="px-2 py-1.5 sm:px-3">#</th>
+              <th className="px-2 py-1.5">Player</th>
               {show("squad") ? <th className="px-2 py-2">Squad</th> : null}
               {columns.map((c) => (
                 <th

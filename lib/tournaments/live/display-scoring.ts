@@ -20,6 +20,7 @@ export function resolveGamesDisplayMode(
       pointsToWinGame: number;
       lengthMode: "race_to" | "total";
       classicSets?: boolean;
+      gameDecider?: "golden_point" | "star_point" | "advantage";
     }
   | undefined {
   if (!scoring || scoring.matchScoreMode !== "games") return undefined;
@@ -32,5 +33,6 @@ export function resolveGamesDisplayMode(
     pointsToWinGame: scoring.pointsToWinGame ?? 40,
     lengthMode: scoring.lengthMode ?? "race_to",
     classicSets: scoring.classicSets === true,
+    gameDecider: scoring.gameDecider ?? "golden_point",
   };
 }

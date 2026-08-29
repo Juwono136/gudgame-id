@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Minus, Pencil, Play, Plus, Radio, Scale, Users } from "lucide-react";
+import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
 import { DeuceScoreBadge } from "@/components/tournaments/fun-match/deuce-score-badge";
 import {
   GameRaceScoreBadge,
@@ -973,10 +974,19 @@ export function FunMatchRoundMatchCard({
 
         <div className="flex flex-wrap items-center gap-2">
           {isLive ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
-              <Radio className="h-3 w-3" />
-              Live
-            </span>
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                <Radio className="h-3 w-3" />
+                Live
+              </span>
+              <LiveMatchTimer
+                startedAt={match?.startedAt}
+                timerEndsAt={match?.timerEndsAt}
+                active
+                compact
+                className="text-[10px]"
+              />
+            </>
           ) : isDone ? (
             <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", finalBadgeClass)}>
               <CheckCircle2 className="h-3 w-3" />

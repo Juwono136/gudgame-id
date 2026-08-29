@@ -57,7 +57,7 @@ export function DisplayBracketSlide({
         <div className="h-full min-h-0 overflow-auto overscroll-contain">
           <BracketTreeView
             matches={matches}
-            showEmptySlots={false}
+            showEmptySlots
             emptyMessage="Bracket matches will appear here once generated."
           />
         </div>

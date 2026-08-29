@@ -10,6 +10,10 @@ import {
   countCompletedRallies,
   emptyMatchGameState,
   formatIntraGamePoint,
+  formatPadelIntraGameScoreLine,
+  formatRallyDisplayPoint,
+  intraGameDeuceLabel,
+  isIntraGameDeuce,
   isGamePointComplete,
   isRaceToGamesMatchComplete,
   nextRallyTarget,
@@ -39,6 +43,16 @@ describe("game-mode scoring", () => {
     expect(nextRallyTarget(15)).toBe(30);
     expect(nextRallyTarget(30)).toBe(40);
     expect(nextRallyTarget(40)).toBeNull();
+  });
+
+  it("formats padel rally display and deuce labels", () => {
+    expect(formatRallyDisplayPoint(0)).toBe("0");
+    expect(formatRallyDisplayPoint(15)).toBe("15");
+    expect(formatRallyDisplayPoint(39)).toBe("40");
+    expect(formatPadelIntraGameScoreLine(39, 39)).toBe("40 – 40");
+    expect(formatPadelIntraGameScoreLine(40, 39)).toBe("Ad – 40");
+    expect(isIntraGameDeuce(39, 39)).toBe(true);
+    expect(intraGameDeuceLabel(39, 39, "golden_point")).toBe("Deuce · next point wins");
   });
 
   it("awards a game at 40 but holds the score until next game", () => {

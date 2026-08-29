@@ -77,6 +77,7 @@ export type TournamentLivePayload = {
     lengthMode?: "race_to" | "total";
     pointsToWinGame?: number;
     pointStyle?: IntraGamePointStyle;
+    gameDecider?: "golden_point" | "star_point" | "advantage";
     /** Partner/Official classic sets — venue boards should not say "Race to N". */
     classicSets?: boolean;
     /**

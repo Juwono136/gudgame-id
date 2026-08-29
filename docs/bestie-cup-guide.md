@@ -95,6 +95,9 @@ Pick one pool (e.g. Group A) and score all 3 matches:
 #### E — Display & ops
 
 - [ ] Court display URL loads (`…/display`)
+- [ ] Copy layout URLs from Manage → Display: `single`, `multi_court`, `group_stage`, `leaderboard`, `bracket`, plus public `?tab=Matches` schedule
+- [ ] TV shows **40–40 deuce** label and per-side **15/30/40** milestones during live games
+- [ ] Completed pool fixtures show **Done/Finished** on Order of Play (not Queued)
 - [ ] Special result dialog (WO / RET) from match card
 - [ ] Manual pool tie badge visible when GW% cannot break a tie
 
@@ -211,6 +214,20 @@ Seeding: `buildBestieCupRoundOneSlotOrder()` in `lib/tournaments/double-stage/se
 - [ ] Manage → **Players**: antrian review compact (tanpa daftar 48 confirmed duplikat)
 - [ ] Tabel roster: search, paginasi, scroll area — tidak satu halaman panjang
 - [ ] Remove team hanya untuk tim yang belum main
+
+---
+
+## Tie-break reference (Bestie Cup)
+
+| Context | Rule |
+| --- | --- |
+| **Pool standings** | Wins → **Game Win %** (GW%) → manual committee |
+| **Pool match at 5–5** | Deciding game → winner **6–5** (race to 6) |
+| **KO R16/QF at 5–5** | Match tiebreak to **7** points |
+| **KO SF/Final at 6–6** | Match tiebreak to **7** points (SF/F win by 2 games before 6–6) |
+| **Best runner-up (2+1)** | `bestRunnerUpSlots` fills knockout bracket after pool winners |
+
+UI labels: pool column **GW%**; knockout live score shows match tiebreak when configured in `bestie-cup-config.ts`.
 
 ---
 

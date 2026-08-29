@@ -23,6 +23,8 @@ type FunMatchLiveHubProps = {
   teamBByCourt?: Record<string, string>;
   bracketPickByCourt?: Record<string, string>;
   startableBracketMatches?: BracketMatchView[];
+  /** Pending knockout fixtures only — idle court picker (excludes completed rematch). */
+  idleBracketPickerMatches?: BracketMatchView[];
   startableGroupMatches?: StartableGroupFixture[];
   activeGroupMatches?: GroupMatchView[];
   isBracketMode?: boolean;
@@ -77,6 +79,7 @@ type FunMatchLiveHubProps = {
   onManageAmericanoPairings?: (courtId: string) => void;
   onOpenCourtside?: (courtId: string) => void;
   initialFocusedCourtId?: string | null;
+  scoringFrozen?: boolean;
 };
 
 export function FunMatchLiveHub({
@@ -89,6 +92,7 @@ export function FunMatchLiveHub({
   teamBByCourt = {},
   bracketPickByCourt = {},
   startableBracketMatches = [],
+  idleBracketPickerMatches = [],
   startableGroupMatches = [],
   activeGroupMatches = [],
   isBracketMode = false,
@@ -127,6 +131,7 @@ export function FunMatchLiveHub({
   onManageAmericanoPairings,
   onOpenCourtside,
   initialFocusedCourtId = null,
+  scoringFrozen = false,
 }: FunMatchLiveHubProps) {
   return (
     <div className={cn(toolbar ? "space-y-4" : undefined, className)}>
@@ -141,6 +146,7 @@ export function FunMatchLiveHub({
         teamBByCourt={teamBByCourt}
         bracketPickByCourt={bracketPickByCourt}
         startableBracketMatches={startableBracketMatches}
+        idleBracketPickerMatches={idleBracketPickerMatches}
         startableGroupMatches={startableGroupMatches}
         activeGroupMatches={activeGroupMatches}
         isBracketMode={isBracketMode}
@@ -177,6 +183,7 @@ export function FunMatchLiveHub({
         onManageAmericanoPairings={onManageAmericanoPairings}
         onOpenCourtside={onOpenCourtside}
         initialFocusedCourtId={initialFocusedCourtId}
+        scoringFrozen={scoringFrozen}
       />
     </div>
   );

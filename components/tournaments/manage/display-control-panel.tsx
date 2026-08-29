@@ -55,13 +55,37 @@ const LAYOUTS: { value: TournamentDisplayLayout; label: string; description: str
     label: "Leaderboard",
     description: "Player standings (W-L-T, points) from finalized matches",
   },
+  {
+    value: "group_stage",
+    label: "Group stage live",
+    description: "Live pool / group matches across all courts",
+  },
 ];
 
 const ROTATION_OPTIONS: TournamentDisplayLayout[] = [
   "multi_court",
   "single",
+  "group_stage",
   "leaderboard",
   "bracket",
+];
+
+const DISPLAY_URL_PRESETS: {
+  layout?: TournamentDisplayLayout;
+  label: string;
+  description: string;
+  schedule?: boolean;
+}[] = [
+  { label: "Featured court (default)", description: "Single live match full-screen", layout: "single" },
+  { label: "Multi-court grid", description: "All live courts at once", layout: "multi_court" },
+  { label: "Group stage live", description: "Pool play scores on every court", layout: "group_stage" },
+  { label: "Leaderboard", description: "Standings table with WR% and diff", layout: "leaderboard" },
+  { label: "Knockout bracket", description: "Full elimination tree with connectors", layout: "bracket" },
+  {
+    label: "Match schedule",
+    description: "Public Order of Play / fixtures board (not full-screen TV)",
+    schedule: true,
+  },
 ];
 
 type DisplayControlPanelProps = {
@@ -135,6 +159,42 @@ export function DisplayControlPanel({
     try {
       await navigator.clipboard.writeText(url);
       toast.success(`Copied ${courtName} display URL`);
+    } catch {
+      toast.error("Could not copy URL");
+    }
+  };
+
+  const copyPresetUrl = async (preset: (typeof DISPLAY_URL_PRESETS)[number]) => {
+    let path: string;
+    if (preset.schedule) {
+      path = usePartnerDisplay
+        ? partnerPublicRoutes.tournamentDisplaySchedule(partnerSlug!, tournament.slug)
+        : publicSportRoutes.tournamentDisplaySchedule(tournament.sportSlug, tournament.slug);
+    } else if (preset.layout) {
+      path = usePartnerDisplay
+        ? partnerPublicRoutes.tournamentDisplayLayout(partnerSlug!, tournament.slug, preset.layout)
+        : publicSportRoutes.tournamentDisplayLayout(
+            tournament.sportSlug,
+            tournament.slug,
+            preset.layout,
+          );
+    } else {
+      path = displayPath;
+    }
+    const url = `${window.location.origin}${path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`Copied ${preset.label} URL`);
+    } catch {
+      toast.error("Could not copy URL");
+    }
+  };
+
+  const copyMainDisplayUrl = async () => {
+    const url = `${window.location.origin}${displayPath}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Copied main display URL");
     } catch {
       toast.error("Could not copy URL");
     }
@@ -258,8 +318,8 @@ export function DisplayControlPanel({
               <span>
                 <span className="block text-sm font-semibold text-foreground">Auto-play slideshow</span>
                 <span className="mt-0.5 block text-xs text-cp-muted">
-                  Cycle through single match, multi-court, leaderboard, and bracket views with smooth
-                  transitions.
+                  Cycle through single match, multi-court, group stage, leaderboard, and bracket
+                  views with smooth transitions.
                 </span>
               </span>
             </button>
@@ -453,6 +513,43 @@ export function DisplayControlPanel({
             Save display settings
           </Button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-4 py-3 text-sm text-cp-muted">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-medium text-foreground">Display URLs for venue TVs</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void copyMainDisplayUrl()}>
+            <Copy className="mr-1.5 h-3.5 w-3.5" />
+            Copy main display
+          </Button>
+        </div>
+        <p className="mt-1 text-xs sm:text-sm">
+          Pin each screen to a layout — saved preset still applies when no{" "}
+          <code className="rounded bg-cp-elevated px-1 py-0.5 text-[10px]">layout=</code> query is
+          set.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {DISPLAY_URL_PRESETS.map((preset) => (
+            <li
+              key={preset.label}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cp-border/60 bg-cp-card/40 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{preset.label}</p>
+                <p className="text-[11px] text-cp-muted">{preset.description}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void copyPresetUrl(preset)}
+              >
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                Copy URL
+              </Button>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 px-4 py-3 text-sm text-cp-muted">

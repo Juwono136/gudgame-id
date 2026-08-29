@@ -668,17 +668,33 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Swiss variants (engine):** `swiss` dan `modified_swiss` keduanya memakai engine **`group_only`** (round-robin pool + standings). `modified_swiss` (Custom) = Bestie Cup pool rules: meet once, FT6, tie-break GW%, side-change rest. **Mexicano** terpisah — pairing dari leaderboard per round, bukan RR pool.
 
-**Manage → Players (roster besar):** Guest registrations hanya menampilkan antrian **Needs review** + ringkasan stat (confirmed tidak diduplikasi). Roster confirmed memakai tabel compact: search, paginasi (10/20/50 tim per halaman), player inline chips, sticky header + scroll area, remove icon-only di desktop. Komponen: `partner-guest-registrations-panel.tsx`, `tournament-participants-panel.tsx` (`compactLayout` untuk partner).
+**Manage → Players (roster besar):** Guest registrations hanya menampilkan antrian **Needs review** + ringkasan stat (confirmed tidak diduplikasi). Roster confirmed memakai tabel compact: search, paginasi (10/20/50 tim per halaman), player inline chips, **Swap pair** untuk tim doubles (sebelum main), sticky header + scroll area, remove icon-only di desktop. Komponen: `partner-guest-registrations-panel.tsx`, `tournament-participants-panel.tsx` (`compactLayout` untuk partner).
+
+**Live scoring tabs:** Manage → Live scoring memakai sub-tab **Live score** · **Match schedule** (Order of Play) · **Standings** · **History**. Klik player di standings → modal statistik + games history. Klik match di History → popup point log + scorer trail. Idle courts hanya menampilkan fixture **pending** (bug R2 selesai di dropdown sudah diperbaiki). Timer elapsed/sisa di kartu live match.
 
 **Wizard partner:** `components/partners/partner-tournament-wizard.tsx` — tidak ada short summary; **Series** (dulu League) opsional di Step 1.
 
-**Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `bracket`, `leaderboard`, `rotation`.
+**Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `group_stage`, `bracket`, `leaderboard`, `rotation`.
 
-**URL partner:**
+**Leaderboard (manage + publik + TV):** Tabel compact dengan kolom **G** (total game), **WR%**, **Diff** (+/−), plus W-L-T / P. Nama player sedikit diperbesar; team & player lebih rapat. TV leaderboard (`display-session-leaderboard.tsx`) menambah kolom yang sama + **Group** bila double-stage; ruang bawah untuk sponsor banner.
+
+**Intra-game / deuce (games mode):** Skor rally 0→40 dengan milestone **15 / 30 / 40** per sisi (bukan hanya “lead”). **40–40** ditampilkan sebagai deuce; golden point / advantage / star point mengikuti `gameDecider` di rules. Manage + venue TV memakai label yang sama (`formatPadelIntraGameScoreLine`).
+
+**Order of Play status:** Match selesai (`status=completed`) selalu menampilkan badge **Finished/Done**, bukan **Queued** — meskipun `callStatus` lama belum disinkronkan.
+
+**Knockout bracket TV:** `display-bracket-slide.tsx` menampilkan **full tree** dengan slot kosong + connector SVG (`showEmptySlots`).
+
+**URL partner (Manage → Display — salin per layout):**
 
 | Surface | Path |
 | --- | --- |
-| Fullscreen TV | `/{partnerSlug}/tournaments/{slug}/display` |
+| Fullscreen TV (preset tersimpan) | `/{partnerSlug}/tournaments/{slug}/display` |
+| Featured court | `…/display?layout=single` |
+| Multi-court grid | `…/display?layout=multi_court` |
+| Group stage live | `…/display?layout=group_stage` |
+| Leaderboard | `…/display?layout=leaderboard` |
+| Knockout bracket | `…/display?layout=bracket` |
+| Match schedule (publik, bukan fullscreen) | `/{partnerSlug}/tournaments/{slug}?tab=Matches` |
 | Pin court | `…/display?courtId=…&layout=single` |
 | Pin match | `…/display?matchId=…` |
 | Manage Display | `…/manage?section=display` |
@@ -701,7 +717,7 @@ Sport route `/sports/…/display` **404** untuk event `partnerId` (isolasi white
 | Hooks | `hooks/use-tournament-live.ts`, `use-tournament-manage-scoring.ts`, `use-double-stage-group-score.ts`, `use-tournament-lobby.ts`, `use-tournament-bracket.ts` |
 | Public page | `components/tournaments/official-tournament-page.tsx` |
 | Partner public | `components/partners/partner-tournament-public-page.tsx` |
-| Venue display | `tournament-display-client.tsx`, `display-multi-court-grid.tsx`, `display/display-venue-controls.tsx`, `display-session-leaderboard.tsx`, `display-bracket-slide.tsx`, `display-sponsor-strip.tsx` |
+| Venue display | `tournament-display-client.tsx`, `display-multi-court-grid.tsx`, `display/display-venue-controls.tsx`, `display-session-leaderboard.tsx`, `display-group-stage-slide.tsx`, `display-bracket-slide.tsx`, `display-sponsor-strip.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`) |
 | Manage scoring UI | `fun-match-scoring-workspace.tsx`, `courtside-scorepad.tsx`, `fun-match-rounds-panel.tsx`, `match-round-tabs.tsx`, `fun-match-round-match-card.tsx` |
 | Display config | `lib/tournaments/display-config-service.ts`, `upload-sponsor-banner.ts`, `manage/display-sponsor-banners-panel.tsx` |
 | Partner create wizard | `components/partners/partner-tournament-wizard.tsx` |

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  ArrowLeftRight,
   CreditCard,
   Loader2,
   Lock,
@@ -21,7 +22,7 @@ import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useRemoveTournamentTeam } from "@/hooks/use-tournament-manage-display";
+import { useRemoveTournamentTeam, useSwapTeamPair } from "@/hooks/use-tournament-manage-display";
 import { useTournamentParticipants } from "@/hooks/use-tournament-participants";
 import { softDevPollMs } from "@/lib/dev/soft-poll";
 import { DEFAULT_PAGE_SIZE } from "@/lib/pagination/constants";
@@ -232,12 +233,20 @@ function FunMatchScore({
 function CompactTeamPlayersRow({
   players,
   variant,
+  teamId,
+  canSwapPair,
+  swapPending,
+  onSwapPair,
 }: {
   players: TournamentParticipantRow[];
   variant: "official" | "reclub";
+  teamId?: string;
+  canSwapPair?: boolean;
+  swapPending?: boolean;
+  onSwapPair?: (teamId: string) => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap gap-1.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {players.map((player) => {
         const hoverAccent =
           variant === "official"
@@ -272,6 +281,20 @@ function CompactTeamPlayersRow({
           </span>
         );
       })}
+      {canSwapPair && teamId && players.length === 2 ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 border-cp-border px-2 text-[11px]"
+          disabled={swapPending}
+          title="Swap player order in this pair"
+          onClick={() => onSwapPair?.(teamId)}
+        >
+          <ArrowLeftRight className="h-3 w-3" />
+          Swap pair
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -435,6 +458,8 @@ export function TournamentParticipantsPanel({
       refetchInterval: liveRefresh ? softDevPollMs(12_000) : false,
     });
   const removeTeam = useRemoveTournamentTeam(sportSlug, slug);
+  const swapPair = useSwapTeamPair(sportSlug, slug);
+  const [swappingTeamId, setSwappingTeamId] = useState<string | null>(null);
 
   const isOfficial = tournamentType === "official";
   const isFreeOfficial = officialBilling === "free";
@@ -473,6 +498,15 @@ export function TournamentParticipantsPanel({
   const clearSearch = () => {
     setSearchInput("");
     setPage(1);
+  };
+
+  const handleSwapPair = async (teamId: string) => {
+    setSwappingTeamId(teamId);
+    try {
+      await swapPair.mutateAsync(teamId);
+    } finally {
+      setSwappingTeamId(null);
+    }
   };
 
   const handleRemoveTeam = async (row: TournamentParticipantRow) => {
@@ -755,7 +789,14 @@ export function TournamentParticipantsPanel({
 
                 {compactLayout ? (
                   <div className="mt-2.5">
-                    <CompactTeamPlayersRow players={team.players} variant={variant} />
+                    <CompactTeamPlayersRow
+                      players={team.players}
+                      variant={variant}
+                      teamId={team.teamId}
+                      canSwapPair={partnerEvent && canRemoveTeams && team.canHardRemove !== false}
+                      swapPending={swappingTeamId === team.teamId}
+                      onSwapPair={(id) => void handleSwapPair(id)}
+                    />
                   </div>
                 ) : (
                   <TeamPlayersList players={team.players} variant={variant} compact />
@@ -805,7 +846,14 @@ export function TournamentParticipantsPanel({
                 </div>
 
                 {compactLayout ? (
-                  <CompactTeamPlayersRow players={team.players} variant={variant} />
+                  <CompactTeamPlayersRow
+                    players={team.players}
+                    variant={variant}
+                    teamId={team.teamId}
+                    canSwapPair={partnerEvent && canRemoveTeams && team.canHardRemove !== false}
+                    swapPending={swappingTeamId === team.teamId}
+                    onSwapPair={(id) => void handleSwapPair(id)}
+                  />
                 ) : (
                   <TeamPlayersList players={team.players} variant={variant} compact />
                 )}

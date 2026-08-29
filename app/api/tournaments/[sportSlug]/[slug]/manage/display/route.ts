@@ -13,11 +13,11 @@ const hexColor = z
   .optional();
 
 const bodySchema = z.object({
-  layout: z.enum(["single", "multi_court", "bracket", "leaderboard", "rotation"]),
+  layout: z.enum(["single", "multi_court", "bracket", "leaderboard", "group_stage", "rotation"]),
   autoRotate: z.boolean().optional(),
   rotationIntervalSec: z.number().int().min(5).max(120).optional(),
   rotationLayouts: z
-    .array(z.enum(["single", "multi_court", "bracket", "leaderboard", "rotation"]))
+    .array(z.enum(["single", "multi_court", "bracket", "leaderboard", "group_stage", "rotation"]))
     .optional(),
   brandTheme: z
     .object({

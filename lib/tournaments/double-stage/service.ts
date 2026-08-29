@@ -1515,7 +1515,10 @@ function mapGroupMatchView(
       playOrder: m.playOrder,
       metadataRound,
     }),
-    callStatus: m.callStatus ?? "queued",
+    callStatus:
+      m.status === "completed" || m.status === "bye"
+        ? "done"
+        : (m.callStatus ?? "queued"),
     scoreEvents: meta.scoreEvents ?? [],
     gameState,
   };

@@ -337,13 +337,70 @@ export function formatIntraGameScoreLine(
   pointsA: number,
   pointsB: number,
   style: IntraGamePointStyle = "simple",
+  pointsToWinGame = 40,
 ): string {
   if (style === "tennis" && pointsA >= 3 && pointsB >= 3) {
     if (pointsA === pointsB) return "40 – 40";
     if (pointsA > pointsB) return "Ad – 40";
     return "40 – Ad";
   }
+  if (style === "simple" && pointsToWinGame === 40) {
+    return formatPadelIntraGameScoreLine(pointsA, pointsB, pointsToWinGame);
+  }
   return `${formatIntraGamePoint(pointsA, style)} – ${formatIntraGamePoint(pointsB, style)}`;
+}
+
+/** Rally display for padel-style 0→40 scoring (maps 39 to displayed 40 at deuce threshold). */
+export function formatRallyDisplayPoint(points: number, pointsToWinGame = 40): string {
+  const p = Math.max(0, Math.floor(points));
+  if (pointsToWinGame !== 40) return String(p);
+  if (p >= pointsToWinGame - 1) return "40";
+  if (p >= 30) return "30";
+  if (p >= 15) return "15";
+  return String(p);
+}
+
+/** Deuce when both sides reach game point (internal 39–39 = displayed 40–40). */
+export function isIntraGameDeuce(
+  pointsA: number,
+  pointsB: number,
+  pointsToWinGame = 40,
+): boolean {
+  const need = pointsToWinGame;
+  return pointsA === pointsB && pointsA >= need - 1 && pointsB >= need - 1;
+}
+
+/** Human-readable intra-game line with deuce / advantage labels for TV + manage. */
+export function formatPadelIntraGameScoreLine(
+  pointsA: number,
+  pointsB: number,
+  pointsToWinGame = 40,
+): string {
+  const need = pointsToWinGame;
+  const a = Math.max(0, Math.floor(pointsA));
+  const b = Math.max(0, Math.floor(pointsB));
+
+  if (need === 40 && a >= need - 1 && b >= need - 1) {
+    if (a === b) return "40 – 40";
+    if (a > b) {
+      return a >= need && b >= need - 1 ? "Ad – 40" : "40 – Ad";
+    }
+    return b >= need && a >= need - 1 ? "40 – Ad" : "Ad – 40";
+  }
+
+  return `${formatRallyDisplayPoint(a, need)} – ${formatRallyDisplayPoint(b, need)}`;
+}
+
+export function intraGameDeuceLabel(
+  pointsA: number,
+  pointsB: number,
+  gameDecider: MatchGameRules["gameDecider"] = "golden_point",
+  pointsToWinGame = 40,
+): string | null {
+  if (!isIntraGameDeuce(pointsA, pointsB, pointsToWinGame)) return null;
+  if (gameDecider === "golden_point") return "Deuce · next point wins";
+  if (gameDecider === "star_point") return "Deuce · Star Point rules";
+  return "Deuce · win by 2";
 }
 
 /** How many rally milestones (15 / 30 / 40) this side has already cleared. */

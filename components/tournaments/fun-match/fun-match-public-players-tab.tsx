@@ -61,7 +61,11 @@ export function FunMatchPublicPlayersTab({
           Player standings with W-L-T, win rate, point diff, and match compensation.
         </p>
         <div className="mt-4">
-          <FunMatchPlayerStandingsTable rows={players} profileBasePath={profileBase} />
+          <FunMatchPlayerStandingsTable
+            rows={players}
+            profileBasePath={profileBase}
+            visibleColumns={["squad", "wlt", "wr", "diff", "g", "p"]}
+          />
         </div>
       </section>
     </div>

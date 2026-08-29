@@ -75,6 +75,7 @@ export type TournamentDisplayLayout =
   | "multi_court"
   | "bracket"
   | "leaderboard"
+  | "group_stage"
   | "rotation";
 
 export type TournamentDisplayBrandTheme = {
@@ -223,6 +224,7 @@ function parseDisplayConfig(raw: unknown): TournamentDisplayConfig | undefined {
     "multi_court",
     "bracket",
     "leaderboard",
+    "group_stage",
     "rotation",
   ];
   if (typeof layout !== "string" || !validLayouts.includes(layout as TournamentDisplayLayout)) {

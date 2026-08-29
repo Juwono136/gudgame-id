@@ -121,9 +121,10 @@ function MatchRow({
     m.status !== "completed" &&
     m.status !== "bye" &&
     m.status !== "in_progress";
+  const isFinished = m.status === "completed" || m.status === "bye";
   const isLive = m.status === "in_progress" || m.callStatus === "on_court";
   const displayScore =
-    m.status === "completed" ||
+    isFinished ||
     m.status === "in_progress" ||
     (m.callStatus === "on_court" && (m.scoreA != null || m.scoreB != null));
   const kickoff = formatKickoffDateAndTimeParts(m.scheduledAt);
@@ -212,7 +213,7 @@ function MatchRow({
 
         {/* Status */}
         <div className="flex items-center gap-1.5 lg:justify-center">
-          {showCallStatus && !isLive ? (
+          {showCallStatus && !isLive && !isFinished ? (
             <span
               className={cn(
                 "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",

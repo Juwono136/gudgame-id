@@ -67,7 +67,7 @@ import {
 } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { ReclubMatchView } from "@/lib/tournaments/reclub/types";
-import { bracketMatchToReclubView } from "@/lib/tournaments/reclub/types";
+import { bracketMatchToReclubView, getReclubMatchHistoryKey } from "@/lib/tournaments/reclub/types";
 import {
   dedupeReclubMatchViews,
   getCurrentSessionRound,
@@ -101,7 +101,16 @@ import {
   useUpdateGroupLiveScore,
 } from "@/hooks/use-double-stage-group-score";
 import { DoubleStageConfigBanner } from "@/components/tournaments/double-stage/double-stage-config-banner";
+import { DoubleStageScheduleManage } from "@/components/tournaments/manage/double-stage-schedule-manage";
 import { LiveFormatConfigBanner } from "@/components/tournaments/manage/live-format-config-banner";
+import {
+  TournamentMatchHistoryDialog,
+  type TournamentMatchHistoryTarget,
+} from "@/components/tournaments/tournament-match-history-dialog";
+import {
+  TournamentPlayerSessionDialog,
+  type PlayerSessionMatchRow,
+} from "@/components/tournaments/tournament-player-session-dialog";
 import {
   buildGroupCourtLockState,
   isGroupMatchLockedForCourt,
@@ -112,6 +121,7 @@ import {
 } from "@/lib/tournaments/double-stage/view-mappers";
 import { computeParallelCapacity } from "@/lib/tournaments/courts/parallel-capacity";
 import { cn } from "@/lib/utils";
+import type { TournamentPlayerStatRow } from "@/lib/tournaments/stats/types";
 import { parseStandingsScoring } from "@/lib/tournaments/scoring/config";
 import type { ScoringRules } from "@/lib/tournaments/scoring/engine";
 import { isRaceToGamesMatchComplete } from "@/lib/tournaments/scoring/game-mode";
@@ -172,6 +182,10 @@ export function FunMatchScoringWorkspace({
   const canManageCourts = participant.canUseCourtsideScoring;
   /** Starting / incrementing scores requires the event to be live. */
   const canScore = canManageCourts && livePhase === "live";
+  const scoringFrozen =
+    livePhase !== "live" ||
+    tournament.status === "completed" ||
+    tournament.status === "cancelled";
   const isOfficialWorkspace =
     workspaceVariant === "official" || isOfficialType(tournament.tournamentType);
   const isPartnerEvent = Boolean(tournament.partnerId);
@@ -248,9 +262,14 @@ export function FunMatchScoringWorkspace({
   const [courtNameDraft, setCourtNameDraft] = useState("");
   const [focusScoring, setFocusScoring] = useState(false);
   const [mobilePane, setMobilePane] = useState<"scoring" | "standings">("scoring");
-  const [workspaceTab, setWorkspaceTab] = useState<"scoring" | "standings" | "history">(
-    "scoring",
-  );
+  const [workspaceTab, setWorkspaceTab] = useState<
+    "scoring" | "schedule" | "standings" | "history"
+  >("scoring");
+  const [selectedPlayer, setSelectedPlayer] = useState<TournamentPlayerStatRow | null>(null);
+  const [playerDialogOpen, setPlayerDialogOpen] = useState(false);
+  const [matchHistoryTarget, setMatchHistoryTarget] =
+    useState<TournamentMatchHistoryTarget | null>(null);
+  const [matchHistoryOpen, setMatchHistoryOpen] = useState(false);
   const [courtsideCourtId, setCourtsideCourtId] = useState<string | null>(courtFromUrl);
   const focusAutoAppliedRef = useRef(false);
 
@@ -425,6 +444,60 @@ export function FunMatchScoringWorkspace({
         mapBracketMatchesToHistoryItems(bracketMatches),
       ),
     [officialSessionReclubMatches, bracketMatches],
+  );
+
+  const showScheduleInScoring =
+    Boolean(doubleStageOverview) || isGroupStageMode || isBracketMode;
+
+  const playerSessionMatches = useMemo((): PlayerSessionMatchRow[] => {
+    const courtNameById = new Map(courts.map((c) => [c.id, c.name] as const));
+    const rows: PlayerSessionMatchRow[] = [];
+    for (const m of officialSessionReclubMatches) {
+      if (m.status !== "completed") continue;
+      rows.push({
+        id: getReclubMatchHistoryKey(m),
+        roundLabel: m.roundLabel ?? `Round ${m.roundNumber}`,
+        courtLabel: m.courtId ? (courtNameById.get(m.courtId) ?? null) : null,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        teamAPlayers: m.teamAPlayers ?? [],
+        teamBPlayers: m.teamBPlayers ?? [],
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        durationSeconds: m.durationSeconds,
+        playerTeamName: m.teamAName ?? "",
+      });
+    }
+    for (const m of bracketMatches) {
+      if (m.status !== "completed") continue;
+      rows.push({
+        id: `bracket-slot-${m.id}`,
+        roundLabel: `Round ${m.roundNumber}, Match ${m.matchNumber}`,
+        courtLabel: null,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        teamAPlayers: m.teamAPlayers ?? [],
+        teamBPlayers: m.teamBPlayers ?? [],
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        durationSeconds: null,
+        playerTeamName: m.teamAName ?? "",
+      });
+    }
+    return rows;
+  }, [bracketMatches, courts, officialSessionReclubMatches]);
+
+  const openPlayerSession = useCallback(
+    (userId: string, displayName: string) => {
+      const player =
+        sessionStats?.players.find(
+          (p) => p.userId === userId || p.displayName === displayName,
+        ) ?? null;
+      if (!player) return;
+      setSelectedPlayer(player);
+      setPlayerDialogOpen(true);
+    },
+    [sessionStats?.players],
   );
 
   const { players: officialPlayerStandings } = useMemo(
@@ -1524,6 +1597,7 @@ export function FunMatchScoringWorkspace({
           hideLegend
           visibleColumns={officialCols.columns}
           compactOnMobile
+          onPlayerClick={(row) => openPlayerSession(row.userId, row.name)}
         />
       ) : (
         <FunMatchPlayerStandingsTable
@@ -1561,6 +1635,7 @@ export function FunMatchScoringWorkspace({
       bracketPickByCourt={bracketPickByCourt}
       groupPickByCourt={groupPickByCourt}
       startableBracketMatches={startableBracketMatches}
+      idleBracketPickerMatches={pendingBracketMatches}
       startableGroupMatches={startableGroupMatches}
       activeGroupMatches={activeGroupMatches}
       isBracketMode={isBracketMode}
@@ -1608,6 +1683,7 @@ export function FunMatchScoringWorkspace({
       }
       onOpenCourtside={canManageCourts ? openCourtside : undefined}
       initialFocusedCourtId={courtsideCourtId ?? courtFromUrl}
+      scoringFrozen={scoringFrozen}
     />
   );
 
@@ -1645,7 +1721,10 @@ export function FunMatchScoringWorkspace({
       ) : null}
       <div className="mt-4">
         {isOfficialWorkspace || useDoubleStageStandings ? (
-          <OfficialPlayerStandingsTable rows={officialPlayerStandings} />
+          <OfficialPlayerStandingsTable
+            rows={officialPlayerStandings}
+            onPlayerClick={(row) => openPlayerSession(row.userId, row.name)}
+          />
         ) : (
           <FunMatchPlayerStandingsTable rows={playerStandings} />
         )}
@@ -1662,6 +1741,47 @@ export function FunMatchScoringWorkspace({
         variant={isOfficialWorkspace || useDoubleStageStandings ? "official" : "reclub"}
         standingsMode={isBracketMode ? "elimination" : isGroupStageMode ? "americano" : "americano"}
         isLoading={isFetching && !sessionStats}
+        onMatchClick={(row) => {
+          const reclub = officialSessionReclubMatches.find(
+            (m) => getReclubMatchHistoryKey(m) === row.id,
+          );
+          if (reclub) {
+            setMatchHistoryTarget({
+              id: reclub.id,
+              kind: "reclub",
+              label: `${reclub.teamAName ?? "Team A"} vs ${reclub.teamBName ?? "Team B"}`,
+              sublabel: row.roundLabel,
+              teamAName: reclub.teamAName,
+              teamBName: reclub.teamBName,
+              teamAPlayers: reclub.teamAPlayers ?? [],
+              teamBPlayers: reclub.teamBPlayers ?? [],
+              scoreA: reclub.scoreA,
+              scoreB: reclub.scoreB,
+              durationSeconds: reclub.durationSeconds,
+              scoreEvents: reclub.scoreEvents,
+            });
+            setMatchHistoryOpen(true);
+            return;
+          }
+          const bracket = bracketMatches.find((m) => `bracket-slot-${m.id}` === row.id);
+          if (bracket) {
+            setMatchHistoryTarget({
+              id: bracket.id,
+              kind: "bracket",
+              label: `${bracket.teamAName ?? "Team A"} vs ${bracket.teamBName ?? "Team B"}`,
+              sublabel: row.roundLabel,
+              teamAName: bracket.teamAName,
+              teamBName: bracket.teamBName,
+              teamAPlayers: bracket.teamAPlayers ?? [],
+              teamBPlayers: bracket.teamBPlayers ?? [],
+              scoreA: bracket.scoreA,
+              scoreB: bracket.scoreB,
+              durationSeconds: row.durationSeconds,
+              scoreEvents: bracket.scoreEvents,
+            });
+            setMatchHistoryOpen(true);
+          }
+        }}
       />
       {showScoreAudit ? (
         <OfficialManagePointLogPanel
@@ -1675,6 +1795,24 @@ export function FunMatchScoringWorkspace({
     </div>
   );
 
+  const secondarySchedule =
+    showScheduleInScoring && doubleStageOverview ? (
+      <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
+        <h3 className="text-base font-semibold text-foreground">Match schedule · Order of play</h3>
+        <p className="mt-1 text-sm text-cp-muted">
+          Queue numbers, court calls, and start times. Use Live score to start fixtures on courts.
+        </p>
+        <div className="mt-4">
+          <DoubleStageScheduleManage
+            tournament={tournament}
+            groups={doubleStageOverview.groups}
+            bracketMatches={bracketMatches}
+            onUpdated={() => void refetch()}
+          />
+        </div>
+      </section>
+    ) : null;
+
   return (
     <div className="space-y-4">
       {toolbar}
@@ -1682,7 +1820,10 @@ export function FunMatchScoringWorkspace({
       <div className="flex gap-1 rounded-xl border border-cp-border bg-cp-elevated/20 p-1">
         {(
           [
-            { id: "scoring" as const, label: "Scoring" },
+            { id: "scoring" as const, label: "Live score" },
+            ...(showScheduleInScoring
+              ? [{ id: "schedule" as const, label: "Match schedule" }]
+              : []),
             ...(showLeaderboardColumn
               ? [{ id: "standings" as const, label: "Standings" }]
               : []),
@@ -1765,6 +1906,8 @@ export function FunMatchScoringWorkspace({
 
       {workspaceTab === "standings" && showLeaderboardColumn ? secondaryStandings : null}
 
+      {workspaceTab === "schedule" && secondarySchedule ? secondarySchedule : null}
+
       {workspaceTab === "history" &&
       (!isGroupStageMode || isOfficialWorkspace || isPartnerEvent)
         ? secondaryHistory
@@ -1812,6 +1955,21 @@ export function FunMatchScoringWorkspace({
           </div>
         </div>
       ) : null}
+
+      <TournamentPlayerSessionDialog
+        open={playerDialogOpen}
+        onOpenChange={setPlayerDialogOpen}
+        player={selectedPlayer}
+        matches={playerSessionMatches}
+      />
+
+      <TournamentMatchHistoryDialog
+        open={matchHistoryOpen}
+        onOpenChange={setMatchHistoryOpen}
+        match={matchHistoryTarget}
+        sportSlug={tournament.sportSlug}
+        tournamentSlug={tournament.slug}
+      />
 
       <CourtsideScorepad
         open={Boolean(courtsideCourtId)}

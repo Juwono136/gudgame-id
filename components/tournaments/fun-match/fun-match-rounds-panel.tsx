@@ -47,6 +47,8 @@ type FunMatchRoundsPanelProps = {
   teamBByCourt: Record<string, string>;
   bracketPickByCourt?: Record<string, string>;
   startableBracketMatches?: BracketMatchView[];
+  /** Pending knockout fixtures only — idle court picker (excludes completed rematch). */
+  idleBracketPickerMatches?: BracketMatchView[];
   startableGroupMatches?: StartableGroupFixture[];
   activeGroupMatches?: GroupMatchView[];
   isBracketMode?: boolean;
@@ -101,6 +103,8 @@ type FunMatchRoundsPanelProps = {
   onOpenCourtside?: (courtId: string) => void;
   /** Prefocus a court (e.g. from ?court= deep link). */
   initialFocusedCourtId?: string | null;
+  /** Hide idle planning when tournament is finished or not live. */
+  scoringFrozen?: boolean;
 };
 
 function matchMatchesSearch(m: ReclubMatchView, q: string): boolean {
@@ -137,6 +141,7 @@ export function FunMatchRoundsPanel({
   teamBByCourt,
   bracketPickByCourt = {},
   startableBracketMatches = [],
+  idleBracketPickerMatches = [],
   startableGroupMatches = [],
   activeGroupMatches = [],
   isBracketMode = false,
@@ -173,6 +178,7 @@ export function FunMatchRoundsPanel({
   onManageAmericanoPairings,
   onOpenCourtside,
   initialFocusedCourtId = null,
+  scoringFrozen = false,
 }: FunMatchRoundsPanelProps) {
   const accentLabel = accentVariant === "official" ? "text-cp-primary" : "text-emerald-400";
   const [search, setSearch] = useState("");
@@ -313,6 +319,17 @@ export function FunMatchRoundsPanel({
     [isGroupStageMode, startableGroupMatches, displayRound],
   );
 
+  const idleBracketForRound = useMemo(
+    () =>
+      isBracketMode
+        ? (idleBracketPickerMatches.length > 0
+            ? idleBracketPickerMatches
+            : startableBracketMatches.filter((f) => f.status === "pending")
+          ).filter((f) => f.roundNumber === displayRound)
+        : [],
+    [displayRound, idleBracketPickerMatches, isBracketMode, startableBracketMatches],
+  );
+
   const startableBracketForRound = useMemo(
     () =>
       isBracketMode
@@ -371,11 +388,12 @@ export function FunMatchRoundsPanel({
   }, [liveCourtIds, focusedCourtId]);
 
   const canShowIdlePlanning =
+    !scoringFrozen &&
     canManage &&
     !readOnly &&
     idleCourts.length > 0 &&
     (!isGroupStageMode || startableGroupForRound.length > 0 || startableGroupMatches.length > 0) &&
-    (!isBracketMode || startableBracketForRound.length > 0 || startableBracketMatches.length > 0);
+    (!isBracketMode || idleBracketForRound.length > 0 || startableGroupForRound.length > 0);
 
   /** Hide bulky idle block while live scoring is active — keep strip + live cards focused. */
   const showPlanningSlots =
@@ -773,7 +791,7 @@ export function FunMatchRoundsPanel({
                   bracketMatchId={bracketPickByCourt[court.id] ?? ""}
                   groupMatchId={groupPickByCourt[court.id] ?? ""}
                   groupPickByCourt={isGroupStageMode ? groupPickByCourt : {}}
-                  startableBracketMatches={isBracketMode ? startableBracketForRound : []}
+                  startableBracketMatches={isBracketMode ? idleBracketForRound : []}
                   startableGroupMatches={isGroupStageMode ? startableGroupForRound : []}
                   activeGroupMatches={isGroupStageMode ? activeGroupMatches : []}
                   isGroupStageMode={isGroupStageMode}

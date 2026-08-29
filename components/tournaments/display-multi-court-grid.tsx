@@ -3,6 +3,10 @@
 import type { ReactNode } from "react";
 import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
 import { TeamPlayerList } from "@/components/tournaments/team-player-list";
+import {
+  GAME_RALLY_MILESTONES,
+  formatRallyDisplayPoint,
+} from "@/lib/tournaments/scoring/game-mode";
 import { cn } from "@/lib/utils";
 
 type MultiCourtDisplayCardProps = {
@@ -26,6 +30,7 @@ type MultiCourtDisplayCardProps = {
     pointsToWinGame?: number;
     lengthMode?: "race_to" | "total";
     classicSets?: boolean;
+    gameDecider?: "golden_point" | "star_point" | "advantage";
   };
 };
 
@@ -103,10 +108,32 @@ export function MultiCourtDisplayCard({
               >
                 Points
               </p>
-              <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
-                {gamesMode.pointsA}
+              <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
+                {(gamesMode.pointsToWinGame === 40
+                  ? GAME_RALLY_MILESTONES
+                  : [gamesMode.pointsToWinGame ?? 40]
+                ).map((m) => {
+                  const reachedA = gamesMode.pointsA >= m;
+                  const reachedB = gamesMode.pointsB >= m;
+                  return (
+                    <span
+                      key={m}
+                      className={cn(
+                        "rounded-full border px-1.5 py-px text-[8px] font-semibold tabular-nums",
+                        reachedA || reachedB
+                          ? "border-white/30 text-white/85"
+                          : "border-white/10 text-white/35",
+                      )}
+                    >
+                      {formatRallyDisplayPoint(m, gamesMode.pointsToWinGame ?? 40)}
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-2xl font-bold tabular-nums text-white sm:text-3xl">
+                {formatRallyDisplayPoint(gamesMode.pointsA, gamesMode.pointsToWinGame ?? 40)}
                 <span className="mx-1.5 font-light text-white/35">:</span>
-                {gamesMode.pointsB}
+                {formatRallyDisplayPoint(gamesMode.pointsB, gamesMode.pointsToWinGame ?? 40)}
               </p>
             </>
           ) : (

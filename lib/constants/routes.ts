@@ -61,10 +61,14 @@ export const partnerPublicRoutes = {
     `/${partnerSlug}/tournaments/${slug}/manage`,
   tournamentDisplay: (partnerSlug: string, slug: string) =>
     `/${partnerSlug}/tournaments/${slug}/display`,
+  tournamentDisplayLayout: (partnerSlug: string, slug: string, layout: string) =>
+    `/${partnerSlug}/tournaments/${slug}/display?layout=${encodeURIComponent(layout)}`,
   tournamentDisplayCourt: (partnerSlug: string, slug: string, courtId: string) =>
     `/${partnerSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
   tournamentDisplayMatch: (partnerSlug: string, slug: string, matchId: string) =>
     `/${partnerSlug}/tournaments/${slug}/display?matchId=${encodeURIComponent(matchId)}`,
+  tournamentDisplaySchedule: (partnerSlug: string, slug: string) =>
+    `/${partnerSlug}/tournaments/${slug}?tab=${encodeURIComponent("Matches")}`,
   tournamentInvite: (partnerSlug: string, slug: string) =>
     `/${partnerSlug}/tournaments/${slug}/invite`,
   tournamentRegister: (partnerSlug: string, slug: string) =>
@@ -125,10 +129,14 @@ export const publicSportRoutes = {
     `/sports/${sportSlug}/tournaments/${slug}/manage`,
   tournamentDisplay: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/display`,
+  tournamentDisplayLayout: (sportSlug: string, slug: string, layout: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}/display?layout=${encodeURIComponent(layout)}`,
   tournamentDisplayMatch: (sportSlug: string, slug: string, matchId: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/display?matchId=${encodeURIComponent(matchId)}`,
   tournamentDisplayCourt: (sportSlug: string, slug: string, courtId: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/display?courtId=${encodeURIComponent(courtId)}&layout=single`,
+  tournamentDisplaySchedule: (sportSlug: string, slug: string) =>
+    `/sports/${sportSlug}/tournaments/${slug}?tab=${encodeURIComponent("Matches")}`,
   tournamentInvite: (sportSlug: string, slug: string) =>
     `/sports/${sportSlug}/tournaments/${slug}/invite`,
   tournamentClaim: (sportSlug: string, slug: string) =>
