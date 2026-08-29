@@ -80,6 +80,7 @@ type FunMatchLiveHubProps = {
   onOpenCourtside?: (courtId: string) => void;
   initialFocusedCourtId?: string | null;
   scoringFrozen?: boolean;
+  startFixturesFromSchedule?: boolean;
 };
 
 export function FunMatchLiveHub({
@@ -132,6 +133,7 @@ export function FunMatchLiveHub({
   onOpenCourtside,
   initialFocusedCourtId = null,
   scoringFrozen = false,
+  startFixturesFromSchedule = false,
 }: FunMatchLiveHubProps) {
   return (
     <div className={cn(toolbar ? "space-y-4" : undefined, className)}>
@@ -184,6 +186,7 @@ export function FunMatchLiveHub({
         onOpenCourtside={onOpenCourtside}
         initialFocusedCourtId={initialFocusedCourtId}
         scoringFrozen={scoringFrozen}
+        startFixturesFromSchedule={startFixturesFromSchedule}
       />
     </div>
   );

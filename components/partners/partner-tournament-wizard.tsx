@@ -75,7 +75,6 @@ import {
   getMaxRounds,
   parseTournamentSettings,
 } from "@/lib/tournaments/settings";
-import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
 import {
   defaultModifiedSwissMatchScoring,
   defaultBestieCupDoubleStageMatchScoring,
@@ -222,7 +221,7 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
   }
 
   const settings = parseTournamentSettings(initial.settings);
-  const ds = parseDoubleStageSettings(initial.settings);
+  const ds = settings.doubleStage;
   const entryBilling: "paid" | "free" =
     initial.officialBilling === "paid" ||
     (initial.registrationFeeIdr != null && initial.registrationFeeIdr > 0)
@@ -251,12 +250,12 @@ function formFromInitial(initial?: TournamentDetail | null): FormState {
         ? initial.status
         : "upcoming",
     format: (initial.format as TournamentFormat) || "double_stage",
-    maxTeamsPerGroup: ds.maxTeamsPerGroup ?? 4,
-    teamsAdvancePerGroup: ds.teamsAdvancePerGroup ?? 1,
-    bestRunnerUpSlots: ds.bestRunnerUpSlots ?? 0,
+    maxTeamsPerGroup: ds?.maxTeamsPerGroup ?? 4,
+    teamsAdvancePerGroup: ds?.teamsAdvancePerGroup ?? 1,
+    bestRunnerUpSlots: ds?.bestRunnerUpSlots ?? 0,
     maxRounds: getMaxRounds(initial) ?? settings.maxRounds ?? null,
     playersPerTeam: initial.playersPerTeam === 1 ? 1 : 2,
-    thirdPlaceEnabled: ds.thirdPlaceEnabled === true,
+    thirdPlaceEnabled: ds?.thirdPlaceEnabled === true,
     entryBilling,
     registrationFeeIdr:
       entryBilling === "paid" && initial.registrationFeeIdr
@@ -1311,6 +1310,7 @@ export function PartnerTournamentWizard({
                         <div className="space-y-2">
                           <Label>Advance per pool</Label>
                           <Select
+                            key={`advance-${form.teamsAdvancePerGroup}`}
                             value={String(form.teamsAdvancePerGroup)}
                             onValueChange={(v) => patch("teamsAdvancePerGroup", Number(v))}
                           >

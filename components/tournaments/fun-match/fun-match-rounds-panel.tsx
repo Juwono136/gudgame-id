@@ -105,6 +105,11 @@ type FunMatchRoundsPanelProps = {
   initialFocusedCourtId?: string | null;
   /** Hide idle planning when tournament is finished or not live. */
   scoringFrozen?: boolean;
+  /**
+   * When true (formats with Match Schedule tab), hide Idle courts · start next —
+   * hosts start fixtures from Match Schedule by picking a court + Start.
+   */
+  startFixturesFromSchedule?: boolean;
 };
 
 function matchMatchesSearch(m: ReclubMatchView, q: string): boolean {
@@ -179,6 +184,7 @@ export function FunMatchRoundsPanel({
   onOpenCourtside,
   initialFocusedCourtId = null,
   scoringFrozen = false,
+  startFixturesFromSchedule = false,
 }: FunMatchRoundsPanelProps) {
   const accentLabel = accentVariant === "official" ? "text-cp-primary" : "text-emerald-400";
   const [search, setSearch] = useState("");
@@ -388,6 +394,7 @@ export function FunMatchRoundsPanel({
   }, [liveCourtIds, focusedCourtId]);
 
   const canShowIdlePlanning =
+    !startFixturesFromSchedule &&
     !scoringFrozen &&
     canManage &&
     !readOnly &&
@@ -428,9 +435,13 @@ export function FunMatchRoundsPanel({
             </h3>
             <span className="text-[11px] text-cp-muted">
               {isGroupStageMode
-                ? `${courts.length} court${courts.length === 1 ? "" : "s"} · assign group fixtures`
+                ? startFixturesFromSchedule
+                  ? `${courts.length} court${courts.length === 1 ? "" : "s"} · start from Match Schedule`
+                  : `${courts.length} court${courts.length === 1 ? "" : "s"} · assign group fixtures`
                 : isBracketMode
-                  ? `${courts.length} court${courts.length === 1 ? "" : "s"}`
+                  ? startFixturesFromSchedule
+                    ? `${courts.length} court${courts.length === 1 ? "" : "s"} · start from Match Schedule`
+                    : `${courts.length} court${courts.length === 1 ? "" : "s"}`
                   : `R${currentRound}${maxRounds != null ? `/${maxRounds}` : ""}`}
             </span>
           </div>
@@ -465,7 +476,7 @@ export function FunMatchRoundsPanel({
                 <span className="hidden sm:inline">Stack</span>
               </button>
             </div>
-            {canManage && !readOnly ? (
+            {canManage && !readOnly && !startFixturesFromSchedule ? (
               <>
                 {onReshuffle ? (
                   <Button type="button" variant="outline" size="sm" className="h-8" onClick={onReshuffle}>
@@ -493,6 +504,18 @@ export function FunMatchRoundsPanel({
                   </Button>
                 ) : null}
               </>
+            ) : canManage && !readOnly && startFixturesFromSchedule && onFinishRound ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-8"
+                disabled={!hasActiveMatches}
+                onClick={onFinishRound}
+              >
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                Finish
+              </Button>
             ) : null}
           </div>
         </div>
@@ -745,6 +768,14 @@ export function FunMatchRoundsPanel({
               );
             })}
           </div>
+        ) : null}
+
+        {startFixturesFromSchedule && canManage && !readOnly && liveCourtIds.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-cp-border/70 bg-cp-elevated/10 px-3 py-3 text-center text-xs text-cp-muted">
+            Pick a court on <span className="font-semibold text-foreground">Match Schedule</span>, then
+            press <span className="font-semibold text-foreground">Start</span> — scoring opens here
+            automatically.
+          </p>
         ) : null}
 
         {canShowIdlePlanning && liveCourtIds.length > 0 && !idleExpandedWhileLive ? (

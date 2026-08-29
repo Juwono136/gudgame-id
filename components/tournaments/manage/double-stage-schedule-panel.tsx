@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { DoubleStageScheduleManage } from "@/components/tournaments/manage/double-stage-schedule-manage";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +22,15 @@ export function DoubleStageSchedulePanel({
   );
   const overview = data?.doubleStage;
   const bracketMatches = data?.bracketMatches ?? [];
+  const courts = useMemo(
+    () =>
+      (data?.courts ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        courtNumber: c.courtNumber,
+      })),
+    [data?.courts],
+  );
 
   if (!overview) {
     return (
@@ -49,8 +59,9 @@ export function DoubleStageSchedulePanel({
         tournament={tournament}
         groups={overview.groups}
         bracketMatches={bracketMatches}
+        courts={courts}
         onUpdated={() => void refetch()}
-        onStartMatch={onOpenLiveScoring ? () => onOpenLiveScoring() : undefined}
+        onStarted={onOpenLiveScoring}
       />
     </div>
   );

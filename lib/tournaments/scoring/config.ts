@@ -153,24 +153,38 @@ export const DEFAULT_DOUBLE_STAGE_SETTINGS: DoubleStageSettings = {
   thirdPlaceEnabled: false,
 };
 
+/**
+ * Parse double-stage pool settings.
+ * Accepts either the nested `settings.doubleStage` object **or** a full tournament
+ * settings blob (unwraps `.doubleStage` when present) so UI callers stay resilient.
+ */
 export function parseDoubleStageSettings(raw: unknown): DoubleStageSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_DOUBLE_STAGE_SETTINGS };
-  const v = raw as Record<string, unknown>;
+  let v = raw as Record<string, unknown>;
+
+  // Full tournament settings often get passed by mistake — unwrap nested doubleStage.
+  const nested = v.doubleStage;
+  const hasTopLevelPool =
+    typeof v.maxTeamsPerGroup === "number" ||
+    typeof v.teamsAdvancePerGroup === "number" ||
+    typeof v.maxTeamsPerGroup === "string" ||
+    typeof v.teamsAdvancePerGroup === "string";
+  if (nested != null && typeof nested === "object" && !hasTopLevelPool) {
+    v = nested as Record<string, unknown>;
+  }
+
   const phase = v.phase === "knockout" ? "knockout" : "group";
+  const maxTeamsPerGroup = coercePositiveInt(v.maxTeamsPerGroup, 2);
+  const teamsAdvancePerGroup = coercePositiveInt(v.teamsAdvancePerGroup, 1);
+  const bestRunnerUpSlots = coerceNonNegInt(v.bestRunnerUpSlots);
+
   return {
     phase,
     maxTeamsPerGroup:
-      typeof v.maxTeamsPerGroup === "number" && v.maxTeamsPerGroup >= 2
-        ? Math.floor(v.maxTeamsPerGroup)
-        : DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
+      maxTeamsPerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.maxTeamsPerGroup,
     teamsAdvancePerGroup:
-      typeof v.teamsAdvancePerGroup === "number" && v.teamsAdvancePerGroup >= 1
-        ? Math.floor(v.teamsAdvancePerGroup)
-        : DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
-    bestRunnerUpSlots:
-      typeof v.bestRunnerUpSlots === "number" && v.bestRunnerUpSlots >= 0
-        ? Math.floor(v.bestRunnerUpSlots)
-        : 0,
+      teamsAdvancePerGroup ?? DEFAULT_DOUBLE_STAGE_SETTINGS.teamsAdvancePerGroup,
+    bestRunnerUpSlots: bestRunnerUpSlots ?? 0,
     groupsLockedAt:
       typeof v.groupsLockedAt === "string" && v.groupsLockedAt.trim()
         ? v.groupsLockedAt
@@ -186,4 +200,26 @@ export function parseDoubleStageSettings(raw: unknown): DoubleStageSettings {
     thirdPlaceEnabled:
       typeof v.thirdPlaceEnabled === "boolean" ? v.thirdPlaceEnabled : false,
   };
+}
+
+function coercePositiveInt(raw: unknown, min: number): number | null {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim() !== ""
+        ? Number(raw)
+        : NaN;
+  if (!Number.isFinite(n) || n < min) return null;
+  return Math.floor(n);
+}
+
+function coerceNonNegInt(raw: unknown): number | null {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim() !== ""
+        ? Number(raw)
+        : NaN;
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
 }

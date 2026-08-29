@@ -13,7 +13,7 @@ import {
   getTournamentCourtCount,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
-import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
+import { getDoubleStageSettings } from "@/lib/tournaments/format-capabilities";
 import type { TournamentRegistrationSummary } from "@/lib/tournaments/registration/service";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { cn } from "@/lib/utils";
@@ -78,7 +78,7 @@ export function ManageOfficialDashboardPanel({
       ? `${summary.registeredTeams} / ${summary.maxTeams}`
       : String(summary.registeredTeams);
 
-  const ds = parseDoubleStageSettings(tournament.settings);
+  const ds = getDoubleStageSettings(tournament);
   const poolDetail =
     tournament.format === "double_stage"
       ? `Pools of ${ds.maxTeamsPerGroup ?? 4} · advance ${ds.teamsAdvancePerGroup ?? 1}${

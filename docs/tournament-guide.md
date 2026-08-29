@@ -535,19 +535,19 @@ Gunakan checklist ini sebelum publish.
 4. Manage **Groups**: standings (compact), Sync/Assign — tanpa daftar fixture panjang.
 5. Manage **Match Schedule** (tab terpisah): Order of Play / By day / By court.
    - **Order of Play buckets:** Now (live / on court) · Next (called + next in queue) · Later · Done (disembunyikan jika kosong).
-   - **Start** → buka Live scoring; start match di court otomatis set `callStatus=on_court` (Now).
+   - **Start flow:** Pilih **Court 1/2/3…** di baris fixture → **Start** → match langsung `in_progress` + `callStatus=on_court` dan buka **Live scoring** (tanpa tahap Idle courts).
    - Finalize match → `callStatus=done`.
-   - **Schedule** → modal: Queue number, Court call (In queue / Called / On court / Finished), Scheduled start (opsional).
-   - Validasi client + API (`playOrder` 0–9999, `callStatus` enum, `scheduledAt` ISO atau null).
+   - **Schedule** → modal: Queue number, **Court** (opsional), Court call, Scheduled start (opsional).
+   - Validasi client + API (`playOrder` 0–9999, `callStatus` enum, `scheduledAt` ISO atau null, `courtId` UUID atau null).
    - Label stage & nama group ditampilkan di **baris terpisah** pada setiap match row.
 6. Manage **Live scoring** — dual surface (command center + courtside):
    - **Command center:** sticky court strip (C1 … LIVE …); **hanya 1 scorepad expanded** (focus-one); court live lain = baris ringkas.
-   - Saat ada court **live**, blok **Idle courts · start next** disembunyikan; host bisa buka lagi via “Show”. Idle otomatis tampil lagi jika tidak ada live.
-   - Tab workspace: **Scoring | Standings | History**.
+   - Format dengan **Match Schedule** (double stage / group stage): blok **Idle courts · start next** **tidak ditampilkan** — start dari Match Schedule. Format Americano / round-based tetap memakai idle court picker.
+   - Tab workspace: **Live score | Match schedule | Standings | History**.
    - Leaderboard samping opsional; **Focus scoring** otomatis ON saat ≥2 court live.
    - **Courtside scorepad:** fullscreen opaque shell per court (`?section=scoring&court=<id>`). Tap **Courtside** / double-tap strip; Esc kembali.
-   - Match rounds: Tabs/Stack; search; live matches di atas idle planning.
-   - **Play again (rematch):** match yang sudah selesai hanya bisa di-start ulang lewat konfirmasi rematch (hasil lama masuk history; advancement slot di-rollback). Auto-assign idle court **tidak** mengantri match completed.
+   - Match rounds: Tabs/Stack; search; live scorepads.
+   - **Play again (rematch):** match yang sudah selesai hanya bisa di-start ulang lewat konfirmasi rematch (hasil lama masuk history; advancement slot di-rollback).
 7. Publik: **Live Score** (timer), **Groups**, **Matches** (jadwal read-only), **Bracket** setelah KO.
 8. Semua group selesai → knockout otomatis (retry **Generate knockout** di Groups jika perlu).
 9. Score KO di Live scoring → juara; history & ranking sync.
@@ -639,7 +639,7 @@ API menolak operasi ilegal (contoh: generate KO pada `group_only` / `mexicano`; 
 | **Group round sync** | Live payload menyertakan `roundNumber` / `roundLabel`; fixture pending ikut agar tab Round publik = manage. |
 | **Standings grup** | Tab Groups publik termasuk semua meetings + kolom WR. |
 | **Knockout series** | Parent slot + legs; advance setelah mayoritas; pohon publik memakai parent slots. |
-| **Schedule / Order of Play** | Host edit di manage **Match Schedule**; publik tab Matches read-only. Kartu mobile: layout **Team A \| waktu \| Team B** (bukan stack vertikal), court pill hijau di bawah. |
+| **Schedule / Order of Play** | Host edit di manage **Match Schedule**; publik tab Matches read-only. Kartu: **Team A \| waktu \| Team B**, pilih court + **Start** (manage). Dialog Schedule mendukung pre-assign court. |
 | **Roster display** | `TeamPlayerList` — `icon` (default) atau `avatar` + initials fallback; venue TV memakai `tone=display`. |
 | **Bracket tree roster** | Tinggi kartu menyesuaikan roster (hingga 6 pemain/side, sisanya `+N more`) agar connector tidak clipping. |
 | **Live timer** | `LiveMatchTimer` di Live Score publik, manage, dan venue display. |
@@ -670,7 +670,7 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Manage → Players (roster besar):** Guest registrations hanya menampilkan antrian **Needs review** + ringkasan stat (confirmed tidak diduplikasi). Roster confirmed memakai tabel compact: search, paginasi (10/20/50 tim per halaman), player inline chips, **Swap pair** untuk tim doubles (sebelum main), sticky header + scroll area, remove icon-only di desktop. Komponen: `partner-guest-registrations-panel.tsx`, `tournament-participants-panel.tsx` (`compactLayout` untuk partner).
 
-**Live scoring tabs:** Manage → Live scoring memakai sub-tab **Live score** · **Match schedule** (Order of Play) · **Standings** · **History**. Klik player di standings → modal statistik + games history. Klik match di History → popup point log + scorer trail. Idle courts hanya menampilkan fixture **pending** (bug R2 selesai di dropdown sudah diperbaiki). Timer elapsed/sisa di kartu live match.
+**Live scoring tabs:** Manage → Live scoring memakai sub-tab **Live score** · **Match schedule** (Order of Play) · **Standings** · **History**. Klik player di standings → modal statistik + games history. Klik match di History → popup point log + scorer trail. Double-stage / group stage: start fixture dari Match Schedule (court + Start); Idle courts disembunyikan. Americano / round-based tetap memakai idle court picker (hanya fixture pending). Timer elapsed/sisa di kartu live match.
 
 **Wizard partner:** `components/partners/partner-tournament-wizard.tsx` — tidak ada short summary; **Series** (dulu League) opsional di Step 1.
 
@@ -698,7 +698,7 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Knockout seeding sebelum live:** Penempatan squad di bracket (Fun Match / partner knockout) diizinkan **sebelum** jam mulai sesi — tidak lagi memblokir dengan “Play unlocks when the session start time is reached”. Guard server: `assignTeamToBracketSlot` memakai `assertBracketSetupAllowed` + seeding lock (match sudah mulai/selesai). Client: `canArrangeBracketPairings()` di `session-lifecycle.ts`.
 
-**Wizard partner — pool config:** Pilihan **Pairs per pool** / advance / runner-up **tetap tersimpan** saat Continue → Review → Previous step (snapshot + `key` pada Select).
+**Wizard partner — pool config:** Pilihan **Pairs per pool** / advance / runner-up tersimpan di `settings.doubleStage` dan di-load lewat `parseDoubleStageSettings` / `getDoubleStageSettings` (menerima nested object atau full settings blob). Overview FORMAT menampilkan nilai tersimpan (bukan default 4 / advance 2). Select memakai `key` agar Continue → Review → Previous tetap sinkron.
 
 **Partner staff vs player login:** Dua realm terpisah — staff = Gud Game (`/login`, role Partner, Partner Console); player = cookie `gg_pps_<slug>`. Login player dengan email staff menampilkan pesan + tombol **Staff sign in** (`lookupPartnerStaffLoginHint`).
 

@@ -448,6 +448,9 @@ export function FunMatchScoringWorkspace({
 
   const showScheduleInScoring =
     Boolean(doubleStageOverview) || isGroupStageMode || isBracketMode;
+  /** Group / double-stage: start from Match Schedule (court + Start), not Idle courts. */
+  const startFixturesFromSchedule =
+    Boolean(doubleStageOverview) || isGroupStageMode;
 
   const playerSessionMatches = useMemo((): PlayerSessionMatchRow[] => {
     const courtNameById = new Map(courts.map((c) => [c.id, c.name] as const));
@@ -1666,11 +1669,17 @@ export function FunMatchScoringWorkspace({
       startingAll={startingAllCourts}
       maxRounds={maxRounds}
       onReshuffle={
-        canManageCourts && (!isOfficialWorkspace || isLobbyRoundsMode || isGroupStageMode)
+        canManageCourts &&
+        !startFixturesFromSchedule &&
+        (!isOfficialWorkspace || isLobbyRoundsMode || isGroupStageMode)
           ? handleReshuffle
           : undefined
       }
-      onStartAllCourts={canManageCourts ? () => void handleStartAllCourts() : undefined}
+      onStartAllCourts={
+        canManageCourts && !startFixturesFromSchedule
+          ? () => void handleStartAllCourts()
+          : undefined
+      }
       onFinishRound={canScore ? () => void handleFinishRound() : undefined}
       hasActiveMatches={hasActive}
       accentVariant={accentVariant}
@@ -1684,6 +1693,7 @@ export function FunMatchScoringWorkspace({
       onOpenCourtside={canManageCourts ? openCourtside : undefined}
       initialFocusedCourtId={courtsideCourtId ?? courtFromUrl}
       scoringFrozen={scoringFrozen}
+      startFixturesFromSchedule={startFixturesFromSchedule}
     />
   );
 
@@ -1800,14 +1810,20 @@ export function FunMatchScoringWorkspace({
       <section className="rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
         <h3 className="text-base font-semibold text-foreground">Match schedule · Order of play</h3>
         <p className="mt-1 text-sm text-cp-muted">
-          Queue numbers, court calls, and start times. Use Live score to start fixtures on courts.
+          Pick a court on each row, then Start to begin live scoring immediately.
         </p>
         <div className="mt-4">
           <DoubleStageScheduleManage
             tournament={tournament}
             groups={doubleStageOverview.groups}
             bracketMatches={bracketMatches}
+            courts={courts.map((c) => ({
+              id: c.id,
+              name: c.name,
+              courtNumber: c.courtNumber,
+            }))}
             onUpdated={() => void refetch()}
+            onStarted={() => setWorkspaceTab("scoring")}
           />
         </div>
       </section>

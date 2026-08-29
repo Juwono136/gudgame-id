@@ -2,8 +2,11 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarClock, ListOrdered, Loader2, Megaphone } from "lucide-react";
-import { MatchScheduleBoard } from "@/components/tournaments/double-stage/match-schedule-board";
+import { CalendarClock, ListOrdered, Loader2, MapPin, Megaphone } from "lucide-react";
+import {
+  MatchScheduleBoard,
+  type ScheduleCourtOption,
+} from "@/components/tournaments/double-stage/match-schedule-board";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +18,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { GroupOverview } from "@/lib/tournaments/double-stage/service";
 import {
   MATCH_CALL_STATUSES,
@@ -26,14 +36,25 @@ import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { getTournamentMatchScoreMode } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
+import { useStartGroupMatchOnCourt } from "@/hooks/use-double-stage-group-score";
+import { useStartBracketMatchOnCourt } from "@/hooks/use-tournament-bracket";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
+
+const COURT_NONE = "__none__";
 
 type DoubleStageScheduleManageProps = {
   tournament: TournamentDetail;
   groups: GroupOverview[];
   bracketMatches?: BracketMatchView[];
+  courts?: ScheduleCourtOption[];
   onUpdated?: () => void;
-  onStartMatch?: (match: ScheduleMatchRow) => void;
+  /** After a successful Start — typically navigate to Live scoring. */
+  onStarted?: (match: ScheduleMatchRow, courtId: string) => void;
 };
 
 type FieldErrors = {
@@ -94,17 +115,29 @@ export function DoubleStageScheduleManage({
   tournament,
   groups,
   bracketMatches = [],
+  courts = [],
   onUpdated,
-  onStartMatch,
+  onStarted,
 }: DoubleStageScheduleManageProps) {
   const gamesScoreMode = getTournamentMatchScoreMode(tournament, "group") === "games";
   const [saving, setSaving] = useState(false);
+  const [startingMatchId, setStartingMatchId] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScheduleMatchRow | null>(null);
   const [scheduledDraft, setScheduledDraft] = useState("");
   const [queueDraft, setQueueDraft] = useState("");
   const [courtStatusDraft, setCourtStatusDraft] = useState<MatchCallStatus>("queued");
+  const [courtIdDraft, setCourtIdDraft] = useState<string>(COURT_NONE);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+
+  const startGroupOnCourt = useStartGroupMatchOnCourt(tournament.sportSlug, tournament.slug);
+  const startBracketOnCourt = useStartBracketMatchOnCourt(tournament.sportSlug, tournament.slug);
+
+  const courtNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of courts) map.set(c.id, c.name);
+    return map;
+  }, [courts]);
 
   const rows = useMemo((): ScheduleMatchRow[] => {
     const groupRows: ScheduleMatchRow[] = groups.flatMap((g) =>
@@ -124,6 +157,7 @@ export function DoubleStageScheduleManage({
         scheduledAt: m.scheduledAt,
         startedAt: m.startedAt,
         courtId: m.courtId,
+        courtName: m.courtId ? courtNameById.get(m.courtId) ?? null : null,
         playOrder: m.playOrder,
         callStatus: parseCallStatus(m.callStatus),
       })),
@@ -147,18 +181,28 @@ export function DoubleStageScheduleManage({
       status: m.status,
       scheduledAt: m.scheduledAt,
       courtId: m.courtId,
+      courtName: m.courtId ? courtNameById.get(m.courtId) ?? null : null,
       playOrder: m.playOrder,
       callStatus: parseCallStatus(m.callStatus),
     }));
 
     return [...groupRows, ...bracketRows];
-  }, [groups, bracketMatches]);
+  }, [groups, bracketMatches, courtNameById]);
+
+  const occupiedCourtIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of rows) {
+      if (row.status === "in_progress" && row.courtId) set.add(row.courtId);
+    }
+    return set;
+  }, [rows]);
 
   const openEditor = useCallback((match: ScheduleMatchRow) => {
     setEditing(match);
     setScheduledDraft(toLocalInputValue(match.scheduledAt));
     setQueueDraft(match.playOrder != null ? String(match.playOrder) : "");
     setCourtStatusDraft(match.callStatus ?? "queued");
+    setCourtIdDraft(match.courtId ?? COURT_NONE);
     setFieldErrors({});
     setFormError(null);
   }, []);
@@ -167,8 +211,32 @@ export function DoubleStageScheduleManage({
     setScheduledDraft("");
     setQueueDraft("");
     setCourtStatusDraft("queued");
+    setCourtIdDraft(COURT_NONE);
     setFieldErrors({});
     setFormError(null);
+  };
+
+  const postSchedule = async (input: {
+    kind: "group" | "bracket";
+    matchId: string;
+    scheduledAt?: string | null;
+    playOrder?: number | null;
+    callStatus?: MatchCallStatus;
+    courtId?: string | null;
+  }) => {
+    const res = await fetch(
+      `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/manage/schedule`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    );
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error?.message ?? "Failed to save schedule");
+    }
+    return json;
   };
 
   const save = async () => {
@@ -192,25 +260,16 @@ export function DoubleStageScheduleManage({
         : null;
       const playOrder =
         queueDraft.trim() === "" ? null : Number.parseInt(queueDraft.trim(), 10);
+      const courtId = courtIdDraft === COURT_NONE ? null : courtIdDraft;
 
-      const res = await fetch(
-        `/api/tournaments/${tournament.sportSlug}/${tournament.slug}/manage/schedule`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kind: editing.kind,
-            matchId: editing.id,
-            scheduledAt,
-            playOrder,
-            callStatus: courtStatusDraft,
-          }),
-        },
-      );
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error?.message ?? "Failed to save schedule");
-      }
+      await postSchedule({
+        kind: editing.kind,
+        matchId: editing.id,
+        scheduledAt,
+        playOrder,
+        callStatus: courtStatusDraft,
+        courtId,
+      });
       toast.success("Match schedule updated");
       setEditing(null);
       onUpdated?.();
@@ -223,13 +282,83 @@ export function DoubleStageScheduleManage({
     }
   };
 
+  const handleCourtChange = useCallback(
+    async (match: ScheduleMatchRow, courtId: string | null) => {
+      if (match.status === "in_progress" || match.status === "completed" || match.status === "bye") {
+        return;
+      }
+      try {
+        await postSchedule({
+          kind: match.kind,
+          matchId: match.id,
+          courtId,
+        });
+        onUpdated?.();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not assign court");
+      }
+    },
+    // postSchedule closes over tournament ids — stable enough per mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tournament.sportSlug, tournament.slug, onUpdated],
+  );
+
+  const handleStartMatch = useCallback(
+    async (match: ScheduleMatchRow, courtId: string) => {
+      if (!courtId) {
+        toast.error("Select a court before starting");
+        return;
+      }
+      if (occupiedCourtIds.has(courtId) && match.courtId !== courtId) {
+        toast.error("That court already has a live match");
+        return;
+      }
+      if (!match.teamAName || !match.teamBName) {
+        toast.error("Both teams must be set before starting");
+        return;
+      }
+
+      setStartingMatchId(match.id);
+      try {
+        if (match.kind === "group") {
+          await startGroupOnCourt.mutateAsync({ matchId: match.id, courtId });
+        } else {
+          await startBracketOnCourt.mutateAsync({ matchId: match.id, courtId });
+        }
+        toast.success(
+          `Started on ${courtNameById.get(courtId) ?? "court"} — opening live scoring`,
+        );
+        onUpdated?.();
+        onStarted?.(match, courtId);
+      } catch {
+        // Hook already toasts API errors
+      } finally {
+        setStartingMatchId(null);
+      }
+    },
+    [
+      occupiedCourtIds,
+      startGroupOnCourt,
+      startBracketOnCourt,
+      courtNameById,
+      onUpdated,
+      onStarted,
+    ],
+  );
+
+  const canStartFromSchedule = courts.length > 0;
+
   return (
     <>
       <MatchScheduleBoard
         matches={rows}
         gamesScoreMode={gamesScoreMode}
         onEditSchedule={openEditor}
-        onStartMatch={onStartMatch}
+        onStartMatch={canStartFromSchedule ? handleStartMatch : undefined}
+        courts={canStartFromSchedule ? courts : undefined}
+        occupiedCourtIds={occupiedCourtIds}
+        startingMatchId={startingMatchId}
+        onCourtChange={canStartFromSchedule ? handleCourtChange : undefined}
         defaultView="orderOfPlay"
         emptyMessage="Fixtures appear after groups are generated. Use Schedule on a match to set queue position and start time."
       />
@@ -254,7 +383,7 @@ export function DoubleStageScheduleManage({
                 Edit match schedule
               </DialogTitle>
               <DialogDescription className="sr-only">
-                Set queue position, court call status, and optional start time.
+                Set queue position, court, call status, and optional start time.
               </DialogDescription>
               <div className="space-y-0.5">
                 <p className="text-sm font-semibold text-foreground">
@@ -306,6 +435,43 @@ export function DoubleStageScheduleManage({
                 </p>
               )}
             </div>
+
+            {courts.length > 0 ? (
+              <div className="space-y-2">
+                <Label className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-cp-primary" aria-hidden />
+                  Court
+                </Label>
+                <Select value={courtIdDraft} onValueChange={setCourtIdDraft}>
+                  <SelectTrigger className={cn(cpSelectTriggerClass, "w-full")}>
+                    <SelectValue placeholder="Assign court (optional)" />
+                  </SelectTrigger>
+                  <SelectContent className={cpSelectContentClass}>
+                    <SelectItem value={COURT_NONE} className={cpSelectItemClass}>
+                      No court yet
+                    </SelectItem>
+                    {courts.map((c) => {
+                      const busy =
+                        occupiedCourtIds.has(c.id) && editing?.courtId !== c.id;
+                      return (
+                        <SelectItem
+                          key={c.id}
+                          value={c.id}
+                          disabled={busy}
+                          className={cpSelectItemClass}
+                        >
+                          {c.name}
+                          {busy ? " · live" : ""}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-cp-muted">
+                  Optional pre-assign. You can also pick a court on the row and press Start.
+                </p>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label className="inline-flex items-center gap-1.5">

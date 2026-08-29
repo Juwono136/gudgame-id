@@ -70,7 +70,7 @@ import {
   getTournamentScoringPrimaryLabel,
   getVenueMapsUrl,
 } from "@/lib/tournaments/settings";
-import { parseDoubleStageSettings } from "@/lib/tournaments/scoring/config";
+import { getDoubleStageSettings } from "@/lib/tournaments/format-capabilities";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   computeReclubSessionStats,
@@ -301,7 +301,7 @@ export function PartnerTournamentPublicPage({
   const scoringPrimary = getTournamentScoringPrimaryLabel(tournament);
   const scoringDetail = getTournamentScoringDetailLabel(tournament);
   const courtCount = getTournamentCourtCount(tournament);
-  const dsPool = parseDoubleStageSettings(tournament.settings);
+  const dsPool = getDoubleStageSettings(tournament);
   const formatHint = (() => {
     const parts: string[] = [];
     if (tournament.maxTeams) parts.push(`Up to ${tournament.maxTeams} teams`);

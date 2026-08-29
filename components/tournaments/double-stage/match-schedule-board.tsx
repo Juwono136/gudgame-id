@@ -1,9 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarDays, ListOrdered, MapPin, Pencil, Play } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, ListOrdered, Loader2, MapPin, Pencil, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TeamPlayerList } from "@/components/tournaments/team-player-list";
+import {
+  cpSelectContentClass,
+  cpSelectItemClass,
+  cpSelectTriggerClass,
+} from "@/lib/styles/surface-classes";
 import { cn } from "@/lib/utils";
 import {
   callStatusLabel,
@@ -17,6 +29,12 @@ import {
 } from "@/lib/tournaments/double-stage/schedule-view";
 
 type BoardView = "orderOfPlay" | "schedule" | "court";
+
+export type ScheduleCourtOption = {
+  id: string;
+  name: string;
+  courtNumber: number;
+};
 
 const BUCKET_PAGE_SIZE = 10;
 
@@ -34,13 +52,21 @@ function MatchList({
   onStartMatch,
   showCallStatus,
   hideCourtInLabel,
+  courts,
+  occupiedCourtIds,
+  startingMatchId,
+  onCourtChange,
 }: {
   matches: ScheduleMatchRow[];
   gamesScoreMode: boolean;
   onEditSchedule?: (match: ScheduleMatchRow) => void;
-  onStartMatch?: (match: ScheduleMatchRow) => void;
+  onStartMatch?: (match: ScheduleMatchRow, courtId: string) => void;
   showCallStatus?: boolean;
   hideCourtInLabel?: boolean;
+  courts?: ScheduleCourtOption[];
+  occupiedCourtIds?: Set<string>;
+  startingMatchId?: string | null;
+  onCourtChange?: (match: ScheduleMatchRow, courtId: string | null) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? matches : matches.slice(0, BUCKET_PAGE_SIZE);
@@ -58,6 +84,10 @@ function MatchList({
             onStartMatch={onStartMatch}
             showCallStatus={showCallStatus}
             hideCourtInLabel={hideCourtInLabel}
+            courts={courts}
+            occupiedCourtIds={occupiedCourtIds}
+            startingMatchId={startingMatchId}
+            onCourtChange={onCourtChange}
           />
         ))}
       </ul>
@@ -90,12 +120,34 @@ type MatchScheduleBoardProps = {
   emptyMessage?: string;
   title?: string;
   onEditSchedule?: (match: ScheduleMatchRow) => void;
-  /** Manage: jump to Live scoring to start/score this fixture. */
-  onStartMatch?: (match: ScheduleMatchRow) => void;
+  /**
+   * Manage: start this fixture on the selected court (group/bracket start APIs).
+   * Requires a court id — use `courts` to show the picker on each row.
+   */
+  onStartMatch?: (match: ScheduleMatchRow, courtId: string) => void;
+  /** Courts available for Start (manage Match Schedule). */
+  courts?: ScheduleCourtOption[];
+  /** Court ids currently hosting an in-progress match. */
+  occupiedCourtIds?: Set<string>;
+  startingMatchId?: string | null;
+  /** Persist court assignment when the host changes the row picker. */
+  onCourtChange?: (match: ScheduleMatchRow, courtId: string | null) => void;
   filter?: "all" | "group" | "knockout";
   onFilterChange?: (filter: "all" | "group" | "knockout") => void;
   defaultView?: BoardView;
 };
+
+function firstFreeCourtId(
+  courts: ScheduleCourtOption[],
+  occupied: Set<string>,
+  preferred?: string | null,
+): string {
+  if (preferred && courts.some((c) => c.id === preferred) && !occupied.has(preferred)) {
+    return preferred;
+  }
+  const free = courts.find((c) => !occupied.has(c.id));
+  return free?.id ?? courts[0]?.id ?? "";
+}
 
 function MatchRow({
   m,
@@ -104,13 +156,21 @@ function MatchRow({
   onStartMatch,
   showCallStatus,
   hideCourtInLabel,
+  courts,
+  occupiedCourtIds,
+  startingMatchId,
+  onCourtChange,
 }: {
   m: ScheduleMatchRow;
   gamesScoreMode: boolean;
   onEditSchedule?: (match: ScheduleMatchRow) => void;
-  onStartMatch?: (match: ScheduleMatchRow) => void;
+  onStartMatch?: (match: ScheduleMatchRow, courtId: string) => void;
   showCallStatus?: boolean;
   hideCourtInLabel?: boolean;
+  courts?: ScheduleCourtOption[];
+  occupiedCourtIds?: Set<string>;
+  startingMatchId?: string | null;
+  onCourtChange?: (match: ScheduleMatchRow, courtId: string | null) => void;
 }) {
   const status = scheduleStatusLabel(m.status, m.kind);
   const call = callStatusLabel(m.callStatus);
@@ -118,6 +178,7 @@ function MatchRow({
     Boolean(onEditSchedule) && m.status !== "completed" && m.status !== "bye";
   const canStart =
     Boolean(onStartMatch) &&
+    Boolean(courts?.length) &&
     m.status !== "completed" &&
     m.status !== "bye" &&
     m.status !== "in_progress";
@@ -132,8 +193,40 @@ function MatchRow({
     m.stageKindLabel ??
     (m.kind === "group" ? "Group stage" : m.stageLabel.split("·")[0]?.trim() || "Knockout");
   const groupLabel = m.groupName ?? null;
-  const courtLabel = hideCourtInLabel ? null : m.courtName?.trim() || null;
+  const occupied = occupiedCourtIds ?? new Set<string>();
+  const courtOptions = courts ?? [];
+
+  const [selectedCourtId, setSelectedCourtId] = useState(() =>
+    canStart ? firstFreeCourtId(courtOptions, occupied, m.courtId) : m.courtId ?? "",
+  );
+
+  useEffect(() => {
+    if (!canStart) {
+      setSelectedCourtId(m.courtId ?? "");
+      return;
+    }
+    setSelectedCourtId((prev) => {
+      if (prev && courtOptions.some((c) => c.id === prev) && !occupied.has(prev)) {
+        return prev;
+      }
+      if (prev && prev === m.courtId) return prev;
+      return firstFreeCourtId(courtOptions, occupied, m.courtId);
+    });
+  }, [canStart, courtOptions, m.courtId, m.id, occupied]);
+
+  const courtLabel = hideCourtInLabel
+    ? null
+    : m.courtName?.trim() ||
+      courtOptions.find((c) => c.id === (m.courtId ?? selectedCourtId))?.name ||
+      null;
+  const isStarting = startingMatchId === m.id;
   const hasActions = canStart || canEdit;
+  const startDisabled = !selectedCourtId || isStarting || occupied.has(selectedCourtId);
+
+  const handleCourtSelect = (courtId: string) => {
+    setSelectedCourtId(courtId);
+    onCourtChange?.(m, courtId || null);
+  };
 
   return (
     <li className="rounded-xl border border-cp-border/80 bg-cp-card/80 px-3 py-3.5 shadow-sm transition-colors hover:bg-cp-elevated/25 sm:px-4 sm:py-4">
@@ -246,15 +339,46 @@ function MatchRow({
         </div>
       </div>
 
-      {/* Court pill + manage actions */}
-      {(courtLabel || hasActions) && (
+      {/* Court picker / pill + manage actions */}
+      {(courtLabel || hasActions || (canStart && courtOptions.length > 0)) && (
         <div
           className={cn(
-            "mt-3 flex items-center gap-2",
+            "mt-3 flex flex-wrap items-center gap-2",
             hasActions ? "justify-between" : "justify-center",
           )}
         >
-          {courtLabel ? (
+          {canStart && courtOptions.length > 0 ? (
+            <div className="min-w-0 flex-1 sm:max-w-[11rem]">
+              <Select
+                value={selectedCourtId || undefined}
+                onValueChange={handleCourtSelect}
+                disabled={isStarting}
+              >
+                <SelectTrigger
+                  aria-label="Select court"
+                  className={cn(cpSelectTriggerClass, "h-8 w-full text-xs")}
+                >
+                  <SelectValue placeholder="Select court" />
+                </SelectTrigger>
+                <SelectContent className={cpSelectContentClass}>
+                  {courtOptions.map((c) => {
+                    const busy = occupied.has(c.id) && c.id !== m.courtId;
+                    return (
+                      <SelectItem
+                        key={c.id}
+                        value={c.id}
+                        disabled={busy}
+                        className={cpSelectItemClass}
+                      >
+                        {c.name}
+                        {busy ? " · live" : ""}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : courtLabel ? (
             <span
               className={cn(
                 "inline-flex items-center rounded-full border border-emerald-500/45 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 sm:text-[11px]",
@@ -273,10 +397,25 @@ function MatchRow({
                   type="button"
                   size="sm"
                   className="h-8 gap-1.5 px-3"
-                  onClick={() => onStartMatch?.(m)}
+                  disabled={startDisabled}
+                  title={
+                    !selectedCourtId
+                      ? "Select a court first"
+                      : occupied.has(selectedCourtId)
+                        ? "That court is already live"
+                        : "Start scoring on this court"
+                  }
+                  onClick={() => {
+                    if (!selectedCourtId || startDisabled) return;
+                    onStartMatch?.(m, selectedCourtId);
+                  }}
                 >
-                  <Play className="h-3.5 w-3.5" aria-hidden />
-                  Start
+                  {isStarting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  {isStarting ? "Starting…" : "Start"}
                 </Button>
               ) : null}
               {canEdit ? (
@@ -311,6 +450,10 @@ export function MatchScheduleBoard({
   title = "Match Schedule",
   onEditSchedule,
   onStartMatch,
+  courts: courtOptions,
+  occupiedCourtIds,
+  startingMatchId = null,
+  onCourtChange,
   filter = "all",
   onFilterChange,
   defaultView = "orderOfPlay",
@@ -328,7 +471,17 @@ export function MatchScheduleBoard({
 
   const days = useMemo(() => groupMatchesByScheduleDay(filtered), [filtered]);
   const buckets = useMemo(() => groupMatchesByOrderOfPlay(filtered), [filtered]);
-  const courts = useMemo(() => groupMatchesByCourt(filtered), [filtered]);
+  const courtGroups = useMemo(() => groupMatchesByCourt(filtered), [filtered]);
+
+  const listProps = {
+    gamesScoreMode,
+    onEditSchedule,
+    onStartMatch,
+    courts: courtOptions,
+    occupiedCourtIds,
+    startingMatchId,
+    onCourtChange,
+  };
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -403,7 +556,14 @@ export function MatchScheduleBoard({
         <p className="text-xs text-cp-muted sm:text-sm">
           <span className="font-medium text-foreground">Now</span> = on court ·{" "}
           <span className="font-medium text-foreground">Next</span> = called / next in queue ·{" "}
-          <span className="font-medium text-foreground">Later</span> = rest of the list. 
+          <span className="font-medium text-foreground">Later</span> = rest of the list.
+          {onStartMatch && courtOptions?.length ? (
+            <>
+              {" "}
+              Pick a <span className="font-medium text-foreground">court</span>, then{" "}
+              <span className="font-medium text-foreground">Start</span> to open live scoring.
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -433,13 +593,7 @@ export function MatchScheduleBoard({
                   <p className="text-xs text-cp-muted">Nothing here yet.</p>
                 </div>
               ) : (
-                <MatchList
-                  matches={bucket.matches}
-                  gamesScoreMode={gamesScoreMode}
-                  onEditSchedule={onEditSchedule}
-                  onStartMatch={onStartMatch}
-                  showCallStatus
-                />
+                <MatchList matches={bucket.matches} showCallStatus {...listProps} />
               )}
             </section>
           ))}
@@ -456,18 +610,13 @@ export function MatchScheduleBoard({
                   {day.matches.length} match{day.matches.length === 1 ? "" : "es"}
                 </span>
               </div>
-              <MatchList
-                matches={day.matches}
-                gamesScoreMode={gamesScoreMode}
-                onEditSchedule={onEditSchedule}
-                onStartMatch={onStartMatch}
-              />
+              <MatchList matches={day.matches} {...listProps} />
             </section>
           ))}
         </div>
       ) : (
         <div className="space-y-5">
-          {courts.map((court) => (
+          {courtGroups.map((court) => (
             <section key={court.courtKey} className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-cp-muted">
@@ -477,13 +626,7 @@ export function MatchScheduleBoard({
                   {court.matches.length} match{court.matches.length === 1 ? "" : "es"}
                 </span>
               </div>
-              <MatchList
-                matches={court.matches}
-                gamesScoreMode={gamesScoreMode}
-                onEditSchedule={onEditSchedule}
-                onStartMatch={onStartMatch}
-                hideCourtInLabel
-              />
+              <MatchList matches={court.matches} hideCourtInLabel {...listProps} />
             </section>
           ))}
         </div>
