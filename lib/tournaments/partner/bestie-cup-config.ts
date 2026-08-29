@@ -93,6 +93,22 @@ export function defaultBestieCupDoubleStageMatchScoring(): MatchScoringConfig {
   return composeDoubleStageMatchScoring(leaf, leaf);
 }
 
+/** Wizard / public summary lines aligned with PDF § Sistem Skor. */
+export const BESTIE_CUP_SCORING_SUMMARY = {
+  deuce: "Golden Point at 40–40 (receiving pair chooses side)",
+  pool: "First to 6 · Golden Point · at 5–5 → deciding game (6–5)",
+  knockoutEarly: "R16 & QF: First to 6 · Golden Point · at 5–5 → tiebreak to 7 (no win-by-2 in TB)",
+  knockoutLate: "SF & Final: First to 6 win by 2 · Golden Point · at 6–6 → tiebreak to 7 (no win-by-2 in TB)",
+} as const;
+
+export function summarizeBestieCupScoringDetail(): string {
+  return [
+    BESTIE_CUP_SCORING_SUMMARY.pool,
+    BESTIE_CUP_SCORING_SUMMARY.knockoutEarly,
+    BESTIE_CUP_SCORING_SUMMARY.knockoutLate,
+  ].join(" · ");
+}
+
 export function parseGroupLetter(groupName: string): string | null {
   const trimmed = groupName.trim();
   const m = /^Group\s+([A-Z])/i.exec(trimmed) ?? /^([A-Z])$/.exec(trimmed);

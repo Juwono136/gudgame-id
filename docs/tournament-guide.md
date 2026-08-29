@@ -274,6 +274,8 @@ Referensi operasional: [`docs/Panduan Dan Rundown Bestie Cup 2026.pdf`](./Pandua
 
 Preset kode: `lib/tournaments/partner/bestie-cup-config.ts`.
 
+**Deuce (partner wizard):** Field **Deuce (in-game)** di Format & capacity — Golden Point / Star Point / Advantage. Saat **Bestie Cup preset** atau **Modified Swiss**, deuce dikunci ke Golden Point (PDF). Ringkasan Structured match rules + halaman publik menampilkan perbedaan R16/QF vs SF/Final (bukan hanya “KO: Race to 6”).
+
 **Manual lengkap:** [`docs/bestie-cup-guide.md`](./bestie-cup-guide.md) — checklist H-day, R16 bracket, scoring KO.
 
 ---
@@ -337,7 +339,7 @@ Contoh 32 teams: R32/R16 → 4 · QF/SF → 6 · Final → 8.
 | `total` | Exactly N games | Games board · `lengthMode: total` |
 | `custom_score` | `large_score` / `one_match_winner`; `allowDraw` default false; `tiePolicy` | Flat points entry; `large_score` butuh host Complete |
 
-Finalize live (non-paper) divalidasi server lewat `assertOfficialLiveGamesMatchComplete` untuk **group** dan **knockout**.
+Finalize live (non-paper) divalidasi server lewat `assertOfficialLiveGamesMatchComplete` untuk **group** dan **knockout**. Untuk knockout, pass `knockoutRoundNumber` + `knockoutTotalRounds` agar aturan Bestie SF/Final (win-by-2 / TB 6–6) tidak jatuh ke fallback R16.
 
 Resolver: `lib/tournaments/scoring/match-scoring.ts`. Series knockout: `resolveSeriesMajority`.
 
@@ -696,7 +698,7 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Venue live scoreboard:** Di bawah nama tim, roster player ditampilkan dengan avatar + nama (`TeamPlayerList` variant avatar, tone display) pada single + multi-court.
 
-**Intra-game / deuce (games mode):** Skor rally 0→40 dengan milestone **15 / 30 / 40** per sisi (bukan hanya “lead”). **40–40** ditampilkan sebagai deuce; golden point / advantage / star point mengikuti `gameDecider` di rules. Manage + venue TV memakai label yang sama (`formatPadelIntraGameScoreLine`).
+**Intra-game / deuce (games mode):** Skor rally 0→40 dengan milestone **15 / 30 / 40** per sisi (bukan hanya “lead”). **40–40** ditampilkan sebagai deuce; golden point / advantage / star point mengikuti `gameDecider` di settings. Partner create/edit: komponen `GameDeciderFields` (label **Deuce (in-game)**). Manage + venue TV memakai label yang sama (`formatPadelIntraGameScoreLine`).
 
 **Order of Play status:** Match selesai (`status=completed`) selalu menampilkan badge **Finished/Done**, bukan **Queued** — meskipun `callStatus` lama belum disinkronkan.
 

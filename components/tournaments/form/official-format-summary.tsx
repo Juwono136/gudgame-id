@@ -14,6 +14,11 @@ import {
 } from "@/lib/tournaments/match-config";
 import { FORMAT_OPTIONS } from "@/lib/tournaments/form/format-options";
 import { PLAYER_TIER_LABELS, type PlayerTierLevel } from "@/lib/player/tier";
+import { BESTIE_CUP_SCORING_SUMMARY } from "@/lib/tournaments/partner/bestie-cup-config";
+import {
+  gameDeciderLabel,
+  type GameDeciderValue,
+} from "@/components/tournaments/form/game-decider-fields";
 import { cn } from "@/lib/utils";
 
 type OfficialFormatSummaryProps = {
@@ -26,6 +31,10 @@ type OfficialFormatSummaryProps = {
   mexicano?: MexicanoSettings | null;
   /** Modified Swiss uses Bestie Cup pool rules (not Mexicano). */
   modifiedSwiss?: boolean;
+  /** Full Bestie Cup Double Stage preset (`poolRules: bestie_cup`). */
+  bestieCup?: boolean;
+  /** In-game deuce rule (40–40). */
+  gameDecider?: GameDeciderValue | null;
   className?: string;
 };
 
@@ -38,6 +47,8 @@ export function OfficialFormatSummary({
   customMatch,
   mexicano,
   modifiedSwiss = false,
+  bestieCup = false,
+  gameDecider = null,
   className,
 }: OfficialFormatSummaryProps) {
   const formatLabel = FORMAT_OPTIONS[format as keyof typeof FORMAT_OPTIONS]?.label ?? format;
@@ -48,6 +59,8 @@ export function OfficialFormatSummary({
         ? PLAYER_TIER_LABELS[allowedTier]
         : "—";
 
+  const showBestieRules = bestieCup || modifiedSwiss || format === "modified_swiss";
+
   const rows: Array<{ label: string; value: string }> = [
     { label: "Match family", value: formatFamily === "custom" ? "Custom" : "Original" },
     { label: "Format", value: formatLabel },
@@ -55,18 +68,29 @@ export function OfficialFormatSummary({
     { label: "Match scoring", value: summarizeMatchScoring(matchScoring) },
   ];
 
+  if (gameDecider) {
+    rows.push({
+      label: "Deuce (in-game)",
+      value: gameDeciderLabel(gameDecider),
+    });
+  }
+
   if (format === "double_stage" && (matchScoring.group || matchScoring.knockout)) {
     rows.push({
       label: "Group scoring",
-      value: summarizeMatchScoringLeaf(
-        resolveMatchScoringForStage(matchScoring, "group") ?? matchScoring,
-      ),
+      value: showBestieRules
+        ? BESTIE_CUP_SCORING_SUMMARY.pool
+        : summarizeMatchScoringLeaf(
+            resolveMatchScoringForStage(matchScoring, "group") ?? matchScoring,
+          ),
     });
     rows.push({
       label: "Knockout scoring",
-      value: summarizeMatchScoringLeaf(
-        resolveMatchScoringForStage(matchScoring, "knockout") ?? matchScoring,
-      ),
+      value: showBestieRules
+        ? `${BESTIE_CUP_SCORING_SUMMARY.knockoutEarly} · ${BESTIE_CUP_SCORING_SUMMARY.knockoutLate}`
+        : summarizeMatchScoringLeaf(
+            resolveMatchScoringForStage(matchScoring, "knockout") ?? matchScoring,
+          ),
     });
   }
 
@@ -88,7 +112,7 @@ export function OfficialFormatSummary({
       value: `${mexicano.mode === "individual" ? "Individual" : "Team"} · ${mexicano.roundCount} rounds`,
     });
   }
-  if (format === "modified_swiss" || modifiedSwiss) {
+  if (showBestieRules) {
     rows.push({
       label: "Pool rules",
       value: "RR meet once · FT6 · wins → GW% → draw",
@@ -97,6 +121,12 @@ export function OfficialFormatSummary({
       label: "Rest",
       value: "Side change + 1 min at odd game totals",
     });
+    if (bestieCup && format === "double_stage") {
+      rows.push({
+        label: "Knockout (PDF)",
+        value: "R16/QF: TB at 5–5 to 7 · SF/Final: win by 2, TB at 6–6 to 7",
+      });
+    }
   }
 
   return (

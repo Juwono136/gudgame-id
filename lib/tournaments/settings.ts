@@ -36,6 +36,7 @@ import {
   BESTIE_CUP_POOL_GAME_RULES,
   getBestieCupKnockoutGameRules,
   getBestieCupStandingsScoring,
+  summarizeBestieCupScoringDetail,
   tournamentUsesBestieCupPoolRules,
 } from "@/lib/tournaments/partner/bestie-cup-config";
 import { coerceRichHtmlField, sanitizeTournamentRichField } from "@/lib/tournaments/rich-text";
@@ -353,6 +354,9 @@ export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): 
   if (getTournamentScoringType(tournament) === "timed") {
     return `${getTournamentRoundDurationMinutes(tournament)} min rounds`;
   }
+  if (tournamentUsesBestieCupPoolRules(tournament)) {
+    return "Bestie Cup · Race to 6 (stage rules)";
+  }
   // Partner classic_sets also stores matchScoreMode "games" for the live engine —
   // prefer matchFormat so Overview / manage never say "Race to N" for classic sets.
   if (isClassicSetsFormat(tournament)) {
@@ -370,6 +374,9 @@ export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): 
 export function getTournamentScoringDetailLabel(tournament: TournamentDetail): string {
   const courtCount = getTournamentCourtCount(tournament);
   const courts = `${courtCount} ${courtCount === 1 ? "court" : "courts"}`;
+  if (tournamentUsesBestieCupPoolRules(tournament)) {
+    return `${summarizeBestieCupScoringDetail()} · ${courts}`;
+  }
   const decider = formatGameDeciderShort(
     parseTournamentSettings(tournament.settings).gameDecider,
   );

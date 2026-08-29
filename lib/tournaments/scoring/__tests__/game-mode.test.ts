@@ -52,7 +52,9 @@ describe("game-mode scoring", () => {
     expect(formatPadelIntraGameScoreLine(39, 39)).toBe("40 – 40");
     expect(formatPadelIntraGameScoreLine(40, 39)).toBe("Ad – 40");
     expect(isIntraGameDeuce(39, 39)).toBe(true);
-    expect(intraGameDeuceLabel(39, 39, "golden_point")).toBe("Deuce · next point wins");
+    expect(intraGameDeuceLabel(39, 39, "golden_point")).toBe(
+      "Deuce · next point wins · receiving pair chooses side",
+    );
   });
 
   it("awards a game at 40 but holds the score until next game", () => {

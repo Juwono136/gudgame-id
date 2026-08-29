@@ -5,9 +5,11 @@ import {
 } from "@/lib/tournaments/double-stage/standings";
 import {
   BESTIE_CUP_KO_EARLY_GAME_RULES,
+  BESTIE_CUP_KO_LATE_GAME_RULES,
   BESTIE_CUP_POOL_GAME_RULES,
   BESTIE_CUP_POOL_STANDINGS,
   formatGameWinPctDisplay,
+  getBestieCupKnockoutGameRules,
 } from "@/lib/tournaments/partner/bestie-cup-config";
 import { getTournamentGameRules } from "@/lib/tournaments/settings";
 import type { TournamentDetail } from "@/lib/tournaments/service";
@@ -97,5 +99,30 @@ describe("Bestie Cup game rules (double stage)", () => {
       knockoutTotalRounds: 4,
     });
     expect(rules.matchTiebreakAt).toBe(BESTIE_CUP_KO_EARLY_GAME_RULES.matchTiebreakAt);
+    expect(rules.matchWinMargin).toBe(1);
+    expect(rules.matchTiebreakTo).toBe(7);
+    expect(rules.gameDecider).toBe("golden_point");
+  });
+
+  it("applies SF/Final win-by-2 + TB at 6–6 (PDF late rounds)", () => {
+    const sf = getBestieCupKnockoutGameRules(3, 4);
+    const final = getBestieCupKnockoutGameRules(4, 4);
+    const qf = getBestieCupKnockoutGameRules(2, 4);
+    expect(sf).toMatchObject({
+      matchWinMargin: BESTIE_CUP_KO_LATE_GAME_RULES.matchWinMargin,
+      matchTiebreakAt: BESTIE_CUP_KO_LATE_GAME_RULES.matchTiebreakAt,
+      matchTiebreakTo: 7,
+      raceToGames: 6,
+    });
+    expect(final.matchTiebreakAt).toBe(6);
+    expect(qf.matchTiebreakAt).toBe(5);
+    expect(qf.matchWinMargin).toBe(1);
+
+    const liveSf = getTournamentGameRules(stub("knockout"), "knockout", {
+      knockoutRoundNumber: 3,
+      knockoutTotalRounds: 4,
+    });
+    expect(liveSf.matchWinMargin).toBe(2);
+    expect(liveSf.matchTiebreakAt).toBe(6);
   });
 });

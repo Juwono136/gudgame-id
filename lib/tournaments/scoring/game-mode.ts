@@ -398,7 +398,9 @@ export function intraGameDeuceLabel(
   pointsToWinGame = 40,
 ): string | null {
   if (!isIntraGameDeuce(pointsA, pointsB, pointsToWinGame)) return null;
-  if (gameDecider === "golden_point") return "Deuce · next point wins";
+  if (gameDecider === "golden_point") {
+    return "Deuce · next point wins · receiving pair chooses side";
+  }
   if (gameDecider === "star_point") return "Deuce · Star Point rules";
   return "Deuce · win by 2";
 }

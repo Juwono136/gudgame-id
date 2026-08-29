@@ -258,10 +258,22 @@ export async function submitBracketMatchScore(
   const { assertOfficialLiveGamesMatchComplete } = await import(
     "@/lib/tournaments/scoring/assert-live-games-complete"
   );
-  assertOfficialLiveGamesMatchComplete(tournament, "knockout", {
-    scoreA,
-    scoreB,
-  });
+  const [{ maxRound }] = await db
+    .select({
+      maxRound: sql<number>`coalesce(max(${tournamentBracketMatches.roundNumber}), 1)`,
+    })
+    .from(tournamentBracketMatches)
+    .where(eq(tournamentBracketMatches.tournamentId, tournament.id));
+  const knockoutTotalRounds = Math.max(1, Number(maxRound) || 1);
+  assertOfficialLiveGamesMatchComplete(
+    tournament,
+    "knockout",
+    { scoreA, scoreB },
+    {
+      knockoutRoundNumber: match.roundNumber,
+      knockoutTotalRounds,
+    },
+  );
 
   const winnerTeamId = scoreA > scoreB ? match.teamAId : match.teamBId;
 

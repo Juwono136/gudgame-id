@@ -146,8 +146,8 @@ Preset code: `lib/tournaments/partner/bestie-cup-config.ts`
 | Rule | Implementation |
 | --- | --- |
 | Scoring | **First to 6 games** per match |
-| Deuce | **Golden Point** at 40–40 |
-| 5–5 | One deciding game → **6–5** |
+| Deuce | **Golden Point** at 40–40 (wizard: **Deuce (in-game)** — locked on Bestie preset) |
+| 5–5 | One deciding game → **6–5** (not a point tiebreak) |
 | Standings | **W** → **Game Win %** → manual draw |
 | WO | Recorded **6–0** (counts in GW%) |
 | Rest | Side change + **1 min** at odd total games (from game 3) |
@@ -157,12 +157,18 @@ Preset code: `lib/tournaments/partner/bestie-cup-config.ts`
 
 ## Knockout scoring (app behaviour)
 
+Per PDF **Sistem Skor** — race target stays **First to 6** for every KO round; **margin + tiebreak trigger** differ:
+
 | Round | Rules |
 | --- | --- |
-| **R16 & QF** | First to 6; Golden Point; at **5–5** → **match tiebreak to 7 points** |
-| **SF & Final** | First to 6 **win by 2**; Golden Point; at **6–6** → **match tiebreak to 7 points** |
+| **R16 & QF** | First to 6 · Golden Point · at **5–5** → **match tiebreak to 7 points** (no win-by-2 in TB) |
+| **SF & Final** | First to 6 **win by 2 games** · Golden Point · at **6–6** → **match tiebreak to 7 points** (no win-by-2 in TB) |
 
-Live scoreboard enters **Match tiebreak** mode automatically at 5–5 / 6–6.
+Runtime: `getBestieCupKnockoutGameRules(round, totalRounds)` via `getTournamentGameRules(..., { knockoutRoundNumber, knockoutTotalRounds })` on Manage Live scoring, client Finish-match checks, and server `assertOfficialLiveGamesMatchComplete` (so SF/Final cannot be finalized at 6–5).
+
+**Wizard note:** Structured match rules + Review show these PDF lines when **Bestie Cup 2026 preset** is applied. Generic “Race to per knockout round” targets are hidden for Bestie (rules are fixed by PDF, not custom race-to maps).
+
+Live scoreboard enters **Match tiebreak** mode automatically at 5–5 / 6–6. Golden Point banner: **receiving pair chooses side**.
 
 ---
 
@@ -204,8 +210,11 @@ Seeding: `buildBestieCupRoundOneSlotOrder()` in `lib/tournaments/double-stage/se
 - [ ] Manual tie badge shown if pool needs committee decision
 - [ ] Knockout generated after all pool matches complete
 - [ ] R16 pairings match A–I … H–P table
+- [ ] R16/QF: 5–5 enters match TB to 7; Finish rejects incomplete
+- [ ] SF/Final: 6–5 **blocked** until win-by-2 or TB at 6–6
 - [ ] 3rd place match **disabled**
 - [ ] WO/RET via match card → Special result dialog
+- [ ] Deuce chip shows Golden Point + receiving pair chooses side
 
 ---
 

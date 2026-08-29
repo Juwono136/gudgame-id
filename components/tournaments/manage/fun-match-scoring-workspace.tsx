@@ -1317,12 +1317,30 @@ export function FunMatchScoringWorkspace({
           return;
         }
       } else if (gameRules && scoreEntryMode !== "paper") {
-        const race = isRaceToGamesMatchComplete(scoreA, scoreB, gameRules);
+        const effectiveRules =
+          isBracket && match.roundNumber != null && match.roundNumber > 0
+            ? getTournamentGameRules(tournament, "knockout", {
+                knockoutRoundNumber: match.roundNumber,
+                knockoutTotalRounds: Math.max(
+                  1,
+                  ...bracketMatches.map((m) => m.roundNumber).filter((n) => n > 0),
+                ),
+              })
+            : isGroup
+              ? getTournamentGameRules(tournament, "group")
+              : gameRules;
+        const race = isRaceToGamesMatchComplete(scoreA, scoreB, effectiveRules);
         if (!race.complete) {
+          const margin = effectiveRules.matchWinMargin ?? 1;
+          const tbAt = effectiveRules.matchTiebreakAt;
           const hint =
-            (gameRules.lengthMode ?? "race_to") === "total"
-              ? `all ${gameRules.raceToGames} games must be played`
-              : `first to ${gameRules.raceToGames} games wins`;
+            (effectiveRules.lengthMode ?? "race_to") === "total"
+              ? `all ${effectiveRules.raceToGames} games must be played`
+              : margin > 1 && tbAt != null
+                ? `first to ${effectiveRules.raceToGames} with a ${margin}-game lead (tiebreak at ${tbAt}–${tbAt})`
+                : tbAt != null
+                  ? `first to ${effectiveRules.raceToGames} (match tiebreak at ${tbAt}–${tbAt})`
+                  : `first to ${effectiveRules.raceToGames} games wins`;
           toast.error(`Match incomplete — ${hint}`);
           return;
         }
@@ -1379,6 +1397,7 @@ export function FunMatchScoringWorkspace({
     },
     [
       allowGroupDraw,
+      bracketMatches,
       completeRound,
       confirm,
       finalizeBracketScore,
@@ -1388,7 +1407,7 @@ export function FunMatchScoringWorkspace({
       scoreEntryMode,
       isPartnerEvent,
       partnerDisplayName,
-      tournament.name,
+      tournament,
       refetch,
     ],
   );

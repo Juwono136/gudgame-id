@@ -19,6 +19,10 @@ import { FieldCharCounter } from "@/components/tournaments/form/field-char-count
 import { FormatFamilySelect } from "@/components/tournaments/form/format-family-select";
 import { CustomMeetingsFields } from "@/components/tournaments/form/custom-meetings-fields";
 import { MatchScoringFields } from "@/components/tournaments/form/match-scoring-fields";
+import {
+  GameDeciderFields,
+  type GameDeciderValue,
+} from "@/components/tournaments/form/game-decider-fields";
 import { MexicanoSettingsFields } from "@/components/tournaments/form/mexicano-settings-fields";
 import { OfficialFormatSummary } from "@/components/tournaments/form/official-format-summary";
 import { FieldError, RequiredMark } from "@/components/tournaments/form/field-required";
@@ -80,8 +84,13 @@ import {
   defaultBestieCupDoubleStageMatchScoring,
   bestieCupWizardDefaults,
   BESTIE_CUP_TOTAL_PAIRS,
+  BESTIE_CUP_SCORING_SUMMARY,
 } from "@/lib/tournaments/partner/bestie-cup-config";
-import { RACE_TO_GAMES_OPTIONS, type RaceToGames } from "@/lib/tournaments/scoring/game-mode";
+import {
+  RACE_TO_GAMES_OPTIONS,
+  normalizeGameDecider,
+  type RaceToGames,
+} from "@/lib/tournaments/scoring/game-mode";
 import {
   TOURNAMENT_FIELD_LIMITS,
   htmlCharCount,
@@ -121,7 +130,7 @@ function clampMaxTeams(n: number): number {
   return Math.min(MAX_TEAMS_MAX, Math.max(MAX_TEAMS_MIN, n));
 }
 
-type GameDecider = "golden_point" | "star_point" | "advantage";
+type GameDecider = GameDeciderValue;
 
 function toLocalDatetime(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -309,6 +318,13 @@ export function PartnerTournamentWizard({
     if (!initial) return false;
     const raw = initial.settings as Record<string, unknown> | null | undefined;
     return raw?.poolRules === "bestie_cup" && initial.format === "double_stage";
+  });
+  const [gameDecider, setGameDecider] = useState<GameDecider>(() => {
+    if (!initial) return "golden_point";
+    const fromSettings = normalizeGameDecider(
+      parseTournamentSettings(initial.settings).gameDecider,
+    );
+    return fromSettings ?? "golden_point";
   });
   const [form, setForm] = useState<FormState>(() => {
     const base = formFromInitial(initial);
@@ -588,6 +604,7 @@ export function PartnerTournamentWizard({
     patch("thirdPlaceEnabled", defaults.thirdPlaceEnabled);
     patch("courtCount", defaults.courtCount);
     setMatchScoring(defaultBestieCupDoubleStageMatchScoring());
+    setGameDecider("golden_point");
     setBestieCupPreset(true);
     toast.success("Bestie Cup 2026 preset applied");
   };
@@ -620,8 +637,12 @@ export function PartnerTournamentWizard({
       groupResolved.mode === "race_to" ? groupResolved.raceTo?.value : undefined;
     const knockoutRace =
       knockoutResolved.mode === "race_to" ? knockoutResolved.raceTo?.value : undefined;
-    const gameDecider: GameDecider | undefined =
-      rootMode === "games" ? "golden_point" : undefined;
+    const effectiveDecider: GameDecider | undefined =
+      rootMode === "games"
+        ? bestieCupPreset || isModifiedSwiss
+          ? "golden_point"
+          : gameDecider
+        : undefined;
 
     return {
       name: form.name.trim().slice(0, TOURNAMENT_FIELD_LIMITS.name),
@@ -654,7 +675,7 @@ export function PartnerTournamentWizard({
       raceToGames: toLegacy(groupRace),
       raceToGamesGroup: isDoubleStage ? toLegacy(groupRace) : undefined,
       raceToGamesKnockout: isDoubleStage ? toLegacy(knockoutRace) : undefined,
-      gameDecider,
+      gameDecider: effectiveDecider,
       scoringType: "points",
       courtCount: form.courtCount,
       scoreEntryMode: initial ? getTournamentScoreEntryMode(initial) : "live",
@@ -788,6 +809,32 @@ export function PartnerTournamentWizard({
       },
       { label: "Match scoring", value: summarizeMatchScoring(matchScoring) },
     ];
+    const showGamesDecider =
+      matchScoreModeFromScoring(
+        resolveMatchScoringForStage(matchScoring, "group") ?? matchScoring,
+      ) === "games" ||
+      matchScoring.mode === "race_to" ||
+      matchScoring.mode === "total";
+    if (showGamesDecider) {
+      rows.push({
+        label: "Deuce (in-game)",
+        value:
+          bestieCupPreset || isModifiedSwiss
+            ? "Golden Point (No-Ad) · PDF"
+            : gameDecider === "advantage"
+              ? "Advantage (win by 2)"
+              : gameDecider === "star_point"
+                ? "Star Point"
+                : "Golden Point (No-Ad)",
+      });
+    }
+    if (bestieCupPreset && isDoubleStage) {
+      rows.push(
+        { label: "Pool (PDF)", value: BESTIE_CUP_SCORING_SUMMARY.pool },
+        { label: "R16 & QF (PDF)", value: BESTIE_CUP_SCORING_SUMMARY.knockoutEarly },
+        { label: "SF & Final (PDF)", value: BESTIE_CUP_SCORING_SUMMARY.knockoutLate },
+      );
+    }
     if (meetingsSummary) {
       rows.push({ label: "Custom meetings", value: meetingsSummary });
     }
@@ -797,7 +844,7 @@ export function PartnerTournamentWizard({
         value: `${mexicano.mode === "individual" ? "Individual" : "Team"} · ${mexicano.roundCount} rounds`,
       });
     }
-    if (isModifiedSwiss) {
+    if (isModifiedSwiss || bestieCupPreset) {
       rows.push({
         label: "Side change / rest",
         value: "1 min at odd total games (from game 3)",
@@ -821,12 +868,15 @@ export function PartnerTournamentWizard({
     }
     return rows;
   }, [
+    bestieCupPreset,
     formatFamily,
     form.format,
     form.maxRounds,
     form.playersPerTeam,
     form.thirdPlaceEnabled,
+    gameDecider,
     isAmericano,
+    isDoubleStage,
     isMexicanoLike,
     isModifiedSwiss,
     matchScoring,
@@ -1067,6 +1117,7 @@ export function PartnerTournamentWizard({
                         patch("maxTeamsPerGroup", 3);
                         patch("teamsAdvancePerGroup", 1);
                         setCustomMatch((prev) => ({ ...prev, groupMeetingsPerPair: 1 }));
+                        setGameDecider("golden_point");
                       }
                       setMatchScoring((prev) => {
                         if (v === "double_stage") {
@@ -1105,8 +1156,9 @@ export function PartnerTournamentWizard({
                             Bestie Cup 2026 preset
                           </p>
                           <p className="mt-1 text-xs leading-relaxed text-cp-muted">
-                            {BESTIE_CUP_TOTAL_PAIRS} pairs · 16 pools × 3 · advance 1 · First to 6 ·
-                            GW% tie-break · fixed R16 bracket (A–I … H–P) · no 3rd place · 5 courts
+                            {BESTIE_CUP_TOTAL_PAIRS} pairs · 16 pools × 3 · advance 1 · FT6 Golden
+                            Point · pool 5–5 → 6–5 · R16/QF TB at 5–5 · SF/Final win by 2 + TB at
+                            6–6 · fixed R16 (A–I … H–P) · no 3rd place · 5 courts
                           </p>
                         </div>
                         <Button
@@ -1203,13 +1255,36 @@ export function PartnerTournamentWizard({
                     onChange={setMatchScoring}
                     showStageOverrides={form.format === "double_stage"}
                     showKnockoutRoundTargets={
-                      form.format === "single_elimination" ||
-                      form.format === "double_stage"
+                      !bestieCupPreset &&
+                      (form.format === "single_elimination" ||
+                        form.format === "double_stage")
                     }
                     knockoutFieldSize={
                       clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32)
                     }
                   />
+                  {(() => {
+                    const leaf =
+                      resolveMatchScoringForStage(matchScoring, "group") ?? matchScoring;
+                    const gamesMode =
+                      matchScoreModeFromScoring(leaf) === "games" ||
+                      leaf.mode === "race_to" ||
+                      leaf.mode === "total";
+                    if (!gamesMode) return null;
+                    const lockDeuce = bestieCupPreset || isModifiedSwiss;
+                    return (
+                      <GameDeciderFields
+                        value={lockDeuce ? "golden_point" : gameDecider}
+                        onChange={setGameDecider}
+                        locked={lockDeuce}
+                        lockedHint={
+                          lockDeuce
+                            ? "Bestie Cup 2026 PDF requires Golden Point at deuce — locked while this preset / Modified Swiss is active."
+                            : undefined
+                        }
+                      />
+                    );
+                  })()}
                   <OfficialFormatSummary
                     formatFamily={formatFamily}
                     format={form.format}
@@ -1218,6 +1293,10 @@ export function PartnerTournamentWizard({
                     customMatch={customMatch}
                     mexicano={isMexicanoLike ? mexicano : undefined}
                     modifiedSwiss={isModifiedSwiss}
+                    bestieCup={bestieCupPreset}
+                    gameDecider={
+                      bestieCupPreset || isModifiedSwiss ? "golden_point" : gameDecider
+                    }
                   />
                   <div className="grid gap-4 rounded-2xl border border-cp-border/80 bg-cp-elevated/30 p-4 sm:grid-cols-2">
                     <div className="space-y-2">

@@ -76,4 +76,59 @@ describe("assertOfficialLiveGamesMatchComplete", () => {
       assertOfficialLiveGamesMatchComplete(t, "group", { scoreA: 1, scoreB: 0 }),
     ).not.toThrow();
   });
+
+  it("Bestie SF/Final rejects 6–5 when round context uses late KO rules", () => {
+    const t = {
+      ...stub({
+        matchScoreMode: "games",
+        poolRules: "bestie_cup",
+        matchScoring: composeDoubleStageMatchScoring(
+          { mode: "race_to", raceTo: { value: 6 } },
+          { mode: "race_to", raceTo: { value: 6 } },
+        ),
+        doubleStage: {
+          phase: "knockout",
+          maxTeamsPerGroup: 3,
+          teamsAdvancePerGroup: 1,
+          bestRunnerUpSlots: 0,
+          thirdPlaceEnabled: false,
+        },
+      }),
+      tournamentType: "fun_match",
+    } as TournamentDetail;
+
+    // Without round context → early KO fallback → 6–5 accepted.
+    expect(() =>
+      assertOfficialLiveGamesMatchComplete(t, "knockout", { scoreA: 6, scoreB: 5 }),
+    ).not.toThrow();
+
+    // SF (round 3 of 4) → win-by-2 → 6–5 rejected.
+    expect(() =>
+      assertOfficialLiveGamesMatchComplete(
+        t,
+        "knockout",
+        { scoreA: 6, scoreB: 5 },
+        { knockoutRoundNumber: 3, knockoutTotalRounds: 4 },
+      ),
+    ).toThrow(AppError);
+
+    expect(() =>
+      assertOfficialLiveGamesMatchComplete(
+        t,
+        "knockout",
+        { scoreA: 6, scoreB: 4 },
+        { knockoutRoundNumber: 3, knockoutTotalRounds: 4 },
+      ),
+    ).not.toThrow();
+
+    // R16 (round 1) still allows 6–5.
+    expect(() =>
+      assertOfficialLiveGamesMatchComplete(
+        t,
+        "knockout",
+        { scoreA: 6, scoreB: 5 },
+        { knockoutRoundNumber: 1, knockoutTotalRounds: 4 },
+      ),
+    ).not.toThrow();
+  });
 });
