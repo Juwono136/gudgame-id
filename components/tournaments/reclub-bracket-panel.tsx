@@ -30,7 +30,7 @@ import { useConfirmDialog } from "@/providers/confirm-dialog-provider";
 import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import type { LobbyTeamView } from "@/lib/tournaments/reclub/teams";
 import {
-  canPlayReclubSession,
+  canArrangeBracketPairings,
   computeReclubSessionPhase,
   type ReclubSessionSchedule,
 } from "@/lib/tournaments/reclub/session-lifecycle";
@@ -74,14 +74,14 @@ export function ReclubBracketPanel({
   const assign = useAssignBracketTeam(sportSlug, slug);
 
   const sessionPhase = computeReclubSessionPhase(session);
-  const canPlay = canPlayReclubSession(session);
 
   const matches = data?.matches ?? [];
   const generated = hasPublicBracketTree(data);
   const seedingFinalized = data?.seedingFinalized ?? false;
   const seedingLocked = isBracketSeedingLocked(matches, tournamentStatus);
   const resetLocked = !canResetBracketTree(matches, tournamentStatus);
-  const canSeed = canManage && generated && !seedingLocked && canPlay;
+  const canArrangePairings = canArrangeBracketPairings(session, { seedingLocked });
+  const canSeed = canManage && generated && canArrangePairings;
 
   const placedTeamIds = useMemo(() => {
     const ids = new Set<string>();
@@ -111,7 +111,7 @@ export function ReclubBracketPanel({
     tournamentStatus !== "cancelled";
 
   const canRandomSeed =
-    canManage && generated && !seedingLocked && canPlay && activeSquads >= 2;
+    canManage && generated && canArrangePairings && activeSquads >= 2;
 
   if (isLoading) {
     return (

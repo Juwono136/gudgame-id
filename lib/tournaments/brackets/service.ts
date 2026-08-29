@@ -81,6 +81,7 @@ export type BracketMatchView = {
   isSeriesSlot?: boolean;
   /** Child legs when this row is the series parent (leg 1). */
   legs?: BracketMatchView[];
+  recordedByUserId?: string | null;
 };
 
 function buildScoringRules(tournament: TournamentDetail): ScoringRules {
@@ -127,6 +128,7 @@ async function mapBracketRowToView(
     legsRequired: meta.legsRequired ?? null,
     seriesParentId: meta.seriesParentId ?? null,
     isSeriesSlot: meta.isSeriesSlot ?? false,
+    recordedByUserId: row.recordedByUserId ?? null,
   };
 }
 

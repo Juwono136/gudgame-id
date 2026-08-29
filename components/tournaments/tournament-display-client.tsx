@@ -55,6 +55,7 @@ type LiveMatchView = {
   startedAt?: string | null;
   timerEndsAt?: string | null;
   gameState?: MatchGameState | null;
+  scorekeeperName?: string | null;
 };
 
 const ROTATION_LAYOUTS: TournamentDisplayLayout[] = [
@@ -467,6 +468,7 @@ export function TournamentDisplayClient({
                         m.status ?? "pending",
                         data.tournament.status,
                       )}
+                      scorekeeperName={m.scorekeeperName}
                       gamesMode={gamesMode}
                     />
                   );
@@ -664,6 +666,8 @@ export function TournamentDisplayClient({
               startedAt={featuredMatch.startedAt}
               timerEndsAt={featuredMatch.timerEndsAt}
               estimatedDurationMinutes={data.scoring?.roundDurationMinutes ?? null}
+              scorekeeperName={featuredMatch.scorekeeperName}
+              courtLabel={subtitle?.split("•")[0]?.trim() ?? null}
               subtitle={subtitle}
               className="bg-transparent"
             />

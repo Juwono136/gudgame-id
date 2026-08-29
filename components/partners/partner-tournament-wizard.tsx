@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -333,6 +333,15 @@ export function PartnerTournamentWizard({
     removed: false,
   }));
 
+  /** Preserve pool/format picks when navigating Review → back (Radix Select remount quirk). */
+  const formatStepSnapshot = useRef<{
+    format: TournamentFormat;
+    maxTeamsPerGroup: number;
+    teamsAdvancePerGroup: number;
+    bestRunnerUpSlots: number;
+    thirdPlaceEnabled: boolean;
+  } | null>(null);
+
   const step = STEPS[stepIndex]!;
   const isLast = stepIndex === STEPS.length - 1;
   const isDoubleStage = form.format === "double_stage";
@@ -382,6 +391,7 @@ export function PartnerTournamentWizard({
   const goToStep = (i: number) => {
     if (i === stepIndex) return;
     if (i < stepIndex) {
+      if (i === 1) restoreFormatStepIfNeeded();
       setStepIndex(i);
       return;
     }
@@ -519,7 +529,40 @@ export function PartnerTournamentWizard({
 
   const goNext = () => {
     if (!validateStep(stepIndex)) return;
+    if (stepIndex === 1) {
+      formatStepSnapshot.current = {
+        format: form.format,
+        maxTeamsPerGroup: form.maxTeamsPerGroup,
+        teamsAdvancePerGroup: form.teamsAdvancePerGroup,
+        bestRunnerUpSlots: form.bestRunnerUpSlots,
+        thirdPlaceEnabled: form.thirdPlaceEnabled,
+      };
+    }
     setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+  };
+
+  const restoreFormatStepIfNeeded = () => {
+    const saved = formatStepSnapshot.current;
+    if (!saved) return;
+    setForm((prev) => {
+      if (
+        prev.format === saved.format &&
+        prev.maxTeamsPerGroup === saved.maxTeamsPerGroup &&
+        prev.teamsAdvancePerGroup === saved.teamsAdvancePerGroup &&
+        prev.bestRunnerUpSlots === saved.bestRunnerUpSlots &&
+        prev.thirdPlaceEnabled === saved.thirdPlaceEnabled
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        format: saved.format,
+        maxTeamsPerGroup: saved.maxTeamsPerGroup,
+        teamsAdvancePerGroup: saved.teamsAdvancePerGroup,
+        bestRunnerUpSlots: saved.bestRunnerUpSlots,
+        thirdPlaceEnabled: saved.thirdPlaceEnabled,
+      };
+    });
   };
 
   const resolveCoverStorageKey = async (): Promise<string | undefined> => {
@@ -1013,6 +1056,7 @@ export function PartnerTournamentWizard({
                   <FormatTypeSelect
                     value={form.format}
                     onChange={(v) => {
+                      if (v === form.format) return;
                       patch("format", v);
                       if (v === "modified_swiss") {
                         patch("maxTeamsPerGroup", 3);
@@ -1089,6 +1133,7 @@ export function PartnerTournamentWizard({
                         <div className="space-y-2">
                           <Label>Pairs per pool</Label>
                           <Select
+                            key={`pool-size-${form.maxTeamsPerGroup}`}
                             value={String(form.maxTeamsPerGroup)}
                             onValueChange={(v) => patch("maxTeamsPerGroup", Number(v))}
                           >
@@ -1247,6 +1292,7 @@ export function PartnerTournamentWizard({
                         <div className="space-y-2">
                           <Label>Pairs per pool</Label>
                           <Select
+                            key={`pool-size-${form.maxTeamsPerGroup}`}
                             value={String(form.maxTeamsPerGroup)}
                             onValueChange={(v) => patch("maxTeamsPerGroup", Number(v))}
                           >
@@ -1404,7 +1450,10 @@ export function PartnerTournamentWizard({
           backHref={dashboardRoutes.partnerTournaments}
           backLabel="Back to list"
           showStepBack={stepIndex > 0}
-          onStepBack={() => setStepIndex((i) => Math.max(0, i - 1))}
+          onStepBack={() => {
+            if (stepIndex === 2) restoreFormatStepIfNeeded();
+            setStepIndex((i) => Math.max(0, i - 1));
+          }}
           isLast={isLast}
           onNext={goNext}
           onSubmit={() => void onSubmit()}

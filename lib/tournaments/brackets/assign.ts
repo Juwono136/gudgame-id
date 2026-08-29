@@ -7,9 +7,7 @@ import { tournamentTeamMembers, tournamentTeams } from "@/db/schema/tournament-r
 import { AppError } from "@/lib/errors";
 import { assertBracketSetupAllowed } from "@/lib/tournaments/lifecycle-guards";
 import { patchTournamentBracketSettings } from "@/lib/tournaments/brackets/settings-patch";
-import { assertReclubSessionPlayable } from "@/lib/tournaments/reclub/session-guard";
 import { assertTeamBracketEligible } from "@/lib/tournaments/brackets/eligible-teams";
-import { isFunMatchType } from "@/lib/tournaments/core/types";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import { listBracketMatches, type BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { isBracketSeriesChildLeg } from "@/lib/tournaments/brackets/bracket-metadata";
@@ -31,10 +29,6 @@ export async function assignTeamToBracketSlot(
 
   if (tournament.format === "double_stage") {
     return assignDoubleStageKnockoutSlot(tournament, matchId, slot, teamId);
-  }
-
-  if (isFunMatchType(tournament.tournamentType)) {
-    assertReclubSessionPlayable(tournament);
   }
 
   const db = getDb();

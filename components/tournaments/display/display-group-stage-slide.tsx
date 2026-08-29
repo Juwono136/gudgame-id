@@ -118,6 +118,7 @@ export function DisplayGroupStageSlide({
                   timerEndsAt={m.timerEndsAt}
                   estimatedDurationMinutes={liveData.scoring?.roundDurationMinutes ?? null}
                   matchActive
+                  scorekeeperName={m.scorekeeperName}
                   gamesMode={gamesMode}
                 />
               );

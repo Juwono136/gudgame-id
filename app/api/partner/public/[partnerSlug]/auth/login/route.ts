@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { AppError } from "@/lib/errors";
 import { guardApiRequest } from "@/lib/api/guard-request";
 import {
@@ -45,6 +46,26 @@ export async function POST(request: Request, context: Ctx) {
       result.token,
     );
   } catch (error) {
+    if (
+      error instanceof AppError &&
+      error.context?.reason === "PARTNER_STAFF_USE_GUDGAME_LOGIN"
+    ) {
+      const hint = error.context.staffLoginHint as {
+        staffLoginUrl?: string;
+      } | undefined;
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            reason: "PARTNER_STAFF_USE_GUDGAME_LOGIN",
+            staffLoginUrl: hint?.staffLoginUrl ?? null,
+          },
+        },
+        { status: error.statusCode },
+      );
+    }
     return partnerAuthError(error);
   }
 }

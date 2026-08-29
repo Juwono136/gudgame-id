@@ -682,7 +682,15 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Order of Play status:** Match selesai (`status=completed`) selalu menampilkan badge **Finished/Done**, bukan **Queued** — meskipun `callStatus` lama belum disinkronkan.
 
-**Knockout bracket TV:** `display-bracket-slide.tsx` menampilkan **full tree** dengan slot kosong + connector SVG (`showEmptySlots`).
+**Knockout bracket TV:** `display-bracket-slide.tsx` menampilkan **full tree** dengan slot kosong + connector SVG (`showEmptySlots`). Nama **pemenang** (match selesai) ditandai ikon **crown** di samping nama/skor.
+
+**Venue live scoring card (multi-court + single):** Kartu TV memakai footer **Court · Scorekeeper · Duration**; skor games/points menampilkan **crown** di sisi yang unggul; skor kecil rally (15/30/40) tetap ada di tengah. Komponen: `display-multi-court-grid.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`), `display-leading-crown.tsx`.
+
+**Knockout seeding sebelum live:** Penempatan squad di bracket (Fun Match / partner knockout) diizinkan **sebelum** jam mulai sesi — tidak lagi memblokir dengan “Play unlocks when the session start time is reached”. Guard server: `assignTeamToBracketSlot` memakai `assertBracketSetupAllowed` + seeding lock (match sudah mulai/selesai). Client: `canArrangeBracketPairings()` di `session-lifecycle.ts`.
+
+**Wizard partner — pool config:** Pilihan **Pairs per pool** / advance / runner-up **tetap tersimpan** saat Continue → Review → Previous step (snapshot + `key` pada Select).
+
+**Partner staff vs player login:** Dua realm terpisah — staff = Gud Game (`/login`, role Partner, Partner Console); player = cookie `gg_pps_<slug>`. Login player dengan email staff menampilkan pesan + tombol **Staff sign in** (`lookupPartnerStaffLoginHint`).
 
 **URL partner (Manage → Display — salin per layout):**
 

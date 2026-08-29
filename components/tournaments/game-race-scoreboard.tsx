@@ -18,6 +18,7 @@ import {
   type MatchGameState,
 } from "@/lib/tournaments/scoring/game-mode";
 import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
+import { DisplayLeadingCrown } from "@/components/tournaments/display/display-leading-crown";
 import type { ScoreAdjustOptions } from "@/lib/tournaments/scoring/match-score-events";
 import { cn } from "@/lib/utils";
 
@@ -815,6 +816,8 @@ export function LiveGameRaceDisplay({
   startedAt = null,
   timerEndsAt = null,
   estimatedDurationMinutes = null,
+  scorekeeperName = null,
+  courtLabel = null,
   subtitle,
   className,
 }: {
@@ -832,6 +835,8 @@ export function LiveGameRaceDisplay({
   startedAt?: string | null;
   timerEndsAt?: string | null;
   estimatedDurationMinutes?: number | null;
+  scorekeeperName?: string | null;
+  courtLabel?: string | null;
   /** @deprecated Unused — sequential points only. */
   pointStyle?: "tennis" | "simple";
   subtitle?: string;
@@ -853,6 +858,11 @@ export function LiveGameRaceDisplay({
         gameDecider,
         pointStyle: "simple",
       });
+  const gamesLeadA = gamesA > gamesB;
+  const gamesLeadB = gamesB > gamesA;
+  const pointsLeadA = pointsA > pointsB;
+  const pointsLeadB = pointsB > pointsA;
+  const resolvedCourt = courtLabel?.trim() || subtitle?.split("•")[0]?.trim() || "Live court";
 
   return (
     <div
@@ -888,16 +898,18 @@ export function LiveGameRaceDisplay({
               {classicSets ? "Sets" : "Games"}
             </p>
             <p className="mt-0.5 text-3xl font-bold tabular-nums sm:text-4xl lg:text-5xl">
-              <span
-                className={gamesA > gamesB ? "text-[color:var(--display-primary,#86efac)]" : ""}
-              >
-                {gamesA}
+              <span className="inline-flex items-center justify-center gap-1.5">
+                <DisplayLeadingCrown show={gamesLeadA} size="lg" />
+                <span className={gamesLeadA ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                  {gamesA}
+                </span>
               </span>
               <span className="mx-1.5 font-light text-white/35">–</span>
-              <span
-                className={gamesB > gamesA ? "text-[color:var(--display-primary,#86efac)]" : ""}
-              >
-                {gamesB}
+              <span className="inline-flex items-center justify-center gap-1.5">
+                <span className={gamesLeadB ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                  {gamesB}
+                </span>
+                <DisplayLeadingCrown show={gamesLeadB} size="lg" />
               </span>
             </p>
             <p className="mt-1 text-[9px] text-white/40 sm:text-[10px]">{lengthLabel}</p>
@@ -973,10 +985,11 @@ export function LiveGameRaceDisplay({
         <div className="min-w-0 text-center">
           <p
             className={cn(
-              "text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none",
-              pointsA > pointsB && "text-[color:var(--display-primary,#86efac)]",
+              "inline-flex items-center justify-center gap-1.5 text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none",
+              pointsLeadA && "text-[color:var(--display-primary,#86efac)]",
             )}
           >
+            <DisplayLeadingCrown show={pointsLeadA} size="lg" />
             {displayA}
           </p>
         </div>
@@ -984,26 +997,51 @@ export function LiveGameRaceDisplay({
         <div className="min-w-0 text-center">
           <p
             className={cn(
-              "text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none",
-              pointsB > pointsA && "text-[color:var(--display-primary,#86efac)]",
+              "inline-flex items-center justify-center gap-1.5 text-[clamp(2.75rem,12vh,6.5rem)] font-bold tabular-nums leading-none",
+              pointsLeadB && "text-[color:var(--display-primary,#86efac)]",
             )}
           >
             {displayB}
+            <DisplayLeadingCrown show={pointsLeadB} size="lg" />
           </p>
         </div>
       </div>
 
-      {startedAt ? (
-        <div className="mt-4 w-full max-w-md sm:mt-5">
-          <LiveMatchTimer
-            startedAt={startedAt}
-            timerEndsAt={timerEndsAt}
-            estimatedDurationMinutes={timerEndsAt ? null : estimatedDurationMinutes}
-            active
-            tone="display"
-          />
+      <div className="mt-4 grid w-full max-w-3xl grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-black/25 text-center sm:mt-5">
+        <div className="px-3 py-2.5">
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px]">
+            Court
+          </p>
+          <p className="mt-1 truncate text-xs font-semibold text-white sm:text-sm">{resolvedCourt}</p>
         </div>
-      ) : null}
+        <div className="px-3 py-2.5">
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px]">
+            Scorekeeper
+          </p>
+          <p className="mt-1 truncate text-xs font-semibold text-white sm:text-sm">
+            {scorekeeperName?.trim() || "—"}
+          </p>
+        </div>
+        <div className="px-3 py-2.5">
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px]">
+            Duration
+          </p>
+          <div className="mt-1 flex justify-center">
+            {startedAt ? (
+              <LiveMatchTimer
+                startedAt={startedAt}
+                timerEndsAt={timerEndsAt}
+                estimatedDurationMinutes={timerEndsAt ? null : estimatedDurationMinutes}
+                active
+                tone="display"
+                compact
+              />
+            ) : (
+              <p className="text-xs font-semibold text-white/50 sm:text-sm">—</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Trophy, ZoomIn, ZoomOut } from "lucide-react";
+import { Crown, Trophy, ZoomIn, ZoomOut } from "lucide-react";
 import {
   BracketConnectorOverlay,
   shouldRenderBracketMatch,
@@ -564,7 +564,7 @@ function MatchSlot({
       <div className="min-w-0 flex-1">
         <span
           className={cn(
-            "block truncate font-semibold leading-tight",
+            "flex min-w-0 items-center gap-1 truncate font-semibold leading-tight",
             compact ? "text-[11px]" : "text-sm",
             winner && "text-emerald-500 dark:text-emerald-300",
             eliminated && "text-cp-muted line-through decoration-cp-muted/60",
@@ -573,7 +573,13 @@ function MatchSlot({
           )}
           title={teamLabel ?? undefined}
         >
-          {teamLabel}
+          {winner ? (
+            <Crown
+              className="h-3.5 w-3.5 shrink-0 text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.35)]"
+              aria-hidden
+            />
+          ) : null}
+          <span className="truncate">{teamLabel}</span>
         </span>
         {resolvedPlayers.length > 0 && !isByeLabel ? (
           <TeamPlayerList
@@ -596,11 +602,17 @@ function MatchSlot({
       {score != null && !isByeLabel ? (
         <span
           className={cn(
-            "shrink-0 self-start pt-0.5 font-mono font-semibold tabular-nums",
+            "flex shrink-0 items-center gap-1 self-start pt-0.5 font-mono font-semibold tabular-nums",
             compact ? "text-xs" : "text-sm",
             winner ? "text-emerald-400" : "text-foreground",
           )}
         >
+          {winner ? (
+            <Crown
+              className="h-3 w-3 text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.35)]"
+              aria-hidden
+            />
+          ) : null}
           {score}
         </span>
       ) : null}

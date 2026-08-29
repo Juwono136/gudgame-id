@@ -35,5 +35,6 @@ export function mapReclubMatchRow(
     playType: meta.playType ?? null,
     playNumber: meta.playNumber ?? null,
     americanoPairing: meta.americanoPairing ?? null,
+    recordedByUserId: row.recordedByUserId ?? null,
   };
 }

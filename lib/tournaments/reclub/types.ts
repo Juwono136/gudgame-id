@@ -32,6 +32,7 @@ export type ReclubMatchView = {
   americanoPairing?: AmericanoMatchPairing | null;
   /** Intra-game rally state for race-to-N games matches. */
   gameState?: import("@/lib/tournaments/scoring/game-mode").MatchGameState | null;
+  recordedByUserId?: string | null;
 };
 
 export type ReclubMatchesListQuery = {

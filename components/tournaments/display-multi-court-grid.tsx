@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { LiveMatchTimer } from "@/components/tournaments/live/live-match-timer";
+import { DisplayLeadingCrown } from "@/components/tournaments/display/display-leading-crown";
 import { TeamPlayerList } from "@/components/tournaments/team-player-list";
 import {
   GAME_RALLY_MILESTONES,
@@ -22,6 +23,7 @@ type MultiCourtDisplayCardProps = {
   timerEndsAt?: string | null;
   estimatedDurationMinutes?: number | null;
   matchActive?: boolean;
+  scorekeeperName?: string | null;
   /** When set, center shows games + large points this game (public live style). */
   gamesMode?: {
     pointsA: number;
@@ -51,133 +53,183 @@ export function MultiCourtDisplayCard({
   timerEndsAt = null,
   estimatedDurationMinutes = null,
   matchActive = true,
+  scorekeeperName = null,
   gamesMode,
 }: MultiCourtDisplayCardProps) {
+  const gamesLeadA = scoreA > scoreB;
+  const gamesLeadB = scoreB > scoreA;
+  const pointsLeadA = gamesMode ? gamesMode.pointsA > gamesMode.pointsB : false;
+  const pointsLeadB = gamesMode ? gamesMode.pointsB > gamesMode.pointsA : false;
+
   return (
     <article
       className={cn(
-        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border p-3 shadow-lg sm:p-3.5 lg:p-4",
+        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border shadow-lg",
         "bg-[#0c1613]",
       )}
       style={{
         borderColor: "color-mix(in srgb, var(--display-primary, #10b981) 35%, transparent)",
       }}
     >
-      <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <p
-          className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] sm:text-[11px]"
-          style={{ color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 85%, white)" }}
-        >
-          {courtName}
-        </p>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-200">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-          Live
-        </span>
-      </div>
-
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-3">
-        <div className="min-w-0 text-left">
-          <p className="truncate text-sm font-semibold text-white sm:text-base" title={teamAName}>
-            {teamAName}
+      <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-3.5 lg:p-4">
+        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <p
+            className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] sm:text-[11px]"
+            style={{ color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 85%, white)" }}
+          >
+            {courtName}
           </p>
-          <TeamPlayerList
-            names={teamAPlayers}
-            maxNames={3}
-            compact
-            className="[&_li]:text-white/50 [&_svg]:text-white/35"
-          />
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-200">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+            Live
+          </span>
         </div>
 
-        <div className="flex min-w-[4rem] flex-col items-center justify-center px-1 sm:min-w-[5rem]">
-          {gamesMode ? (
-            <>
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45">
-                {gamesMode.classicSets ? "Sets" : "Games"}
-              </p>
-              <p className="text-base font-bold tabular-nums text-white sm:text-lg">
-                {scoreA}
-                <span className="mx-1 font-normal text-white/40">–</span>
-                {scoreB}
-              </p>
-              <p
-                className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider"
-                style={{
-                  color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 90%, white)",
-                }}
-              >
-                Points
-              </p>
-              <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
-                {(gamesMode.pointsToWinGame === 40
-                  ? GAME_RALLY_MILESTONES
-                  : [gamesMode.pointsToWinGame ?? 40]
-                ).map((m) => {
-                  const reachedA = gamesMode.pointsA >= m;
-                  const reachedB = gamesMode.pointsB >= m;
-                  return (
-                    <span
-                      key={m}
-                      className={cn(
-                        "rounded-full border px-1.5 py-px text-[8px] font-semibold tabular-nums",
-                        reachedA || reachedB
-                          ? "border-white/30 text-white/85"
-                          : "border-white/10 text-white/35",
-                      )}
-                    >
-                      {formatRallyDisplayPoint(m, gamesMode.pointsToWinGame ?? 40)}
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-2xl font-bold tabular-nums text-white sm:text-3xl">
-                {formatRallyDisplayPoint(gamesMode.pointsA, gamesMode.pointsToWinGame ?? 40)}
-                <span className="mx-1.5 font-light text-white/35">:</span>
-                {formatRallyDisplayPoint(gamesMode.pointsB, gamesMode.pointsToWinGame ?? 40)}
-              </p>
-            </>
-          ) : (
-            <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
-              {scoreA}
-              <span className="mx-1.5 font-light text-white/35">:</span>
-              {scoreB}
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3">
+          <div className="min-w-0 text-left">
+            <p className="truncate text-sm font-bold text-white sm:text-base" title={teamAName}>
+              {teamAName}
             </p>
-          )}
+            <TeamPlayerList
+              names={teamAPlayers}
+              maxNames={3}
+              compact
+              className="[&_li]:text-white/50 [&_svg]:text-white/35"
+            />
+          </div>
+
+          <div className="flex min-w-[4.5rem] flex-col items-center justify-center px-1 sm:min-w-[5.5rem]">
+            {gamesMode ? (
+              <>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45">
+                  {gamesMode.classicSets ? "Sets" : "Games"}
+                </p>
+                <p className="flex items-center justify-center gap-1 text-lg font-bold tabular-nums text-white sm:text-xl">
+                  <DisplayLeadingCrown show={gamesLeadA} size="sm" />
+                  <span className={gamesLeadA ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                    {scoreA}
+                  </span>
+                  <span className="mx-0.5 font-normal text-white/40">–</span>
+                  <span className={gamesLeadB ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                    {scoreB}
+                  </span>
+                  <DisplayLeadingCrown show={gamesLeadB} size="sm" />
+                </p>
+                <p
+                  className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider"
+                  style={{
+                    color: "color-mix(in srgb, var(--display-primary, #6ee7b7) 90%, white)",
+                  }}
+                >
+                  Points
+                </p>
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
+                  {(gamesMode.pointsToWinGame === 40
+                    ? GAME_RALLY_MILESTONES
+                    : [gamesMode.pointsToWinGame ?? 40]
+                  ).map((m) => {
+                    const reachedA = gamesMode.pointsA >= m;
+                    const reachedB = gamesMode.pointsB >= m;
+                    return (
+                      <span
+                        key={m}
+                        className={cn(
+                          "rounded-full border px-1.5 py-px text-[8px] font-semibold tabular-nums",
+                          reachedA || reachedB
+                            ? "border-white/30 text-white/85"
+                            : "border-white/10 text-white/35",
+                        )}
+                      >
+                        {formatRallyDisplayPoint(m, gamesMode.pointsToWinGame ?? 40)}
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 flex items-center justify-center gap-1 text-2xl font-bold tabular-nums text-white sm:text-3xl">
+                  <DisplayLeadingCrown show={pointsLeadA} size="md" />
+                  <span className={pointsLeadA ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                    {formatRallyDisplayPoint(gamesMode.pointsA, gamesMode.pointsToWinGame ?? 40)}
+                  </span>
+                  <span className="mx-1 font-light text-white/35">:</span>
+                  <span className={pointsLeadB ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                    {formatRallyDisplayPoint(gamesMode.pointsB, gamesMode.pointsToWinGame ?? 40)}
+                  </span>
+                  <DisplayLeadingCrown show={pointsLeadB} size="md" />
+                </p>
+              </>
+            ) : (
+              <p className="flex items-center justify-center gap-1 text-2xl font-bold tabular-nums text-white sm:text-3xl">
+                <DisplayLeadingCrown show={scoreA > scoreB} size="md" />
+                <span className={scoreA > scoreB ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                  {scoreA}
+                </span>
+                <span className="mx-1 font-light text-white/35">:</span>
+                <span className={scoreB > scoreA ? "text-[color:var(--display-primary,#86efac)]" : ""}>
+                  {scoreB}
+                </span>
+                <DisplayLeadingCrown show={scoreB > scoreA} size="md" />
+              </p>
+            )}
+          </div>
+
+          <div className="min-w-0 text-right">
+            <p className="truncate text-sm font-bold text-white sm:text-base" title={teamBName}>
+              {teamBName}
+            </p>
+            <TeamPlayerList
+              names={teamBPlayers}
+              maxNames={3}
+              align="right"
+              compact
+              className="[&_li]:text-white/50 [&_svg]:text-white/35"
+            />
+          </div>
         </div>
 
-        <div className="min-w-0 text-right">
-          <p className="truncate text-sm font-semibold text-white sm:text-base" title={teamBName}>
-            {teamBName}
+        {gamesMode ? (
+          <p className="mt-2 shrink-0 text-center text-[9px] text-white/40 sm:text-[10px]">
+            {gamesMode.classicSets
+              ? `Classic sets · first to ${gamesMode.pointsToWinGame ?? 40} pts`
+              : (gamesMode.lengthMode ?? "race_to") === "total"
+                ? `Total ${gamesMode.raceToGames} · first to ${gamesMode.pointsToWinGame ?? 40} pts`
+                : `Race to ${gamesMode.raceToGames} · first to ${gamesMode.pointsToWinGame ?? 40} pts`}
           </p>
-          <TeamPlayerList
-            names={teamBPlayers}
-            maxNames={3}
-            align="right"
-            compact
-            className="[&_li]:text-white/50 [&_svg]:text-white/35"
-          />
+        ) : null}
+      </div>
+
+      <footer className="grid shrink-0 grid-cols-3 divide-x divide-white/10 border-t border-white/10 bg-black/25 text-center">
+        <div className="px-2 py-2">
+          <p className="text-[8px] font-semibold uppercase tracking-wider text-white/40 sm:text-[9px]">
+            Court
+          </p>
+          <p className="mt-0.5 truncate text-[10px] font-semibold text-white sm:text-[11px]">
+            {courtName}
+          </p>
         </div>
-      </div>
-
-      <div className="mt-2.5 shrink-0 sm:mt-3">
-        <LiveMatchTimer
-          startedAt={startedAt}
-          timerEndsAt={timerEndsAt}
-          estimatedDurationMinutes={timerEndsAt ? null : estimatedDurationMinutes}
-          active={matchActive}
-          tone="display"
-        />
-      </div>
-
-      {gamesMode ? (
-        <p className="mt-2 shrink-0 text-center text-[9px] text-white/40 sm:text-[10px]">
-          {gamesMode.classicSets
-            ? `Classic sets · first to ${gamesMode.pointsToWinGame ?? 40} pts`
-            : (gamesMode.lengthMode ?? "race_to") === "total"
-              ? `Total ${gamesMode.raceToGames} · first to ${gamesMode.pointsToWinGame ?? 40} pts`
-              : `Race to ${gamesMode.raceToGames} · first to ${gamesMode.pointsToWinGame ?? 40} pts`}
-        </p>
-      ) : null}
+        <div className="px-2 py-2">
+          <p className="text-[8px] font-semibold uppercase tracking-wider text-white/40 sm:text-[9px]">
+            Scorekeeper
+          </p>
+          <p className="mt-0.5 truncate text-[10px] font-semibold text-white sm:text-[11px]">
+            {scorekeeperName?.trim() || "—"}
+          </p>
+        </div>
+        <div className="px-2 py-2">
+          <p className="text-[8px] font-semibold uppercase tracking-wider text-white/40 sm:text-[9px]">
+            Duration
+          </p>
+          <div className="mt-0.5 flex justify-center">
+            <LiveMatchTimer
+              startedAt={startedAt}
+              timerEndsAt={timerEndsAt}
+              estimatedDurationMinutes={timerEndsAt ? null : estimatedDurationMinutes}
+              active={matchActive}
+              tone="display"
+              compact
+            />
+          </div>
+        </div>
+      </footer>
     </article>
   );
 }

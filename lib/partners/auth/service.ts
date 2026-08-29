@@ -339,6 +339,26 @@ export async function loginPartnerPlayer(input: {
   const passwordOk = await verifyPartnerPassword(input.password, passwordHash);
 
   if (!identity || !hasPassword || !passwordOk) {
+    const { lookupPartnerStaffLoginHint } = await import(
+      "@/lib/partners/auth/staff-login-hint"
+    );
+    const staffHint = await lookupPartnerStaffLoginHint({
+      partnerId: input.partner.id,
+      partnerSlug: input.partner.slug,
+      partnerDisplayName: input.partner.displayName,
+      email,
+    });
+    if (staffHint) {
+      throw new AppError(
+        "This email is registered as partner staff. Sign in with your Gud Game account to open the Partner Console.",
+        {
+          code: "FORBIDDEN",
+          statusCode: 403,
+          context: { staffLoginHint: staffHint, reason: "PARTNER_STAFF_USE_GUDGAME_LOGIN" },
+        },
+      );
+    }
+
     if (identity && !hasPassword) {
       throw new AppError(
         "This account uses Google Sign-In. Continue with Google, or set a password via Forgot password.",

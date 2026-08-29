@@ -67,6 +67,7 @@ export type TournamentLivePayload = {
     scoreEvents?: MatchScoreEvent[];
     /** Intra-game rally points when matchScoreMode = "games". */
     gameState?: MatchGameState | null;
+    scorekeeperName?: string | null;
   }>;
   /** Scoring shape for venue display / public live boards. */
   scoring?: {

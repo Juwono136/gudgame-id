@@ -62,7 +62,24 @@ export function PartnerLoginForm({
       const json = await res.json();
       if (!res.ok) {
         const code = json?.error?.code;
+        const reason = json?.error?.reason ?? json?.error?.context?.reason;
         const message = json?.error?.message ?? "Could not sign in";
+        if (reason === "PARTNER_STAFF_USE_GUDGAME_LOGIN") {
+          const staffUrl = (json?.error?.staffLoginUrl ??
+            json?.error?.context?.staffLoginHint?.staffLoginUrl) as string | undefined;
+          toast.error(message, {
+            duration: 8000,
+            action: staffUrl
+              ? {
+                  label: "Staff sign in",
+                  onClick: () => {
+                    window.location.href = staffUrl;
+                  },
+                }
+              : undefined,
+          });
+          return;
+        }
         if (code === "EMAIL_NOT_VERIFIED") {
           toast.error(message, {
             action: {
@@ -113,10 +130,12 @@ export function PartnerLoginForm({
             Create one
           </Link>
           <span className="mt-2 block text-[11px] text-cp-muted/80">
-            Organizer?{" "}
+            Partner staff?{" "}
             <Link href="/login" className="underline hover:text-foreground">
-              Staff sign in (Gud Game)
+              Sign in with Gud Game (Partner Console)
             </Link>
+            {" · "}
+            Player member? use the form above.
           </span>
         </>
       }

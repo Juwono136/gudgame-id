@@ -49,7 +49,7 @@ import type { TournamentDetail } from "@/lib/tournaments/service";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import type { GroupMatchView } from "@/lib/tournaments/double-stage/service";
 
-function mapGroupToLiveMatch(m: GroupMatchView) {
+function mapGroupToLiveMatch(m: GroupMatchView, scorekeeperName?: string | null) {
   return {
     id: m.id,
     type: "group_stage" as const,
@@ -72,10 +72,11 @@ function mapGroupToLiveMatch(m: GroupMatchView) {
     playType: "group_stage" as const,
     scoreEvents: m.scoreEvents ?? [],
     gameState: m.gameState ?? null,
+    scorekeeperName: scorekeeperName ?? null,
   };
 }
 
-function mapReclubToLiveMatch(m: ReclubMatchView) {
+function mapReclubToLiveMatch(m: ReclubMatchView, scorekeeperName?: string | null) {
   return {
     id: m.id,
     type: "lobby_round" as const,
@@ -99,6 +100,7 @@ function mapReclubToLiveMatch(m: ReclubMatchView) {
     durationSeconds: m.durationSeconds,
     bracketMatchId: m.bracketMatchId ?? null,
     gameState: m.gameState ?? null,
+    scorekeeperName: scorekeeperName ?? null,
   };
 }
 
@@ -119,7 +121,7 @@ function historyLabelForBracket(m: BracketMatchView, maxRound: number): string {
   return `Bracket · ${getBracketRoundLabel(m.roundNumber, maxRound)} · M${m.matchNumber}`;
 }
 
-function mapBracketToLiveMatch(m: BracketMatchView) {
+function mapBracketToLiveMatch(m: BracketMatchView, scorekeeperName?: string | null) {
   return {
     id: m.id,
     type: "bracket" as const,
@@ -140,7 +142,26 @@ function mapBracketToLiveMatch(m: BracketMatchView) {
     bracketMatchId: m.id,
     scoreEvents: m.scoreEvents ?? [],
     gameState: m.gameState ?? null,
+    scorekeeperName: scorekeeperName ?? null,
   };
+}
+
+async function resolveScorekeeperNameMap(
+  userIds: Array<string | null | undefined>,
+): Promise<Map<string, string>> {
+  const unique = [...new Set(userIds.filter((id): id is string => Boolean(id?.trim())))];
+  if (!unique.length) return new Map();
+  const rows = await getDb()
+    .select({
+      id: user.id,
+      name: user.name,
+      nickname: user.nickname,
+    })
+    .from(user)
+    .where(inArray(user.id, unique));
+  return new Map(
+    rows.map((row) => [row.id, row.nickname?.trim() || row.name?.trim() || "Scorekeeper"]),
+  );
 }
 
 function toStatsMatchFromReclub(m: ReclubMatchView): StatsMatchInput | null {
@@ -248,6 +269,17 @@ export async function buildTournamentLivePayload(
       })),
   }));
 
+  const scorekeeperNameMap = await resolveScorekeeperNameMap([
+    ...lobbyMatches
+      .filter((m) => m.status === "in_progress")
+      .map((m) => m.recordedByUserId),
+    ...bracketMatches
+      .filter((m) => m.status === "in_progress")
+      .map((m) => m.recordedByUserId),
+  ]);
+  const scorekeeperLabel = (userId: string | null | undefined) =>
+    userId ? (scorekeeperNameMap.get(userId) ?? null) : null;
+
   // Include pending/queued fixtures so public Live Score round tabs match Manage
   // (completedCount / isComplete per RR day). Live + completed alone collapsed
   // all rows onto round 1 when roundNumber was missing historically.
@@ -261,16 +293,20 @@ export async function buildTournamentLivePayload(
               m.status === "pending" ||
               m.status === "scheduled",
           )
-          .map(mapGroupToLiveMatch)
+          .map((m) => mapGroupToLiveMatch(m, null))
       : [];
 
   const lobbyLiveMatches =
     isLiveOrDone && !tournamentEnded
-      ? lobbyMatches.filter((m) => m.status === "in_progress").map(mapReclubToLiveMatch)
+      ? lobbyMatches
+          .filter((m) => m.status === "in_progress")
+          .map((m) => mapReclubToLiveMatch(m, scorekeeperLabel(m.recordedByUserId)))
       : [];
   const bracketLiveMatches =
     isLiveOrDone && !tournamentEnded
-      ? bracketMatches.filter((m) => m.status === "in_progress").map(mapBracketToLiveMatch)
+      ? bracketMatches
+          .filter((m) => m.status === "in_progress")
+          .map((m) => mapBracketToLiveMatch(m, scorekeeperLabel(m.recordedByUserId)))
       : [];
 
   const lobbyBracketIds = new Set(
@@ -293,7 +329,7 @@ export async function buildTournamentLivePayload(
     isLiveOrDone && isFunMatch && includeLobbyRounds
       ? dedupeReclubMatchViews(
           lobbyMatches.filter((m) => m.status === "in_progress" || m.status === "completed"),
-        ).map(mapReclubToLiveMatch)
+        ).map((m) => mapReclubToLiveMatch(m, scorekeeperLabel(m.recordedByUserId)))
       : null;
 
   const matchesPayload =

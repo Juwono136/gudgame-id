@@ -42,6 +42,20 @@ export function canPlayReclubSession(input: ReclubSessionSchedule, now?: Date): 
   return computeReclubSessionPhase(input, now) === "live";
 }
 
+/**
+ * Knockout bracket seeding / pairings — allowed before the session clock starts
+ * (and until seeding locks when a match is in progress or finished).
+ * Distinct from {@link canPlayReclubSession} which gates live scoring only.
+ */
+export function canArrangeBracketPairings(
+  input: ReclubSessionSchedule,
+  options?: { seedingLocked?: boolean; now?: Date },
+): boolean {
+  if (options?.seedingLocked) return false;
+  if (input.status === "cancelled" || input.status === "completed") return false;
+  return computeReclubSessionPhase(input, options?.now) !== "ended";
+}
+
 export function getReclubSessionPhaseLabel(phase: ReclubSessionPhase): string {
   switch (phase) {
     case "upcoming":
