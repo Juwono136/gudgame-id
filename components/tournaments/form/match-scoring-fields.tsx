@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -10,14 +11,19 @@ import {
 } from "@/components/ui/select";
 import { BoundedNumberInput } from "@/components/tournaments/form/bounded-number-input";
 import {
+  type KnockoutRoundKey,
   type MatchScoringConfig,
   type MatchScoringLeaf,
   type MatchScoringMode,
+  type RaceToByRound,
+  KNOCKOUT_ROUND_KEY_LABELS,
   RACE_TO_CUSTOM_MAX,
   RACE_TO_CUSTOM_MIN,
   asMatchScoringLeaf,
   composeDoubleStageMatchScoring,
   getMatchScoringModeLabel,
+  hasDistinctRaceToByRound,
+  knockoutRoundKeysForTeamCount,
   matchScoringLeafFromMode,
   normalizeMatchScoringLeaf,
   resolveMatchScoringForStage,
@@ -31,12 +37,19 @@ type MatchScoringFieldsProps = {
    * Double Stage: independent scoring mode + options for group vs knockout.
    */
   showStageOverrides?: boolean;
+  /**
+   * Custom / Elimination knockout: race-to can vary by bracket round
+   * (R32 → Final). Pass max teams so the UI shows the right round list.
+   */
+  showKnockoutRoundTargets?: boolean;
+  /** Field size used to decide which KO rounds appear (default 32). */
+  knockoutFieldSize?: number;
   disabled?: boolean;
   className?: string;
 };
 
 const MODES: MatchScoringMode[] = ["best_of", "race_to", "total", "custom_score"];
-const RACE_PRESETS = [4, 6] as const;
+const RACE_PRESETS = [4, 6, 8] as const;
 
 function RaceToPicker({
   id,
@@ -87,16 +100,159 @@ function RaceToPicker({
   );
 }
 
-function ScoringLeafFields({
+function KnockoutRaceByRoundFields({
   idPrefix,
   value,
+  fieldSize,
   disabled,
   onChange,
 }: {
   idPrefix: string;
   value: MatchScoringLeaf;
+  fieldSize: number;
   disabled?: boolean;
   onChange: (next: MatchScoringLeaf) => void;
+}) {
+  const roundKeys = useMemo(
+    () => knockoutRoundKeysForTeamCount(fieldSize),
+    [fieldSize],
+  );
+  const defaultRace = value.raceTo?.value ?? 4;
+  const enabled = hasDistinctRaceToByRound(value) || Boolean(value.raceToByRound);
+  const [expanded, setExpanded] = useState(enabled);
+
+  const showPerRound = expanded || enabled;
+
+  const setRoundValue = (key: KnockoutRoundKey, n: number) => {
+    const nextMap: RaceToByRound = { ...(value.raceToByRound ?? {}) };
+    for (const k of roundKeys) {
+      if (nextMap[k] == null) nextMap[k] = defaultRace;
+    }
+    nextMap[key] = n;
+    onChange(
+      normalizeMatchScoringLeaf({
+        ...value,
+        mode: "race_to",
+        raceTo: { value: defaultRace },
+        raceToByRound: nextMap,
+      }),
+    );
+  };
+
+  const enablePerRound = (on: boolean) => {
+    setExpanded(on);
+    if (!on) {
+      onChange(
+        normalizeMatchScoringLeaf({
+          ...value,
+          mode: "race_to",
+          raceTo: { value: defaultRace },
+          raceToByRound: undefined,
+        }),
+      );
+      return;
+    }
+    const seeded: RaceToByRound = {};
+    for (const k of roundKeys) {
+      seeded[k] = value.raceToByRound?.[k] ?? defaultRace;
+    }
+    onChange(
+      normalizeMatchScoringLeaf({
+        ...value,
+        mode: "race_to",
+        raceTo: { value: defaultRace },
+        raceToByRound: seeded,
+      }),
+    );
+  };
+
+  return (
+    <div className="space-y-3 rounded-xl border border-dashed border-cp-border/80 bg-cp-elevated/20 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground">Race to per knockout round</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-cp-muted">
+            Optional. Example for 32 teams: R32/R16 → 4, quarters/semis → 6, final → 8.
+            Default race-to applies to any round you leave unset.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => enablePerRound(!showPerRound)}
+          className={cn(
+            "shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors",
+            showPerRound
+              ? "border-cp-primary/50 bg-cp-primary/10 text-cp-primary"
+              : "border-cp-border bg-cp-card text-cp-muted hover:border-cp-primary/40 hover:text-foreground",
+          )}
+        >
+          {showPerRound ? "On" : "Off"}
+        </button>
+      </div>
+
+      {showPerRound ? (
+        <ul className="space-y-2.5">
+          {roundKeys.map((key) => {
+            const n = value.raceToByRound?.[key] ?? defaultRace;
+            return (
+              <li
+                key={key}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-cp-border/60 bg-cp-card/50 px-2.5 py-2"
+              >
+                <span className="text-sm font-medium text-foreground">
+                  {KNOCKOUT_ROUND_KEY_LABELS[key]}
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {RACE_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setRoundValue(key, preset)}
+                      className={cn(
+                        "rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors",
+                        n === preset
+                          ? "border-cp-primary bg-cp-primary/10 text-cp-primary"
+                          : "border-cp-border text-cp-muted hover:border-cp-primary/40",
+                      )}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                  <BoundedNumberInput
+                    id={`${idPrefix}-round-${key}`}
+                    min={RACE_TO_CUSTOM_MIN}
+                    max={RACE_TO_CUSTOM_MAX}
+                    disabled={disabled}
+                    value={n}
+                    onValueChange={(v) => setRoundValue(key, v)}
+                    className="h-8 w-16"
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function ScoringLeafFields({
+  idPrefix,
+  value,
+  disabled,
+  onChange,
+  showKnockoutRoundTargets,
+  knockoutFieldSize,
+}: {
+  idPrefix: string;
+  value: MatchScoringLeaf;
+  disabled?: boolean;
+  onChange: (next: MatchScoringLeaf) => void;
+  showKnockoutRoundTargets?: boolean;
+  knockoutFieldSize?: number;
 }) {
   const patch = (partial: Partial<MatchScoringLeaf>) => {
     onChange(normalizeMatchScoringLeaf({ ...value, ...partial }));
@@ -159,13 +315,29 @@ function ScoringLeafFields({
       ) : null}
 
       {value.mode === "race_to" ? (
-        <RaceToPicker
-          id={`${idPrefix}-race-to`}
-          label="Race to"
-          value={value.raceTo?.value ?? 4}
-          disabled={disabled}
-          onChange={(n) => patch({ raceTo: { value: n } })}
-        />
+        <>
+          <RaceToPicker
+            id={`${idPrefix}-race-to`}
+            label={showKnockoutRoundTargets ? "Default race to" : "Race to"}
+            hint={
+              showKnockoutRoundTargets
+                ? "Used when a knockout round has no override below."
+                : undefined
+            }
+            value={value.raceTo?.value ?? 4}
+            disabled={disabled}
+            onChange={(n) => patch({ raceTo: { value: n } })}
+          />
+          {showKnockoutRoundTargets ? (
+            <KnockoutRaceByRoundFields
+              idPrefix={idPrefix}
+              value={value}
+              fieldSize={knockoutFieldSize ?? 32}
+              disabled={disabled}
+              onChange={onChange}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {value.mode === "total" ? (
@@ -250,6 +422,8 @@ export function MatchScoringFields({
   value,
   onChange,
   showStageOverrides = false,
+  showKnockoutRoundTargets = false,
+  knockoutFieldSize = 32,
   disabled,
   className,
 }: MatchScoringFieldsProps) {
@@ -314,6 +488,8 @@ export function MatchScoringFields({
                 idPrefix="knockout"
                 value={knockoutLeaf}
                 disabled={disabled}
+                showKnockoutRoundTargets={showKnockoutRoundTargets}
+                knockoutFieldSize={knockoutFieldSize}
                 onChange={(knockout) =>
                   onChange(composeDoubleStageMatchScoring(groupLeaf, knockout))
                 }
@@ -344,6 +520,8 @@ export function MatchScoringFields({
         idPrefix="root"
         value={asMatchScoringLeaf(value)}
         disabled={disabled}
+        showKnockoutRoundTargets={showKnockoutRoundTargets}
+        knockoutFieldSize={knockoutFieldSize}
         onChange={(leaf) => onChange(leaf)}
       />
     </div>

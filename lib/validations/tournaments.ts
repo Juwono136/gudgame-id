@@ -46,6 +46,17 @@ const matchScoringLeafSchema = z.object({
   bestOf: z.union([z.literal(3), z.literal(5)]).optional(),
   setTarget: raceToTargetSchema.optional(),
   raceTo: raceToTargetSchema.optional(),
+  raceToByRound: z
+    .object({
+      final: z.coerce.number().int().min(RACE_TO_CUSTOM_MIN).max(RACE_TO_CUSTOM_MAX).optional(),
+      sf: z.coerce.number().int().min(RACE_TO_CUSTOM_MIN).max(RACE_TO_CUSTOM_MAX).optional(),
+      qf: z.coerce.number().int().min(RACE_TO_CUSTOM_MIN).max(RACE_TO_CUSTOM_MAX).optional(),
+      r16: z.coerce.number().int().min(RACE_TO_CUSTOM_MIN).max(RACE_TO_CUSTOM_MAX).optional(),
+      r32: z.coerce.number().int().min(RACE_TO_CUSTOM_MIN).max(RACE_TO_CUSTOM_MAX).optional(),
+      r64: z.coerce.number().int().min(RACE_TO_CUSTOM_MIN).max(RACE_TO_CUSTOM_MAX).optional(),
+    })
+    .partial()
+    .optional(),
   totalSets: z.coerce.number().int().min(1).max(RACE_TO_CUSTOM_MAX).optional(),
   customScore: z
     .object({

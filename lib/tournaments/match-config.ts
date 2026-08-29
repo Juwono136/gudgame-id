@@ -89,14 +89,44 @@ export type RaceToTarget = {
   value: number;
 };
 
+/**
+ * Race-to overrides keyed by distance-from-final (stable across field sizes).
+ * Final / SF / QF mean the same whether the bracket starts at R32 or R16.
+ */
+export const KNOCKOUT_ROUND_KEYS = [
+  "final",
+  "sf",
+  "qf",
+  "r16",
+  "r32",
+  "r64",
+] as const;
+export type KnockoutRoundKey = (typeof KNOCKOUT_ROUND_KEYS)[number];
+
+export type RaceToByRound = Partial<Record<KnockoutRoundKey, number>>;
+
+export const KNOCKOUT_ROUND_KEY_LABELS: Record<KnockoutRoundKey, string> = {
+  final: "Final",
+  sf: "Semifinal",
+  qf: "Quarterfinal",
+  r16: "Round of 16",
+  r32: "Round of 32",
+  r64: "Round of 64",
+};
+
 export type MatchScoringConfig = {
   mode: MatchScoringMode;
   /** Best of 3 or 5 — first to win ceil(n/2) sets. */
   bestOf?: BestOfOption;
   /** Per-set race target when mode = best_of. */
   setTarget?: RaceToTarget;
-  /** Flat race-to-N when mode = race_to. */
+  /** Flat race-to-N when mode = race_to (default for rounds without raceToByRound). */
   raceTo?: RaceToTarget;
+  /**
+   * Optional per-knockout-round race-to (Custom elimination / KO stage).
+   * Keys are distance-from-final; omit rounds that use {@link raceTo}.
+   */
+  raceToByRound?: RaceToByRound;
   /** All sets must be played when mode = total. */
   totalSets?: number;
   customScore?: {
@@ -176,6 +206,17 @@ function parseRaceToTarget(raw: unknown): RaceToTarget | undefined {
   return value != null ? { value } : undefined;
 }
 
+function parseRaceToByRound(raw: unknown): RaceToByRound | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const src = raw as Record<string, unknown>;
+  const out: RaceToByRound = {};
+  for (const key of KNOCKOUT_ROUND_KEYS) {
+    const n = parsePositiveInt(src[key], RACE_TO_CUSTOM_MIN, RACE_TO_CUSTOM_MAX);
+    if (n != null) out[key] = n;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function parseMatchScoringLeaf(
   raw: Record<string, unknown>,
 ): Omit<MatchScoringConfig, "group" | "knockout"> | undefined {
@@ -197,6 +238,8 @@ function parseMatchScoringLeaf(
 
   if (mode === "race_to") {
     base.raceTo = parseRaceToTarget(raw.raceTo) ?? { value: 4 };
+    const byRound = parseRaceToByRound(raw.raceToByRound);
+    if (byRound) base.raceToByRound = byRound;
   }
 
   if (mode === "total") {
@@ -373,11 +416,14 @@ export function normalizeMatchScoringLeaf(leaf: MatchScoringLeaf): MatchScoringL
         bestOf: leaf.bestOf === 5 ? 5 : 3,
         setTarget: leaf.setTarget ?? fallback.setTarget,
       };
-    case "race_to":
+    case "race_to": {
+      const raceToByRound = parseRaceToByRound(leaf.raceToByRound);
       return {
         mode: "race_to",
         raceTo: leaf.raceTo ?? fallback.raceTo,
+        ...(raceToByRound ? { raceToByRound } : {}),
       };
+    }
     case "total":
       return {
         mode: "total",
@@ -459,8 +505,15 @@ export function summarizeMatchScoringLeaf(
   switch (leaf.mode) {
     case "best_of":
       return `Best of ${leaf.bestOf ?? 3} · set race to ${leaf.setTarget?.value ?? 4}`;
-    case "race_to":
+    case "race_to": {
+      const byRound = leaf.raceToByRound
+        ? KNOCKOUT_ROUND_KEYS.filter((k) => leaf.raceToByRound?.[k] != null)
+            .map((k) => `${KNOCKOUT_ROUND_KEY_LABELS[k]} ${leaf.raceToByRound![k]}`)
+            .join(" · ")
+        : null;
+      if (byRound) return `Race to (by round) · ${byRound}`;
       return `Race to ${leaf.raceTo?.value ?? 4}`;
+    }
     case "total":
       return `Total ${leaf.totalSets ?? 3}`;
     case "custom_score":
@@ -496,10 +549,72 @@ export function raceToValueForStage(
   return undefined;
 }
 
+export function knockoutRoundKeyFromFromFinal(
+  fromFinal: number,
+): KnockoutRoundKey | "earlier" {
+  if (fromFinal === 1) return "final";
+  if (fromFinal === 2) return "sf";
+  if (fromFinal === 3) return "qf";
+  if (fromFinal === 4) return "r16";
+  if (fromFinal === 5) return "r32";
+  if (fromFinal === 6) return "r64";
+  return "earlier";
+}
+
+export function knockoutRoundKeyFromBracket(
+  roundNumber: number,
+  totalRounds: number,
+): KnockoutRoundKey | "earlier" {
+  const fromFinal = totalRounds - roundNumber + 1;
+  return knockoutRoundKeyFromFromFinal(fromFinal);
+}
+
+/** Round keys to show in the wizard for a given field size (earliest first). */
+export function knockoutRoundKeysForTeamCount(teamCount: number): KnockoutRoundKey[] {
+  const rounds = Math.min(
+    6,
+    Math.max(1, Math.ceil(Math.log2(Math.max(2, teamCount)))),
+  );
+  const keys: KnockoutRoundKey[] = [];
+  for (let fromFinal = rounds; fromFinal >= 1; fromFinal -= 1) {
+    const key = knockoutRoundKeyFromFromFinal(fromFinal);
+    if (key !== "earlier") keys.push(key);
+  }
+  return keys;
+}
+
+/**
+ * Resolve race-to for a knockout round.
+ * Falls back: exact key → r64 (for earlier) → leaf.raceTo → undefined.
+ */
+export function resolveRaceToForKnockoutRound(
+  leaf: MatchScoringLeaf | MatchScoringConfig | undefined,
+  key: KnockoutRoundKey | "earlier",
+): number | undefined {
+  if (!leaf || leaf.mode !== "race_to") return undefined;
+  const map = leaf.raceToByRound;
+  if (map) {
+    if (key !== "earlier" && typeof map[key] === "number") return map[key];
+    if (key === "earlier" && typeof map.r64 === "number") return map.r64;
+  }
+  return leaf.raceTo?.value;
+}
+
+/** True when raceToByRound differs from the default raceTo for any configured key. */
+export function hasDistinctRaceToByRound(leaf: MatchScoringLeaf | undefined): boolean {
+  if (!leaf?.raceToByRound) return false;
+  const def = leaf.raceTo?.value;
+  return KNOCKOUT_ROUND_KEYS.some((k) => {
+    const v = leaf.raceToByRound?.[k];
+    return typeof v === "number" && (def == null || v !== def);
+  });
+}
+
 /**
  * Stage leaves (group/knockout) only apply to Double Stage.
  * Strip them for other formats so a format switch cannot leak stale scoring
  * into single-elim / group-only / lobby.
+ * When leaving Double Stage, promote knockout race-to / raceToByRound onto the root leaf.
  */
 export function matchScoringForFormat(
   config: MatchScoringConfig,
@@ -507,34 +622,74 @@ export function matchScoringForFormat(
 ): MatchScoringConfig {
   if (format === "double_stage") return config;
   if (!config.group && !config.knockout) return config;
-  return asMatchScoringLeaf(config);
+
+  const root = asMatchScoringLeaf(config);
+  const knockout = config.knockout
+    ? normalizeMatchScoringLeaf({
+        ...root,
+        ...config.knockout,
+        mode: config.knockout.mode ?? root.mode,
+      })
+    : null;
+
+  // Prefer knockout race settings when switching to pure elimination.
+  if (format === "single_elimination" && knockout?.mode === "race_to") {
+    return normalizeMatchScoringLeaf({
+      mode: "race_to",
+      raceTo: knockout.raceTo ?? root.raceTo ?? { value: 6 },
+      ...(knockout.raceToByRound
+        ? { raceToByRound: knockout.raceToByRound }
+        : root.raceToByRound
+          ? { raceToByRound: root.raceToByRound }
+          : {}),
+    });
+  }
+
+  return root;
 }
 
 /**
  * Ensure Double Stage always stores independent group + knockout leaves.
  * Defaults: group race-to 4, knockout race-to 6 (partner Short race-to-N pattern)
  * when the incoming config has no stage leaves yet.
+ * Root `raceToByRound` (from Elimination) moves onto the knockout leaf — not group.
  */
 export function ensureDoubleStageScoringLeaves(
   config: MatchScoringConfig,
 ): MatchScoringConfig {
-  const groupLeaf = config.group
-    ? normalizeMatchScoringLeaf({
-        ...asMatchScoringLeaf(config),
+  const rootLeaf = asMatchScoringLeaf(config);
+  const rootByRound = rootLeaf.raceToByRound;
+
+  const groupSource = config.group
+    ? {
+        ...rootLeaf,
         ...config.group,
         mode: config.group.mode ?? config.mode,
-      })
-    : asMatchScoringLeaf(config);
+        raceToByRound: undefined,
+      }
+    : { ...rootLeaf, raceToByRound: undefined };
 
-  const knockoutLeaf = config.knockout?.mode
-    ? normalizeMatchScoringLeaf({
-        ...matchScoringLeafFromMode(config.knockout.mode),
-        ...config.knockout,
-        mode: config.knockout.mode,
-      })
-    : groupLeaf.mode === "race_to"
-      ? { mode: "race_to" as const, raceTo: { value: 6 } }
-      : { ...groupLeaf };
+  const groupLeaf = normalizeMatchScoringLeaf(groupSource);
+
+  let knockoutLeaf: MatchScoringLeaf;
+  if (config.knockout?.mode) {
+    knockoutLeaf = normalizeMatchScoringLeaf({
+      ...matchScoringLeafFromMode(config.knockout.mode),
+      ...config.knockout,
+      mode: config.knockout.mode,
+      raceToByRound: config.knockout.raceToByRound ?? rootByRound,
+    });
+  } else if (rootLeaf.mode === "race_to") {
+    // New Double Stage: keep group race-to on root/group; default KO to 6
+    // (partner Short race-to-N) unless an explicit KO leaf already exists.
+    knockoutLeaf = normalizeMatchScoringLeaf({
+      mode: "race_to",
+      raceTo: { value: 6 },
+      ...(rootByRound ? { raceToByRound: rootByRound } : {}),
+    });
+  } else {
+    knockoutLeaf = { ...groupLeaf };
+  }
 
   return composeDoubleStageMatchScoring(groupLeaf, knockoutLeaf);
 }

@@ -110,6 +110,10 @@ type FunMatchRoundsPanelProps = {
    * hosts start fixtures from Match Schedule by picking a court + Start.
    */
   startFixturesFromSchedule?: boolean;
+  /** Per-match game rules (Custom knockout raceToByRound). */
+  resolveGameRules?: (
+    match: ReclubMatchView,
+  ) => import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
 };
 
 function matchMatchesSearch(m: ReclubMatchView, q: string): boolean {
@@ -185,6 +189,7 @@ export function FunMatchRoundsPanel({
   initialFocusedCourtId = null,
   scoringFrozen = false,
   startFixturesFromSchedule = false,
+  resolveGameRules,
 }: FunMatchRoundsPanelProps) {
   const accentLabel = accentVariant === "official" ? "text-cp-primary" : "text-emerald-400";
   const [search, setSearch] = useState("");
@@ -726,7 +731,7 @@ export function FunMatchRoundsPanel({
                   readOnly={readOnly}
                   pointsPerMatch={pointsPerMatch}
                   scoringRules={scoringRules}
-                  gameRules={gameRules}
+                  gameRules={resolveGameRules?.(match) ?? gameRules}
                   classicSetRules={classicSetRules}
                   scoreEntryMode={scoreEntryMode}
                   sportSlug={sportSlug}

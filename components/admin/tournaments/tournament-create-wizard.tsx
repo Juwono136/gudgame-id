@@ -1149,6 +1149,10 @@ export function TournamentCreateWizard({
                     value={matchScoring}
                     onChange={setMatchScoring}
                     showStageOverrides={matchType === "double_stage"}
+                    showKnockoutRoundTargets={
+                      matchType === "single_elimination" || matchType === "double_stage"
+                    }
+                    knockoutFieldSize={Number(maxTeams) || 32}
                   />
                 ) : null}
                 {matchType === "double_stage" || matchType === "group_only" ? (

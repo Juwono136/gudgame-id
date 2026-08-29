@@ -68,6 +68,8 @@ export type TournamentLivePayload = {
     /** Intra-game rally points when matchScoreMode = "games". */
     gameState?: MatchGameState | null;
     scorekeeperName?: string | null;
+    /** Per-match race-to when Custom knockout uses raceToByRound. */
+    raceToGames?: number | null;
   }>;
   /** Scoring shape for venue display / public live boards. */
   scoring?: {

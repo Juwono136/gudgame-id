@@ -41,6 +41,7 @@ import {
 import { coerceRichHtmlField, sanitizeTournamentRichField } from "@/lib/tournaments/rich-text";
 import {
   deriveMatchScoringFromLegacy,
+  knockoutRoundKeyFromBracket,
   matchScoreModeFromScoring,
   parseCustomMatchSettings,
   parseFormatFamily,
@@ -48,6 +49,7 @@ import {
   parseMexicanoSettings,
   parseRankingMode,
   resolveMatchScoringForStage,
+  resolveRaceToForKnockoutRound,
   summarizeMatchScoring,
   type CustomMatchSettings,
   type MatchScoringConfig,
@@ -738,17 +740,32 @@ function getStoredMatchScoring(
 /**
  * Effective games target for a match/leg (race-to N or total N).
  * Prefers Official `matchScoring` over legacy raceToGames.
+ * Pass knockout round context to honor Custom `raceToByRound`.
  */
 export function getTournamentRaceToTarget(
   tournament: TournamentDetail,
   stage: TournamentRaceStage = "default",
+  context?: TournamentGameRulesContext,
 ): number {
   const resolved = resolveMatchScoringForStage(
     getStoredMatchScoring(tournament),
     stage === "default" ? "default" : stage,
   );
-  if (resolved?.mode === "race_to" && resolved.raceTo?.value) {
-    return resolved.raceTo.value;
+  if (resolved?.mode === "race_to") {
+    if (
+      resolved.raceToByRound &&
+      context?.knockoutRoundNumber != null &&
+      context.knockoutTotalRounds != null &&
+      (stage === "knockout" || stage === "default")
+    ) {
+      const key = knockoutRoundKeyFromBracket(
+        context.knockoutRoundNumber,
+        context.knockoutTotalRounds,
+      );
+      const byRound = resolveRaceToForKnockoutRound(resolved, key);
+      if (byRound != null) return byRound;
+    }
+    if (resolved.raceTo?.value) return resolved.raceTo.value;
   }
   if (resolved?.mode === "total" && resolved.totalSets != null && resolved.totalSets > 0) {
     return resolved.totalSets;
@@ -809,7 +826,7 @@ export function getTournamentGameRules(
   const lengthMode = resolved?.mode === "total" ? "total" : "race_to";
   const rules: MatchGameRules = {
     ...base,
-    raceToGames: getTournamentRaceToTarget(tournament, stage),
+    raceToGames: getTournamentRaceToTarget(tournament, stage, context),
     lengthMode,
     pointsToWinGame: base.pointsToWinGame,
     pointStyle: "simple",
@@ -832,7 +849,7 @@ export function getTournamentGameRules(
         ...rules,
         ...BESTIE_CUP_POOL_GAME_RULES,
         raceToGames:
-          getTournamentRaceToTarget(tournament, "group") ||
+          getTournamentRaceToTarget(tournament, "group", context) ||
           BESTIE_CUP_POOL_GAME_RULES.raceToGames,
         gameDecider: settings.gameDecider ?? BESTIE_CUP_POOL_GAME_RULES.gameDecider,
       };
@@ -849,7 +866,7 @@ export function getTournamentGameRules(
         ...rules,
         ...koRules,
         raceToGames:
-          getTournamentRaceToTarget(tournament, "knockout") || koRules.raceToGames,
+          getTournamentRaceToTarget(tournament, "knockout", context) || koRules.raceToGames,
         gameDecider: settings.gameDecider ?? koRules.gameDecider,
       };
     }
@@ -1371,7 +1388,21 @@ export function buildTournamentSettings(
   }
 
   if (input.doubleStage) {
-    next.doubleStage = input.doubleStage;
+    // Merge pool config with existing runtime lifecycle fields so edit/save
+    // never resets phase (group→knockout) or lock/generate timestamps.
+    const prevRaw = next.doubleStage;
+    const prev =
+      prevRaw && typeof prevRaw === "object"
+        ? parseDoubleStageSettings(prevRaw)
+        : null;
+    const incoming = parseDoubleStageSettings(input.doubleStage);
+    next.doubleStage = {
+      ...incoming,
+      phase: prev?.phase ?? incoming.phase,
+      groupsLockedAt: incoming.groupsLockedAt ?? prev?.groupsLockedAt,
+      knockoutReadyAt: incoming.knockoutReadyAt ?? prev?.knockoutReadyAt,
+      knockoutGeneratedAt: incoming.knockoutGeneratedAt ?? prev?.knockoutGeneratedAt,
+    };
   } else if ("doubleStage" in input) {
     delete next.doubleStage;
   }

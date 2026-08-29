@@ -324,6 +324,12 @@ Tie-breaker: sesuai sport (points sports vs padel/tennis ITF-ish).
 
 ### 3.6 Match scoring terpadu (`settings.matchScoring`)
 
+Unified Best of / Race to / Total / Custom score leaf. Double Stage may store independent **group** and **knockout** leaves.
+
+**Custom knockout — race-to per round:** Optional `matchScoring.raceToByRound` (keys: `r64` / `r32` / `r16` / `qf` / `sf` / `final`) keyed by distance-from-final so a 16-team and 32-team bracket share Final/SF semantics. Default `raceTo.value` applies when a round has no override. Wizard: toggle **Race to per knockout round** (Elimination + Double Stage KO leaf). Live scoring / bracket complete checks resolve via `getTournamentRaceToTarget(..., { knockoutRoundNumber, knockoutTotalRounds })`.
+
+Contoh 32 teams: R32/R16 → 4 · QF/SF → 6 · Final → 8.
+
 | Mode | Perilaku | Jalur Live tablet |
 | --- | --- | --- |
 | `best_of` | Best of 3/5; set race-to `setTarget` | Classic sets engine (ITF/FIP-style) |
@@ -348,7 +354,9 @@ Mirip partner **Short race-to-N**, Official Double Stage menyimpan **scoring lea
 
 Runtime: `resolveMatchScoringForStage` → `getTournamentMatchScoreMode(t, stage)` / `getTournamentGameRules(t, stage)` / `isClassicSetsFormat(t, stage)` → live scoring, manage panels (group vs bracket), walkover/retirement, fullscreen display.
 
-Stage leaves **hanya** untuk Double Stage: format lain di-strip saat create/edit (`matchScoringForFormat`) agar switch format tidak membocorkan scoring group/KO ke Elimination / Group only / lobby.
+Stage leaves **hanya** untuk Double Stage: format lain di-strip saat create/edit (`matchScoringForFormat`) agar switch format tidak membocorkan scoring group/KO ke Elimination / Group only / lobby. Saat switch ke **Elimination**, race-to (dan `raceToByRound`) dari leaf **knockout** dipromosikan ke root. Saat masuk Double Stage, `raceToByRound` di root dipindah ke leaf knockout (bukan group).
+
+**Edit aman (runtime lifecycle):** `buildTournamentSettings` **menggabungkan** field pool (`maxTeamsPerGroup`, advance, 3rd place, …) dengan `doubleStage` yang sudah ada — **tidak** mereset `phase` (group→knockout) atau timestamp lock/generate knockout. Partner wizard juga membersihkan `poolRules: bestie_cup` saat meninggalkan preset Bestie / Modified Swiss.
 
 Contoh: Group Race to 4 + Knockout Best of 3; atau Group Custom + Knockout Race to 6.
 

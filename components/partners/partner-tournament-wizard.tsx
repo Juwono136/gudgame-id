@@ -671,8 +671,10 @@ export function PartnerTournamentWizard({
         ? { mexicano, maxRounds: mexicano.roundCount }
         : {}),
       ...(isAmericano ? { maxRounds: form.maxRounds ?? undefined } : {}),
-      ...(bestieCupPreset || isModifiedSwiss ? { poolRules: "bestie_cup" as const } : {}),
-      ...(bestieCupPreset || isModifiedSwiss || rootMode === "games"
+      ...((bestieCupPreset && isDoubleStage) || isModifiedSwiss
+        ? { poolRules: "bestie_cup" as const }
+        : {}),
+      ...((bestieCupPreset && isDoubleStage) || isModifiedSwiss || rootMode === "games"
         ? { matchFormat: "race_to_games" as const }
         : {}),
       partnerLeagueId: form.partnerLeagueId,
@@ -1057,6 +1059,10 @@ export function PartnerTournamentWizard({
                     onChange={(v) => {
                       if (v === form.format) return;
                       patch("format", v);
+                      // Bestie Cup preset only applies to Double Stage; clear when leaving.
+                      if (v !== "double_stage") {
+                        setBestieCupPreset(false);
+                      }
                       if (v === "modified_swiss") {
                         patch("maxTeamsPerGroup", 3);
                         patch("teamsAdvancePerGroup", 1);
@@ -1196,6 +1202,13 @@ export function PartnerTournamentWizard({
                     value={matchScoring}
                     onChange={setMatchScoring}
                     showStageOverrides={form.format === "double_stage"}
+                    showKnockoutRoundTargets={
+                      form.format === "single_elimination" ||
+                      form.format === "double_stage"
+                    }
+                    knockoutFieldSize={
+                      clampMaxTeams(parseMaxTeamsInput(form.maxTeams) ?? 32)
+                    }
                   />
                   <OfficialFormatSummary
                     formatFamily={formatFamily}

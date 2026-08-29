@@ -476,7 +476,7 @@ export function FunMatchScoringWorkspace({
       rows.push({
         id: `bracket-slot-${m.id}`,
         roundLabel: `Round ${m.roundNumber}, Match ${m.matchNumber}`,
-        courtLabel: null,
+        courtLabel: m.courtId ? (courtNameById.get(m.courtId) ?? null) : null,
         teamAName: m.teamAName,
         teamBName: m.teamBName,
         teamAPlayers: m.teamAPlayers ?? [],
@@ -1694,6 +1694,22 @@ export function FunMatchScoringWorkspace({
       initialFocusedCourtId={courtsideCourtId ?? courtFromUrl}
       scoringFrozen={scoringFrozen}
       startFixturesFromSchedule={startFixturesFromSchedule}
+      resolveGameRules={
+        isBracketMode && gameRules
+          ? (match) => {
+              const round = match.roundNumber;
+              if (round == null || round <= 0) return gameRules;
+              const totalRounds = Math.max(
+                1,
+                ...bracketMatches.map((m) => m.roundNumber).filter((n) => n > 0),
+              );
+              return getTournamentGameRules(tournament, "knockout", {
+                knockoutRoundNumber: round,
+                knockoutTotalRounds: totalRounds,
+              });
+            }
+          : undefined
+      }
     />
   );
 

@@ -161,6 +161,23 @@ describe("stage scoring · format isolation (no regression)", () => {
     expect(se.raceTo?.value).toBe(4);
   });
 
+  it("promotes knockout race-to + raceToByRound when switching to Elimination", () => {
+    const dual = composeDoubleStageMatchScoring(
+      { mode: "race_to", raceTo: { value: 4 } },
+      {
+        mode: "race_to",
+        raceTo: { value: 6 },
+        raceToByRound: { qf: 6, sf: 6, final: 8 },
+      },
+    );
+    const se = matchScoringForFormat(dual, "single_elimination");
+    expect(se.group).toBeUndefined();
+    expect(se.knockout).toBeUndefined();
+    expect(se.mode).toBe("race_to");
+    expect(se.raceTo?.value).toBe(6);
+    expect(se.raceToByRound).toEqual({ qf: 6, sf: 6, final: 8 });
+  });
+
   it("seeds group race-to 4 / KO race-to 6 when entering Double Stage", () => {
     const seeded = ensureDoubleStageScoringLeaves({
       mode: "race_to",
@@ -169,6 +186,17 @@ describe("stage scoring · format isolation (no regression)", () => {
     expect(seeded.group?.mode).toBe("race_to");
     expect(seeded.group?.raceTo?.value).toBe(4);
     expect(seeded.knockout?.mode).toBe("race_to");
+    expect(seeded.knockout?.raceTo?.value).toBe(6);
+  });
+
+  it("moves root raceToByRound onto knockout leaf (not group)", () => {
+    const seeded = ensureDoubleStageScoringLeaves({
+      mode: "race_to",
+      raceTo: { value: 4 },
+      raceToByRound: { r16: 4, final: 8 },
+    });
+    expect(seeded.group?.raceToByRound).toBeUndefined();
+    expect(seeded.knockout?.raceToByRound).toEqual({ r16: 4, final: 8 });
     expect(seeded.knockout?.raceTo?.value).toBe(6);
   });
 

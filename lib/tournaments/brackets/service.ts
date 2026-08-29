@@ -592,7 +592,7 @@ export async function updateBracketLiveScore(
     }
     const delta = input.action === "decrement" ? (-1 as const) : (1 as const);
     if (useGamesMode && isClassicSetsFormat(tournament, "knockout")) {
-      const gameRules = getTournamentGameRules(tournament, "knockout");
+      const gameRules = getTournamentGameRules(tournament, "knockout", koRulesContext);
       const setRules = getTournamentClassicSetRules(tournament, "knockout");
       const applied = applyClassicSetPointDelta(
         scoreA,
@@ -692,7 +692,7 @@ export async function updateBracketLiveScore(
         statusCode: 422,
       });
     }
-    const gameRules = getTournamentGameRules(tournament, "knockout");
+    const gameRules = getTournamentGameRules(tournament, "knockout", koRulesContext);
     const target =
       typeof input.targetPoints === "number"
         ? input.targetPoints

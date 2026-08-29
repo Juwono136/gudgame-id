@@ -81,6 +81,9 @@ type FunMatchLiveHubProps = {
   initialFocusedCourtId?: string | null;
   scoringFrozen?: boolean;
   startFixturesFromSchedule?: boolean;
+  resolveGameRules?: (
+    match: ReclubMatchView,
+  ) => import("@/lib/tournaments/scoring/game-mode").MatchGameRules | null;
 };
 
 export function FunMatchLiveHub({
@@ -134,6 +137,7 @@ export function FunMatchLiveHub({
   initialFocusedCourtId = null,
   scoringFrozen = false,
   startFixturesFromSchedule = false,
+  resolveGameRules,
 }: FunMatchLiveHubProps) {
   return (
     <div className={cn(toolbar ? "space-y-4" : undefined, className)}>
@@ -187,6 +191,7 @@ export function FunMatchLiveHub({
         initialFocusedCourtId={initialFocusedCourtId}
         scoringFrozen={scoringFrozen}
         startFixturesFromSchedule={startFixturesFromSchedule}
+        resolveGameRules={resolveGameRules}
       />
     </div>
   );

@@ -35,6 +35,7 @@ import {
   getTournamentDisplayConfig,
   getTournamentGameRules,
   getTournamentMatchScoreMode,
+  getTournamentRaceToTarget,
   getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   isClassicSetsFormat,
@@ -376,6 +377,24 @@ export async function buildTournamentLivePayload(
     ? Math.max(...bracketMatches.map((m) => m.roundNumber))
     : 1;
 
+  const matchesWithRaceTarget = matchesPayload.map((m) => {
+    const isKnockout =
+      m.type === "bracket" ||
+      (m.type === "lobby_round" &&
+        (m.playType === "bracket" ||
+          m.playType === "bracket_rematch" ||
+          Boolean(m.bracketMatchId)));
+    if (!isKnockout || m.roundNumber == null) return m;
+    if (getTournamentMatchScoreMode(tournament, "knockout") !== "games") return m;
+    return {
+      ...m,
+      raceToGames: getTournamentRaceToTarget(tournament, "knockout", {
+        knockoutRoundNumber: m.roundNumber,
+        knockoutTotalRounds: maxBracketRound,
+      }),
+    };
+  });
+
   const recordedBracketIds = new Set(
     lobbyMatches
       .filter((m) => m.bracketMatchId && m.status === "completed")
@@ -509,7 +528,7 @@ export async function buildTournamentLivePayload(
       leaderboard,
       generated: bracketMatches.length > 0,
     },
-    matches: matchesPayload,
+    matches: matchesWithRaceTarget,
     scoring: (() => {
       const stage =
         doubleStageOverview?.phase === "knockout"

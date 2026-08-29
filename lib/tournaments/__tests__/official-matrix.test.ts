@@ -204,6 +204,68 @@ describe("official matrix · Original ignores leftover customMatch", () => {
     );
     expect(parseTournamentSettings(next).mexicano).toBeUndefined();
   });
+
+  it("edit/save preserves doubleStage phase and lock timestamps", () => {
+    const existing = {
+      doubleStage: {
+        phase: "knockout",
+        maxTeamsPerGroup: 4,
+        teamsAdvancePerGroup: 2,
+        bestRunnerUpSlots: 0,
+        thirdPlaceEnabled: false,
+        groupsLockedAt: "2026-03-01T10:00:00.000Z",
+        knockoutReadyAt: "2026-03-01T11:00:00.000Z",
+        knockoutGeneratedAt: "2026-03-01T11:05:00.000Z",
+      },
+    };
+    const next = buildTournamentSettings(
+      existing,
+      settingsInputFromUpsert(
+        {
+          formatFamily: "original",
+          format: "double_stage",
+          maxTeamsPerGroup: 3,
+          teamsAdvancePerGroup: 1,
+          matchScoring: { mode: "race_to", raceTo: { value: 4 } },
+        },
+        "padel",
+      ),
+    );
+    const ds = parseTournamentSettings(next).doubleStage;
+    expect(ds?.phase).toBe("knockout");
+    expect(ds?.maxTeamsPerGroup).toBe(3);
+    expect(ds?.teamsAdvancePerGroup).toBe(1);
+    expect(ds?.groupsLockedAt).toBe("2026-03-01T10:00:00.000Z");
+    expect(ds?.knockoutReadyAt).toBe("2026-03-01T11:00:00.000Z");
+    expect(ds?.knockoutGeneratedAt).toBe("2026-03-01T11:05:00.000Z");
+  });
+
+  it("leaving Bestie Cup clears sticky poolRules on save", () => {
+    const existing = {
+      poolRules: "bestie_cup",
+      doubleStage: {
+        phase: "group",
+        maxTeamsPerGroup: 3,
+        teamsAdvancePerGroup: 1,
+        bestRunnerUpSlots: 0,
+        thirdPlaceEnabled: false,
+      },
+    };
+    const next = buildTournamentSettings(
+      existing,
+      settingsInputFromUpsert(
+        {
+          formatFamily: "original",
+          format: "single_elimination",
+          matchScoring: { mode: "race_to", raceTo: { value: 6 } },
+        },
+        "padel",
+      ),
+    );
+    expect(next.poolRules).toBeUndefined();
+    expect(next.doubleStage).toBeUndefined();
+    expect(parseTournamentSettings(next).poolRules).toBeUndefined();
+  });
 });
 
 describe("official matrix · leaderboard rules", () => {
