@@ -24,7 +24,7 @@ type DisplayGroupStageSlideProps = {
     TournamentLivePayload,
     "matches" | "courts" | "scoring" | "tournament" | "doubleStage"
   >;
-  scoreDisplay?: "diff" | "game" | "sets";
+  scoreDisplay?: "diff" | "games" | "sets";
   showGameWinPct?: boolean;
   className?: string;
 };
@@ -35,7 +35,7 @@ type DisplayGroupStageSlideProps = {
 export function DisplayGroupStageSlide({
   tournamentName,
   liveData,
-  scoreDisplay = "game",
+  scoreDisplay = "games",
   showGameWinPct = false,
   className,
 }: DisplayGroupStageSlideProps) {
@@ -218,7 +218,7 @@ function GroupPoolCard({
   group: GroupOverview;
   liveInGroup: NonNullable<TournamentLivePayload["matches"]>[number][];
   courts: NonNullable<TournamentLivePayload["courts"]>;
-  scoreDisplay: "diff" | "game" | "sets";
+  scoreDisplay: "diff" | "games" | "sets";
   showGameWinPct: boolean;
   dense: boolean;
 }) {
