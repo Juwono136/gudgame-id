@@ -24,6 +24,7 @@ import {
 import { issuePartnerRegistrationInvoice } from "@/lib/partners/registration/payments";
 import { buildSyntheticMemberContact, upsertPartnerPlayer } from "@/lib/partners/registration/players";
 import {
+  generateAccessToken,
   getPartnerPaymentDueDate,
   hashAccessToken,
 } from "@/lib/partners/registration/tokens";
@@ -466,9 +467,14 @@ export async function markPartnerRegistrationPaid(
     });
   }
 
+  const accessTokenPlain = generateAccessToken();
+
   await db
     .update(partnerTournamentRegistrations)
-    .set({ status: "registered" })
+    .set({
+      status: "registered",
+      accessTokenHash: hashAccessToken(accessTokenPlain),
+    })
     .where(eq(partnerTournamentRegistrations.id, registrationId));
 
   const members = await db
@@ -503,6 +509,7 @@ export async function markPartnerRegistrationPaid(
       tournamentSlug: tournamentRow.slug,
       teamName: registration.teamName,
       roster: members.map((m) => m.fullName),
+      accessTokenPlain,
     });
   }
 
@@ -530,6 +537,7 @@ async function notifyPartnerRegistrationPendingReview(
     tournamentSlug: input.tournament.slug,
     teamName: input.teamName,
     roster: input.members,
+    accessTokenPlain: input.accessTokenPlain,
   });
   log.info("Partner guest registration submitted — awaiting curation", { registrationId });
 }

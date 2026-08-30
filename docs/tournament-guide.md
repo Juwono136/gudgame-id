@@ -113,6 +113,7 @@ Partner membuat event di situs mereka sendiri (`/{partnerSlug}`). Statistik **ti
 
 **UI files:**  
 - Public: `components/partners/partner-tournament-public-page.tsx` (+ shared `TournamentInfoCard` di `tournament-detail-ui.tsx`)  
+- Overview **Format** / **Scoring** cards: satu bullet per baris (bukan titik `·`) via `getTournamentFormatHintLines` / `getTournamentScoringDetailLines` — Official + Partner
 - Manage: shared `tournament-manage-shell.tsx` + `partner-guest-registrations-panel.tsx`  
 - Create/edit: `components/partners/partner-tournament-wizard.tsx`  
 - Register: `components/partners/registration/partner-registration-form.tsx` + `partner-player-search-picker.tsx`  
@@ -858,6 +859,19 @@ Partner **tidak** memakai claim-token Gud Game. Setiap slot teammate menjadi bar
 | API search | `GET /api/partner/public/{partnerSlug}/players/search?q=` (rate-limited; **bukan** Gud Game users) |
 
 Kapten: guest (email+phone) atau member login dengan `playerId` + email (kartu nama saja; kontak dari session/server). Session tanpa `playerId` tetap form guest. Alur status tetap `registered` → Confirm → `confirmed` (atau `awaiting_payment` jika paid).
+
+**Email konfirmasi (captain):**
+
+| Tahap | Template | Isi utama |
+| --- | --- | --- |
+| Free — setelah submit | `partner-registration-pending` | Konfirmasi penerimaan + link **View registration status** (token) |
+| Paid — setelah submit | `partner-registration-payment` | Konfirmasi penerimaan + **Pay now** + link status |
+| Setelah bayar | `partner-registration-pending` | Token di-rotate; email status baru dengan link aktif |
+| Staff confirm | `partner-registration-confirmed` | Spot confirmed + receipt (paid) |
+
+Link status: `/{partnerSlug}/tournaments/{slug}/register/success?token=…` — sama pola dengan Gud Game (confirm/checkout URL), tanpa login. Email fixture seed (`*@bestie-fixture.local`) tidak dikirim di dev seed.
+
+Implementasi: `lib/partners/registration/emails.ts`, `lib/partners/registration/service.ts`.
 
 ---
 

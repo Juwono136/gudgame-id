@@ -24,6 +24,18 @@ function formatDateRange(starts: Date | null, ends: Date | null): string {
   return `${fmt.format(starts)} – ${fmt.format(ends)}`;
 }
 
+export function buildPartnerRegistrationStatusUrl(
+  partnerSlug: string,
+  tournamentSlug: string,
+  accessTokenPlain: string,
+): string {
+  return `${appBaseUrl()}${partnerPublicRoutes.tournamentRegisterSuccess(
+    partnerSlug,
+    tournamentSlug,
+    accessTokenPlain,
+  )}`;
+}
+
 export type PartnerPaymentEmailInput = {
   captainEmail: string;
   captainName: string;
@@ -45,6 +57,11 @@ export function sendPartnerRegistrationPaymentEmail(input: PartnerPaymentEmailIn
     input.tournamentSlug,
     input.accessTokenPlain,
   )}`;
+  const statusUrl = buildPartnerRegistrationStatusUrl(
+    input.partnerSlug,
+    input.tournamentSlug,
+    input.accessTokenPlain,
+  );
 
   sendTemplatedEmailInBackground(
     {
@@ -58,6 +75,7 @@ export function sendPartnerRegistrationPaymentEmail(input: PartnerPaymentEmailIn
         teamName: input.teamName,
         amountFormatted: formatIdr(input.amountIdr),
         payUrl,
+        statusUrl,
         expiresAtFormatted: new Intl.DateTimeFormat("en", {
           dateStyle: "medium",
           timeStyle: "short",
@@ -77,6 +95,7 @@ export type PartnerPendingEmailInput = {
   tournamentSlug: string;
   teamName: string;
   roster: string[];
+  accessTokenPlain: string;
 };
 
 export function sendPartnerRegistrationPendingEmail(input: PartnerPendingEmailInput): void {
@@ -86,6 +105,11 @@ export function sendPartnerRegistrationPendingEmail(input: PartnerPendingEmailIn
     input.partnerSlug,
     input.tournamentSlug,
   )}`;
+  const statusUrl = buildPartnerRegistrationStatusUrl(
+    input.partnerSlug,
+    input.tournamentSlug,
+    input.accessTokenPlain,
+  );
 
   sendTemplatedEmailInBackground(
     {
@@ -99,6 +123,7 @@ export function sendPartnerRegistrationPendingEmail(input: PartnerPendingEmailIn
         teamName: input.teamName,
         roster: input.roster,
         tournamentUrl,
+        statusUrl,
       },
     },
     { module: "partner-registration" },

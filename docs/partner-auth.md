@@ -308,6 +308,19 @@ Jika member sudah login, form registrasi turnamen:
 5. **Guest:** Full name, email, dan phone tetap wajib di form.
 6. Copy section captain membedakan guest vs member (bukan “No Gud Game account…” saat sudah login member).
 
+### Email konfirmasi registrasi turnamen
+
+Setelah submit (guest atau member captain), kapten **selalu** menerima email konfirmasi (kecuali email fixture seed dev):
+
+| Billing | Email | CTA utama |
+| --- | --- | --- |
+| Free | `partner-registration-pending` | **View registration status** (link token) |
+| Paid | `partner-registration-payment` | **Pay now** + link status |
+| Setelah bayar | `partner-registration-pending` (token baru) | Link status aktif |
+| Staff confirm spot | `partner-registration-confirmed` | Tournament page (+ receipt jika paid) |
+
+URL status: `/{slug}/tournaments/{tournamentSlug}/register/success?token=…` — tidak perlu login (parity Gud Game confirm/checkout URL). Detail teknis: [`tournament-guide.md`](./tournament-guide.md) §9.5.
+
 ### Teammate claimable (default)
 
 Setiap anggota roster (bukan hanya kapten) di-upsert ke `partner_players` **hanya** untuk `partnerId` situs itu — tidak pernah menulis ke tabel `user` Gud Game.

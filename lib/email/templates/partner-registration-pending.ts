@@ -13,6 +13,7 @@ export function renderPartnerRegistrationPendingTemplate(
   data: PartnerRegistrationPendingTemplateData,
 ): { subject: string; html: string; text: string } {
   const subject = `Registration received — ${data.tournamentName}`;
+  const statusUrl = escapeHtml(data.statusUrl);
   const tournamentUrl = escapeHtml(data.tournamentUrl);
   const partnerName = escapeHtml(data.partnerName);
   const tournamentName = escapeHtml(data.tournamentName);
@@ -25,14 +26,15 @@ export function renderPartnerRegistrationPendingTemplate(
     : "";
 
   const bodyHtml = `
-    <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Awaiting confirmation</h1>
+    <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;line-height:1.3;color:#0B0E14;">Registration received</h1>
     <p style="margin:0 0 8px;font-size:16px;line-height:1.65;color:#374151;">
-      Hi <strong style="color:#00BF8B;">${escapeHtml(data.captainName)}</strong>, we received registration for
+      Hi <strong style="color:#00BF8B;">${escapeHtml(data.captainName)}</strong>, we received your registration for
       team <strong>${teamName}</strong> in
       <strong>${tournamentName}</strong> (${partnerName}).
     </p>
     <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#374151;">
       Your status is <strong>Registered</strong>. The organizer will review and confirm your spot before you appear on the public player list.
+      Use the link below anytime to check your registration status.
     </p>
 
     ${
@@ -44,22 +46,30 @@ export function renderPartnerRegistrationPendingTemplate(
         : ""
     }
 
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 12px;">
       <tr>
         <td align="center">
-          <a href="${tournamentUrl}" class="email-btn" style="display:inline-block;padding:14px 28px;background-color:#00BF8B;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px;">
-            View tournament page
+          <a href="${statusUrl}" class="email-btn" style="display:inline-block;padding:14px 28px;background-color:#00BF8B;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px;">
+            View registration status
           </a>
         </td>
       </tr>
     </table>
+
+    <p style="margin:0 0 24px;text-align:center;font-size:13px;line-height:1.6;color:#6B7280;">
+      <a href="${tournamentUrl}" style="color:#00BF8B;text-decoration:none;">Open tournament page</a>
+    </p>
+
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#6B7280;">
+      This link is unique to your registration — keep it private. No account or login is required.
+    </p>
   `;
 
   const html = renderEmailBaseLayout({
-    previewText: `Team ${data.teamName} is registered and awaiting organizer confirmation.`,
+    previewText: `Team ${data.teamName} is registered — view your status anytime.`,
     title: subject,
     bodyHtml,
-    heroTag: "Guest registration · Pending review",
+    heroTag: "Guest registration · Confirmation",
   });
 
   const text = [
@@ -69,7 +79,8 @@ export function renderPartnerRegistrationPendingTemplate(
     `Team "${data.teamName}" is registered for ${data.tournamentName} (${data.partnerName}).`,
     `Status: Registered — awaiting organizer confirmation.`,
     data.roster.length ? `Squad: ${data.roster.join(", ")}` : "",
-    `Tournament: ${data.tournamentUrl}`,
+    `View registration status: ${data.statusUrl}`,
+    `Tournament page: ${data.tournamentUrl}`,
   ]
     .filter(Boolean)
     .join("\n");

@@ -35,10 +35,12 @@ import {
   BESTIE_CUP_PAIRS_PER_POOL,
   BESTIE_CUP_POOL_GAME_RULES,
   getBestieCupKnockoutGameRules,
+  getBestieCupScoringDetailLines,
   getBestieCupStandingsScoring,
   summarizeBestieCupScoringDetail,
   tournamentUsesBestieCupPoolRules,
 } from "@/lib/tournaments/partner/bestie-cup-config";
+import { getDoubleStageSettings } from "@/lib/tournaments/format-capabilities";
 import { coerceRichHtmlField, sanitizeTournamentRichField } from "@/lib/tournaments/rich-text";
 import {
   deriveMatchScoringFromLegacy,
@@ -52,6 +54,7 @@ import {
   resolveMatchScoringForStage,
   resolveRaceToForKnockoutRound,
   summarizeMatchScoring,
+  summarizeMatchScoringLeaf,
   type CustomMatchSettings,
   type MatchScoringConfig,
   type MexicanoSettings,
@@ -372,11 +375,27 @@ export function getTournamentScoringPrimaryLabel(tournament: TournamentDetail): 
 
 /** Secondary scoring line with type and court count. */
 export function getTournamentScoringDetailLabel(tournament: TournamentDetail): string {
+  return getTournamentScoringDetailLines(tournament).join(" · ");
+}
+
+/** Overview tab — one bullet per scoring detail (readable on partner + official pages). */
+export function getTournamentScoringDetailLines(tournament: TournamentDetail): string[] {
   const courtCount = getTournamentCourtCount(tournament);
   const courts = `${courtCount} ${courtCount === 1 ? "court" : "courts"}`;
+
   if (tournamentUsesBestieCupPoolRules(tournament)) {
-    return `${summarizeBestieCupScoringDetail()} · ${courts}`;
+    return [...getBestieCupScoringDetailLines(), courts];
   }
+
+  const stored = getStoredMatchScoring(tournament);
+  if (stored?.group && stored?.knockout) {
+    return [
+      `Group: ${summarizeMatchScoringLeaf(resolveMatchScoringForStage(stored, "group"))}`,
+      `Knockout: ${summarizeMatchScoringLeaf(resolveMatchScoringForStage(stored, "knockout"))}`,
+      courts,
+    ];
+  }
+
   const decider = formatGameDeciderShort(
     parseTournamentSettings(tournament.settings).gameDecider,
   );
@@ -388,7 +407,45 @@ export function getTournamentScoringDetailLabel(tournament: TournamentDetail): s
   } else {
     mode = getScoringTypeLabel(getTournamentScoringType(tournament));
   }
-  return decider ? `${mode} · ${decider} · ${courts}` : `${mode} · ${courts}`;
+
+  const lines = [mode];
+  if (decider) lines.push(decider);
+  lines.push(courts);
+  return lines;
+}
+
+/** Overview tab — format details as separate lines (teams, roster size, courts, pools, etc.). */
+export function getTournamentFormatHintLines(tournament: TournamentDetail): string[] {
+  const lines: string[] = [];
+  const courtCount = getTournamentCourtCount(tournament);
+
+  if (tournament.maxTeams) {
+    lines.push(`Up to ${tournament.maxTeams} teams`);
+  }
+  lines.push(
+    tournament.playersPerTeam === 1
+      ? "Singles"
+      : `${tournament.playersPerTeam} players per team`,
+  );
+  lines.push(`${courtCount} ${courtCount === 1 ? "court" : "courts"}`);
+
+  if (tournament.format === "double_stage") {
+    const dsPool = getDoubleStageSettings(tournament);
+    lines.push(`Pools of ${dsPool.maxTeamsPerGroup ?? 4}`);
+    lines.push(`Advance ${dsPool.teamsAdvancePerGroup ?? 1} per pool`);
+    if ((dsPool.bestRunnerUpSlots ?? 0) > 0) {
+      lines.push(
+        `+${dsPool.bestRunnerUpSlots} best runner-up${dsPool.bestRunnerUpSlots === 1 ? "" : "s"}`,
+      );
+    }
+  }
+
+  if (tournament.format === "americano") {
+    const rounds = getMaxRounds(tournament);
+    if (rounds != null) lines.push(`Max ${rounds} rounds`);
+  }
+
+  return lines;
 }
 
 /** Short hint for match scoring (bracket readiness, live toolbar). */

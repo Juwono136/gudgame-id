@@ -188,6 +188,8 @@ export type PartnerRegistrationPaymentTemplateData = {
   teamName: string;
   amountFormatted: string;
   payUrl: string;
+  /** Token-gated registration status page (same as post-submit success URL). */
+  statusUrl: string;
   expiresAtFormatted: string;
 };
 
@@ -199,6 +201,8 @@ export type PartnerRegistrationPendingTemplateData = {
   teamName: string;
   roster: string[];
   tournamentUrl: string;
+  /** Token-gated registration status page — primary confirmation link. */
+  statusUrl: string;
 };
 
 export type PartnerRegistrationConfirmedTemplateData = {

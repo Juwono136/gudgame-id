@@ -102,11 +102,16 @@ export const BESTIE_CUP_SCORING_SUMMARY = {
 } as const;
 
 export function summarizeBestieCupScoringDetail(): string {
+  return getBestieCupScoringDetailLines().join(" · ");
+}
+
+/** One overview bullet per scoring rule (Bestie Cup / modified Swiss TV + public pages). */
+export function getBestieCupScoringDetailLines(): string[] {
   return [
     BESTIE_CUP_SCORING_SUMMARY.pool,
     BESTIE_CUP_SCORING_SUMMARY.knockoutEarly,
     BESTIE_CUP_SCORING_SUMMARY.knockoutLate,
-  ].join(" · ");
+  ];
 }
 
 export function parseGroupLetter(groupName: string): string | null {

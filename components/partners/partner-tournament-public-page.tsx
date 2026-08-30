@@ -62,15 +62,13 @@ import {
   mergeRecentMatchRows,
 } from "@/lib/tournaments/recent-matches";
 import {
-  getMaxRounds,
-  getTournamentCourtCount,
   getTournamentDisplayConfig,
+  getTournamentFormatHintLines,
   getTournamentFormatLabel,
-  getTournamentScoringDetailLabel,
+  getTournamentScoringDetailLines,
   getTournamentScoringPrimaryLabel,
   getVenueMapsUrl,
 } from "@/lib/tournaments/settings";
-import { getDoubleStageSettings } from "@/lib/tournaments/format-capabilities";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 import {
   computeReclubSessionStats,
@@ -299,32 +297,8 @@ export function PartnerTournamentPublicPage({
   const eventPrimary = brandTheme?.primaryColor?.trim() || undefined;
   const eventAccent = brandTheme?.accentColor?.trim() || eventPrimary;
   const scoringPrimary = getTournamentScoringPrimaryLabel(tournament);
-  const scoringDetail = getTournamentScoringDetailLabel(tournament);
-  const courtCount = getTournamentCourtCount(tournament);
-  const dsPool = getDoubleStageSettings(tournament);
-  const formatHint = (() => {
-    const parts: string[] = [];
-    if (tournament.maxTeams) parts.push(`Up to ${tournament.maxTeams} teams`);
-    parts.push(
-      tournament.playersPerTeam === 1
-        ? "Singles"
-        : `${tournament.playersPerTeam} players/team`,
-    );
-    parts.push(`${courtCount} ${courtCount === 1 ? "court" : "courts"}`);
-    if (tournament.format === "double_stage") {
-      parts.push(
-        `Pools of ${dsPool.maxTeamsPerGroup ?? 4} · advance ${dsPool.teamsAdvancePerGroup ?? 1}`,
-      );
-      if ((dsPool.bestRunnerUpSlots ?? 0) > 0) {
-        parts.push(`+${dsPool.bestRunnerUpSlots} runner-ups`);
-      }
-    }
-    if (tournament.format === "americano") {
-      const rounds = getMaxRounds(tournament);
-      if (rounds != null) parts.push(`Max ${rounds} rounds`);
-    }
-    return parts.join(" · ");
-  })();
+  const formatHintLines = getTournamentFormatHintLines(tournament);
+  const scoringHintLines = getTournamentScoringDetailLines(tournament);
 
   const registeredTeams =
     lobbyData?.summary.registeredTeams ?? participantsData?.teamCount ?? 0;
@@ -690,13 +664,13 @@ export function PartnerTournamentPublicPage({
                   icon={Users}
                   title="Format"
                   value={formatLabel}
-                  hint={formatHint}
+                  hintLines={formatHintLines}
                 />
                 <TournamentInfoCard
                   icon={Radio}
                   title="Scoring"
                   value={scoringPrimary}
-                  hint={scoringDetail}
+                  hintLines={scoringHintLines}
                 />
               </div>
 

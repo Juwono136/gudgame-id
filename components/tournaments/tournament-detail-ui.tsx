@@ -278,12 +278,24 @@ export function TournamentInfoCard({
   title,
   value,
   hint,
+  hintLines,
 }: {
   icon: LucideIcon;
   title: string;
   value: string;
   hint?: string | null;
+  /** Multi-line bullets — preferred over dot-separated `hint`. */
+  hintLines?: string[];
 }) {
+  const lines =
+    hintLines?.filter((line) => line.trim().length > 0) ??
+    (hint
+      ? hint
+          .split(/\s*[·•]\s*/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+      : []);
+
   return (
     <div className="flex h-full min-w-0 flex-col rounded-2xl border border-cp-border bg-cp-card p-4 sm:p-5">
       <div className="flex items-center gap-2 text-cp-primary">
@@ -295,10 +307,18 @@ export function TournamentInfoCard({
       <p className="mt-2.5 break-words text-base font-bold leading-snug text-foreground sm:mt-3 sm:text-lg">
         {value}
       </p>
-      {hint ? (
-        <p className="mt-1 break-words text-xs leading-relaxed text-cp-muted sm:text-sm">
-          {hint}
-        </p>
+      {lines.length > 0 ? (
+        <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-cp-muted sm:text-sm">
+          {lines.map((line) => (
+            <li key={line} className="flex gap-2">
+              <span
+                className="mt-[0.4em] size-1 shrink-0 rounded-full bg-cp-muted/45"
+                aria-hidden
+              />
+              <span className="min-w-0 break-words">{line}</span>
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );

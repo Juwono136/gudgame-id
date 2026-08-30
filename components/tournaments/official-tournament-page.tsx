@@ -58,10 +58,11 @@ import type { TournamentRegistrationSummary } from "@/lib/tournaments/registrati
 import type { TournamentParticipantContext } from "@/lib/tournaments/participant-access";
 import type { TournamentRuleSections } from "@/lib/tournaments/settings";
 import {
-  getTournamentCourtCount,
+  getTournamentFormatHintLines,
   getTournamentFormatLabel,
   getTournamentAllowedTierLevels,
   getTournamentMatchScoreMode,
+  getTournamentScoringDetailLines,
   getTournamentScoringPrimaryLabel,
 } from "@/lib/tournaments/settings";
 import { stripHtmlToText } from "@/lib/tournaments/form/field-limits";
@@ -118,14 +119,6 @@ function formatDateRange(starts: string | null, ends: string | null) {
   return formatTournamentScheduleRange(starts, ends);
 }
 
-/** Replace middle-dot list separators with commas for overview UI copy. */
-function withCommaSeparators(text: string): string {
-  return text
-    .replace(/\s*[·•]\s*/g, ", ")
-    .replace(/\s*,\s*,+/g, ",")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 type OfficialTournamentPageProps = {
   tournament: TournamentDetail;
@@ -254,12 +247,9 @@ export function OfficialTournamentPage({
     });
   }, [caps, bracketHasTree, isDoubleStageKnockout]);
   const matchTypeLabel = getTournamentFormatLabel(tournament.format);
-  const scoringPrimaryLabel = withCommaSeparators(
-    getTournamentScoringPrimaryLabel(tournament),
-  );
-  const courtCount = getTournamentCourtCount(tournament);
-  const scoringHint =
-    courtCount > 0 ? `${courtCount} court${courtCount === 1 ? "" : "s"}` : null;
+  const scoringPrimaryLabel = getTournamentScoringPrimaryLabel(tournament);
+  const formatHintLines = getTournamentFormatHintLines(tournament);
+  const scoringHintLines = getTournamentScoringDetailLines(tournament);
   useEffect(() => {
     setPublicUrl(window.location.href);
   }, []);
@@ -834,17 +824,13 @@ export function OfficialTournamentPage({
                   icon={Users}
                   title="Format"
                   value={matchTypeLabel}
-                  hint={
-                    tournament.maxTeams
-                      ? `Up to ${tournament.maxTeams} teams`
-                      : `${tournament.playersPerTeam} players per team`
-                  }
+                  hintLines={formatHintLines}
                 />
                 <TournamentInfoCard
                   icon={Radio}
                   title="Scoring"
                   value={scoringPrimaryLabel}
-                  hint={scoringHint}
+                  hintLines={scoringHintLines}
                 />
               </div>
 
