@@ -18,6 +18,7 @@ import {
   isRaceToGamesMatchComplete,
   nextRallyTarget,
   reconcileMatchGamesScores,
+  gameStateAfterFinalGamesOverride,
   startNextGameAfterWin,
 } from "@/lib/tournaments/scoring/game-mode";
 
@@ -221,6 +222,21 @@ describe("game-mode scoring", () => {
       ],
     });
     expect(reconciled).toEqual({ scoreA: 2, scoreB: 1 });
+  });
+
+  it("keeps stale completedGames via Math.max until override clears the log", () => {
+    const stale = {
+      ...emptyMatchGameState(),
+      completedGames: Array.from({ length: 5 }, () => ({ pointsA: 40, pointsB: 15 })).concat(
+        Array.from({ length: 6 }, () => ({ pointsA: 15, pointsB: 40 })),
+      ),
+    };
+    // Override columns to 4–6 would still show 5–6 if completedGames were kept.
+    expect(reconcileMatchGamesScores(4, 6, stale)).toEqual({ scoreA: 5, scoreB: 6 });
+
+    const cleared = gameStateAfterFinalGamesOverride(stale);
+    expect(cleared.completedGames).toHaveLength(0);
+    expect(reconcileMatchGamesScores(4, 6, cleared)).toEqual({ scoreA: 4, scoreB: 6 });
   });
 });
 

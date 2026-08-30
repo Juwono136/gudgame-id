@@ -683,6 +683,8 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Live scoring tabs:** Manage → Live scoring memakai sub-tab **Live score** · **Match schedule** (Order of Play) · **Standings** · **History**. Klik player di standings → modal statistik + games history. Klik match di History → popup point log + scorer trail. Double-stage / group stage: start fixture dari Match Schedule (court + Start); Idle courts disembunyikan. Americano / round-based tetap memakai idle court picker (hanya fixture pending). Timer elapsed/sisa di kartu live match.
 
+**Score override (Question of Law):** Pada match **completed / Ended**, tombol **Override** mengoreksi skor akhir (games di mode race-to, atau points). Server menulis `scoreA`/`scoreB` **dan** mereset `metadata.gameState.completedGames` agar kartu live tidak “kembali” ke tally rally lama (`reconcileMatchGamesScores` memakai `Math.max`). Paper score `set` juga membersihkan log yang sama. Audit revision `complete_override` selalu dicatat. Setelah override group, qualification ranks di-refresh.
+
 **Wizard partner:** `components/partners/partner-tournament-wizard.tsx` — tidak ada short summary; **Series** (dulu League) opsional di Step 1.
 
 **Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `group_stage`, `match_schedule`, `bracket`, `leaderboard`, `rotation`.

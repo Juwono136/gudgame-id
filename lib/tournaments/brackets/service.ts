@@ -23,6 +23,7 @@ import {
   applyGamePointDelta,
   applyGamePointSet,
   emptyMatchGameState,
+  gameStateAfterFinalGamesOverride,
   reconcileMatchGamesScores,
   startNextGameAfterWin,
   withCurrentServer,
@@ -739,12 +740,8 @@ export async function updateBracketLiveScore(
     scoreA = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreA));
     scoreB = Math.max(0, Math.min(rules.deuceConfig.maxScore, input.scoreB));
     if (useGamesMode) {
-      nextGameState = {
-        currentPointsA: 0,
-        currentPointsB: 0,
-        completedGames: nextGameState.completedGames,
-        pendingGameWinner: null,
-      };
+      // Clear stale rally log so reconcile cannot Math.max back to old games.
+      nextGameState = gameStateAfterFinalGamesOverride(nextGameState);
     }
     eventScoreA = useGamesMode ? 0 : scoreA;
     eventScoreB = useGamesMode ? 0 : scoreB;

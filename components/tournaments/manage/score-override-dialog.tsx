@@ -125,7 +125,8 @@ export function ScoreOverrideDialog({
           </DialogTitle>
           <DialogDescription>
             Correct a completed match for input or rule errors — not field calls (in/out).
-            Every change is audited.
+            Enter the final games (or points) that should show on the scoreboard. Every change is
+            audited and replaces the previous rally log for display.
             <span className="mt-1 block font-medium text-foreground">
               {teamAName ?? "Team A"} vs {teamBName ?? "Team B"}
             </span>
@@ -133,20 +134,22 @@ export function ScoreOverrideDialog({
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 py-2">
           <div className="space-y-2">
-            <Label>Score A</Label>
+            <Label>Score A (games / points)</Label>
             <Input
               type="number"
               min={0}
+              max={99}
               value={scoreA}
               onChange={(e) => setScoreA(e.target.value)}
               className="border-cp-border bg-cp-elevated"
             />
           </div>
           <div className="space-y-2">
-            <Label>Score B</Label>
+            <Label>Score B (games / points)</Label>
             <Input
               type="number"
               min={0}
+              max={99}
               value={scoreB}
               onChange={(e) => setScoreB(e.target.value)}
               className="border-cp-border bg-cp-elevated"

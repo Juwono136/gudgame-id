@@ -73,6 +73,7 @@ import {
   applyGamePointDelta,
   applyGamePointSet,
   emptyMatchGameState,
+  gameStateAfterFinalGamesOverride,
   reconcileMatchGamesScores,
   startNextGameAfterWin,
   withCurrentServer,
@@ -1186,12 +1187,8 @@ export async function updateGroupStageLiveScore(
       scoreA = Math.max(0, input.scoreA);
       scoreB = Math.max(0, input.scoreB);
       if (useGamesMode) {
-        nextGameState = {
-          currentPointsA: 0,
-          currentPointsB: 0,
-          completedGames: nextGameState.completedGames,
-          pendingGameWinner: null,
-        };
+        // Clear stale rally log so reconcile cannot Math.max back to old games.
+        nextGameState = gameStateAfterFinalGamesOverride(nextGameState);
       }
       eventScoreA = useGamesMode ? 0 : scoreA;
       eventScoreB = useGamesMode ? 0 : scoreB;
@@ -1527,6 +1524,13 @@ function mapGroupMatchView(
     scoreEvents: meta.scoreEvents ?? [],
     gameState,
   };
+}
+
+/** Refresh pool qualification ranks after a completed group score changes (record / override). */
+export async function refreshGroupQualificationAfterScoreChange(
+  tournament: TournamentDetail,
+): Promise<void> {
+  await syncGroupQualificationStatus(tournament);
 }
 
 async function syncGroupQualificationStatus(tournament: TournamentDetail): Promise<void> {

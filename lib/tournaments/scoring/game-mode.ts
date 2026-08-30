@@ -948,6 +948,10 @@ export function gamesWonFromCompleted(
 /**
  * Prefer completedGames tally when present so UI never shows Games=0 after a won game
  * while rally state already reset to 0–0.
+ *
+ * Callers that explicitly set final games (override / paper set) must clear
+ * `completedGames` via {@link gameStateAfterFinalGamesOverride} so Math.max cannot
+ * resurrect a stale rally log.
  */
 export function reconcileMatchGamesScores(
   scoreA: number | null | undefined,
@@ -963,5 +967,21 @@ export function reconcileMatchGamesScores(
   return {
     scoreA: Math.max(fallbackA, fromGames.gamesA),
     scoreB: Math.max(fallbackB, fromGames.gamesB),
+  };
+}
+
+/**
+ * Reset intra-game rally state after an organizer sets final games explicitly
+ * (Question of Law override or paper score entry). Empty `completedGames` makes
+ * {@link reconcileMatchGamesScores} trust the score columns.
+ */
+export function gameStateAfterFinalGamesOverride(
+  previous?: MatchGameState | null,
+): MatchGameState {
+  return {
+    ...emptyMatchGameState(),
+    servingSide: previous?.servingSide ?? "a",
+    servingUserId: previous?.servingUserId ?? null,
+    servingName: previous?.servingName ?? null,
   };
 }

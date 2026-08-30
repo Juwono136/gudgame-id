@@ -169,6 +169,8 @@ Per PDF **Sistem Skor** — race target stays **First to 6** for every KO round;
 
 Runtime: `getBestieCupKnockoutGameRules(round, totalRounds)` via `getTournamentGameRules(..., { knockoutRoundNumber, knockoutTotalRounds })` on Manage Live scoring, client Finish-match checks, and server `assertOfficialLiveGamesMatchComplete` (so SF/Final cannot be finalized at 6–5).
 
+**Pool finals:** **6–0 … 6–5** (including **5–6**) are valid First-to-6 results. If an Ended card shows the wrong games, use **Override** — the server clears the rally `completedGames` log so the new score is what the UI displays (previously Math.max could keep the old 5–6 after a successful save).
+
 **Wizard note:** Structured match rules + Review show these PDF lines when **Bestie Cup 2026 preset** is applied. Generic “Race to per knockout round” targets are hidden for Bestie (rules are fixed by PDF, not custom race-to maps).
 
 Live scoreboard enters **Match tiebreak** mode automatically at 5–5 / 6–6. Golden Point banner: **receiving pair chooses side**.

@@ -6,6 +6,8 @@ import { tournamentGroupMatches } from "@/db/schema/tournament-groups";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
 import { AppError } from "@/lib/errors";
 import { invalidateTournamentCaches } from "@/lib/tournaments/cache";
+import { parseReclubMatchMetadata } from "@/lib/tournaments/reclub/score-events";
+import { gameStateAfterFinalGamesOverride } from "@/lib/tournaments/scoring/game-mode";
 import { recordMatchScoreRevision } from "@/lib/tournaments/scoring/score-revisions";
 import type { TournamentDetail } from "@/lib/tournaments/service";
 
@@ -23,6 +25,9 @@ export type ScoreOverrideInput = {
 /**
  * Question of Law override: correct a completed match score from the organizer dashboard.
  * Always writes an audit revision. Does not change field facts (in/out calls).
+ *
+ * In games mode, also clears `metadata.gameState.completedGames` so live UI
+ * reconcile cannot keep showing the pre-override tally (Math.max trap).
  */
 export async function overrideCompletedMatchScore(
   tournament: TournamentDetail,
@@ -39,6 +44,12 @@ export async function overrideCompletedMatchScore(
   }
   const scoreA = Math.max(0, Math.floor(input.scoreA));
   const scoreB = Math.max(0, Math.floor(input.scoreB));
+  if (scoreA > 99 || scoreB > 99) {
+    throw new AppError("Scores must be between 0 and 99", {
+      code: "VALIDATION_ERROR",
+      statusCode: 422,
+    });
+  }
   if (scoreA === scoreB && !input.winnerSide) {
     throw new AppError("Tied override requires an explicit winner side", {
       code: "VALIDATION_ERROR",
@@ -74,6 +85,14 @@ export async function overrideCompletedMatchScore(
     const winnerTeamId =
       winnerSide === "a" ? match.teamAId : winnerSide === "b" ? match.teamBId : null;
 
+    const prevMeta = parseReclubMatchMetadata(match.metadata);
+    const metadata = {
+      ...prevMeta,
+      gameState: gameStateAfterFinalGamesOverride(prevMeta.gameState),
+      overrideAt: new Date().toISOString(),
+      overrideReason: reason,
+    };
+
     const [updated] = await db
       .update(tournamentGroupMatches)
       .set({
@@ -81,6 +100,7 @@ export async function overrideCompletedMatchScore(
         scoreB,
         winnerTeamId: winnerTeamId ?? null,
         recordedByUserId: userId,
+        metadata,
       })
       .where(eq(tournamentGroupMatches.id, match.id))
       .returning();
@@ -97,6 +117,7 @@ export async function overrideCompletedMatchScore(
       actorUserId: userId,
       actorName: userName,
       reason,
+      gameState: metadata.gameState,
     });
 
     if (tournament.partnerId) {
@@ -113,6 +134,11 @@ export async function overrideCompletedMatchScore(
         round: "Group stage",
       });
     }
+
+    const { refreshGroupQualificationAfterScoreChange } = await import(
+      "@/lib/tournaments/double-stage/service"
+    );
+    await refreshGroupQualificationAfterScoreChange(tournament);
 
     await invalidateTournamentCaches(tournament.sportSlug, tournament.slug);
     return {
@@ -148,6 +174,14 @@ export async function overrideCompletedMatchScore(
   const winnerTeamId =
     winnerSide === "a" ? match.teamAId : winnerSide === "b" ? match.teamBId : null;
 
+  const prevMeta = parseReclubMatchMetadata(match.metadata);
+  const metadata = {
+    ...prevMeta,
+    gameState: gameStateAfterFinalGamesOverride(prevMeta.gameState),
+    overrideAt: new Date().toISOString(),
+    overrideReason: reason,
+  };
+
   const [updated] = await db
     .update(tournamentBracketMatches)
     .set({
@@ -155,6 +189,7 @@ export async function overrideCompletedMatchScore(
       scoreB,
       winnerTeamId: winnerTeamId ?? null,
       recordedByUserId: userId,
+      metadata,
     })
     .where(eq(tournamentBracketMatches.id, match.id))
     .returning();
@@ -171,6 +206,7 @@ export async function overrideCompletedMatchScore(
     actorUserId: userId,
     actorName: userName,
     reason,
+    gameState: metadata.gameState,
   });
 
   if (tournament.partnerId) {
