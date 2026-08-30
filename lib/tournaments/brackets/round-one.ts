@@ -1,8 +1,13 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tournamentBracketMatches } from "@/db/schema/tournament-matches";
+import {
+  buildFeederSlotPatch,
+  nextMatchSlotForFeeder,
+  winnerAlreadyInFeederSlot,
+} from "@/lib/tournaments/brackets/feeder-slot";
 
 type SeedTeam = { id: string; name: string };
 
@@ -34,15 +39,61 @@ export async function advanceWinnerToNextMatch(
 
   if (!next) return;
 
-  const slotA = next.teamAId == null;
-  const patch = slotA
-    ? { teamAId: winnerTeamId, teamAName: winnerName }
-    : { teamBId: winnerTeamId, teamBName: winnerName };
+  const preferred = nextMatchSlotForFeeder(match.matchNumber);
+  if (winnerAlreadyInFeederSlot(preferred, next, winnerTeamId)) return;
+
+  const patch = buildFeederSlotPatch(preferred, next, winnerTeamId, winnerName);
   await db.update(tournamentBracketMatches).set(patch).where(eq(tournamentBracketMatches.id, next.id));
 
   // Keep series legs in sync with the parent slot teams.
   const { syncSeriesTeams } = await import("@/lib/tournaments/brackets/series-legs");
   await syncSeriesTeams(tournamentId, next.id, patch);
+}
+
+/**
+ * Re-place every completed feeder into the correct next-match slot (odd → A / even → B).
+ * Heals historical “first empty slot” misplacements without requiring a re-score.
+ * Idempotent; only writes when a slot is wrong.
+ */
+export async function reconcileBracketFeederSlots(tournamentId: string): Promise<number> {
+  const db = getDb();
+  const matches = await db
+    .select()
+    .from(tournamentBracketMatches)
+    .where(eq(tournamentBracketMatches.tournamentId, tournamentId))
+    .orderBy(asc(tournamentBracketMatches.roundNumber), asc(tournamentBracketMatches.matchNumber));
+
+  let fixes = 0;
+  for (const match of matches) {
+    const meta = match.metadata as Record<string, unknown> | null;
+    if (meta && typeof meta.seriesParentId === "string") continue;
+    if (!match.winnerTeamId || !match.nextMatchId) continue;
+
+    const winnerName =
+      match.winnerTeamId === match.teamAId
+        ? match.teamAName
+        : match.winnerTeamId === match.teamBId
+          ? match.teamBName
+          : null;
+    if (!winnerName?.trim()) continue;
+
+    const [next] = await db
+      .select()
+      .from(tournamentBracketMatches)
+      .where(eq(tournamentBracketMatches.id, match.nextMatchId))
+      .limit(1);
+    if (!next) continue;
+
+    const preferred = nextMatchSlotForFeeder(match.matchNumber);
+    if (winnerAlreadyInFeederSlot(preferred, next, match.winnerTeamId)) continue;
+
+    const patch = buildFeederSlotPatch(preferred, next, match.winnerTeamId, winnerName);
+    await db.update(tournamentBracketMatches).set(patch).where(eq(tournamentBracketMatches.id, next.id));
+    const { syncSeriesTeams } = await import("@/lib/tournaments/brackets/series-legs");
+    await syncSeriesTeams(tournamentId, next.id, patch);
+    fixes += 1;
+  }
+  return fixes;
 }
 
 export async function applyRoundOneSeeding(

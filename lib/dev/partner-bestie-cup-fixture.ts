@@ -15,6 +15,7 @@ import {
   buildBestieCupFixtureRoster,
   type BestieCupFixturePair,
 } from "@/lib/dev/bestie-cup-fixture-roster";
+import { upcomingBestieCupFixtureWindow } from "@/lib/dev/bestie-cup-fixture-schedule";
 import { purgeTournamentsBySlugs } from "@/lib/dev/seed-tournament-fixtures";
 import { getPartnerBySlug, ensurePartnerMembership } from "@/lib/partners/service";
 import { upsertPartnerPlayer } from "@/lib/partners/registration/players";
@@ -272,8 +273,7 @@ export async function seedPartnerBestieCupFixture(
     };
   }
 
-  const startsAt = new Date("2026-08-30T01:00:00.000Z");
-  const endsAt = new Date("2026-08-30T13:00:00.000Z");
+  const { startsAt, endsAt } = upcomingBestieCupFixtureWindow();
 
   let tournament = await createTournament(
     input.sport.id,

@@ -1,4 +1,4 @@
-/** Number of pool tables shown per venue TV carousel slide (2×2 grid). */
+/** Default pools per slide before ResizeObserver measures the monitor (2×2). */
 export const GROUP_STAGE_DISPLAY_GROUPS_PER_SLIDE = 4;
 
 /** Auto-advance interval for group-stage TV carousel when multiple slides exist. */

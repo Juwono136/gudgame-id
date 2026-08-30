@@ -2,8 +2,17 @@
  * Venue TV match schedule — bucket carousel helpers.
  */
 
-/** Fixtures shown per auto-slide page in each Now / Next / Later column. */
-export const MATCH_SCHEDULE_SLIDE_SIZE = 5;
+import {
+  MATCH_SCHEDULE_DEFAULT_PER_PAGE,
+  MATCH_SCHEDULE_MAX_PER_PAGE,
+  MATCH_SCHEDULE_MIN_PER_PAGE,
+} from "@/lib/tournaments/display/fit-capacity";
+
+/** @deprecated Prefer measuring via fitMatchScheduleColumnPerPage — kept as soft default. */
+export const MATCH_SCHEDULE_SLIDE_SIZE = MATCH_SCHEDULE_DEFAULT_PER_PAGE;
+
+export const MATCH_SCHEDULE_SLIDE_MIN = MATCH_SCHEDULE_MIN_PER_PAGE;
+export const MATCH_SCHEDULE_SLIDE_MAX = MATCH_SCHEDULE_MAX_PER_PAGE;
 
 /** Auto-advance interval when a bucket has multiple pages. */
 export const MATCH_SCHEDULE_SLIDE_MS = 12_000;

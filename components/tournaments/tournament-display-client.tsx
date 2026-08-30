@@ -9,7 +9,7 @@ import { DisplayBracketSlide } from "@/components/tournaments/display/display-br
 import { DisplayGroupStageSlide } from "@/components/tournaments/display/display-group-stage-slide";
 import { DisplayMatchScheduleSlide } from "@/components/tournaments/display/display-match-schedule-slide";
 import { DisplaySessionLeaderboard, type DisplayLeaderboardRow } from "@/components/tournaments/display/display-session-leaderboard";
-import { DisplaySponsorStrip } from "@/components/tournaments/display/display-sponsor-strip";
+import { DisplayVenueChrome } from "@/components/tournaments/display/display-venue-chrome";
 import { DisplayVenueButton } from "@/components/tournaments/display/display-venue-button";
 import { DisplayVenueControls } from "@/components/tournaments/display/display-venue-controls";
 import { LiveGameRaceDisplay } from "@/components/tournaments/game-race-scoreboard";
@@ -21,6 +21,8 @@ import {
   MultiCourtDisplayGrid,
 } from "@/components/tournaments/display-multi-court-grid";
 import { DisplayVenueShell } from "@/components/tournaments/display-venue-shell";
+import { useViewportFitCapacity } from "@/hooks/use-display-fit-capacity";
+import { fitMultiCourtPerSlide } from "@/lib/tournaments/display/fit-capacity";
 import { useTournamentLive } from "@/hooks/use-tournament-live";
 import { publicSportRoutes } from "@/lib/constants/routes";
 import { isOfficialType } from "@/lib/tournaments/core/types";
@@ -189,6 +191,12 @@ function resolveMatchForCourt(
   );
 }
 
+/**
+ * Full-viewport venue display (Official Gud Game + Partner white-label).
+ * Official: `/sports/{sportSlug}/tournaments/{slug}/display`
+ * Partner: `/{partnerSlug}/tournaments/{slug}/display` (passes logo/name).
+ * Responsive carousel/grid capacity is shared — see `fit-capacity.ts`.
+ */
 export function TournamentDisplayClient({
   sportSlug,
   slug,
@@ -213,6 +221,15 @@ export function TournamentDisplayClient({
   const [rotationIndex, setRotationIndex] = useState(0);
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [multiCourtSlide, setMultiCourtSlide] = useState(0);
+  const fitMultiCourt = useCallback(
+    (size: { width: number; height: number }) =>
+      fitMultiCourtPerSlide(size.width, size.height),
+    [],
+  );
+  const multiCourtPerSlide = useViewportFitCapacity(
+    fitMultiCourt,
+    MULTI_COURT_PER_SLIDE,
+  );
 
   const layout: TournamentDisplayLayout = useMemo(() => {
     if (courtIdParam) return layoutParam ?? "single";
@@ -331,7 +348,7 @@ export function TournamentDisplayClient({
     liveCourtsOrdered.length > 0 ? liveCourtsOrdered.length : activeMatches.length;
   const multiCourtSlideCount = Math.max(
     1,
-    Math.ceil(Math.max(multiCourtItemCount, 1) / MULTI_COURT_PER_SLIDE),
+    Math.ceil(Math.max(multiCourtItemCount, 1) / multiCourtPerSlide),
   );
 
   useEffect(() => {
@@ -346,6 +363,7 @@ export function TournamentDisplayClient({
     setMultiCourtSlide(0);
   }, [
     effectiveLayout,
+    multiCourtPerSlide,
     liveCourtsOrdered.map((c) => c.id).join(","),
     activeMatches.map((m) => m.id).join(","),
   ]);
@@ -444,34 +462,20 @@ export function TournamentDisplayClient({
 
   const brandTheme = data.displayConfig?.brandTheme ?? null;
   const sponsorBanners = data.displayConfig?.sponsorBanners ?? [];
-  const sponsorStrip =
-    sponsorBanners.length > 0 ? <DisplaySponsorStrip banners={sponsorBanners} /> : null;
   const showLogo = brandTheme?.showPartnerLogo !== false && Boolean(partnerLogoUrl);
-  const brandBadge =
-    showLogo || partnerName ? (
-      <div className="pointer-events-none absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6">
-        {showLogo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={partnerLogoUrl!}
-            alt=""
-            className="h-10 w-10 rounded-xl object-cover shadow-lg ring-2 ring-white/20 sm:h-12 sm:w-12"
-          />
-        ) : null}
-        {partnerName ? (
-          <span className="hidden rounded-lg bg-black/35 px-2.5 py-1 text-xs font-semibold tracking-wide text-white/90 backdrop-blur-sm sm:inline">
-            {partnerName}
-          </span>
-        ) : null}
-      </div>
-    ) : null;
+  const venueChrome = (
+    <DisplayVenueChrome
+      banners={sponsorBanners}
+      partnerLogoUrl={showLogo ? partnerLogoUrl : null}
+      partnerName={partnerName}
+    />
+  );
 
   const slideKey = `${effectiveLayout}-${rotationIndex}`;
 
   const wrapStage = (main: ReactNode) => (
     <DisplayVenueShell ref={shellRef} lockViewport brandTheme={brandTheme}>
-      {brandBadge}
-      {sponsorStrip}
+      {venueChrome}
       <div className="relative min-h-0 flex-1 overflow-hidden">{main}</div>
       {displayControls}
     </DisplayVenueShell>
@@ -486,7 +490,7 @@ export function TournamentDisplayClient({
             .map((m) => [m.courtId as string, m]),
         );
         const slide = multiCourtSlide % multiCourtSlideCount;
-        const pageStart = slide * MULTI_COURT_PER_SLIDE;
+        const pageStart = slide * multiCourtPerSlide;
 
         const liveCards: Array<{
           key: string;
@@ -497,7 +501,7 @@ export function TournamentDisplayClient({
         if (liveCourtsOrdered.length > 0) {
           for (const court of liveCourtsOrdered.slice(
             pageStart,
-            pageStart + MULTI_COURT_PER_SLIDE,
+            pageStart + multiCourtPerSlide,
           )) {
             const m = matchByCourtId.get(court.id);
             if (m?.teamAName && m.teamBName) {
@@ -508,7 +512,7 @@ export function TournamentDisplayClient({
             }
           }
         } else {
-          for (const m of activeMatches.slice(pageStart, pageStart + MULTI_COURT_PER_SLIDE)) {
+          for (const m of activeMatches.slice(pageStart, pageStart + multiCourtPerSlide)) {
             const courtLabel = resolveFeaturedCourtLabel({
               match: m,
               courts: sortedCourts,

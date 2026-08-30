@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { TeamAvatarStack } from "@/components/tournaments/team-player-list";
+import {
+  LEADERBOARD_DEFAULT_ROWS,
+  fitLeaderboardRowsPerPage,
+} from "@/lib/tournaments/display/fit-capacity";
+import { useDisplayFitCapacity } from "@/hooks/use-display-fit-capacity";
 import { cn } from "@/lib/utils";
 
 export type DisplayLeaderboardMember = {
@@ -33,10 +38,6 @@ export type DisplayLeaderboardRow = {
 };
 
 const PAGE_INTERVAL_MS = 30_000;
-const HEADER_RESERVE = 72;
-const FOOTER_RESERVE = 36;
-const ROW_HEIGHT_ESTIMATE = 42;
-const MIN_ROWS_PER_PAGE = 10;
 
 type DisplaySessionLeaderboardProps = {
   tournamentName: string;
@@ -50,25 +51,11 @@ type DisplaySessionLeaderboardProps = {
 };
 
 function useTableCapacity(containerRef: RefObject<HTMLElement | null>) {
-  const [rowsPerPage, setRowsPerPage] = useState(14);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      const height = el.clientHeight;
-      const available = Math.max(220, height - HEADER_RESERVE - FOOTER_RESERVE);
-      setRowsPerPage(Math.max(MIN_ROWS_PER_PAGE, Math.floor(available / ROW_HEIGHT_ESTIMATE)));
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [containerRef]);
-
-  return rowsPerPage;
+  const compute = useCallback(
+    (size: { width: number; height: number }) => fitLeaderboardRowsPerPage(size.height),
+    [],
+  );
+  return useDisplayFitCapacity(containerRef, compute, LEADERBOARD_DEFAULT_ROWS);
 }
 
 function formatDiff(diff: number | undefined): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ListOrdered, MapPin, Radio } from "lucide-react";
 import {
   buildDisplayOrderOfPlayBuckets,
@@ -14,10 +14,16 @@ import {
   type ScheduleMatchRow,
 } from "@/lib/tournaments/double-stage/schedule-view";
 import {
+  MATCH_SCHEDULE_DEFAULT_PER_PAGE,
+  MATCH_SCHEDULE_STRIP_DEFAULT,
+  fitMatchScheduleColumnPerPage,
+  fitMatchScheduleStripPerPage,
+} from "@/lib/tournaments/display/fit-capacity";
+import {
   MATCH_SCHEDULE_SLIDE_MS,
-  MATCH_SCHEDULE_SLIDE_SIZE,
   chunkSchedulePages,
 } from "@/lib/tournaments/display/match-schedule-display";
+import { useDisplayFitCapacity } from "@/hooks/use-display-fit-capacity";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import { cn } from "@/lib/utils";
 
@@ -76,19 +82,11 @@ function useBucketPageIndex(pageCount: number, resetKey: string | number) {
   return pageCount ? pageIndex % pageCount : 0;
 }
 
-function scheduleSlideListClass(visibleCount: number) {
-  const base = "h-full min-h-0 animate-in fade-in duration-500";
-  if (visibleCount >= MATCH_SCHEDULE_SLIDE_SIZE) {
-    return cn(base, "grid grid-rows-5 gap-1.5 sm:gap-2");
-  }
-  return cn(base, "flex flex-col justify-center gap-2.5 sm:gap-3");
-}
-
-function slideCardProps(visibleCount: number) {
-  const carousel = visibleCount >= MATCH_SCHEDULE_SLIDE_SIZE;
+function slideCardProps(visibleCount: number, perPage: number) {
+  const packed = visibleCount >= Math.min(perPage, 3) && perPage >= 3;
   return {
-    density: carousel ? ("carousel" as const) : ("comfortable" as const),
-    fillHeight: carousel,
+    density: packed ? ("carousel" as const) : ("comfortable" as const),
+    fillHeight: packed,
   };
 }
 
@@ -171,8 +169,8 @@ export function DisplayMatchScheduleSlide({
             Fixtures appear here once groups or the knockout bracket are generated.
           </p>
         ) : view === "orderOfPlay" ? (
-          <div className="flex h-full min-h-0 flex-col gap-2 sm:gap-3">
-            <div className="grid h-full min-h-0 grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+          <div className="flex h-full min-h-0 flex-col gap-2 sm:gap-2.5">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
               <BucketCarouselColumn
                 bucket={nowBucket}
                 gamesScoreMode={gamesScoreMode}
@@ -222,13 +220,24 @@ function BucketCarouselColumn({
   tournamentLive?: boolean;
   emphasize?: boolean;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const fitColumn = useCallback(
+    (size: { width: number; height: number }) => fitMatchScheduleColumnPerPage(size.height),
+    [],
+  );
+  const perPage = useDisplayFitCapacity(
+    listRef,
+    fitColumn,
+    MATCH_SCHEDULE_DEFAULT_PER_PAGE,
+  );
+
   const pages = useMemo(
-    () => chunkSchedulePages(bucket?.matches ?? []),
-    [bucket?.matches],
+    () => chunkSchedulePages(bucket?.matches ?? [], perPage),
+    [bucket?.matches, perPage],
   );
   const pageIndex = useBucketPageIndex(
     pages.length,
-    `${bucket?.key ?? "none"}-${bucket?.matches.length ?? 0}`,
+    `${bucket?.key ?? "none"}-${bucket?.matches.length ?? 0}-${perPage}`,
   );
 
   if (!bucket) return null;
@@ -237,6 +246,8 @@ function BucketCarouselColumn({
   const visible = pages[pageIndex] ?? [];
   const showIdleNow =
     bucket.key === "now" && bucket.matches.length === 0 && tournamentLive;
+  const packed = visible.length >= Math.min(perPage, 3) && perPage >= 3;
+  const cardProps = slideCardProps(visible.length, perPage);
 
   return (
     <section
@@ -247,7 +258,7 @@ function BucketCarouselColumn({
     >
       <BucketHeader bucket={bucket} theme={theme} pageIndex={pageIndex} pageCount={pages.length} />
 
-      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
         {showIdleNow ? (
           <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-amber-400/30 bg-amber-500/[0.08] px-3 py-5 text-center">
             <p className="text-sm font-semibold text-amber-50 sm:text-base">Courts ready</p>
@@ -261,8 +272,18 @@ function BucketCarouselColumn({
           </p>
         ) : (
           <ul
-            key={`${bucket.key}-${pageIndex}`}
-            className={scheduleSlideListClass(visible.length)}
+            key={`${bucket.key}-${pageIndex}-${perPage}`}
+            className={cn(
+              "h-full min-h-0 animate-in fade-in duration-500",
+              packed
+                ? "grid gap-1.5 sm:gap-2"
+                : "flex flex-col justify-center gap-2.5 sm:gap-3",
+            )}
+            style={
+              packed
+                ? { gridTemplateRows: `repeat(${visible.length}, minmax(0, 1fr))` }
+                : undefined
+            }
           >
             {visible.map((m) => (
               <li key={`${m.kind}-${m.id}`} className="min-h-0">
@@ -270,7 +291,7 @@ function BucketCarouselColumn({
                   match={m}
                   gamesScoreMode={gamesScoreMode}
                   emphasize={emphasize && bucket.key === "now"}
-                  {...slideCardProps(visible.length)}
+                  {...cardProps}
                 />
               </li>
             ))}
@@ -289,29 +310,49 @@ function DoneCarouselStrip({
   gamesScoreMode: boolean;
 }) {
   const theme = BUCKET_THEME.done;
-  const pages = useMemo(() => chunkSchedulePages(bucket.matches), [bucket.matches]);
-  const pageIndex = useBucketPageIndex(pages.length, `done-${bucket.matches.length}`);
+  const listRef = useRef<HTMLDivElement>(null);
+  const fitStrip = useCallback(
+    (size: { width: number; height: number }) => fitMatchScheduleStripPerPage(size.width),
+    [],
+  );
+  const perPage = useDisplayFitCapacity(
+    listRef,
+    fitStrip,
+    MATCH_SCHEDULE_STRIP_DEFAULT,
+  );
+  const pages = useMemo(
+    () => chunkSchedulePages(bucket.matches, perPage),
+    [bucket.matches, perPage],
+  );
+  const pageIndex = useBucketPageIndex(
+    pages.length,
+    `done-${bucket.matches.length}-${perPage}`,
+  );
   const visible = pages[pageIndex] ?? [];
 
   return (
     <section
       className={cn(
-        "flex max-h-[42%] min-h-[10rem] shrink-0 flex-col overflow-hidden rounded-2xl border",
+        "flex h-[7.75rem] shrink-0 flex-col overflow-hidden rounded-2xl border sm:h-[8.5rem]",
         theme.accent,
       )}
     >
       <BucketHeader bucket={bucket} theme={theme} pageIndex={pageIndex} pageCount={pages.length} />
-      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+      <div
+        ref={listRef}
+        className="min-h-0 flex-1 overflow-hidden p-1.5 sm:px-2 sm:pb-2 sm:pt-1.5"
+      >
         <ul
-          key={`done-${pageIndex}`}
-          className={scheduleSlideListClass(visible.length)}
+          key={`done-${pageIndex}-${perPage}`}
+          className="flex h-full min-h-0 animate-in fade-in gap-1.5 duration-500 sm:gap-2"
         >
           {visible.map((m) => (
-            <li key={`${m.kind}-${m.id}`} className="min-h-0">
+            <li key={`${m.kind}-${m.id}`} className="min-h-0 min-w-0 flex-1">
               <DisplayScheduleMatchCard
                 match={m}
                 gamesScoreMode={gamesScoreMode}
-                {...slideCardProps(visible.length)}
+                density="strip"
+                fillHeight
               />
             </li>
           ))}
@@ -356,9 +397,21 @@ function AltViewSection({
   gamesScoreMode: boolean;
   hideCourt?: boolean;
 }) {
-  const pages = useMemo(() => chunkSchedulePages(matches), [matches]);
-  const pageIndex = useBucketPageIndex(pages.length, `${label}-${matches.length}`);
+  const listRef = useRef<HTMLDivElement>(null);
+  const fitColumn = useCallback(
+    (size: { width: number; height: number }) => fitMatchScheduleColumnPerPage(size.height),
+    [],
+  );
+  const perPage = useDisplayFitCapacity(
+    listRef,
+    fitColumn,
+    MATCH_SCHEDULE_DEFAULT_PER_PAGE,
+  );
+  const pages = useMemo(() => chunkSchedulePages(matches, perPage), [matches, perPage]);
+  const pageIndex = useBucketPageIndex(pages.length, `${label}-${matches.length}-${perPage}`);
   const visible = pages[pageIndex] ?? [];
+  const packed = visible.length >= Math.min(perPage, 3) && perPage >= 3;
+  const cardProps = slideCardProps(visible.length, perPage);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
@@ -371,10 +424,20 @@ function AltViewSection({
           <PageDots pageIndex={pageIndex} pageCount={pages.length} />
         ) : null}
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
         <ul
-          key={`${label}-${pageIndex}`}
-          className={scheduleSlideListClass(visible.length)}
+          key={`${label}-${pageIndex}-${perPage}`}
+          className={cn(
+            "h-full min-h-0 animate-in fade-in duration-500",
+            packed
+              ? "grid gap-1.5 sm:gap-2"
+              : "flex flex-col justify-center gap-2.5 sm:gap-3",
+          )}
+          style={
+            packed
+              ? { gridTemplateRows: `repeat(${visible.length}, minmax(0, 1fr))` }
+              : undefined
+          }
         >
           {visible.map((m) => (
             <li key={`${m.kind}-${m.id}`} className="min-h-0">
@@ -382,7 +445,7 @@ function AltViewSection({
                 match={m}
                 gamesScoreMode={gamesScoreMode}
                 hideCourt={hideCourt}
-                {...slideCardProps(visible.length)}
+                {...cardProps}
               />
             </li>
           ))}

@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { Radio } from "lucide-react";
 import { FunMatchLiveHub } from "@/components/tournaments/fun-match/fun-match-live-hub";
-import { DoubleStageGroupsTab } from "@/components/tournaments/official/double-stage-groups-tab";
 import { getFunMatchSessionViews } from "@/lib/tournaments/fun-match/session-views";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import {
@@ -20,7 +19,6 @@ import {
   getTournamentGameRules,
   getTournamentMatchScoreMode,
   getTournamentPointsPerMatch,
-  getTournamentRoundDurationMinutes,
   getTournamentScoringType,
   isClassicSetsFormat,
 } from "@/lib/tournaments/settings";
@@ -150,16 +148,8 @@ export function PublicMultiCourtLiveScore({
   }, [activeMatches]);
 
   if (mode === "group_stage") {
-    const hasGroupContent =
-      Boolean(liveData?.doubleStage?.groups?.length) ||
-      allMatches.some(
-        (m) =>
-          m.status === "in_progress" ||
-          m.status === "completed" ||
-          m.status === "pending",
-      );
-
-    if (!hasGroupContent && activeMatches.length === 0) {
+    // Pool standings live only on the Groups tab — Live Score is court/match scores only.
+    if (allMatches.length === 0) {
       return (
         <PublicLiveScoreEmptyState
           title="Waiting for live group matches"
@@ -168,41 +158,27 @@ export function PublicMultiCourtLiveScore({
               ? "When the organizer starts group-stage matches on courts, live scores appear here automatically."
               : "When the organizer starts pool matches from Manage → Live scoring, scores update here in real time."
           }
-          tip="Tip: keep this tab open — it refreshes automatically while the event is live. Check the Matches tab for Order of Play."
+          tip="Tip: keep this tab open — it refreshes automatically. Pool tables are on the Groups tab; check Matches for Order of Play."
         />
       );
     }
 
     return (
-      <div className="space-y-6">
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Pool standings</h3>
-          <p className="text-xs text-cp-muted">
-            Live group tables — same data as the Groups tab, refreshed every few seconds.
-          </p>
-          <DoubleStageGroupsTab tournament={tournament} />
-        </section>
-        {allMatches.length > 0 ? (
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">Live & round matches</h3>
-            <FunMatchLiveHub
-              roundGroups={roundGroups}
-              currentRound={currentRound}
-              courts={courts}
-              teams={teams}
-              matchByCourt={matchByCourt}
-              readOnly
-              pointsPerMatch={pointsPerMatch}
-              scoringRules={scoringRules}
-              gameRules={gameRules}
-              classicSetRules={classicSetRules}
-              maxRounds={maxRounds}
-              accentVariant={variant === "official" ? "official" : "fun"}
-              isGroupStageMode
-            />
-          </section>
-        ) : null}
-      </div>
+      <FunMatchLiveHub
+        roundGroups={roundGroups}
+        currentRound={currentRound}
+        courts={courts}
+        teams={teams}
+        matchByCourt={matchByCourt}
+        readOnly
+        pointsPerMatch={pointsPerMatch}
+        scoringRules={scoringRules}
+        gameRules={gameRules}
+        classicSetRules={classicSetRules}
+        maxRounds={maxRounds}
+        accentVariant={variant === "official" ? "official" : "fun"}
+        isGroupStageMode
+      />
     );
   }
 

@@ -559,7 +559,7 @@ Gunakan checklist ini sebelum publish.
    - **Courtside scorepad:** fullscreen opaque shell per court (`?section=scoring&court=<id>`). Tap **Courtside** / double-tap strip; Esc kembali.
    - Match rounds: Tabs/Stack; search; live scorepads.
    - **Play again (rematch):** match yang sudah selesai hanya bisa di-start ulang lewat konfirmasi rematch (hasil lama masuk history; advancement slot di-rollback).
-7. Publik: **Live Score** (timer), **Groups**, **Matches** (jadwal read-only), **Bracket** setelah KO.
+7. Publik: **Live Score** (skor court/live saja — **tanpa** pool standings; tabel group di tab **Groups**), **Groups**, **Matches** (jadwal read-only), **Bracket** setelah KO.
 8. Semua group selesai → knockout otomatis (retry **Generate knockout** di Groups jika perlu).
 9. Score KO di Live scoring → juara; history & ranking sync.
 
@@ -687,13 +687,17 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Wizard partner:** `components/partners/partner-tournament-wizard.tsx` — tidak ada short summary; **Series** (dulu League) opsional di Step 1.
 
-**Layout presets (sama Official):** `single`, `multi_court` (default partner jika unset), `group_stage`, `match_schedule`, `bracket`, `leaderboard`, `rotation`.
+**Layout presets (sama Official + Partner):** `single`, `multi_court` (default partner jika unset), `group_stage`, `match_schedule`, `bracket`, `leaderboard`, `rotation`.
 
 **URL pin (no auto-slide):** Query `?layout=<preset>` **selalu menang** atas Auto-play slideshow — TV tetap di layout itu. Auto-rotate hanya berlaku pada URL display utama tanpa `layout=`.
 
-**Match schedule TV:** Layout `match_schedule` fullscreen Order of Play / By day / By court (`display-match-schedule-slide.tsx`). Copy URL: `…/display?layout=match_schedule`. Layout **3 kolom equal-width penuh** (Now · Next · Later). Tiap kolom **auto-slide 5 match/halaman** (~12s) bila fixture > 5; indikator `1/N` + dots. Kartu **carousel** (5-up): meta + court di header, tim + roster inline; kartu **comfortable** bila <5 fixture (Now/Next). Done strip carousel sama. Helper: `match-schedule-display.ts`.
+**Responsive TV (Official Gud Game + Partner):** Kedua jalur memakai `TournamentDisplayClient` yang sama — Official di `/sports/{sport}/tournaments/{slug}/display`, Partner di `/{partnerSlug}/tournaments/{slug}/display`. Kapasitas carousel/grid **adaptif monitor** lewat `fit-capacity.ts` + `useDisplayFitCapacity` / `useViewportFitCapacity` pada preset yang paginate (match schedule, group stage, multi-court, leaderboard). Knockout **`layout=bracket`** memakai `computeBracketFitScale` agar pohon penuh muat satu layar. Bukan fitur partner-only.
 
-**Group stage preset:** Dapat di-save (VALID_LAYOUTS mencakup `group_stage`). Board menampilkan **pool standings per group** dalam carousel TV: **4 pool per slide** (grid 2×2), auto-rotate ~12s bila pool > 4, semua tim per pool tampil lengkap (sinkron dengan tab Groups publik). Tabel TV tanpa avatar (`displayMode`). Tab **Groups** publik & manage: avatar player **disembunyikan di mobile** (`sm+` tetap tampil) agar nama tim/roster tidak terpotong. Komponen: `display-group-stage-slide.tsx`, `group-stage-display.ts`, `double-stage-standings-table.tsx`, `double-stage-groups-tab.tsx`.
+**Match schedule TV:** Layout `match_schedule` fullscreen Order of Play / By day / By court (`display-match-schedule-slide.tsx`). Copy URL: `…/display?layout=match_schedule`. Layout **3 kolom equal-width** (Now · Next · Later) + strip **Done** horizontal di bawah. **Jumlah kartu per slide adaptif** terhadap tinggi/lebar monitor (`fit-capacity.ts` + `useDisplayFitCapacity`) — bukan fixed 5; kisaran kolom ~1–8, strip Done ~1–6. Kartu carousel/comfortable menyesuaikan densitas. Partner logo + sponsors di chrome in-flow.
+
+**Group stage preset:** Dapat di-save (VALID_LAYOUTS mencakup `group_stage`). Board menampilkan **pool standings per group** dalam carousel TV: **1–4 pool per slide** menyesuaikan ukuran monitor (besar → 2×2; sedang → 2; sempit → 1), auto-rotate ~12s bila lebih dari satu slide. Tabel TV tanpa avatar (`displayMode`). Fit helpers: `fit-capacity.ts`. Tab **Groups** publik & manage: avatar player **disembunyikan di mobile** (`sm+` tetap tampil). Komponen: `display-group-stage-slide.tsx`, `group-stage-display.ts`.
+
+**Multi-court / leaderboard TV:** Jumlah kartu court per slide dan baris leaderboard ikut **ResizeObserver / viewport** (`fitMultiCourtPerSlide`, `fitLeaderboardRowsPerPage`) agar monitor lapangan kecil tidak overcrowded.
 
 **Court footer label:** Kartu featured menampilkan label court nyata lewat `resolveFeaturedCourtLabel` / `resolveCourtLabel` + sanitizer `isPlausibleCourtLabel` (menolak string status seperti `"Event · Live"`). Subtitle TV hanya konteks turnamen — Court selalu di footer.
 
@@ -705,7 +709,9 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **Order of Play status:** Match selesai (`status=completed`) selalu menampilkan badge **Finished/Done**, bukan **Queued** — meskipun `callStatus` lama belum disinkronkan.
 
-**Knockout bracket TV:** `display-bracket-slide.tsx` menampilkan **full tree** dengan slot kosong + connector SVG (`showEmptySlots`). Nama **pemenang** (match selesai) ditandai ikon **crown** di samping nama/skor.
+**Knockout bracket TV:** `display-bracket-slide.tsx` menampilkan **full tree** dengan slot kosong + connector SVG (`showEmptySlots`). Mode `BracketTreeView` **`variant="display"`** memakai `computeBracketFitScale` (ResizeObserver) agar pohon **muat satu monitor** tanpa pan/zoom chrome — scale seragam `min(availW/treeW, availH/treeH)` + centering; Official & Partner sama. Nama **pemenang** (match selesai) ditandai ikon **crown**.
+
+**Feeder slot (advance):** Pemenang match ganjil (`matchNumber` 1,3,5…) masuk **team A (atas)** di ronde berikutnya; genap → **team B (bawah)** — bukan “slot kosong pertama”. Live payload memanggil `reconcileBracketFeederSlots` agar data lama yang salah posisi ikut diperbaiki. Helper: `lib/tournaments/brackets/feeder-slot.ts`.
 
 **Venue live scoring card (multi-court + single):** Kartu TV memakai footer **Court · Scorekeeper · Duration**; skor games/points menampilkan **crown** di sisi yang unggul; skor kecil rally (15/30/40) tetap ada di tengah. Court label hanya dari `courtId` / daftar court + `isPlausibleCourtLabel` (tidak memakai subtitle turnamen). Scorekeeper di-resolve dari `recordedByUserId`, fallback last score-event `userId`/`userName` (group / lobby / bracket). Label scorekeeper **memprioritaskan `user.name` (nama lengkap staff)** di atas nickname akun — agar konsisten dengan halaman Manage → Invites. Di manage Live scoring, nama scorekeeper tampil di samping label court; kartu court live dapat di-**Collapse** dan tetap collapsed (tidak auto-expand ulang setelah user menutup). Komponen: `display-multi-court-grid.tsx`, `game-race-scoreboard.tsx` (`LiveGameRaceDisplay`), `fun-match-rounds-panel.tsx`, `fun-match-round-match-card.tsx`, `display-leading-crown.tsx`, `lib/tournaments/live/scorekeeper-display.ts`, `lib/tournaments/live/scorekeeper-names.ts`, `lib/tournaments/reclub/court-label.ts`.
 
@@ -927,7 +933,7 @@ npm run db:seed:fixtures -- --name you@email.com
 
 | Command | Isi |
 | --- | --- |
-| `npm run db:seed:partner-bestie-cup -- --name you@email --partner-slug spark-area` | **Local dev only** · 48 confirmed pairs · upcoming · no registration emails |
+| `npm run db:seed:partner-bestie-cup -- --name you@email --partner-slug spark-area` | **Local dev only** · 48 confirmed pairs · **upcoming** (start ≈ +14 days) · no registration emails |
 | `npm run db:seed:partner-bestie-cup -- --name you@email --reset --go-live` | Reset + langsung **Live** untuk uji Groups/scoring |
 | `npm run db:seed:partner-bestie-cup:purge -- --players` | Hapus fixture + `*@bestie-fixture.local` |
 

@@ -25,6 +25,8 @@ Use this checklist on **localhost** or **staging** with real UI flows. Seed data
 npm run db:seed:partner-bestie-cup -- --name YOUR_PARTNER_EMAIL --partner-slug spark-area
 ```
 
+Setiap seed (create / `--reset`) memakai **start ≈ +14 hari** dari waktu generate — bukan tanggal kalender tetap — sehingga status default selalu **Upcoming**. Fixture yang sudah ada tanpa `--reset` tidak diubah; pakai `--reset` untuk recreate dengan jadwal baru.
+
 Optional flags:
 
 | Flag | Purpose |
@@ -38,7 +40,8 @@ Optional flags:
 | Item | Value |
 | --- | --- |
 | Tournament | `Bestie Cup 2026 · Dry Run` · slug `dev-bestie-cup-2026` |
-| Status | **Upcoming** (unless `--go-live`) |
+| Status | **Upcoming** (start ≈ **+14 days** from seed time; unless `--go-live`) |
+| Schedule | Relative each run — not a fixed calendar day (so status stays upcoming) |
 | Format | Double Stage · `poolRules: bestie_cup` · race-to-6 games |
 | Teams | **48 confirmed pairs** (partner registrations → roster teams) |
 | Pool A names | From PDF examples: Sinta/Eka, Arin/Indri, Voni/Septi |
@@ -96,8 +99,9 @@ Pick one pool (e.g. Group A) and score all 3 matches:
 
 - [ ] Court display URL loads (`…/display`)
 - [ ] Copy layout URLs from Manage → Display: `single`, `multi_court`, `group_stage`, `leaderboard`, `bracket`, plus public `?tab=Matches` schedule
-- [ ] `group_stage` layout shows **pool standings** in a **4-pool carousel** (auto-slide when >4 pools; all teams visible per pool); public/manage Groups tab hides player avatars on **mobile** so names are not truncated
-- [ ] `match_schedule` layout uses **3 equal full-width columns** (Now/Next/Later); each auto-slides **5 matches per page**; match cards match public Matches tab detail (full team + player names)
+  - Bracket TV (`layout=bracket`) auto-fits the full tree to the monitor (no pan required). Feeder winners land in the correct next-round slot (odd match → top, even → bottom).
+- [ ] `group_stage` layout shows **pool standings** in a **responsive pool carousel** (1–4 pools per slide by monitor size; all teams visible per pool); public/manage Groups tab hides player avatars on **mobile** so names are not truncated
+- [ ] `match_schedule` layout uses **3 equal full-width columns** (Now/Next/Later) + horizontal **Done** strip; cards-per-slide **adapt to monitor size** (not fixed 5); partner logo in in-flow chrome
 - [ ] Scorekeeper label on TV/manage uses staff **full name** (Manage → Invites), not account nickname
 - [ ] TV shows **40–40 deuce** label and per-side **15/30/40** milestones during live games
 - [ ] Completed pool fixtures show **Done/Finished** on Order of Play (not Queued)
@@ -199,7 +203,7 @@ Seeding: `buildBestieCupRoundOneSlotOrder()` in `lib/tournaments/double-stage/se
 | Area | Behaviour |
 | --- | --- |
 | **Mobile nav** | Public site + Partner Console use a **bottom tab bar** on small screens (`partner-mobile-bottom-nav.tsx`). Desktop keeps header links. |
-| **Tournament tabs** | Sticky horizontal tabs on mobile; Live Score / Groups / Matches / Players / History poll every **4–6s** (live) via `useTournamentLive`; roster refreshes every **30s** on stats tabs. |
+| **Tournament tabs** | Sticky horizontal tabs on mobile; Live Score / Groups / Matches / Players / History poll every **4–6s** (live) via `useTournamentLive`; roster refreshes every **30s** on stats tabs. Live Score shows court/match scores only — pool tables stay on **Groups**. |
 | **Rest teams** | Live Score shows waiting pairs as **chips** (`rest-teams-panel.tsx`), not a comma-separated wall. |
 | **Bestie Cup GW%** | Groups tab shows **Game Win %** when `poolRules: bestie_cup` (PDF §5 tie-break). |
 

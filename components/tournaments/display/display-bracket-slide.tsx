@@ -14,8 +14,8 @@ type DisplayBracketSlideProps = {
 };
 
 /**
- * Venue TV knockout slide — real bracket tree (same data as public page),
- * locked to one viewport without page scroll.
+ * Venue TV knockout slide — full bracket tree auto-scaled to one monitor
+ * (Official Gud Game + Partner). Same data as the public bracket tab.
  */
 export function DisplayBracketSlide({
   tournamentName,
@@ -54,10 +54,11 @@ export function DisplayBracketSlide({
       </header>
 
       <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0a1210] p-2 sm:mt-4 sm:p-3 [&_.rounded-xl]:border-white/15 [&_.bg-cp-card]:bg-[#0f1a17] [&_.bg-cp-elevated]:bg-[#12201c] [&_.text-foreground]:text-white [&_.text-cp-muted]:text-white/50">
-        <div className="h-full min-h-0 overflow-auto overscroll-contain">
+        <div className="h-full min-h-0">
           <BracketTreeView
             matches={matches}
             showEmptySlots
+            variant="display"
             emptyMessage="Bracket matches will appear here once generated."
           />
         </div>

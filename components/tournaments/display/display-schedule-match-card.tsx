@@ -16,10 +16,11 @@ type DisplayScheduleMatchCardProps = {
   emphasize?: boolean;
   hideCourt?: boolean;
   /**
-   * `carousel` — compact 5-up TV slide (inline players, court in header).
+   * `carousel` — compact 5-up TV column (inline players, court in header).
    * `comfortable` — larger cards when a bucket shows fewer than 5 fixtures.
+   * `strip` — horizontal Done row (teams + score only, fits short footer strip).
    */
-  density?: "carousel" | "comfortable";
+  density?: "carousel" | "comfortable" | "strip";
   /** Fill equal grid row in 5-up carousel. */
   fillHeight?: boolean;
   className?: string;
@@ -51,15 +52,21 @@ export function DisplayScheduleMatchCard({
     (m.kind === "group" ? "Group stage" : m.stageLabel.split("·")[0]?.trim() || "Knockout");
   const groupLabel = m.groupName ?? null;
   const courtLabel = hideCourt ? null : m.courtName?.trim() || null;
-  const isCarousel = density === "carousel";
-  const playerLayout = isCarousel ? "inline" : "stack";
+  const isStrip = density === "strip";
+  const isCarousel = density === "carousel" || isStrip;
+  const playerLayout = density === "comfortable" ? "stack" : "inline";
+  const showPlayers = density !== "strip";
 
   return (
     <article
       className={cn(
         "flex w-full flex-col rounded-xl border shadow-sm",
-        fillHeight ? "h-full min-h-0 justify-center" : "shrink-0",
-        isCarousel ? "px-2.5 py-1.5 sm:px-3 sm:py-2" : "justify-center px-3 py-3 sm:px-4 sm:py-3.5",
+        fillHeight ? "h-full min-h-0 justify-center overflow-hidden" : "shrink-0",
+        isStrip
+          ? "justify-center px-2 py-1.5"
+          : isCarousel
+            ? "px-2.5 py-1.5 sm:px-3 sm:py-2"
+            : "justify-center px-3 py-3 sm:px-4 sm:py-3.5",
         emphasize || isLive
           ? "border-amber-400/35 bg-amber-500/10 shadow-[inset_0_1px_0_rgba(251,191,36,0.12)]"
           : "border-white/12 bg-white/[0.05]",
@@ -69,13 +76,13 @@ export function DisplayScheduleMatchCard({
       <div
         className={cn(
           "flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5",
-          isCarousel ? "mb-1" : "mb-2 sm:mb-2.5",
+          isStrip ? "mb-0.5" : isCarousel ? "mb-1" : "mb-2 sm:mb-2.5",
         )}
       >
         <div
           className={cn(
             "flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5",
-            isCarousel ? "text-[10px]" : "text-[11px] sm:text-xs",
+            isStrip ? "text-[9px]" : isCarousel ? "text-[10px]" : "text-[11px] sm:text-xs",
           )}
         >
           <span className="shrink-0 tabular-nums font-medium text-white/45">
@@ -131,34 +138,44 @@ export function DisplayScheduleMatchCard({
       <div
         className={cn(
           "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center",
-          isCarousel ? "gap-1.5 sm:gap-2" : "items-start gap-2 sm:gap-4",
+          isStrip ? "gap-1" : isCarousel ? "gap-1.5 sm:gap-2" : "items-start gap-2 sm:gap-4",
         )}
       >
         <div className="min-w-0 text-left">
           <p
             className={cn(
-              "break-words font-bold leading-tight text-white",
-              isCarousel ? "text-[13px] sm:text-sm" : "text-[15px] sm:text-base leading-snug",
+              "font-bold leading-tight text-white",
+              isStrip
+                ? "truncate text-[11px] sm:text-xs"
+                : isCarousel
+                  ? "break-words text-[13px] sm:text-sm"
+                  : "break-words text-[15px] sm:text-base leading-snug",
             )}
             title={m.teamAName ?? "TBD"}
           >
             {m.teamAName ?? "TBD"}
           </p>
-          <TeamPlayerList
-            names={m.teamAPlayers}
-            maxNames={4}
-            align="left"
-            tone="display"
-            layout={playerLayout}
-            compact={isCarousel}
-            className={isCarousel ? "mt-0.5" : "mt-1"}
-          />
+          {showPlayers ? (
+            <TeamPlayerList
+              names={m.teamAPlayers}
+              maxNames={4}
+              align="left"
+              tone="display"
+              layout={playerLayout}
+              compact={isCarousel}
+              className={isCarousel ? "mt-0.5" : "mt-1"}
+            />
+          ) : null}
         </div>
 
         <div
           className={cn(
             "flex flex-col items-center justify-center px-0.5",
-            isCarousel ? "min-w-[3.25rem] sm:min-w-[3.75rem]" : "min-w-[4.5rem] pt-0.5 sm:min-w-[5.5rem]",
+            isStrip
+              ? "min-w-[2.75rem]"
+              : isCarousel
+                ? "min-w-[3.25rem] sm:min-w-[3.75rem]"
+                : "min-w-[4.5rem] pt-0.5 sm:min-w-[5.5rem]",
           )}
         >
           {displayScore ? (
@@ -166,14 +183,14 @@ export function DisplayScheduleMatchCard({
               <p
                 className={cn(
                   "font-bold tabular-nums leading-none text-white",
-                  isCarousel ? "text-base sm:text-lg" : "text-lg sm:text-xl",
+                  isStrip ? "text-sm" : isCarousel ? "text-base sm:text-lg" : "text-lg sm:text-xl",
                 )}
               >
                 {m.scoreA ?? 0}
                 <span className="mx-0.5 font-normal text-white/35">–</span>
                 {m.scoreB ?? 0}
               </p>
-              {gamesScoreMode ? (
+              {gamesScoreMode && !isStrip ? (
                 <p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-white/40">
                   Games
                 </p>
@@ -184,7 +201,7 @@ export function DisplayScheduleMatchCard({
               <p
                 className={cn(
                   "font-bold tabular-nums leading-none",
-                  isCarousel ? "text-sm sm:text-base" : "text-base sm:text-lg",
+                  isStrip ? "text-xs" : isCarousel ? "text-sm sm:text-base" : "text-base sm:text-lg",
                   kickoff.time === "TBA" ? "text-white/40" : "text-emerald-300",
                 )}
               >
@@ -202,22 +219,28 @@ export function DisplayScheduleMatchCard({
         <div className="min-w-0 text-right">
           <p
             className={cn(
-              "break-words font-bold leading-tight text-white",
-              isCarousel ? "text-[13px] sm:text-sm" : "text-[15px] sm:text-base leading-snug",
+              "font-bold leading-tight text-white",
+              isStrip
+                ? "truncate text-[11px] sm:text-xs"
+                : isCarousel
+                  ? "break-words text-[13px] sm:text-sm"
+                  : "break-words text-[15px] sm:text-base leading-snug",
             )}
             title={m.teamBName ?? "TBD"}
           >
             {m.teamBName ?? "TBD"}
           </p>
-          <TeamPlayerList
-            names={m.teamBPlayers}
-            maxNames={4}
-            align="right"
-            tone="display"
-            layout={playerLayout}
-            compact={isCarousel}
-            className={isCarousel ? "mt-0.5" : "mt-1"}
-          />
+          {showPlayers ? (
+            <TeamPlayerList
+              names={m.teamBPlayers}
+              maxNames={4}
+              align="right"
+              tone="display"
+              layout={playerLayout}
+              compact={isCarousel}
+              className={isCarousel ? "mt-0.5" : "mt-1"}
+            />
+          ) : null}
         </div>
       </div>
 

@@ -16,5 +16,6 @@ export default async function TournamentDisplayPage({ params }: PageProps) {
   // Partner white-label events use /{partnerSlug}/…/display — not Gud Game sport chrome.
   if (!tournament || tournament.partnerId) notFound();
 
+  // Same TournamentDisplayClient as Partner (responsive fit-capacity for all layout presets).
   return <TournamentDisplayClient sportSlug={sportSlug} slug={slug} />;
 }

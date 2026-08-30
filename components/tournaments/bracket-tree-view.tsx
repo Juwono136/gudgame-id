@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Trophy, ZoomIn, ZoomOut } from "lucide-react";
 import {
   BracketConnectorOverlay,
@@ -20,6 +20,7 @@ import {
   getMainDrawTotalRounds,
   getPlayInMatches,
 } from "@/lib/tournaments/brackets/tree-layout";
+import { computeBracketFitScale } from "@/lib/tournaments/display/fit-capacity";
 import { cn } from "@/lib/utils";
 import { uniquePlayerNames } from "@/lib/format/player-names";
 
@@ -31,6 +32,11 @@ type BracketTreeViewProps = {
   activeSeedSlot?: { matchId: string; slot: "a" | "b" } | null;
   seedingMode?: boolean;
   showEmptySlots?: boolean;
+  /**
+   * `display` — venue TV: auto-scale the tree to fill one monitor (no pan/zoom chrome).
+   * `interactive` — public/manage: pan + zoom controls (default).
+   */
+  variant?: "interactive" | "display";
 };
 
 function matchStatusLabel(m: BracketMatchView): { label: string; className: string } {
@@ -63,7 +69,9 @@ export function BracketTreeView({
   activeSeedSlot = null,
   seedingMode = false,
   showEmptySlots = true,
+  variant = "interactive",
 }: BracketTreeViewProps) {
+  const isDisplay = variant === "display";
   const structuralMatches = useMemo(
     () =>
       seedingMode || showEmptySlots ? matches : matches.filter(shouldRenderBracketMatch),
@@ -134,14 +142,37 @@ export function BracketTreeView({
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   /** True only for the pan gesture that just ended — cleared after click handlers run. */
   const suppressClickFromPanRef = useRef(false);
   const pointerOrigin = useRef({ x: 0, y: 0 });
 
-  const effectiveZoom = Math.max(0.5, Math.min(zoom, 1.5));
+  const interactiveZoom = Math.max(0.5, Math.min(zoom, 1.5));
+  const effectiveZoom = isDisplay ? fitScale : interactiveZoom;
   const firstMainRound = roundNumbers[0] ?? 1;
+
+  useEffect(() => {
+    if (!isDisplay) return;
+    const el = viewportRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const measure = () => {
+      const next = computeBracketFitScale(
+        el.clientWidth,
+        el.clientHeight,
+        treeWidth,
+        treeHeight,
+      );
+      setFitScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next));
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isDisplay, treeWidth, treeHeight]);
 
   const isInteractivePanTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
@@ -170,9 +201,14 @@ export function BracketTreeView({
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn(isDisplay ? "flex h-full min-h-0 flex-col gap-3" : "space-y-4")}>
       {playInMatches.length > 0 ? (
-        <section className="rounded-xl border border-cp-border/70 bg-cp-elevated/20 p-3 sm:p-4">
+        <section
+          className={cn(
+            "rounded-xl border border-cp-border/70 bg-cp-elevated/20 p-3 sm:p-4",
+            isDisplay && "max-h-[28%] shrink-0 overflow-y-auto",
+          )}
+        >
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cp-primary">
@@ -270,90 +306,123 @@ export function BracketTreeView({
         </section>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2" data-bracket-chrome="">
-        <p className="text-[11px] text-cp-muted">
-          Drag to pan · use zoom for detail
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cp-border bg-cp-card text-cp-muted hover:text-foreground"
-            aria-label="Zoom out"
-            onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
-          >
-            <ZoomOut className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            className="h-8 min-w-[3.5rem] rounded-lg border border-cp-border bg-cp-card px-2 text-[11px] font-semibold tabular-nums text-cp-muted hover:text-foreground"
-            title="Reset to 100%"
-            onClick={() => setZoom(1)}
-          >
-            {Math.round(effectiveZoom * 100)}%
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cp-border bg-cp-card text-cp-muted hover:text-foreground"
-            aria-label="Zoom in"
-            onClick={() => setZoom((z) => Math.min(1.5, Number((z + 0.1).toFixed(2))))}
-          >
-            <ZoomIn className="h-3.5 w-3.5" />
-          </button>
+      {!isDisplay ? (
+        <div className="flex flex-wrap items-center justify-between gap-2" data-bracket-chrome="">
+          <p className="text-[11px] text-cp-muted">Drag to pan · use zoom for detail</p>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cp-border bg-cp-card text-cp-muted hover:text-foreground"
+              aria-label="Zoom out"
+              onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="h-8 min-w-[3.5rem] rounded-lg border border-cp-border bg-cp-card px-2 text-[11px] font-semibold tabular-nums text-cp-muted hover:text-foreground"
+              title="Reset to 100%"
+              onClick={() => setZoom(1)}
+            >
+              {Math.round(effectiveZoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cp-border bg-cp-card text-cp-muted hover:text-foreground"
+              aria-label="Zoom in"
+              onClick={() => setZoom((z) => Math.min(1.5, Number((z + 0.1).toFixed(2))))}
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div
         ref={viewportRef}
         className={cn(
-          "max-h-[min(85vh,56rem)] min-h-[16rem] overflow-auto rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/15 to-transparent [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]",
-          isPanning ? "cursor-grabbing select-none" : "cursor-grab",
+          "rounded-xl border border-cp-border/60 bg-gradient-to-b from-cp-elevated/15 to-transparent",
+          isDisplay
+            ? "relative min-h-0 flex-1 overflow-hidden"
+            : cn(
+                "max-h-[min(85vh,56rem)] min-h-[16rem] overflow-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]",
+                isPanning ? "cursor-grabbing select-none" : "cursor-grab",
+              ),
         )}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          if (isInteractivePanTarget(e.target)) return;
-          const el = viewportRef.current;
-          if (!el) return;
-          suppressClickFromPanRef.current = false;
-          pointerOrigin.current = { x: e.clientX, y: e.clientY };
-          setIsPanning(true);
-          panStart.current = {
-            x: e.clientX,
-            y: e.clientY,
-            scrollLeft: el.scrollLeft,
-            scrollTop: el.scrollTop,
-          };
-          el.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          const el = viewportRef.current;
-          if (!el || !isPanning) return;
-          if (
-            Math.abs(e.clientX - pointerOrigin.current.x) > 6 ||
-            Math.abs(e.clientY - pointerOrigin.current.y) > 6
-          ) {
-            suppressClickFromPanRef.current = true;
-          }
-          el.scrollLeft = panStart.current.scrollLeft - (e.clientX - panStart.current.x);
-          el.scrollTop = panStart.current.scrollTop - (e.clientY - panStart.current.y);
-        }}
-        onPointerUp={endPan}
-        onPointerCancel={endPan}
+        onPointerDown={
+          isDisplay
+            ? undefined
+            : (e) => {
+                if (e.button !== 0) return;
+                if (isInteractivePanTarget(e.target)) return;
+                const el = viewportRef.current;
+                if (!el) return;
+                suppressClickFromPanRef.current = false;
+                pointerOrigin.current = { x: e.clientX, y: e.clientY };
+                setIsPanning(true);
+                panStart.current = {
+                  x: e.clientX,
+                  y: e.clientY,
+                  scrollLeft: el.scrollLeft,
+                  scrollTop: el.scrollTop,
+                };
+                el.setPointerCapture(e.pointerId);
+              }
+        }
+        onPointerMove={
+          isDisplay
+            ? undefined
+            : (e) => {
+                const el = viewportRef.current;
+                if (!el || !isPanning) return;
+                if (
+                  Math.abs(e.clientX - pointerOrigin.current.x) > 6 ||
+                  Math.abs(e.clientY - pointerOrigin.current.y) > 6
+                ) {
+                  suppressClickFromPanRef.current = true;
+                }
+                el.scrollLeft = panStart.current.scrollLeft - (e.clientX - panStart.current.x);
+                el.scrollTop = panStart.current.scrollTop - (e.clientY - panStart.current.y);
+              }
+        }
+        onPointerUp={isDisplay ? undefined : endPan}
+        onPointerCancel={isDisplay ? undefined : endPan}
       >
         <div
-          className="p-3 pb-12 sm:p-4 sm:pb-14"
-          style={{
-            width: treeWidth * effectiveZoom + 32,
-            minHeight: treeHeight * effectiveZoom + 48,
-          }}
+          className={cn(
+            isDisplay
+              ? "absolute inset-0 overflow-hidden"
+              : "p-3 pb-12 sm:p-4 sm:pb-14",
+          )}
+          style={
+            isDisplay
+              ? undefined
+              : {
+                  width: treeWidth * effectiveZoom + 32,
+                  minHeight: treeHeight * effectiveZoom + 48,
+                }
+          }
         >
           <div
             className="relative"
-            style={{
-              width: treeWidth,
-              height: treeHeight,
-              transform: `scale(${effectiveZoom})`,
-              transformOrigin: "top left",
-            }}
+            style={
+              isDisplay
+                ? {
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    width: treeWidth,
+                    height: treeHeight,
+                    transform: `translate(-50%, -50%) scale(${effectiveZoom})`,
+                    transformOrigin: "center center",
+                  }
+                : {
+                    width: treeWidth,
+                    height: treeHeight,
+                    transform: `scale(${effectiveZoom})`,
+                    transformOrigin: "top left",
+                  }
+            }
           >
             <BracketConnectorOverlay
               paths={connectorPaths}

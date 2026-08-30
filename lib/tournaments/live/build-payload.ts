@@ -217,6 +217,13 @@ export async function buildTournamentLivePayload(
     await reconcileDoubleStageGroups(tournament);
   }
 
+  if (includeBracket) {
+    const { reconcileBracketFeederSlots } = await import(
+      "@/lib/tournaments/brackets/round-one"
+    );
+    await reconcileBracketFeederSlots(tournament.id);
+  }
+
   const db = getDb();
   const [bracketMatchesRaw, leaderboard, teams, lobbyMatchesRaw, courts, groupMatchesRaw, doubleStageOverview] =
     await Promise.all([

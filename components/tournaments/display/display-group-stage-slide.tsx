@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DoubleStageStandingsLegend,
   DoubleStageStandingsTable,
@@ -12,6 +12,8 @@ import {
   GROUP_STAGE_DISPLAY_SLIDE_MS,
   chunkGroupsForDisplay,
 } from "@/lib/tournaments/display/group-stage-display";
+import { fitGroupStagePoolsPerSlide } from "@/lib/tournaments/display/fit-capacity";
+import { useDisplayFitCapacity } from "@/hooks/use-display-fit-capacity";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
 import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
 import { cn } from "@/lib/utils";
@@ -22,23 +24,34 @@ type DisplayGroupStageSlideProps = {
     TournamentLivePayload,
     "matches" | "courts" | "scoring" | "tournament" | "doubleStage"
   >;
-  scoreDisplay?: "diff" | "games" | "sets";
+  scoreDisplay?: "diff" | "game" | "sets";
   showGameWinPct?: boolean;
   className?: string;
 };
 
 /**
- * Venue TV group-stage slide — paginated pool standings (4 groups per slide, auto-rotate).
+ * Venue TV group-stage slide — paginated pool standings (1–4 groups per slide by monitor size).
  */
 export function DisplayGroupStageSlide({
   tournamentName,
   liveData,
-  scoreDisplay = "games",
+  scoreDisplay = "game",
   showGameWinPct = false,
   className,
 }: DisplayGroupStageSlideProps) {
   const courts = liveData.courts ?? [];
   const groups = (liveData.doubleStage?.groups ?? []) as GroupOverview[];
+  const gridRef = useRef<HTMLDivElement>(null);
+  const fitPools = useCallback(
+    (size: { width: number; height: number }) =>
+      fitGroupStagePoolsPerSlide(size.width, size.height),
+    [],
+  );
+  const poolsPerSlide = useDisplayFitCapacity(
+    gridRef,
+    fitPools,
+    GROUP_STAGE_DISPLAY_GROUPS_PER_SLIDE,
+  );
 
   const liveByGroupId = useMemo(() => {
     const map = new Map<string, NonNullable<TournamentLivePayload["matches"]>[number][]>();
@@ -67,14 +80,14 @@ export function DisplayGroupStageSlide({
   );
 
   const slides = useMemo(
-    () => chunkGroupsForDisplay(groups, GROUP_STAGE_DISPLAY_GROUPS_PER_SLIDE),
-    [groups],
+    () => chunkGroupsForDisplay(groups, poolsPerSlide),
+    [groups, poolsPerSlide],
   );
   const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
     setSlideIndex(0);
-  }, [groups.length]);
+  }, [groups.length, poolsPerSlide]);
 
   useEffect(() => {
     if (slides.length <= 1) return;
@@ -94,6 +107,13 @@ export function DisplayGroupStageSlide({
   const denseSlide =
     currentSlide.some((g) => g.standings.length > 4) ||
     currentSlide.reduce((max, g) => Math.max(max, g.standings.length), 0) >= 5;
+
+  const gridClass =
+    poolsPerSlide >= 4
+      ? "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2"
+      : poolsPerSlide >= 2
+        ? "grid-cols-1 sm:grid-cols-2"
+        : "grid-cols-1";
 
   return (
     <div
@@ -153,15 +173,18 @@ export function DisplayGroupStageSlide({
         />
       </div>
 
-      <div className="relative mt-2 min-h-0 flex-1 overflow-hidden sm:mt-3">
+      <div ref={gridRef} className="relative mt-2 min-h-0 flex-1 overflow-hidden sm:mt-3">
         {groups.length === 0 ? (
           <p className="flex h-full items-center justify-center px-6 text-center text-sm text-white/55">
             Pool standings appear here once groups are generated and matches are recorded.
           </p>
         ) : (
           <div
-            key={safeSlideIndex}
-            className="grid h-full min-h-0 animate-in fade-in duration-700 grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5 sm:grid-rows-2"
+            key={`${safeSlideIndex}-${poolsPerSlide}`}
+            className={cn(
+              "grid h-full min-h-0 animate-in fade-in gap-2 duration-700 sm:gap-2.5",
+              gridClass,
+            )}
           >
             {currentSlide.map((group) => {
               const liveInGroup = liveByGroupId.get(group.id) ?? [];
@@ -195,7 +218,7 @@ function GroupPoolCard({
   group: GroupOverview;
   liveInGroup: NonNullable<TournamentLivePayload["matches"]>[number][];
   courts: NonNullable<TournamentLivePayload["courts"]>;
-  scoreDisplay: "diff" | "games" | "sets";
+  scoreDisplay: "diff" | "game" | "sets";
   showGameWinPct: boolean;
   dense: boolean;
 }) {
