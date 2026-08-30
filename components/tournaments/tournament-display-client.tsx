@@ -765,6 +765,7 @@ export function TournamentDisplayClient({
                 bracket: data.bracket,
                 tournament: data.tournament,
                 doubleStage: data.doubleStage,
+                scoring: data.scoring,
               }}
             />
           </div>

@@ -1,20 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarDays, ListOrdered, MapPin } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, ListOrdered, MapPin, Radio } from "lucide-react";
 import {
-  callStatusLabel,
-  formatKickoffDateAndTimeParts,
+  buildDisplayOrderOfPlayBuckets,
+  mapLiveToDisplayScheduleRows,
+} from "@/lib/tournaments/double-stage/display-schedule-rows";
+import { DisplayScheduleMatchCard } from "@/components/tournaments/display/display-schedule-match-card";
+import {
   groupMatchesByCourt,
-  groupMatchesByOrderOfPlay,
   groupMatchesByScheduleDay,
-  scheduleStatusLabel,
+  type OrderOfPlayBucket,
   type ScheduleMatchRow,
 } from "@/lib/tournaments/double-stage/schedule-view";
-import { getBracketRoundLabel } from "@/lib/tournaments/brackets/round-labels";
-import { resolveCourtLabel } from "@/lib/tournaments/reclub/court-label";
+import {
+  MATCH_SCHEDULE_SLIDE_MS,
+  MATCH_SCHEDULE_SLIDE_SIZE,
+  chunkSchedulePages,
+} from "@/lib/tournaments/display/match-schedule-display";
 import type { TournamentLivePayload } from "@/lib/tournaments/live/types";
-import type { BracketMatchView } from "@/lib/tournaments/brackets/service";
 import { cn } from "@/lib/utils";
 
 type BoardView = "orderOfPlay" | "schedule" | "court";
@@ -23,164 +27,115 @@ type DisplayMatchScheduleSlideProps = {
   tournamentName: string;
   liveData: Pick<
     TournamentLivePayload,
-    "matches" | "courts" | "bracket" | "tournament" | "doubleStage"
+    "matches" | "courts" | "bracket" | "tournament" | "doubleStage" | "scoring"
   >;
   className?: string;
 };
 
-function mapLiveToScheduleRows(
-  liveData: DisplayMatchScheduleSlideProps["liveData"],
-): ScheduleMatchRow[] {
-  const courts = liveData.courts ?? [];
-  const bracketMatches = (liveData.bracket?.matches ?? []) as BracketMatchView[];
-  const totalRounds = bracketMatches.length
-    ? Math.max(...bracketMatches.map((m) => m.roundNumber), 1)
-    : 1;
+const BUCKET_THEME: Record<
+  OrderOfPlayBucket["key"],
+  { accent: string; header: string; dot: string }
+> = {
+  now: {
+    accent: "border-amber-400/40 bg-gradient-to-b from-amber-500/20 to-amber-500/[0.06]",
+    header: "text-amber-100",
+    dot: "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.5)]",
+  },
+  next: {
+    accent: "border-sky-400/35 bg-gradient-to-b from-sky-500/15 to-sky-500/[0.05]",
+    header: "text-sky-100",
+    dot: "bg-sky-400",
+  },
+  later: {
+    accent: "border-white/12 bg-white/[0.04]",
+    header: "text-white/80",
+    dot: "bg-white/50",
+  },
+  done: {
+    accent: "border-white/10 bg-black/25",
+    header: "text-white/50",
+    dot: "bg-white/30",
+  },
+};
 
-  const groupRows: ScheduleMatchRow[] = (liveData.matches ?? [])
-    .filter((m) => m.type === "group_stage")
-    .map((m) => {
-      const groupName =
-        typeof (m as { groupId?: string }).groupId === "string"
-          ? ((liveData.doubleStage?.groups ?? []) as Array<{ id?: string; name?: string }>).find(
-              (g) => g.id === (m as { groupId?: string }).groupId,
-            )?.name ?? null
-          : null;
-      return {
-        id: m.id,
-        kind: "group" as const,
-        stageLabel: groupName ? `Group stage · ${groupName}` : "Group stage",
-        stageKindLabel: "Group stage",
-        groupName,
-        teamAName: m.teamAName ?? null,
-        teamBName: m.teamBName ?? null,
-        teamAPlayers: m.teamAPlayers ?? [],
-        teamBPlayers: m.teamBPlayers ?? [],
-        scoreA: m.scoreA ?? null,
-        scoreB: m.scoreB ?? null,
-        status: m.status ?? "pending",
-        scheduledAt: null,
-        startedAt: m.startedAt ?? null,
-        courtId: m.courtId ?? null,
-        courtName: resolveCourtLabel(m.courtId, courts),
-        playOrder: null,
-        callStatus: m.status === "completed" ? ("done" as const) : ("queued" as const),
-      };
-    });
+function useBucketPageIndex(pageCount: number, resetKey: string | number) {
+  const [pageIndex, setPageIndex] = useState(0);
 
-  // Prefer double-stage overview groups when available (richer labels + schedule fields).
-  const overviewGroups = (liveData.doubleStage?.groups ?? []) as Array<{
-    id?: string;
-    name?: string;
-    matches?: Array<{
-      id: string;
-      teamAName?: string | null;
-      teamBName?: string | null;
-      teamAPlayers?: Array<{ displayName?: string }>;
-      teamBPlayers?: Array<{ displayName?: string }>;
-      scoreA?: number | null;
-      scoreB?: number | null;
-      status?: string;
-      scheduledAt?: string | null;
-      startedAt?: string | null;
-      courtId?: string | null;
-      playOrder?: number | null;
-      callStatus?: string | null;
-    }>;
-  }>;
+  useEffect(() => {
+    setPageIndex(0);
+  }, [resetKey, pageCount]);
 
-  const fromOverview: ScheduleMatchRow[] = overviewGroups.flatMap((g) =>
-    (g.matches ?? []).map((m) => ({
-      id: m.id,
-      kind: "group" as const,
-      stageLabel: g.name ? `Group stage · ${g.name}` : "Group stage",
-      stageKindLabel: "Group stage",
-      groupName: g.name ?? null,
-      teamAName: m.teamAName ?? null,
-      teamBName: m.teamBName ?? null,
-      teamAPlayers: (m.teamAPlayers ?? []).map((p) => p.displayName ?? "").filter(Boolean),
-      teamBPlayers: (m.teamBPlayers ?? []).map((p) => p.displayName ?? "").filter(Boolean),
-      scoreA: m.scoreA ?? null,
-      scoreB: m.scoreB ?? null,
-      status: m.status ?? "pending",
-      scheduledAt: m.scheduledAt ?? null,
-      startedAt: m.startedAt ?? null,
-      courtId: m.courtId ?? null,
-      courtName: resolveCourtLabel(m.courtId, courts),
-      playOrder: m.playOrder ?? null,
-      callStatus:
-        m.status === "completed" || m.callStatus === "done"
-          ? ("done" as const)
-          : m.callStatus === "called" || m.callStatus === "on_court"
-            ? (m.callStatus as "called" | "on_court")
-            : ("queued" as const),
-    })),
-  );
+  useEffect(() => {
+    if (pageCount <= 1) return;
+    const id = window.setInterval(() => {
+      setPageIndex((prev) => (prev + 1) % pageCount);
+    }, MATCH_SCHEDULE_SLIDE_MS);
+    return () => window.clearInterval(id);
+  }, [pageCount]);
 
-  const bracketRows: ScheduleMatchRow[] = bracketMatches
-    .filter((m) => m.matchNumber !== 999)
-    .map((m) => ({
-      id: m.id,
-      kind: "bracket" as const,
-      stageLabel: getBracketRoundLabel(m.roundNumber, totalRounds),
-      stageKindLabel: getBracketRoundLabel(m.roundNumber, totalRounds),
-      groupName: null,
-      teamAName: m.teamAName,
-      teamBName: m.teamBName,
-      teamAPlayers: m.teamAPlayers ?? [],
-      teamBPlayers: m.teamBPlayers ?? [],
-      scoreA: m.scoreA,
-      scoreB: m.scoreB,
-      status: m.status,
-      scheduledAt: m.scheduledAt,
-      startedAt: m.startedAt,
-      courtId: m.courtId,
-      courtName: resolveCourtLabel(m.courtId, courts),
-      playOrder: m.playOrder,
-      callStatus:
-        m.status === "completed"
-          ? ("done" as const)
-          : m.callStatus === "called" || m.callStatus === "on_court" || m.callStatus === "done"
-            ? m.callStatus
-            : ("queued" as const),
-    }));
-
-  return [...(fromOverview.length ? fromOverview : groupRows), ...bracketRows];
+  return pageCount ? pageIndex % pageCount : 0;
 }
 
-/**
- * Full-screen venue TV Match Schedule / Order of Play board.
- */
+function scheduleSlideListClass(visibleCount: number) {
+  const base = "h-full min-h-0 animate-in fade-in duration-500";
+  if (visibleCount >= MATCH_SCHEDULE_SLIDE_SIZE) {
+    return cn(base, "grid grid-rows-5 gap-1.5 sm:gap-2");
+  }
+  return cn(base, "flex flex-col justify-center gap-2.5 sm:gap-3");
+}
+
+function slideCardProps(visibleCount: number) {
+  const carousel = visibleCount >= MATCH_SCHEDULE_SLIDE_SIZE;
+  return {
+    density: carousel ? ("carousel" as const) : ("comfortable" as const),
+    fillHeight: carousel,
+  };
+}
+
 export function DisplayMatchScheduleSlide({
   tournamentName,
   liveData,
   className,
 }: DisplayMatchScheduleSlideProps) {
   const [view, setView] = useState<BoardView>("orderOfPlay");
-  const rows = useMemo(() => mapLiveToScheduleRows(liveData), [liveData]);
-  const buckets = useMemo(() => groupMatchesByOrderOfPlay(rows), [rows]);
+
+  const rows = useMemo(() => mapLiveToDisplayScheduleRows(liveData), [liveData]);
+  const buckets = useMemo(
+    () => buildDisplayOrderOfPlayBuckets(liveData, { nextCapacity: 2 }),
+    [liveData],
+  );
   const days = useMemo(() => groupMatchesByScheduleDay(rows), [rows]);
   const courts = useMemo(() => groupMatchesByCourt(rows), [rows]);
+  const tournamentLive = liveData.tournament.status === "live";
+  const gamesScoreMode = liveData.scoring?.matchScoreMode === "games";
+
+  const nowBucket = buckets.find((b) => b.key === "now");
+  const nextBucket = buckets.find((b) => b.key === "next");
+  const laterBucket = buckets.find((b) => b.key === "later");
+  const doneBucket = buckets.find((b) => b.key === "done");
 
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 w-full flex-col overflow-hidden px-3 pb-3 pt-3 sm:px-5 sm:pb-4 sm:pt-4",
+        "flex h-full min-h-0 w-full flex-col overflow-hidden px-2 pb-2 pt-2 sm:px-4 sm:pb-3 sm:pt-3",
         className,
       )}
     >
-      <header className="flex shrink-0 flex-wrap items-end justify-between gap-3 border-b border-white/10 pb-2.5 sm:pb-3">
+      <header className="flex shrink-0 flex-wrap items-end justify-between gap-2 border-b border-white/10 pb-2 sm:gap-3 sm:pb-2.5">
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl lg:text-3xl">
+          <h1 className="truncate text-lg font-bold tracking-tight text-white sm:text-xl lg:text-2xl">
             {tournamentName}
           </h1>
-          <p className="mt-0.5 text-xs text-white/55 sm:text-sm">
-            Match schedule
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-white/55 sm:text-xs">
+            <span>Match schedule</span>
             {rows.length > 0 ? (
-              <>
-                {" · "}
-                <span className="font-medium text-white/75">{rows.length} fixtures</span>
-              </>
+              <span className="font-medium text-white/75">· {rows.length} fixtures</span>
+            ) : null}
+            {tournamentLive ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+                <Radio className="size-3" aria-hidden />
+                Session live
+              </span>
             ) : null}
           </p>
         </div>
@@ -210,120 +165,277 @@ export function DisplayMatchScheduleSlide({
         </div>
       </header>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-auto overscroll-contain sm:mt-4">
+      <div className="mt-2 min-h-0 flex-1 overflow-hidden sm:mt-3">
         {rows.length === 0 ? (
           <p className="flex h-full items-center justify-center px-6 text-center text-sm text-white/55">
             Fixtures appear here once groups or the knockout bracket are generated.
           </p>
         ) : view === "orderOfPlay" ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {buckets.map((bucket) => (
-              <section
-                key={bucket.key}
-                className="min-h-0 rounded-2xl border border-white/10 bg-[#0c1613]/90 p-3"
-              >
-                <h2
-                  className={cn(
-                    "mb-2 text-[11px] font-bold uppercase tracking-wider",
-                    bucket.key === "now" && "text-amber-300",
-                    bucket.key === "next" && "text-sky-300",
-                    bucket.key === "later" && "text-white/55",
-                    bucket.key === "done" && "text-white/40",
-                  )}
-                >
-                  {bucket.label}
-                  <span className="ml-1.5 font-normal text-white/35">
-                    {bucket.matches.length}
-                  </span>
-                </h2>
-                <ul className="space-y-1.5">
-                  {bucket.matches.slice(0, 12).map((m) => (
-                    <ScheduleTvRow key={`${m.kind}-${m.id}`} m={m} />
-                  ))}
-                </ul>
-              </section>
-            ))}
+          <div className="flex h-full min-h-0 flex-col gap-2 sm:gap-3">
+            <div className="grid h-full min-h-0 grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+              <BucketCarouselColumn
+                bucket={nowBucket}
+                gamesScoreMode={gamesScoreMode}
+                tournamentLive={tournamentLive}
+                emphasize
+              />
+              <BucketCarouselColumn bucket={nextBucket} gamesScoreMode={gamesScoreMode} />
+              <BucketCarouselColumn bucket={laterBucket} gamesScoreMode={gamesScoreMode} />
+            </div>
+            {doneBucket && doneBucket.matches.length > 0 ? (
+              <DoneCarouselStrip bucket={doneBucket} gamesScoreMode={gamesScoreMode} />
+            ) : null}
           </div>
         ) : view === "schedule" ? (
-          <div className="space-y-4">
-            {days.map((day) => (
-              <section key={day.dateKey}>
-                <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/55">
-                  {day.label}
-                </h2>
-                <ul className="space-y-1.5">
-                  {day.matches.map((m) => (
-                    <ScheduleTvRow key={`${m.kind}-${m.id}`} m={m} />
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
+          <AltViewBoard
+            sections={days.map((day) => ({
+              key: day.dateKey,
+              label: day.label,
+              matches: day.matches,
+            }))}
+            gamesScoreMode={gamesScoreMode}
+          />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {courts.map((court) => (
-              <section
-                key={court.courtKey}
-                className="rounded-2xl border border-white/10 bg-[#0c1613]/90 p-3"
-              >
-                <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-emerald-300/90">
-                  {court.label}
-                </h2>
-                <ul className="space-y-1.5">
-                  {court.matches.map((m) => (
-                    <ScheduleTvRow key={`${m.kind}-${m.id}`} m={m} hideCourt />
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
+          <AltViewBoard
+            sections={courts.map((court) => ({
+              key: court.courtKey,
+              label: court.label,
+              matches: court.matches,
+            }))}
+            gamesScoreMode={gamesScoreMode}
+            hideCourt
+          />
         )}
       </div>
     </div>
   );
 }
 
-function ScheduleTvRow({
-  m,
-  hideCourt = false,
+function BucketCarouselColumn({
+  bucket,
+  gamesScoreMode,
+  tournamentLive = false,
+  emphasize = false,
 }: {
-  m: ScheduleMatchRow;
-  hideCourt?: boolean;
+  bucket?: OrderOfPlayBucket;
+  gamesScoreMode: boolean;
+  tournamentLive?: boolean;
+  emphasize?: boolean;
 }) {
-  const kickoff = formatKickoffDateAndTimeParts(m.scheduledAt);
-  const status = scheduleStatusLabel(m.status);
-  const call = callStatusLabel(m.callStatus);
+  const pages = useMemo(
+    () => chunkSchedulePages(bucket?.matches ?? []),
+    [bucket?.matches],
+  );
+  const pageIndex = useBucketPageIndex(
+    pages.length,
+    `${bucket?.key ?? "none"}-${bucket?.matches.length ?? 0}`,
+  );
+
+  if (!bucket) return null;
+
+  const theme = BUCKET_THEME[bucket.key];
+  const visible = pages[pageIndex] ?? [];
+  const showIdleNow =
+    bucket.key === "now" && bucket.matches.length === 0 && tournamentLive;
 
   return (
-    <li className="rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">
-            {m.playOrder != null ? (
-              <span className="mr-1.5 tabular-nums text-white/40">#{m.playOrder}</span>
-            ) : null}
-            {m.teamAName ?? "TBD"}
-            <span className="mx-1 font-normal text-white/35">vs</span>
-            {m.teamBName ?? "TBD"}
-          </p>
-          <p className="mt-0.5 truncate text-[10px] text-white/45">
-            {m.stageLabel}
-            {!hideCourt && m.courtName ? ` · ${m.courtName}` : ""}
-            {kickoff.time && kickoff.time !== "TBA" ? ` · ${kickoff.time}` : ""}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          {m.status === "completed" && m.scoreA != null && m.scoreB != null ? (
-            <p className="text-sm font-bold tabular-nums text-white">
-              {m.scoreA}–{m.scoreB}
+    <section
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden rounded-2xl border",
+        theme.accent,
+      )}
+    >
+      <BucketHeader bucket={bucket} theme={theme} pageIndex={pageIndex} pageCount={pages.length} />
+
+      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+        {showIdleNow ? (
+          <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-amber-400/30 bg-amber-500/[0.08] px-3 py-5 text-center">
+            <p className="text-sm font-semibold text-amber-50 sm:text-base">Courts ready</p>
+            <p className="mt-2 text-xs leading-relaxed text-white/50 sm:text-sm">
+              Session is live — waiting for the next fixture on court.
             </p>
-          ) : (
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-white/50">
-              {m.status === "in_progress" ? "Live" : call.short || status.short}
-            </p>
-          )}
-        </div>
+          </div>
+        ) : bucket.matches.length === 0 ? (
+          <p className="flex h-full items-center justify-center text-center text-xs text-white/40 sm:text-sm">
+            No fixtures in this slot.
+          </p>
+        ) : (
+          <ul
+            key={`${bucket.key}-${pageIndex}`}
+            className={scheduleSlideListClass(visible.length)}
+          >
+            {visible.map((m) => (
+              <li key={`${m.kind}-${m.id}`} className="min-h-0">
+                <DisplayScheduleMatchCard
+                  match={m}
+                  gamesScoreMode={gamesScoreMode}
+                  emphasize={emphasize && bucket.key === "now"}
+                  {...slideCardProps(visible.length)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-    </li>
+    </section>
+  );
+}
+
+function DoneCarouselStrip({
+  bucket,
+  gamesScoreMode,
+}: {
+  bucket: OrderOfPlayBucket;
+  gamesScoreMode: boolean;
+}) {
+  const theme = BUCKET_THEME.done;
+  const pages = useMemo(() => chunkSchedulePages(bucket.matches), [bucket.matches]);
+  const pageIndex = useBucketPageIndex(pages.length, `done-${bucket.matches.length}`);
+  const visible = pages[pageIndex] ?? [];
+
+  return (
+    <section
+      className={cn(
+        "flex max-h-[42%] min-h-[10rem] shrink-0 flex-col overflow-hidden rounded-2xl border",
+        theme.accent,
+      )}
+    >
+      <BucketHeader bucket={bucket} theme={theme} pageIndex={pageIndex} pageCount={pages.length} />
+      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+        <ul
+          key={`done-${pageIndex}`}
+          className={scheduleSlideListClass(visible.length)}
+        >
+          {visible.map((m) => (
+            <li key={`${m.kind}-${m.id}`} className="min-h-0">
+              <DisplayScheduleMatchCard
+                match={m}
+                gamesScoreMode={gamesScoreMode}
+                {...slideCardProps(visible.length)}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function AltViewBoard({
+  sections,
+  gamesScoreMode,
+  hideCourt = false,
+}: {
+  sections: Array<{ key: string; label: string; matches: ScheduleMatchRow[] }>;
+  gamesScoreMode: boolean;
+  hideCourt?: boolean;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden sm:gap-3">
+      {sections.map((section) => (
+        <AltViewSection
+          key={section.key}
+          label={section.label}
+          matches={section.matches}
+          gamesScoreMode={gamesScoreMode}
+          hideCourt={hideCourt}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AltViewSection({
+  label,
+  matches,
+  gamesScoreMode,
+  hideCourt = false,
+}: {
+  label: string;
+  matches: ScheduleMatchRow[];
+  gamesScoreMode: boolean;
+  hideCourt?: boolean;
+}) {
+  const pages = useMemo(() => chunkSchedulePages(matches), [matches]);
+  const pageIndex = useBucketPageIndex(pages.length, `${label}-${matches.length}`);
+  const visible = pages[pageIndex] ?? [];
+
+  return (
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-white/60 sm:text-sm">
+          {label}
+          <span className="ml-2 font-normal text-white/35">{matches.length}</span>
+        </h2>
+        {pages.length > 1 ? (
+          <PageDots pageIndex={pageIndex} pageCount={pages.length} />
+        ) : null}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+        <ul
+          key={`${label}-${pageIndex}`}
+          className={scheduleSlideListClass(visible.length)}
+        >
+          {visible.map((m) => (
+            <li key={`${m.kind}-${m.id}`} className="min-h-0">
+              <DisplayScheduleMatchCard
+                match={m}
+                gamesScoreMode={gamesScoreMode}
+                hideCourt={hideCourt}
+                {...slideCardProps(visible.length)}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function BucketHeader({
+  bucket,
+  theme,
+  pageIndex,
+  pageCount,
+}: {
+  bucket: OrderOfPlayBucket;
+  theme: (typeof BUCKET_THEME)[OrderOfPlayBucket["key"]];
+  pageIndex: number;
+  pageCount: number;
+}) {
+  return (
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2 sm:px-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn("size-2.5 shrink-0 rounded-full", theme.dot)} aria-hidden />
+        <h2 className={cn("text-xs font-bold uppercase tracking-wider sm:text-sm", theme.header)}>
+          {bucket.label}
+        </h2>
+        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white/70">
+          {bucket.matches.length}
+        </span>
+        {pageCount > 1 ? (
+          <span className="text-[10px] font-medium text-white/35 sm:text-[11px]">
+            · {pageIndex + 1}/{pageCount}
+          </span>
+        ) : null}
+      </div>
+      {pageCount > 1 ? <PageDots pageIndex={pageIndex} pageCount={pageCount} /> : null}
+    </div>
+  );
+}
+
+function PageDots({ pageIndex, pageCount }: { pageIndex: number; pageCount: number }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1" aria-hidden>
+      {Array.from({ length: pageCount }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "h-1.5 rounded-full transition-all duration-500",
+            i === pageIndex ? "w-4 bg-white/70" : "w-1.5 bg-white/20",
+          )}
+        />
+      ))}
+    </div>
   );
 }

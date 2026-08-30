@@ -688,9 +688,9 @@ Partner memakai **stack display Gud Game yang sama** (`TournamentDisplayClient`,
 
 **URL pin (no auto-slide):** Query `?layout=<preset>` **selalu menang** atas Auto-play slideshow — TV tetap di layout itu. Auto-rotate hanya berlaku pada URL display utama tanpa `layout=`.
 
-**Match schedule TV:** Layout `match_schedule` fullscreen Order of Play / By day / By court (`display-match-schedule-slide.tsx`). Copy URL: `…/display?layout=match_schedule`.
+**Match schedule TV:** Layout `match_schedule` fullscreen Order of Play / By day / By court (`display-match-schedule-slide.tsx`). Copy URL: `…/display?layout=match_schedule`. Layout **3 kolom equal-width penuh** (Now · Next · Later). Tiap kolom **auto-slide 5 match/halaman** (~12s) bila fixture > 5; indikator `1/N` + dots. Kartu **carousel** (5-up): meta + court di header, tim + roster inline; kartu **comfortable** bila <5 fixture (Now/Next). Done strip carousel sama. Helper: `match-schedule-display.ts`.
 
-**Group stage preset:** Dapat di-save (VALID_LAYOUTS mencakup `group_stage`). Board menampilkan **pool standings per group** (tabel klasemen + baris match live di bawah tiap pool) — bukan multi-court grid. Public Live Score tab group stage juga menampilkan `DoubleStageGroupsTab` (klasemen pool) di atas daftar match round. Komponen: `display-group-stage-slide.tsx`, `public-multi-court-live-score.tsx`.
+**Group stage preset:** Dapat di-save (VALID_LAYOUTS mencakup `group_stage`). Board menampilkan **pool standings per group** dalam carousel TV: **4 pool per slide** (grid 2×2), auto-rotate ~12s bila pool > 4, semua tim per pool tampil lengkap (sinkron dengan tab Groups publik). Tabel TV tanpa avatar (`displayMode`). Tab **Groups** publik & manage: avatar player **disembunyikan di mobile** (`sm+` tetap tampil) agar nama tim/roster tidak terpotong. Komponen: `display-group-stage-slide.tsx`, `group-stage-display.ts`, `double-stage-standings-table.tsx`, `double-stage-groups-tab.tsx`.
 
 **Court footer label:** Kartu featured menampilkan label court nyata lewat `resolveFeaturedCourtLabel` / `resolveCourtLabel` + sanitizer `isPlausibleCourtLabel` (menolak string status seperti `"Event · Live"`). Subtitle TV hanya konteks turnamen — Court selalu di footer.
 

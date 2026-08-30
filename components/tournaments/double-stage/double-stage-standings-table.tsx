@@ -9,6 +9,8 @@ type DoubleStageStandingsTableProps = {
   group: GroupOverview;
   showQualification?: boolean;
   compact?: boolean;
+  /** Venue TV: text-only team + player names (no profile avatars). */
+  displayMode?: boolean;
   /**
    * diff = +/- points; games = race-to-N games W–L; sets = classic ITF/FIP sets W–L
    * (games column also shown when sets + gamesFor available).
@@ -93,10 +95,16 @@ const thStat =
 const tdStat =
   "px-1.5 py-2 text-center tabular-nums whitespace-nowrap sm:px-2";
 
+const thStatDisplay =
+  "px-1 py-1.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white/45 sm:px-1.5 sm:text-[10px]";
+const tdStatDisplay =
+  "px-1 py-1.5 text-center tabular-nums whitespace-nowrap text-white/90 sm:px-1.5 sm:text-xs";
+
 export function DoubleStageStandingsTable({
   group,
   showQualification = false,
   compact = false,
+  displayMode = false,
   scoreDisplay = "diff",
   showLegend = false,
   showGameWinPct = false,
@@ -111,64 +119,94 @@ export function DoubleStageStandingsTable({
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-cp-border">
+      <div
+        className={cn(
+          "overflow-hidden rounded-lg border",
+          displayMode ? "border-white/10 bg-black/20" : "overflow-x-auto border-cp-border",
+        )}
+      >
         <table
           className={cn(
-            "w-full table-fixed text-sm",
-            showSets ? "min-w-[30rem]" : showGameWinPct ? "min-w-[28rem]" : "min-w-[26rem]",
+            "w-full text-sm",
+            displayMode ? "table-auto" : "table-fixed",
+            !displayMode &&
+              (showSets ? "min-w-[30rem]" : showGameWinPct ? "min-w-[28rem]" : "min-w-[26rem]"),
             compact && "text-xs",
+            displayMode && "text-[11px] sm:text-xs",
           )}
         >
-          <colgroup>
-            <col className="w-8" />
-            <col />
-            <col className="w-9" />
-            <col className="w-9" />
-            <col className="w-9" />
-            <col className="w-12" />
-            {showGameWinPct ? <col className="w-[3.25rem]" /> : null}
-            <col className="w-[3.25rem]" />
-            {showSets ? <col className="w-[3.25rem]" /> : null}
-            <col className="w-11" />
-          </colgroup>
+          {!displayMode ? (
+            <colgroup>
+              <col className="w-8" />
+              <col />
+              <col className="w-9" />
+              <col className="w-9" />
+              <col className="w-9" />
+              <col className="w-12" />
+              {showGameWinPct ? <col className="w-[3.25rem]" /> : null}
+              <col className="w-[3.25rem]" />
+              {showSets ? <col className="w-[3.25rem]" /> : null}
+              <col className="w-11" />
+            </colgroup>
+          ) : null}
           <thead>
-            <tr className="border-b border-cp-border bg-cp-elevated/40">
-              <th className={cn(thStat, "w-8 text-left")}>#</th>
-              <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:px-3 sm:text-xs">
+            <tr
+              className={cn(
+                "border-b",
+                displayMode
+                  ? "border-white/10 bg-white/[0.06]"
+                  : "border-cp-border bg-cp-elevated/40",
+              )}
+            >
+              <th
+                className={cn(
+                  displayMode ? thStatDisplay : thStat,
+                  "w-8 text-left",
+                )}
+              >
+                #
+              </th>
+              <th
+                className={cn(
+                  displayMode
+                    ? "px-2 py-1.5 text-left text-[9px] font-semibold uppercase tracking-wide text-white/45 sm:px-2.5 sm:text-[10px]"
+                    : "px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-cp-muted sm:px-3 sm:text-xs",
+                )}
+              >
                 Team
               </th>
-              <th className={thStat} title="Games played (matches)">
+              <th className={displayMode ? thStatDisplay : thStat} title="Games played (matches)">
                 G
               </th>
-              <th className={thStat} title="Wins">
+              <th className={displayMode ? thStatDisplay : thStat} title="Wins">
                 W
               </th>
-              <th className={thStat} title="Losses">
+              <th className={displayMode ? thStatDisplay : thStat} title="Losses">
                 L
               </th>
               <th
-                className={thStat}
+                className={displayMode ? thStatDisplay : thStat}
                 title="Match win rate (%) = wins ÷ matches played"
               >
                 WR
               </th>
               {showGameWinPct ? (
                 <th
-                  className={thStat}
+                  className={displayMode ? thStatDisplay : thStat}
                   title="Game win % = games won ÷ (games won + games lost)"
                 >
                   GW%
                 </th>
               ) : null}
-              <th className={thStat} title={scoreTitle}>
+              <th className={displayMode ? thStatDisplay : thStat} title={scoreTitle}>
                 {showSets ? "SET" : "S"}
               </th>
               {showSets ? (
-                <th className={thStat} title="Games won – lost">
+                <th className={displayMode ? thStatDisplay : thStat} title="Games won – lost">
                   GM
                 </th>
               ) : null}
-              <th className={thStat} title="Standings points">
+              <th className={displayMode ? thStatDisplay : thStat} title="Standings points">
                 PTS
               </th>
             </tr>
@@ -177,30 +215,70 @@ export function DoubleStageStandingsTable({
             {group.standings.map((row) => (
               <tr
                 key={row.teamId}
-                className="border-b border-cp-border/50 last:border-0 even:bg-cp-elevated/15"
+                className={cn(
+                  "border-b last:border-0",
+                  displayMode
+                    ? "border-white/[0.06] even:bg-white/[0.03]"
+                    : "border-cp-border/50 even:bg-cp-elevated/15",
+                )}
               >
-                <td className={cn(tdStat, "text-left font-medium")}>{row.rank}</td>
-                <td className="min-w-0 px-2 py-2 sm:px-3">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <TeamAvatarStack
-                      members={row.players.map((p) => ({
-                        name: p.displayName,
-                        image: p.image,
-                      }))}
-                      max={3}
-                      className="mt-0.5"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground" title={row.teamName}>
+                <td
+                  className={cn(
+                    displayMode ? tdStatDisplay : tdStat,
+                    "text-left font-medium",
+                  )}
+                >
+                  {row.rank}
+                </td>
+                <td className={cn("min-w-0 py-1.5", displayMode ? "px-2 sm:px-2.5" : "px-2 sm:px-3")}>
+                  <div className={cn("min-w-0", !displayMode && "flex items-start gap-2")}>
+                    {!displayMode ? (
+                      <TeamAvatarStack
+                        members={row.players.map((p) => ({
+                          name: p.displayName,
+                          image: p.image,
+                        }))}
+                        max={3}
+                        className="mt-0.5 hidden shrink-0 sm:flex"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          "font-semibold leading-tight",
+                          displayMode
+                            ? "text-[11px] text-white sm:text-xs"
+                            : "break-words font-medium text-foreground sm:truncate",
+                        )}
+                        title={row.teamName}
+                      >
                         {row.teamName}
                       </p>
                       {row.players.length > 0 ? (
-                        <TeamPlayerList
-                          names={row.players}
-                          maxNames={4}
-                          compact={compact}
-                          variant="avatar"
-                        />
+                        displayMode ? (
+                          <p
+                            className="mt-0.5 text-[9px] leading-snug text-white/50 sm:text-[10px]"
+                            title={row.players.map((p) => p.displayName).join(", ")}
+                          >
+                            {row.players.map((p) => p.displayName).join(" · ")}
+                          </p>
+                        ) : (
+                          <>
+                            <p
+                              className="mt-0.5 break-words text-[10px] leading-snug text-cp-muted sm:hidden"
+                              title={row.players.map((p) => p.displayName).join(", ")}
+                            >
+                              {row.players.map((p) => p.displayName).join(" · ")}
+                            </p>
+                            <TeamPlayerList
+                              names={row.players}
+                              maxNames={4}
+                              compact={compact}
+                              variant="avatar"
+                              className="hidden sm:block"
+                            />
+                          </>
+                        )
                       ) : null}
                       {showQualification && row.qualificationStatus !== "pending" ? (
                         <Badge
@@ -226,22 +304,22 @@ export function DoubleStageStandingsTable({
                     </div>
                   </div>
                 </td>
-                <td className={tdStat}>{row.played}</td>
-                <td className={tdStat}>{row.wins}</td>
-                <td className={tdStat}>{row.losses}</td>
-                <td className={cn(tdStat, "text-cp-muted")}>
+                <td className={displayMode ? tdStatDisplay : tdStat}>{row.played}</td>
+                <td className={displayMode ? tdStatDisplay : tdStat}>{row.wins}</td>
+                <td className={displayMode ? tdStatDisplay : tdStat}>{row.losses}</td>
+                <td className={cn(displayMode ? tdStatDisplay : tdStat, !displayMode && "text-cp-muted")}>
                   {row.winRate}
                   <span className="text-[9px] opacity-70">%</span>
                 </td>
                 {showGameWinPct ? (
-                  <td className={cn(tdStat, "text-[11px] font-medium sm:text-sm")}>
+                  <td className={cn(displayMode ? tdStatDisplay : tdStat, !displayMode && "text-[11px] font-medium sm:text-sm")}>
                     {typeof row.gameWinPct === "number"
                       ? row.gameWinPct.toFixed(2)
                       : "0.00"}
                     <span className="text-[9px] opacity-70">%</span>
                   </td>
                 ) : null}
-                <td className={cn(tdStat, "text-[11px] sm:text-sm")}>
+                <td className={cn(displayMode ? tdStatDisplay : tdStat, !displayMode && "text-[11px] sm:text-sm")}>
                   {showSets
                     ? `${row.setsFor}–${row.setsAgainst}`
                     : showGames
@@ -249,11 +327,11 @@ export function DoubleStageStandingsTable({
                       : row.scoreDiff}
                 </td>
                 {showSets ? (
-                  <td className={cn(tdStat, "text-[11px] sm:text-sm")}>
+                  <td className={cn(displayMode ? tdStatDisplay : tdStat, !displayMode && "text-[11px] sm:text-sm")}>
                     {row.gamesFor}–{row.gamesAgainst}
                   </td>
                 ) : null}
-                <td className={cn(tdStat, "font-semibold")}>{row.points}</td>
+                <td className={cn(displayMode ? tdStatDisplay : tdStat, "font-semibold")}>{row.points}</td>
               </tr>
             ))}
           </tbody>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { uniquePlayerNames } from "@/lib/format/player-names";
@@ -26,6 +27,8 @@ export type TeamPlayerListProps = {
   variant?: "icon" | "avatar";
   /** Venue TV / dark surfaces. */
   tone?: "default" | "display";
+  /** `stack` — one player per row (public Matches tab). `inline` — compact row for TV carousels. */
+  layout?: "stack" | "inline";
 };
 
 function resolveEntries(
@@ -79,6 +82,7 @@ export function TeamPlayerList({
   compact = false,
   variant = "icon",
   tone = "default",
+  layout = "stack",
 }: TeamPlayerListProps) {
   const list = resolveEntries(names);
   if (!list.length) return null;
@@ -86,6 +90,75 @@ export function TeamPlayerList({
   const hidden = list.length - visible.length;
   const isDisplay = tone === "display";
   const useAvatar = variant === "avatar";
+  const isInline = layout === "inline";
+
+  const textClass = isDisplay
+    ? compact
+      ? "text-[9px] text-white/55 sm:text-[10px]"
+      : isInline
+        ? "text-[10px] text-white/55 sm:text-[11px]"
+        : "text-[11px] text-white/60 sm:text-xs"
+    : compact
+      ? "text-[9px] text-cp-muted sm:text-[10px]"
+      : "text-[10px] text-cp-muted sm:text-[11px]";
+
+  if (isInline) {
+    return (
+      <p
+        className={cn(
+          "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-snug",
+          align === "right" && "justify-end",
+          textClass,
+          className,
+        )}
+        title={list.map((p) => p.name).join(", ")}
+      >
+        {visible.map((player, index) => (
+          <Fragment key={player.name}>
+            {index > 0 ? (
+              <span className={isDisplay ? "text-white/20" : "text-cp-muted/40"} aria-hidden>
+                ·
+              </span>
+            ) : null}
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+              {useAvatar ? (
+                <Avatar
+                  size="sm"
+                  className={cn(
+                    "shrink-0 after:border-white/15",
+                    compact ? "!size-3.5" : "!size-4",
+                    isDisplay && "ring-1 ring-white/20",
+                  )}
+                >
+                  {player.image ? <AvatarImage src={player.image} alt="" /> : null}
+                  <AvatarFallback
+                    className={cn(
+                      "text-[7px] font-semibold",
+                      isDisplay ? "bg-white/15 text-white/80" : "bg-cp-elevated text-cp-muted",
+                    )}
+                  >
+                    {initials(player.name)}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <User
+                  className={cn(
+                    "size-2 shrink-0 opacity-70",
+                    isDisplay && "text-white/40",
+                  )}
+                  aria-hidden
+                />
+              )}
+              <span className="min-w-0 break-words">{player.name}</span>
+            </span>
+          </Fragment>
+        ))}
+        {hidden > 0 ? (
+          <span className={isDisplay ? "text-white/40" : "text-cp-muted/80"}>+{hidden}</span>
+        ) : null}
+      </p>
+    );
+  }
 
   return (
     <ul
@@ -102,13 +175,7 @@ export function TeamPlayerList({
           className={cn(
             "flex min-w-0 items-center gap-1.5",
             align === "right" && "justify-end",
-            isDisplay
-              ? compact
-                ? "text-[9px] text-white/55 sm:text-[10px]"
-                : "text-[11px] text-white/60 sm:text-xs"
-              : compact
-                ? "text-[9px] text-cp-muted sm:text-[10px]"
-                : "text-[10px] text-cp-muted sm:text-[11px]",
+            textClass,
           )}
         >
           {useAvatar ? (
@@ -145,7 +212,14 @@ export function TeamPlayerList({
               aria-hidden
             />
           )}
-          <span className="truncate">{player.name}</span>
+          <span
+            className={cn(
+              "min-w-0 break-words leading-snug",
+              isDisplay ? "text-white/60" : "truncate",
+            )}
+          >
+            {player.name}
+          </span>
         </li>
       ))}
       {hidden > 0 ? (
