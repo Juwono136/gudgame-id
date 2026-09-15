@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRESQL_USERNAME:-zaka_user}
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRESQL_DATABASE:-tanding_db}
+      POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
       - gudgame_postgres_data:/var/lib/postgresql/data
     ports:

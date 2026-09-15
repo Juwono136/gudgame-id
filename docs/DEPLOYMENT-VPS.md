@@ -24,7 +24,7 @@ each other by Compose **service name** (and so cloudflared can reach them).
 **App connection strings (inside Docker):**
 
 ```text
-DATABASE_URL=postgres://USER:PASS@postgres:5432/tanding_db
+DATABASE_URL=postgres://USER:PASS@postgres:5432/gudgame_db
 REDIS_URL=redis://:PASS@redis:6379
 STORAGE_ENDPOINT=http://storage_gateway:8333
 NEXT_PUBLIC_APP_URL=https://gudgame.id
@@ -117,7 +117,7 @@ Keep values **identical** to `.env.production` / server env.
 | `TUNNEL_NAME` | Default `tunnel` |
 | `POSTGRESQL_USERNAME` | `gudgame-postgres` |
 | `POSTGRESQL_PASSWORD` | `gudgame-postgres` |
-| `POSTGRESQL_DATABASE` | e.g. `tanding_db` |
+| `POSTGRESQL_DATABASE` | e.g. `gudgame_db` |
 | `REDIS_PASSWORD` | `gudgame-redis` |
 | `PGADMIN_EMAIL` / `PGADMIN_PASSWORD` | `gudgame-pgadmin` |
 | `DOCKER_USERNAME` / `DOCKER_PASSWORD` | Image pull/push |
