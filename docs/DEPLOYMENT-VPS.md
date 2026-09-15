@@ -19,7 +19,7 @@ each other by Compose **service name** (and so cloudflared can reach them).
 | `storage_gateway` | `storage_gateway` | nginx basic-auth gateway | `127.0.0.1:8333`, `9333` |
 | `app` | `gudgame-app` | Next.js app | `3000` |
 | `payout-cron` | `gudgame-payout-cron` | Cron → `/api/cron/*` | *(none)* |
-| `db-migrate` | *(ephemeral)* | Drizzle migrate / seed | profile `migrate` |
+| `db-migrate` | *(ephemeral)* | `npm run db:migrate:prod` (SQL migrator) | profile `migrate` |
 
 **App connection strings (inside Docker):**
 
@@ -65,11 +65,28 @@ SeaweedFS is **not** exposed on the public internet. Uploads go through
    ```bash
    docker compose up -d
    docker compose --profile migrate run --rm db-migrate
+   # runs: npm run db:migrate:prod → scripts/run-db-migrate.ts
+   # (applies SQL under db/migrations — do NOT use drizzle-kit push in CI)
    ```
 
 7. Attach **cloudflared** to network `tunnel` and route:
    - `gudgame.id` → `http://app:3000` (or `http://gudgame-app:3000`)
    - `storage.gudgame.id` → `http://storage_gateway:8333`
+
+## Database migrations (CI)
+
+Deploy runs **`npm run db:migrate:prod`** inside the `migrator` image (Compose service
+`db-migrate`). That script:
+
+1. Validates `DATABASE_URL` (rejects `localhost` inside Docker)
+2. Probes Postgres connectivity with a clear error
+3. Applies committed SQL under `db/migrations/` (or baselines a legacy push-created schema)
+
+**Do not** use `drizzle-kit push` in CI — it often fails mid-“Pulling schema…” with little
+output and is unsafe for production deploys.
+
+`DATABASE_URL` must use Docker DNS, e.g.
+`postgres://USER:PASS@postgres:5432/gudgame_db`.
 
 ## CI/CD (`.github/workflows/cicd.yml`)
 
@@ -165,6 +182,7 @@ docker compose up -d --no-deps app payout-cron
 | Symptom | Check |
 | --- | --- |
 | App cannot reach DB | `DATABASE_URL` host must be `postgres`; both on `tunnel` |
+| Migrate fails at “Pulling schema…” | Old `drizzle-kit push` path — redeploy with `db:migrate:prod`; check secret host is `postgres` and DB is `gudgame_db` |
 | Redis auth errors | `REDIS_URL` password = `REDIS_PASSWORD` |
 | Upload 401 | Regenerate `.htpasswd`; secrets match `USERNAME_STORAGE` / `PASSWORD_STORAGE` |
 | `network tunnel not found` | `docker network create tunnel` |

@@ -166,6 +166,7 @@ async function verifyCriticalTables(client: postgres.Sql): Promise<void> {
 
 async function main(): Promise<void> {
   const databaseUrl = requireDatabaseUrl();
+  console.log(`[db-migrate] Target: ${maskDatabaseUrl(databaseUrl)}`);
   const client = await assertDatabaseReachable(databaseUrl);
 
   try {
@@ -182,14 +183,20 @@ async function main(): Promise<void> {
       getAppliedMigrationCount(client),
     ]);
 
+    console.log(
+      `[db-migrate] Schema state: appTables=${appTablesExist} appliedMigrations=${appliedCount}`,
+    );
+
     if (appTablesExist && appliedCount === 0) {
       await baselineExistingSchema(client);
+      await verifyCriticalTables(client);
+      console.log("[db-migrate] Baseline path complete.");
       return;
     }
 
     await ensureMigrationPrerequisites(client);
 
-    console.log("[db-migrate] Applying pending migrations...");
+    console.log("[db-migrate] Applying pending migrations from db/migrations …");
     const db = drizzle(client);
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     await verifyCriticalTables(client);

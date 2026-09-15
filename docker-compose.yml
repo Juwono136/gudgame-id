@@ -282,7 +282,8 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # One-off: apply SQL migrations (same as npm run db:migrate:prod).
+  # One-off: apply SQL migrations via scripts/run-db-migrate.ts (NOT drizzle-kit push).
+  # Push hides failures in CI; migrate:prod validates connectivity and applies db/migrations.
   # docker compose --profile migrate run --rm db-migrate
   db-migrate:
     profiles: ["migrate"]
@@ -309,7 +310,7 @@ services:
       DEPLOY_QA_FIXTURE_PURGE: ${DEPLOY_QA_FIXTURE_PURGE:-}
     networks:
       - tunnel
-    command: ["npx", "drizzle-kit", "push", "--config", "drizzle.config.ts", "--force"]
+    command: ["npm", "run", "db:migrate:prod"]
 
 networks:
   tunnel:

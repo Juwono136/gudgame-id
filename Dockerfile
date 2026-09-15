@@ -53,12 +53,18 @@ ENV BETTER_AUTH_URL=${BETTER_AUTH_URL}
 
 RUN npm run build
 
-# Migration-only image: full source + deps (drizzle-kit). Not used at runtime.
-FROM deps AS migrator
+# Migration-only image: full source + ALL deps (drizzle-kit, tsx).
+# Always npm ci without omitting devDependencies — required for CI migrate/seed.
+FROM base AS migrator
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
+COPY package.json package-lock.json ./
+# Force full install even if build host exports NODE_ENV=production
+RUN npm ci --include=dev
 COPY . .
 ENV NODE_ENV=development
-CMD ["npx", "drizzle-kit", "migrate", "--config", "drizzle.config.ts"]
+ENV DB_SCRIPT_MODE=true
+CMD ["npm", "run", "db:migrate:prod"]
 
 FROM base AS runner
 WORKDIR /app

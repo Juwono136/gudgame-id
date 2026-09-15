@@ -110,10 +110,32 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
       - name: Run DB migration
-        run: docker compose --profile migrate run --rm db-migrate
+        run: |
+          set -euo pipefail
+          echo "Migrating with npm run db:migrate:prod (SQL migrations, not drizzle-kit push)"
+          # Masked connectivity hint (never print full DATABASE_URL)
+          echo "DATABASE_URL host check:"
+          node -e "
+            const u = process.env.DATABASE_URL || '';
+            try {
+              const p = new URL(u);
+              console.log('  protocol=' + p.protocol + ' host=' + p.hostname + ' port=' + (p.port||'5432') + ' db=' + p.pathname);
+            } catch (e) {
+              console.error('  INVALID DATABASE_URL');
+              process.exit(1);
+            }
+            if (/localhost|127\\.0\\.0\\.1/i.test(u)) {
+              console.error('  Refusing localhost DATABASE_URL inside Docker — use hostname postgres');
+              process.exit(1);
+            }
+          "
+          docker compose --profile migrate run --rm \
+            -e DB_SCRIPT_MODE=true \
+            db-migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DB_SCRIPT_MODE: "true"
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
           POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
