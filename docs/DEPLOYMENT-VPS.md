@@ -12,9 +12,9 @@ each other by Compose **service name** (and so cloudflared can reach them).
 
 | Service (Compose) | Container name | Role | Host ports (localhost only) |
 | --- | --- | --- | --- |
-| `postgres` | `gudgame-postgres` | PostgreSQL **17** | `127.0.0.1:5432` |
+| `postgres` | `gudgame-postgres` | PostgreSQL **18** | `127.0.0.1:5432` |
 | `redis` | `gudgame-redis` | Redis 7 (AOF + password) | `127.0.0.1:6379` |
-| `pgadmin` | `gudgame-pgadmin` | pgAdmin **9** (manages PG17) | `127.0.0.1:5050` |
+| `pgadmin` | `gudgame-pgadmin` | pgAdmin **9** (manages PG18) | `127.0.0.1:5050` |
 | `seaweedfs` | `seaweed_core` | SeaweedFS master+volume+filer | *(none — internal)* |
 | `storage_gateway` | `storage_gateway` | nginx basic-auth gateway | `127.0.0.1:8333`, `9333` |
 | `app` | `gudgame-app` | Next.js app | `3000` |
@@ -213,33 +213,44 @@ docker compose up -d --no-deps app payout-cron
 | `network tunnel not found` | `docker network create tunnel` |
 | Health 503 | `docker logs gudgame-app`; Postgres/Redis healthy? |
 | pgAdmin blank servers | Open UI at `127.0.0.1:5050`, password = `PGADMIN_PASSWORD`; host `postgres` |
-| `postgres` unhealthy after switching to `:17-alpine` | **Major-version volume mismatch.** PG17 cannot open a data dir created by PG15/16 (`database files are incompatible with server`). Compose now uses volume **`gudgame_postgres17_data`** (fresh). Old `gudgame_postgres_data` is left unused. To copy data: `./ops/postgres/upgrade-data-to-17.sh` then `docker compose up -d postgres`. |
+| `postgres` unhealthy after switching major version | **Volume mismatch.** New majors cannot open older data dirs. Compose uses **`gudgame_postgres18_data`**. |
+| `pg_restore` many DROP/CREATE/COPY errors | Restoring **into a DB that already has migrate schema**. Wipe DB first — see restore section below. Do **not** use `--clean` on a half-migrated target. |
 
-## PostgreSQL 17 + pgAdmin
+## PostgreSQL 18 + pgAdmin + backup restore
 
 | Image | Tag | Notes |
 | --- | --- | --- |
-| `postgres` | `postgres:17-alpine` | Data volume: `gudgame_postgres17_data` |
-| `pgadmin` | `dpage/pgadmin4:9` | Product major is **9**, not 17 — there is no official `pgadmin:17`. pgAdmin 9 manages PostgreSQL 17 servers. |
+| `postgres` | `postgres:18-alpine` | Volume: `gudgame_postgres18_data` |
+| `pgadmin` | `dpage/pgadmin4:9` | Product major is **9** (not “18”) |
 
-**Do not** only change the image tag while reusing a PG15/16 Docker volume — the container will crash-loop and Compose will report `dependency postgres failed to start` / unhealthy.
+Production custom dumps (e.g. `gudgame_db-backup`) are typically made with **pg_dump 18** (even if the original DB name was `tanding_db`). Restore them only into **PostgreSQL 18+**.
 
-Fresh install / acceptable to re-migrate schema: deploy as-is (new volume → empty cluster → `db:migrate:prod`).
-
-Preserve existing rows from the old volume:
+### Restore custom dump (correct procedure)
 
 ```bash
-export POSTGRESQL_USERNAME=… POSTGRESQL_PASSWORD=…
-chmod +x ops/postgres/upgrade-data-to-17.sh
-./ops/postgres/upgrade-data-to-17.sh
-docker compose up -d postgres
+export POSTGRESQL_USERNAME=… POSTGRESQL_PASSWORD=… POSTGRESQL_DATABASE=gudgame_db
+chmod +x ops/postgres/restore-custom-dump.sh
+
+# On VPS (postgres service running):
+./ops/postgres/restore-custom-dump.sh /path/to/gudgame_db-backup
+
+# Or from your laptop against localhost:5432:
+RESTORE_MODE=local ./ops/postgres/restore-custom-dump.sh ~/Downloads/gudgame_db-backup
+```
+
+The script **DROP + CREATE**s `gudgame_db`, then `pg_restore` **without** `--clean`.
+
+After restore, run migrate only for any *new* SQL not already recorded in the dump’s `drizzle.__drizzle_migrations`:
+
+```bash
 docker compose --profile migrate run --rm db-migrate
+docker compose up -d --no-deps app
 ```
 
 ## Related
 
 - Compose: `docker-compose.yml`
 - Workflow: `.github/workflows/cicd.yml`
-- Postgres upgrade: `ops/postgres/upgrade-data-to-17.sh`
+- Restore dump: `ops/postgres/restore-custom-dump.sh`
 - Env template: `.env.example` / `.env.production`
 - Tournament / product docs: `docs/tournament-guide.md`, `docs/partner-auth.md`

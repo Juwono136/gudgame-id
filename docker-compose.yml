@@ -13,12 +13,12 @@ services:
   # ---------------------------------------------------------------------------
   # Data stores
   # ---------------------------------------------------------------------------
-  # PostgreSQL 17 — volume MUST be PG17-compatible.
-  # Do NOT reuse a PG15/16 named volume with this image (server exits → unhealthy).
-  # Fresh volume: gudgame_postgres17_data. To keep old data, run:
-  #   ./ops/postgres/upgrade-data-to-17.sh
+  # PostgreSQL 18 — matches production dumps (pg_dump 18.x custom format).
+  # Do NOT reuse a PG15/16/17 named volume with this image (server exits → unhealthy).
+  # Fresh volume: gudgame_postgres18_data.
+  # Restore a .backup into an EMPTY database only — see ops/postgres/restore-custom-dump.sh
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: gudgame-postgres
     restart: unless-stopped
     environment:
@@ -26,7 +26,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
-      - gudgame_postgres17_data:/var/lib/postgresql/data
+      - gudgame_postgres18_data:/var/lib/postgresql/data
     ports:
       # Localhost-only for emergency admin; app uses hostname `postgres` on `tunnel`
       - "127.0.0.1:5432:5432"
@@ -323,8 +323,8 @@ networks:
     external: true
 
 volumes:
-  # PG17-only. Legacy `gudgame_postgres_data` (PG15/16) is left unused on purpose.
-  gudgame_postgres17_data:
+  # PG18-only. Legacy gudgame_postgres_data / gudgame_postgres17_data left unused.
+  gudgame_postgres18_data:
   gudgame_redis_data:
   gudgame_pgadmin_data:
   seaweed_master_data:
