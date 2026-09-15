@@ -2,152 +2,32 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1781089155008,
-      "tag": "0000_confused_madelyne_pryor",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1781589184756,
-      "tag": "0001_perpetual_silver_centurion",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1781700000000,
-      "tag": "0002_host_bank_payout",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1781800000000,
-      "tag": "0003_host_bank_accounts",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1782000000000,
-      "tag": "0004_tournament_uuid_domain",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1782100000000,
-      "tag": "0005_platform_uuid_domain",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1782200000000,
-      "tag": "0006_host_payout_disbursements",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1782300000000,
-      "tag": "0007_wiki_scrape_hosts",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1782400000000,
-      "tag": "0008_tournament_tier_overhaul",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1782500000000,
-      "tag": "0013_invite_code_plaintext",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1782600000000,
-      "tag": "0014_partner_white_label",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1782700000000,
-      "tag": "0015_score_revisions_order_of_play",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1782800000000,
-      "tag": "0016_partner_leagues",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1782900000000,
-      "tag": "0017_partner_guest_registration",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1783000000000,
-      "tag": "0018_partner_brand_icon",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1783100000000,
-      "tag": "0021_host_role_requests",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1783200000000,
-      "tag": "0022_host_role_request_timestamptz",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1783300000000,
-      "tag": "0023_revoke_orphan_approved_host_requests",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1783400000000,
-      "tag": "0024_official_pending_roster_claim",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "7",
-      "when": 1783500000000,
-      "tag": "0025_partner_player_auth",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1783600000000,
-      "tag": "0026_partner_google_auth",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "7", "when": 1781089155008, "tag": "0000_confused_madelyne_pryor", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1781589184756, "tag": "0001_perpetual_silver_centurion", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1781700000000, "tag": "0002_host_bank_payout", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1781800000000, "tag": "0003_host_bank_accounts", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1782000000000, "tag": "0004_tournament_uuid_domain", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1782100000000, "tag": "0005_platform_uuid_domain", "breakpoints": true },
+    { "idx": 6, "version": "7", "when": 1782200000000, "tag": "0006_host_payout_disbursements", "breakpoints": true },
+    { "idx": 7, "version": "7", "when": 1782300000000, "tag": "0007_wiki_scrape_hosts", "breakpoints": true },
+    { "idx": 8, "version": "7", "when": 1782400000000, "tag": "0008_tournament_tier_overhaul", "breakpoints": true },
+    { "idx": 9, "version": "7", "when": 1782410000000, "tag": "0009_user_sport_interest_slugs", "breakpoints": true },
+    { "idx": 10, "version": "7", "when": 1782420000000, "tag": "0010_user_gender", "breakpoints": true },
+    { "idx": 11, "version": "7", "when": 1782430000000, "tag": "0011_tournament_courts_scoring", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1782440000000, "tag": "0012_double_stage_groups", "breakpoints": true },
+    { "idx": 13, "version": "7", "when": 1782500000000, "tag": "0013_invite_code_plaintext", "breakpoints": true },
+    { "idx": 14, "version": "7", "when": 1782600000000, "tag": "0014_partner_white_label", "breakpoints": true },
+    { "idx": 15, "version": "7", "when": 1782700000000, "tag": "0015_score_revisions_order_of_play", "breakpoints": true },
+    { "idx": 16, "version": "7", "when": 1782800000000, "tag": "0016_partner_leagues", "breakpoints": true },
+    { "idx": 17, "version": "7", "when": 1782900000000, "tag": "0017_partner_guest_registration", "breakpoints": true },
+    { "idx": 18, "version": "7", "when": 1783000000000, "tag": "0018_partner_brand_icon", "breakpoints": true },
+    { "idx": 19, "version": "7", "when": 1783050000000, "tag": "0019_partner_league_tournament_link", "breakpoints": true },
+    { "idx": 20, "version": "7", "when": 1783080000000, "tag": "0020_partner_league_rich_text", "breakpoints": true },
+    { "idx": 21, "version": "7", "when": 1783100000000, "tag": "0021_host_role_requests", "breakpoints": true },
+    { "idx": 22, "version": "7", "when": 1783200000000, "tag": "0022_host_role_request_timestamptz", "breakpoints": true },
+    { "idx": 23, "version": "7", "when": 1783300000000, "tag": "0023_revoke_orphan_approved_host_requests", "breakpoints": true },
+    { "idx": 24, "version": "7", "when": 1783400000000, "tag": "0024_official_pending_roster_claim", "breakpoints": true },
+    { "idx": 25, "version": "7", "when": 1783500000000, "tag": "0025_partner_player_auth", "breakpoints": true },
+    { "idx": 26, "version": "7", "when": 1783600000000, "tag": "0026_partner_google_auth", "breakpoints": true }
   ]
 }

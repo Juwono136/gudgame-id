@@ -26,15 +26,28 @@ CREATE INDEX IF NOT EXISTS "match_score_revisions_match_idx"
 CREATE INDEX IF NOT EXISTS "match_score_revisions_tournament_idx"
   ON "match_score_revisions" ("tournament_id");
 
-ALTER TABLE "tournament_group_matches"
-  ADD COLUMN IF NOT EXISTS "play_order" integer,
-  ADD COLUMN IF NOT EXISTS "call_status" varchar(20) DEFAULT 'queued';
+-- Guard: only alter when parent tables exist (0011/0012 must run first).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'tournament_group_matches'
+  ) THEN
+    ALTER TABLE "tournament_group_matches"
+      ADD COLUMN IF NOT EXISTS "play_order" integer,
+      ADD COLUMN IF NOT EXISTS "call_status" varchar(20) DEFAULT 'queued';
+    CREATE INDEX IF NOT EXISTS "tournament_group_matches_play_order_idx"
+      ON "tournament_group_matches" ("tournament_id", "play_order");
+  END IF;
 
-ALTER TABLE "tournament_bracket_matches"
-  ADD COLUMN IF NOT EXISTS "play_order" integer,
-  ADD COLUMN IF NOT EXISTS "call_status" varchar(20) DEFAULT 'queued';
-
-CREATE INDEX IF NOT EXISTS "tournament_group_matches_play_order_idx"
-  ON "tournament_group_matches" ("tournament_id", "play_order");
-CREATE INDEX IF NOT EXISTS "tournament_bracket_matches_play_order_idx"
-  ON "tournament_bracket_matches" ("tournament_id", "play_order");
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'tournament_bracket_matches'
+  ) THEN
+    ALTER TABLE "tournament_bracket_matches"
+      ADD COLUMN IF NOT EXISTS "play_order" integer,
+      ADD COLUMN IF NOT EXISTS "call_status" varchar(20) DEFAULT 'queued';
+    CREATE INDEX IF NOT EXISTS "tournament_bracket_matches_play_order_idx"
+      ON "tournament_bracket_matches" ("tournament_id", "play_order");
+  END IF;
+END $$;
