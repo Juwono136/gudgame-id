@@ -1,3 +1,6 @@
+# Gud Game production image — Next.js standalone on Alpine.
+# Runtime networking: joins Docker network `tunnel` (see docker-compose.yml).
+# Speaks to postgres / redis / storage_gateway by Docker DNS service names.
 FROM node:20-alpine AS base
 
 FROM base AS deps
@@ -24,14 +27,14 @@ ENV REDIS_URL=${REDIS_URL}
 # Bake public URLs + Firebase client config into the bundle.
 ARG NEXT_PUBLIC_APP_URL=https://gudgame.id
 ARG NEXT_PUBLIC_SITE_URL=https://gudgame.id
-ARG NEXT_PUBLIC_STORAGE_URL=
+ARG NEXT_PUBLIC_STORAGE_URL=https://storage.gudgame.id
 ARG NEXT_PUBLIC_FIREBASE_API_KEY=
 ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 ARG NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 ARG NEXT_PUBLIC_FIREBASE_APP_ID=
-ARG BETTER_AUTH_URL=
+ARG BETTER_AUTH_URL=https://gudgame.id
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 ENV NEXT_PUBLIC_STORAGE_URL=${NEXT_PUBLIC_STORAGE_URL}
@@ -50,7 +53,7 @@ ENV BETTER_AUTH_URL=${BETTER_AUTH_URL}
 
 RUN npm run build
 
-# Migration-only image: full source + dev deps (drizzle-kit). Not used at runtime.
+# Migration-only image: full source + deps (drizzle-kit). Not used at runtime.
 FROM deps AS migrator
 WORKDIR /app
 COPY . .

@@ -69,24 +69,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Pull latest image
+      - name: Pull latest app image
         run: docker pull ${{ secrets.DOCKER_USERNAME }}/gudgame:latest
 
-      - name: Ensure Docker network exists
+      - name: Ensure Docker network `tunnel` exists
         env:
           TUNNEL_NAME: ${{ secrets.TUNNEL_NAME }}
         run: |
           NET="${TUNNEL_NAME:-tunnel}"
           docker network inspect "${NET}" >/dev/null 2>&1 || docker network create "${NET}"
+          echo "Using Docker network: ${NET}"
+
+      - name: Generate SeaweedFS nginx htpasswd
+        env:
+          USERNAME_STORAGE: ${{ secrets.USERNAME_STORAGE }}
+          PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
+        run: |
+          chmod +x ops/storage/generate-htpasswd.sh
+          ./ops/storage/generate-htpasswd.sh
+
+      # Start / refresh infra on empty or existing VPS (idempotent).
+      - name: Start infra (postgres, redis, seaweedfs, storage_gateway, pgadmin)
+        run: |
+          docker compose up -d postgres redis seaweedfs storage_gateway pgadmin
+          docker compose up -d --wait --wait-timeout 180 postgres redis
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
+          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
+          USERNAME_STORAGE: ${{ secrets.USERNAME_STORAGE }}
+          PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
 
       - name: Build DB migration image
         run: docker compose --profile migrate build --pull db-migrate
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
       - name: Run DB migration
         run: docker compose --profile migrate run --rm db-migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
 
       - name: Seed database (sports & defaults, idempotent)
         run: docker compose --profile migrate run --rm db-migrate npm run db:seed
@@ -94,12 +124,14 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           NODE_ENV: ${{ secrets.NODE_ENV }}
-          # Storage only needed when inserting new sport rows (first deploy)
           STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
           STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
           STORAGE_AUTH_MODE: ${{ secrets.STORAGE_AUTH_MODE }}
           USERNAME_STORAGE: ${{ secrets.USERNAME_STORAGE }}
           PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
 
       - name: Bootstrap super admin user (no email)
         run: |
@@ -112,11 +144,11 @@ jobs:
           BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
 
       # Never recreate dummy tournaments or test players on production.
-      # Idempotent: deletes only known seed slugs (`qa-free-*`, legacy `dev-*`
-      # fixture names) and `*@gudgame.local` accounts. Real user accounts
-      # and host-created events are not touched.
       - name: Purge Official FREE QA fixtures
         run: |
           set -euo pipefail
@@ -131,8 +163,11 @@ jobs:
           DB_SCRIPT_MODE: "true"
           NODE_ENV: ${{ secrets.NODE_ENV }}
           DEPLOY_QA_FIXTURE_PURGE: "true"
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
 
-      # Only recreate app + payout scheduler — never `docker compose down --remove-orphans`.
+      # Recreate app + payout scheduler only — infra stays up (--no-deps).
       - name: Deploy Gud Game app
         run: |
           docker compose pull app
@@ -149,9 +184,13 @@ jobs:
           LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
           STRICT_PRODUCTION_ENV: ${{ secrets.STRICT_PRODUCTION_ENV }}
 
-          # Database & cache
+          # Database & cache (Docker DNS: postgres / redis)
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
 
           # Auth
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
@@ -180,7 +219,7 @@ jobs:
           SMTP_REPLY_TO: ${{ secrets.SMTP_REPLY_TO }}
           SMTP_FROM_NAME: ${{ secrets.SMTP_FROM_NAME }}
 
-          # SeaweedFS
+          # SeaweedFS via storage_gateway
           STORAGE_ALLOW_LOCALHOST: ${{ secrets.STORAGE_ALLOW_LOCALHOST }}
           STORAGE_AUTH_MODE: ${{ secrets.STORAGE_AUTH_MODE }}
           STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
@@ -196,7 +235,7 @@ jobs:
           XENDIT_WEBHOOK_TOKEN: ${{ secrets.XENDIT_WEBHOOK_TOKEN }}
           XENDIT_XENPLATFORM_ENABLED: ${{ secrets.XENDIT_XENPLATFORM_ENABLED }}
 
-          # Google Maps Places API (New) + optional Embed API
+          # Google Maps
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           GOOGLE_MAPS_EMBED_API_ENABLED: ${{ secrets.GOOGLE_MAPS_EMBED_API_ENABLED }}
 
@@ -204,6 +243,10 @@ jobs:
           HEALTH_CHECK_TOKEN: ${{ secrets.HEALTH_CHECK_TOKEN }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           WIKI_SCRAPE_ALLOWED_HOSTS: ${{ secrets.WIKI_SCRAPE_ALLOWED_HOSTS }}
+
+          # Infra (compose interpolation for sibling services)
+          PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
+          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
 
       - name: Smoke test health endpoint
         env:
@@ -239,6 +282,14 @@ jobs:
             exit 1
           fi
           echo "payout-cron is running"
+
+      - name: Verify infra containers
+        run: |
+          for c in gudgame-postgres gudgame-redis seaweed_core storage_gateway gudgame-pgadmin gudgame-app; do
+            STATUS="$(docker inspect -f '{{.State.Status}}' "${c}" 2>/dev/null || echo missing)"
+            echo "${c}: ${STATUS}"
+            test "${STATUS}" = "running"
+          done
 
       - name: Cleanup dangling images
         run: docker image prune -f

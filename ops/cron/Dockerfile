@@ -1,5 +1,13 @@
-# Lightweight scheduler sidecar — curl + crond baked at build time (no runtime apk install).
+# Gud Game payout / timed-match scheduler sidecar.
+# Runs on Docker network `tunnel` and calls the app via Docker DNS:
+#   APP_INTERNAL_URL=http://app:3000
+# (service name `app` → container `gudgame-app`)
+#
+# Lightweight: curl + crond baked at build time (no runtime apk install).
 FROM alpine:3.20
+
+LABEL org.opencontainers.image.title="gudgame-payout-cron" \
+      org.opencontainers.image.description="Cron sidecar for Gud Game host payouts and timed matches"
 
 RUN apk add --no-cache curl tzdata
 

@@ -31,8 +31,8 @@ function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) {
     console.error(
-      "[db-migrate] DATABASE_URL is not set. For Docker on VPS use host.docker.internal, e.g.\n" +
-        "  postgresql://user:pass@host.docker.internal:5432/gudgame_db",
+      "[db-migrate] DATABASE_URL is not set. For Docker on VPS use the postgres service hostname, e.g.\n" +
+        "  postgresql://user:pass@postgres:5432/tanding_db",
     );
     process.exit(1);
   }
@@ -45,7 +45,7 @@ function requireDatabaseUrl(): string {
       url.includes("://localhost"))
   ) {
     console.error(
-      "[db-migrate] DATABASE_URL points to localhost inside a container — use host.docker.internal instead.\n" +
+      "[db-migrate] DATABASE_URL points to localhost inside a container — use Docker DNS hostname `postgres` instead.\n" +
         `  Current (masked): ${maskDatabaseUrl(url)}`,
     );
     process.exit(1);
@@ -70,7 +70,7 @@ async function assertDatabaseReachable(databaseUrl: string): Promise<postgres.Sq
     const message = error instanceof Error ? error.message : String(error);
     console.error(
       `[db-migrate] Cannot connect to database: ${message}\n` +
-        "  Check PostgreSQL is running, credentials, pg_hba.conf, and that Docker uses host.docker.internal.",
+        "  Check gudgame-postgres is healthy, credentials match POSTGRESQL_*, and both containers share network `tunnel`.",
     );
     await client.end({ timeout: 1 }).catch(() => undefined);
     process.exit(1);

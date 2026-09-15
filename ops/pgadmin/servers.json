@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Gud Game PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "tanding_db",
+      "Username": "zaka_user",
+      "SSLMode": "prefer"
+    }
+  }
+}

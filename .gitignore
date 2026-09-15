@@ -37,6 +37,10 @@ yarn-error.log*
 !.env.production.example
 .env.deploy
 
+# SeaweedFS nginx basic-auth (generated on deploy from secrets)
+ops/storage/.htpasswd
+!ops/storage/.htpasswd.example
+
 # vercel
 .vercel
 

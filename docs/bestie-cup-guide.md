@@ -12,7 +12,7 @@ Use this checklist on **localhost** or **staging** with real UI flows. Seed data
 
 ### 1. Provision database & partner access
 
-- [ ] PostgreSQL + Redis running (`DATABASE_URL`, `REDIS_URL` in `.env`)
+- [ ] PostgreSQL + Redis running (`DATABASE_URL`, `REDIS_URL` in `.env`) — production VPS: see `docs/DEPLOYMENT-VPS.md` (Docker network `tunnel`)
 - [ ] `npm run db:seed` (sports baseline)
 - [ ] Partner tenant exists (e.g. `spark-area`) and your account is **partner owner/staff**
 - [ ] Dev server: `npm run dev`
