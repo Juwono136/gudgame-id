@@ -38,6 +38,7 @@ export async function ensureDefaultSports(): Promise<void> {
     }
 
     await db.insert(sports).values({
+      id: crypto.randomUUID(),
       name: sport.name,
       slug: sport.slug,
       visibility: sport.visibility,

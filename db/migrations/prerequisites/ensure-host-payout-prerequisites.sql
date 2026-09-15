@@ -2,6 +2,8 @@
 -- Safe to run before drizzle migrate on VPS deploys that used db:push or baseline
 -- without ever applying 0002 / 0003.
 
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- 0002_host_bank_payout
 -- Run ALTERs only if the source table exists to prevent failures when
 -- the schema was baselined without applying earlier migrations.
@@ -11,7 +13,8 @@ ALTER TABLE IF EXISTS "host_xendit_accounts" ADD COLUMN IF NOT EXISTS "bank_acco
 ALTER TABLE IF EXISTS "host_xendit_accounts" ADD COLUMN IF NOT EXISTS "payout_schedule" varchar(20) DEFAULT 'weekly';
 ALTER TABLE IF EXISTS "host_xendit_accounts" ALTER COLUMN "xendit_account_id" DROP NOT NULL;
 
--- 0003_host_bank_accounts
+-- 0003_host_bank_accounts — UUID PK to match app schema (never serial).
+-- CREATE TABLE IF NOT EXISTS will not alter an existing table; fresh installs get UUID.
 
 DO $$
 BEGIN
@@ -20,7 +23,7 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'user'
   ) THEN
     CREATE TABLE IF NOT EXISTS "host_bank_accounts" (
-      "id" serial PRIMARY KEY NOT NULL,
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
       "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
       "bank_code" varchar(20) NOT NULL,
       "bank_account_number" varchar(40) NOT NULL,

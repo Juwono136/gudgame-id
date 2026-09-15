@@ -2,6 +2,7 @@ import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres, { type Sql } from "postgres";
 import { getServerEnv } from "@/lib/config/env.server";
 import { logger } from "@/lib/logger";
+import { normalizeDockerDatabaseUrl } from "@/lib/db/normalize-docker-database-url";
 import * as schema from "./schema";
 
 const log = logger.child({ module: "database" });
@@ -17,17 +18,23 @@ type DbGlobal = {
 const globalForDb = globalThis as unknown as DbGlobal;
 
 function resolveDatabaseUrl(): string {
+  let url: string;
   if (process.env.DB_SCRIPT_MODE === "true") {
-    const url = process.env.DATABASE_URL?.trim();
-    if (!url) {
+    const raw = process.env.DATABASE_URL?.trim();
+    if (!raw) {
       throw new Error(
         "[db] DATABASE_URL is required when DB_SCRIPT_MODE=true (seed/migrate scripts)",
       );
     }
-    return url;
+    url = raw;
+  } else {
+    url = getServerEnv().DATABASE_URL;
   }
 
-  return getServerEnv().DATABASE_URL;
+  return normalizeDockerDatabaseUrl(url, {
+    fatalOnLocalhost: false,
+    log: (msg) => log.warn(msg),
+  });
 }
 
 function createQueryClient(): Sql {

@@ -253,6 +253,7 @@ export async function addHostBankAccount(
   const isFirst = existingAccounts.length === 0;
 
   await db.insert(hostBankAccounts).values({
+    id: crypto.randomUUID(),
     userId,
     bankCode: input.bankCode,
     bankAccountNumber: normalizedNumber,

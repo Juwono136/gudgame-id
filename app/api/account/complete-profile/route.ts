@@ -150,13 +150,29 @@ export async function POST(request: Request) {
       })
       .where(eq(user.id, existing.id));
 
-    const { syncOwnedPlayerProfilesFromSportInterests } = await import(
-      "@/lib/account/player-profile/sync-owned-profiles"
-    );
-    const { syncedSportSlugs } = await syncOwnedPlayerProfilesFromSportInterests(existing.id);
+    let syncedSportSlugs: string[] = [];
+    try {
+      const { syncOwnedPlayerProfilesFromSportInterests } = await import(
+        "@/lib/account/player-profile/sync-owned-profiles"
+      );
+      ({ syncedSportSlugs } = await syncOwnedPlayerProfilesFromSportInterests(existing.id));
+    } catch (syncErr) {
+      // Account fields already saved — do not fail onboarding on wiki sync issues.
+      log.error("complete-profile wiki sync failed after user update", {
+        userId: existing.id,
+        message: syncErr instanceof Error ? syncErr.message : String(syncErr),
+      });
+    }
 
-    const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
-    await reconcileDashboardSportCookie(existing.id);
+    try {
+      const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
+      await reconcileDashboardSportCookie(existing.id);
+    } catch (cookieErr) {
+      log.warn("complete-profile sport cookie reconcile failed", {
+        userId: existing.id,
+        message: cookieErr instanceof Error ? cookieErr.message : String(cookieErr),
+      });
+    }
 
     const status = getProfileCompletionStatus({
       fullNameKtp: data.fullNameKtp,
@@ -177,7 +193,14 @@ export async function POST(request: Request) {
       playerPagesCreated: syncedSportSlugs,
     });
   } catch (err) {
-    log.error("Complete profile failed", err);
+    const cause =
+      err instanceof Error && "cause" in err && err.cause instanceof Error
+        ? err.cause.message
+        : null;
+    log.error("Complete profile failed", {
+      message: err instanceof Error ? err.message : String(err),
+      cause,
+    });
     return NextResponse.json(
       { error: "Could not update profile. Please try again." },
       { status: 500 },

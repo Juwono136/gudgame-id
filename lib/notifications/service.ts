@@ -23,6 +23,7 @@ export async function createNotification(
   const [row] = await getDb()
     .insert(notifications)
     .values({
+      id: crypto.randomUUID(),
       userId: input.userId,
       type: input.type,
       title: input.title,
@@ -44,6 +45,7 @@ export async function createNotifications(
   if (inputs.length === 0) return;
   await getDb().insert(notifications).values(
     inputs.map((input) => ({
+      id: crypto.randomUUID(),
       userId: input.userId,
       type: input.type,
       title: input.title,

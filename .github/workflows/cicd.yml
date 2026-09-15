@@ -172,6 +172,7 @@ jobs:
         run: docker compose --profile migrate run --rm -e DATABASE_URL db-migrate npm run db:seed
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
           NODE_ENV: ${{ secrets.NODE_ENV }}
           STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
           STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
@@ -189,6 +190,7 @@ jobs:
             db-migrate npm run db:bootstrap-admin
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
           DB_SCRIPT_MODE: "true"
           BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
@@ -209,6 +211,7 @@ jobs:
             db-migrate npm run db:seed:fixtures:purge -- --players
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
           DB_SCRIPT_MODE: "true"
           NODE_ENV: ${{ secrets.NODE_ENV }}
           DEPLOY_QA_FIXTURE_PURGE: "true"
@@ -234,6 +237,8 @@ jobs:
           STRICT_PRODUCTION_ENV: ${{ secrets.STRICT_PRODUCTION_ENV }}
 
           # Database & cache — from Resolve step (GITHUB_ENV), NOT stale secrets.DATABASE_URL
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
           POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}

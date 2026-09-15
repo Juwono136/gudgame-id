@@ -148,7 +148,16 @@ export async function getPlayerWikiProfileForUser(
   options?: { skipSync?: boolean },
 ): Promise<PlayerWikiProfileView | null> {
   if (!options?.skipSync) {
-    await syncOwnedPlayerProfilesFromSportInterests(userId);
+    try {
+      await syncOwnedPlayerProfilesFromSportInterests(userId);
+    } catch (err) {
+      // Settings must still load account fields even if wiki sync fails
+      // (e.g. missing UUID default before migration 0027).
+      console.error(
+        "[player-profile] syncOwnedPlayerProfilesFromSportInterests failed",
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
   const entityId = sportSlug
     ? await getOwnedPlayerEntityIdForSport(userId, sportSlug)
@@ -257,6 +266,7 @@ async function syncPlayerGallery(
   if (items.length > 0) {
     await db.insert(wikiEntityMedia).values(
       items.map((g, i) => ({
+        id: crypto.randomUUID(),
         entityId,
         url: g.url ?? null,
         storageKey: g.storageKey ?? null,

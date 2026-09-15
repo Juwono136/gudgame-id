@@ -80,6 +80,7 @@ export async function ensurePlayerWikiProfileForSport(
   const [created] = await db
     .insert(wikiEntities)
     .values({
+      id: crypto.randomUUID(),
       sportId,
       entityType: "player",
       slug,

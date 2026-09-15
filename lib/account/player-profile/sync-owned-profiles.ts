@@ -140,6 +140,7 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
 
     try {
       await db.insert(wikiEntities).values({
+        id: crypto.randomUUID(),
         sportId: sport.id,
         entityType: "player",
         slug,
@@ -159,7 +160,7 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
         createdBy: userId,
         updatedBy: userId,
       });
-    } catch {
+    } catch (firstErr) {
       const fallbackSlug = await ensureUniqueWikiSlug(
         `${preferredBaseSlug}-${userId.slice(0, 8)}`,
         async (candidate) => {
@@ -172,26 +173,41 @@ export async function syncOwnedPlayerProfilesFromSportInterests(
         },
       );
 
-      await db.insert(wikiEntities).values({
-        sportId: sport.id,
-        entityType: "player",
-        slug: fallbackSlug,
-        displayName,
-        summary: primaryDetail?.summary ?? null,
-        biography: primaryDetail?.biography ?? null,
-        status: "published",
-        attributes: (primaryDetail?.attributes ?? {}) as Record<string, unknown>,
-        performance: {},
-        specs: {},
-        features: [],
-        sourceType: "manual",
-        publishedAt: now,
-        primaryImageUrl: photo.url ?? primaryDetail?.primaryImageUrl ?? null,
-        primaryImageStorageKey: photo.storageKey ?? primaryDetail?.primaryImageStorageKey ?? null,
-        ownerUserId: userId,
-        createdBy: userId,
-        updatedBy: userId,
-      });
+      try {
+        await db.insert(wikiEntities).values({
+          id: crypto.randomUUID(),
+          sportId: sport.id,
+          entityType: "player",
+          slug: fallbackSlug,
+          displayName,
+          summary: primaryDetail?.summary ?? null,
+          biography: primaryDetail?.biography ?? null,
+          status: "published",
+          attributes: (primaryDetail?.attributes ?? {}) as Record<string, unknown>,
+          performance: {},
+          specs: {},
+          features: [],
+          sourceType: "manual",
+          publishedAt: now,
+          primaryImageUrl: photo.url ?? primaryDetail?.primaryImageUrl ?? null,
+          primaryImageStorageKey: photo.storageKey ?? primaryDetail?.primaryImageStorageKey ?? null,
+          ownerUserId: userId,
+          createdBy: userId,
+          updatedBy: userId,
+        });
+      } catch (secondErr) {
+        const detail =
+          secondErr instanceof Error
+            ? secondErr.message
+            : typeof secondErr === "string"
+              ? secondErr
+              : "unknown insert error";
+        const firstDetail =
+          firstErr instanceof Error ? firstErr.message : String(firstErr);
+        throw new Error(
+          `Failed to create wiki player profile for sport "${sport.slug}": ${detail} (first attempt: ${firstDetail})`,
+        );
+      }
     }
 
     syncedSportSlugs.push(sport.slug);

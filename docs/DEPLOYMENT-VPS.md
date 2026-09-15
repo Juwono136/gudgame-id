@@ -78,9 +78,21 @@ SeaweedFS is **not** exposed on the public internet. Uploads go through
 Deploy runs **`npm run db:migrate:prod`** inside the `migrator` image (Compose service
 `db-migrate`). That script:
 
-1. Validates `DATABASE_URL` (rejects `localhost` inside Docker)
+1. Validates `DATABASE_URL` (rejects `localhost` inside Docker; rewrites legacy
+   `host.docker.internal` / `tanding_db`)
 2. Probes Postgres connectivity with a clear error
 3. Applies committed SQL under `db/migrations/` (or baselines a legacy push-created schema)
+4. **Always** re-applies idempotent UUID PK defaults (`0027_uuid_pk_defaults.sql`) —
+   even after baseline — so inserts never hit `id NOT NULL` without a default
+5. Verifies `host_bank_accounts` exists and `wiki_entities.id` is `uuid` with
+   `gen_random_uuid()` default
+6. App runtime also normalizes legacy `DATABASE_URL` hosts/DB names (same rules)
+
+**UUID PK defaults:** migrations `0004`/`0005` converted integer PKs to UUID but
+several tables never restored `DEFAULT gen_random_uuid()` (notably `wiki_entities`).
+`0027_uuid_pk_defaults.sql` repairs **all** app UUID PK tables idempotently on
+every deploy (including after baseline). Critical inserts also send explicit
+`crypto.randomUUID()` as defense-in-depth.
 
 **Do not** use `drizzle-kit push` in CI — it often fails mid-“Pulling schema…” with little
 output and is unsafe for production deploys.
@@ -192,6 +204,7 @@ docker compose up -d --no-deps app payout-cron
 | Symptom | Check |
 | --- | --- |
 | App cannot reach DB | `DATABASE_URL` host must be `postgres`; both on `tunnel` |
+| Settings / complete-profile fails inserting `wiki_entities` | UUID PK lost `DEFAULT gen_random_uuid()` after migration 0005 — fixed by `0027_uuid_pk_defaults` + client-side `crypto.randomUUID()`. Redeploy migrate. |
 | Migrate fails: `tournament_group_matches` does not exist | Journal was missing `0012_double_stage_groups` — fixed in `db/migrations/meta/_journal.json`. Redeploy. |
 | Migrate fails with `node: command not found` | Fixed — CI preflight is pure shell (no host Node). Redeploy latest workflow. |
 | Migrate fails at “Pulling schema…” | Old `drizzle-kit push` path — redeploy with `db:migrate:prod`; check secret host is `postgres` and DB is `gudgame_db` |

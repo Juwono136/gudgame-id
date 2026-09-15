@@ -4,6 +4,7 @@
  * - Validates DATABASE_URL and tests connectivity (clear errors; drizzle-kit hides failures).
  * - Baselines existing push-created schemas by recording migrations without re-running CREATE TABLE.
  * - Applies pending SQL migrations via drizzle-orm migrator.
+ * - Always repairs UUID PK defaults (idempotent) so baseline cannot leave broken inserts.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -12,65 +13,16 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { ensureMigrationPrerequisites } from "./ensure-migration-prerequisites";
+import { ensureUuidPkDefaults } from "./ensure-uuid-pk-defaults";
+import {
+  CANONICAL_DB_NAME,
+  maskDatabaseUrl,
+  normalizeDockerDatabaseUrl,
+} from "@/lib/db/normalize-docker-database-url";
 
 const MIGRATIONS_FOLDER = path.join(process.cwd(), "db", "migrations");
 const MIGRATIONS_SCHEMA = "drizzle";
 const MIGRATIONS_TABLE = "__drizzle_migrations";
-
-function maskDatabaseUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.password) parsed.password = "***";
-    return parsed.toString();
-  } catch {
-    return "<invalid DATABASE_URL>";
-  }
-}
-
-const CANONICAL_DB_NAME = "gudgame_db";
-const LEGACY_DB_NAME = "tanding_db";
-
-/**
- * Inside Docker on network `tunnel`, rewrite stale secrets that still point at
- * host.docker.internal / tanding_db so migrate does not ENOTFOUND.
- */
-function normalizeDockerDatabaseUrl(url: string): string {
-  let next = url.trim();
-  const inDocker = fs.existsSync("/.dockerenv");
-
-  if (inDocker && next.includes("host.docker.internal")) {
-    console.warn(
-      "[db-migrate] Rewriting host.docker.internal → postgres (Docker DNS on network tunnel)",
-    );
-    next = next.replaceAll("host.docker.internal", "postgres");
-  }
-
-  if (next.includes(`/${LEGACY_DB_NAME}`)) {
-    console.warn(
-      `[db-migrate] Rewriting database ${LEGACY_DB_NAME} → ${CANONICAL_DB_NAME}`,
-    );
-    next = next.replace(
-      new RegExp(`/${LEGACY_DB_NAME}(?=[/?#]|$)`, "g"),
-      `/${CANONICAL_DB_NAME}`,
-    );
-  }
-
-  if (
-    inDocker &&
-    (next.includes("@127.0.0.1") ||
-      next.includes("@localhost") ||
-      next.includes("://127.0.0.1") ||
-      next.includes("://localhost"))
-  ) {
-    console.error(
-      "[db-migrate] DATABASE_URL points to localhost inside a container — use Docker DNS hostname `postgres`.\n" +
-        `  Current (masked): ${maskDatabaseUrl(next)}`,
-    );
-    process.exit(1);
-  }
-
-  return next;
-}
 
 function requireDatabaseUrl(): string {
   const raw = process.env.DATABASE_URL?.trim();
@@ -82,7 +34,7 @@ function requireDatabaseUrl(): string {
     process.exit(1);
   }
 
-  return normalizeDockerDatabaseUrl(raw);
+  return normalizeDockerDatabaseUrl(raw, { fatalOnLocalhost: true });
 }
 
 async function assertDatabaseReachable(databaseUrl: string): Promise<postgres.Sql> {
@@ -155,7 +107,7 @@ async function baselineExistingSchema(client: postgres.Sql): Promise<void> {
   );
   console.warn(
     "[db-migrate] Baselining records migrations as applied without re-running SQL. " +
-      "Prerequisite tables (host_bank_accounts, etc.) are ensured separately.",
+      "Prerequisites + UUID PK defaults are still applied explicitly after baseline.",
   );
 
   await ensureMigrationPrerequisites(client);
@@ -179,7 +131,7 @@ async function baselineExistingSchema(client: postgres.Sql): Promise<void> {
   console.log("[db-migrate] Baseline complete — future deploys will apply only new migrations.");
 }
 
-async function verifyCriticalTables(client: postgres.Sql): Promise<void> {
+async function verifyCriticalSchema(client: postgres.Sql): Promise<void> {
   const [hostBanks] = await client<{ ok: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM information_schema.tables
@@ -193,6 +145,56 @@ async function verifyCriticalTables(client: postgres.Sql): Promise<void> {
     );
     process.exit(1);
   }
+
+  const [wikiId] = await client<{ data_type: string; column_default: string | null }[]>`
+    SELECT data_type, column_default
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'wiki_entities'
+      AND column_name = 'id'
+  `;
+
+  if (!wikiId) {
+    console.error("[db-migrate] Post-migrate check failed: wiki_entities.id is missing.");
+    process.exit(1);
+  }
+
+  if (wikiId.data_type !== "uuid") {
+    console.error(
+      `[db-migrate] Post-migrate check failed: wiki_entities.id must be uuid (got ${wikiId.data_type}).`,
+    );
+    process.exit(1);
+  }
+
+  const def = wikiId.column_default ?? "";
+  if (!/gen_random_uuid|uuid_generate/i.test(def)) {
+    console.error(
+      `[db-migrate] Post-migrate check failed: wiki_entities.id lacks gen_random_uuid() default (got: ${def || "NULL"}).`,
+    );
+    process.exit(1);
+  }
+
+  const [groups] = await client<{ ok: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'tournament_group_matches'
+    ) AS ok
+  `;
+  if (!groups?.ok) {
+    console.error(
+      "[db-migrate] Post-migrate check failed: tournament_group_matches is missing (journal must include 0012).",
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    "[db-migrate] Post-migrate checks passed (host_bank_accounts + wiki_entities.id + tournament_group_matches).",
+  );
+}
+
+async function finalizeSchema(client: postgres.Sql): Promise<void> {
+  await ensureUuidPkDefaults(client);
+  await verifyCriticalSchema(client);
 }
 
 async function main(): Promise<void> {
@@ -220,7 +222,7 @@ async function main(): Promise<void> {
 
     if (appTablesExist && appliedCount === 0) {
       await baselineExistingSchema(client);
-      await verifyCriticalTables(client);
+      await finalizeSchema(client);
       console.log("[db-migrate] Baseline path complete.");
       return;
     }
@@ -230,7 +232,7 @@ async function main(): Promise<void> {
     console.log("[db-migrate] Applying pending migrations from db/migrations …");
     const db = drizzle(client);
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    await verifyCriticalTables(client);
+    await finalizeSchema(client);
     console.log("[db-migrate] Migrations applied successfully.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
