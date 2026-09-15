@@ -182,6 +182,7 @@ docker compose up -d --no-deps app payout-cron
 | Symptom | Check |
 | --- | --- |
 | App cannot reach DB | `DATABASE_URL` host must be `postgres`; both on `tunnel` |
+| Migrate fails with `node: command not found` | Fixed — CI preflight is pure shell (no host Node). Redeploy latest workflow. |
 | Migrate fails at “Pulling schema…” | Old `drizzle-kit push` path — redeploy with `db:migrate:prod`; check secret host is `postgres` and DB is `gudgame_db` |
 | Redis auth errors | `REDIS_URL` password = `REDIS_PASSWORD` |
 | Upload 401 | Regenerate `.htpasswd`; secrets match `USERNAME_STORAGE` / `PASSWORD_STORAGE` |
