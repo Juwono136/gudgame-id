@@ -103,10 +103,23 @@ jobs:
           . ops/ci/export-docker-database-url.sh
 
       # Start / refresh infra on empty or existing VPS (idempotent).
+      # Postgres 17 uses volume `gudgame_postgres17_data` — never mount a PG15/16
+      # data dir under postgres:17 (container exits → unhealthy).
       - name: Start infra (postgres, redis, seaweedfs, storage_gateway, pgadmin)
         run: |
-          docker compose up -d postgres redis seaweedfs storage_gateway pgadmin
-          docker compose up -d --wait --wait-timeout 180 postgres redis
+          set -euo pipefail
+          docker compose up -d postgres redis seaweedfs storage_gateway
+          if ! docker compose up -d --wait --wait-timeout 180 postgres redis; then
+            echo "--- gudgame-postgres logs (last 100 lines) ---"
+            docker logs gudgame-postgres --tail 100 2>&1 || true
+            echo ""
+            echo "Postgres failed healthcheck. Common cause after bumping to :17-alpine:"
+            echo "  FATAL: database files are incompatible with server"
+            echo "Fix: keep compose volume gudgame_postgres17_data (fresh), or migrate data:"
+            echo "  chmod +x ops/postgres/upgrade-data-to-17.sh && ./ops/postgres/upgrade-data-to-17.sh"
+            exit 1
+          fi
+          docker compose up -d pgadmin
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}

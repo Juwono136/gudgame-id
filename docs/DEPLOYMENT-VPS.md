@@ -12,9 +12,9 @@ each other by Compose **service name** (and so cloudflared can reach them).
 
 | Service (Compose) | Container name | Role | Host ports (localhost only) |
 | --- | --- | --- | --- |
-| `postgres` | `gudgame-postgres` | PostgreSQL 16 | `127.0.0.1:5432` |
+| `postgres` | `gudgame-postgres` | PostgreSQL **17** | `127.0.0.1:5432` |
 | `redis` | `gudgame-redis` | Redis 7 (AOF + password) | `127.0.0.1:6379` |
-| `pgadmin` | `gudgame-pgadmin` | pgAdmin 4 | `127.0.0.1:5050` |
+| `pgadmin` | `gudgame-pgadmin` | pgAdmin **9** (manages PG17) | `127.0.0.1:5050` |
 | `seaweedfs` | `seaweed_core` | SeaweedFS master+volume+filer | *(none — internal)* |
 | `storage_gateway` | `storage_gateway` | nginx basic-auth gateway | `127.0.0.1:8333`, `9333` |
 | `app` | `gudgame-app` | Next.js app | `3000` |
@@ -213,10 +213,33 @@ docker compose up -d --no-deps app payout-cron
 | `network tunnel not found` | `docker network create tunnel` |
 | Health 503 | `docker logs gudgame-app`; Postgres/Redis healthy? |
 | pgAdmin blank servers | Open UI at `127.0.0.1:5050`, password = `PGADMIN_PASSWORD`; host `postgres` |
+| `postgres` unhealthy after switching to `:17-alpine` | **Major-version volume mismatch.** PG17 cannot open a data dir created by PG15/16 (`database files are incompatible with server`). Compose now uses volume **`gudgame_postgres17_data`** (fresh). Old `gudgame_postgres_data` is left unused. To copy data: `./ops/postgres/upgrade-data-to-17.sh` then `docker compose up -d postgres`. |
+
+## PostgreSQL 17 + pgAdmin
+
+| Image | Tag | Notes |
+| --- | --- | --- |
+| `postgres` | `postgres:17-alpine` | Data volume: `gudgame_postgres17_data` |
+| `pgadmin` | `dpage/pgadmin4:9` | Product major is **9**, not 17 — there is no official `pgadmin:17`. pgAdmin 9 manages PostgreSQL 17 servers. |
+
+**Do not** only change the image tag while reusing a PG15/16 Docker volume — the container will crash-loop and Compose will report `dependency postgres failed to start` / unhealthy.
+
+Fresh install / acceptable to re-migrate schema: deploy as-is (new volume → empty cluster → `db:migrate:prod`).
+
+Preserve existing rows from the old volume:
+
+```bash
+export POSTGRESQL_USERNAME=… POSTGRESQL_PASSWORD=…
+chmod +x ops/postgres/upgrade-data-to-17.sh
+./ops/postgres/upgrade-data-to-17.sh
+docker compose up -d postgres
+docker compose --profile migrate run --rm db-migrate
+```
 
 ## Related
 
 - Compose: `docker-compose.yml`
 - Workflow: `.github/workflows/cicd.yml`
+- Postgres upgrade: `ops/postgres/upgrade-data-to-17.sh`
 - Env template: `.env.example` / `.env.production`
 - Tournament / product docs: `docs/tournament-guide.md`, `docs/partner-auth.md`

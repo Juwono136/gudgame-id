@@ -13,6 +13,10 @@ services:
   # ---------------------------------------------------------------------------
   # Data stores
   # ---------------------------------------------------------------------------
+  # PostgreSQL 17 — volume MUST be PG17-compatible.
+  # Do NOT reuse a PG15/16 named volume with this image (server exits → unhealthy).
+  # Fresh volume: gudgame_postgres17_data. To keep old data, run:
+  #   ./ops/postgres/upgrade-data-to-17.sh
   postgres:
     image: postgres:17-alpine
     container_name: gudgame-postgres
@@ -22,7 +26,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
-      - gudgame_postgres_data:/var/lib/postgresql/data
+      - gudgame_postgres17_data:/var/lib/postgresql/data
     ports:
       # Localhost-only for emergency admin; app uses hostname `postgres` on `tunnel`
       - "127.0.0.1:5432:5432"
@@ -36,8 +40,8 @@ services:
         ]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 20s
+      retries: 12
+      start_period: 40s
     logging:
       driver: json-file
       options:
@@ -78,8 +82,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # pgAdmin 9.x (product version ≠ Postgres major). Supports PostgreSQL 17 servers.
   pgadmin:
-    image: dpage/pgadmin4:8
+    image: dpage/pgadmin4:9
     container_name: gudgame-pgadmin
     restart: unless-stopped
     environment:
@@ -318,7 +323,8 @@ networks:
     external: true
 
 volumes:
-  gudgame_postgres_data:
+  # PG17-only. Legacy `gudgame_postgres_data` (PG15/16) is left unused on purpose.
+  gudgame_postgres17_data:
   gudgame_redis_data:
   gudgame_pgadmin_data:
   seaweed_master_data:
