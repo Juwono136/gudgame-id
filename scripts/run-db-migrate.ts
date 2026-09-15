@@ -27,31 +27,62 @@ function maskDatabaseUrl(url: string): string {
   }
 }
 
-function requireDatabaseUrl(): string {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) {
-    console.error(
-      "[db-migrate] DATABASE_URL is not set. For Docker on VPS use the postgres service hostname, e.g.\n" +
-        "  postgresql://user:pass@postgres:5432/gudgame_db",
+const CANONICAL_DB_NAME = "gudgame_db";
+const LEGACY_DB_NAME = "tanding_db";
+
+/**
+ * Inside Docker on network `tunnel`, rewrite stale secrets that still point at
+ * host.docker.internal / tanding_db so migrate does not ENOTFOUND.
+ */
+function normalizeDockerDatabaseUrl(url: string): string {
+  let next = url.trim();
+  const inDocker = fs.existsSync("/.dockerenv");
+
+  if (inDocker && next.includes("host.docker.internal")) {
+    console.warn(
+      "[db-migrate] Rewriting host.docker.internal → postgres (Docker DNS on network tunnel)",
     );
-    process.exit(1);
+    next = next.replaceAll("host.docker.internal", "postgres");
+  }
+
+  if (next.includes(`/${LEGACY_DB_NAME}`)) {
+    console.warn(
+      `[db-migrate] Rewriting database ${LEGACY_DB_NAME} → ${CANONICAL_DB_NAME}`,
+    );
+    next = next.replace(
+      new RegExp(`/${LEGACY_DB_NAME}(?=[/?#]|$)`, "g"),
+      `/${CANONICAL_DB_NAME}`,
+    );
   }
 
   if (
-    fs.existsSync("/.dockerenv") &&
-    (url.includes("@127.0.0.1") ||
-      url.includes("@localhost") ||
-      url.includes("://127.0.0.1") ||
-      url.includes("://localhost"))
+    inDocker &&
+    (next.includes("@127.0.0.1") ||
+      next.includes("@localhost") ||
+      next.includes("://127.0.0.1") ||
+      next.includes("://localhost"))
   ) {
     console.error(
-      "[db-migrate] DATABASE_URL points to localhost inside a container — use Docker DNS hostname `postgres` instead.\n" +
-        `  Current (masked): ${maskDatabaseUrl(url)}`,
+      "[db-migrate] DATABASE_URL points to localhost inside a container — use Docker DNS hostname `postgres`.\n" +
+        `  Current (masked): ${maskDatabaseUrl(next)}`,
     );
     process.exit(1);
   }
 
-  return url;
+  return next;
+}
+
+function requireDatabaseUrl(): string {
+  const raw = process.env.DATABASE_URL?.trim();
+  if (!raw) {
+    console.error(
+      "[db-migrate] DATABASE_URL is not set. For Docker on VPS use the postgres service hostname, e.g.\n" +
+        `  postgresql://user:pass@postgres:5432/${CANONICAL_DB_NAME}`,
+    );
+    process.exit(1);
+  }
+
+  return normalizeDockerDatabaseUrl(raw);
 }
 
 async function assertDatabaseReachable(databaseUrl: string): Promise<postgres.Sql> {

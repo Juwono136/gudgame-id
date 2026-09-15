@@ -85,8 +85,18 @@ Deploy runs **`npm run db:migrate:prod`** inside the `migrator` image (Compose s
 **Do not** use `drizzle-kit push` in CI — it often fails mid-“Pulling schema…” with little
 output and is unsafe for production deploys.
 
-`DATABASE_URL` must use Docker DNS, e.g.
-`postgres://USER:PASS@postgres:5432/gudgame_db`.
+`DATABASE_URL` / `REDIS_URL` for deploy are **built in CI** from
+`POSTGRESQL_*` + `REDIS_PASSWORD` (host `postgres` / `redis`, database
+**`gudgame_db`**). Stale GitHub Secrets like
+`…@host.docker.internal:5432/tanding_db` are ignored.
+
+Still update secrets for clarity:
+
+| Secret | Correct value |
+| --- | --- |
+| `DATABASE_URL` | `postgres://USER:PASS@postgres:5432/gudgame_db` |
+| `POSTGRESQL_DATABASE` | `gudgame_db` |
+| `REDIS_URL` | `redis://:PASS@redis:6379` |
 
 ## CI/CD (`.github/workflows/cicd.yml`)
 

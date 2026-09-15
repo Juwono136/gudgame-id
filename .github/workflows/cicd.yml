@@ -88,6 +88,20 @@ jobs:
           chmod +x ops/storage/generate-htpasswd.sh
           ./ops/storage/generate-htpasswd.sh
 
+      # Build canonical URLs BEFORE starting Postgres so POSTGRES_DB=gudgame_db
+      # (ignores stale secrets.DATABASE_URL with host.docker.internal / tanding_db).
+      - name: Resolve Docker DATABASE_URL (postgres + gudgame_db)
+        env:
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x ops/ci/export-docker-database-url.sh
+          export POSTGRESQL_DATABASE="${POSTGRESQL_DATABASE:-gudgame_db}"
+          . ops/ci/export-docker-database-url.sh
+
       # Start / refresh infra on empty or existing VPS (idempotent).
       - name: Start infra (postgres, redis, seaweedfs, storage_gateway, pgadmin)
         run: |
@@ -97,12 +111,34 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          # From resolve step — always gudgame_db (never tanding_db)
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
           PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
           USERNAME_STORAGE: ${{ secrets.USERNAME_STORAGE }}
           PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
+
+      - name: Ensure Postgres database gudgame_db exists
+        env:
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
+        run: |
+          set -euo pipefail
+          DB_NAME="${POSTGRESQL_DATABASE:-gudgame_db}"
+          echo "Ensuring database '${DB_NAME}' exists on gudgame-postgres…"
+          EXISTS="$(docker compose exec -T -e PGPASSWORD="${POSTGRESQL_PASSWORD}" postgres \
+            psql -U "${POSTGRESQL_USERNAME}" -d postgres -tAc \
+            "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | tr -d '[:space:]')"
+          if [ "${EXISTS}" = "1" ]; then
+            echo "Database '${DB_NAME}' already exists."
+          else
+            docker compose exec -T -e PGPASSWORD="${POSTGRESQL_PASSWORD}" postgres \
+              psql -U "${POSTGRESQL_USERNAME}" -d postgres -v ON_ERROR_STOP=1 -c \
+              "CREATE DATABASE \"${DB_NAME}\";"
+            echo "Created database '${DB_NAME}'."
+          fi
 
       - name: Build DB migration image
         run: docker compose --profile migrate build --pull db-migrate
@@ -112,38 +148,29 @@ jobs:
       - name: Run DB migration
         run: |
           set -euo pipefail
-          echo "Migrating with npm run db:migrate:prod (SQL migrations, not drizzle-kit push)"
-
-          # Preflight without host Node (self-hosted VPS runners often have Docker only).
-          if [ -z "${DATABASE_URL:-}" ]; then
-            echo "DATABASE_URL secret is empty" >&2
-            exit 1
-          fi
+          echo "Migrating with npm run db:migrate:prod"
+          MASKED="$(printf '%s' "${DATABASE_URL}" | sed -E 's#://[^/@]+@#://***:***@#')"
+          echo "DATABASE_URL (masked): ${MASKED}"
           case "${DATABASE_URL}" in
-            *'@localhost'*|*'@127.0.0.1'*|*'://localhost'*|*'://127.0.0.1'*)
-              echo "Refusing localhost DATABASE_URL inside Docker — use hostname postgres" >&2
+            *host.docker.internal*|*tanding_db*|*'@localhost'*|*'@127.0.0.1'*)
+              echo "Refusing legacy DATABASE_URL (host.docker.internal / tanding_db / localhost)" >&2
               exit 1
               ;;
           esac
-          # Masked hint: protocol + host + db name only (never password)
-          MASKED="$(printf '%s' "${DATABASE_URL}" | sed -E 's#://[^/@]+@#://***:***@#')"
-          echo "DATABASE_URL (masked): ${MASKED}"
-
           docker compose --profile migrate run --rm \
             -e DB_SCRIPT_MODE=true \
+            -e DATABASE_URL \
             db-migrate
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DB_SCRIPT_MODE: "true"
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
 
       - name: Seed database (sports & defaults, idempotent)
-        run: docker compose --profile migrate run --rm db-migrate npm run db:seed
+        run: docker compose --profile migrate run --rm -e DATABASE_URL db-migrate npm run db:seed
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           NODE_ENV: ${{ secrets.NODE_ENV }}
           STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
@@ -153,14 +180,14 @@ jobs:
           PASSWORD_STORAGE: ${{ secrets.PASSWORD_STORAGE }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
 
       - name: Bootstrap super admin user (no email)
         run: |
           docker compose --profile migrate build db-migrate
-          docker compose --profile migrate run --rm db-migrate npm run db:bootstrap-admin
+          docker compose --profile migrate run --rm -e DATABASE_URL -e DB_SCRIPT_MODE=true \
+            db-migrate npm run db:bootstrap-admin
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DB_SCRIPT_MODE: "true"
           BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
@@ -168,7 +195,7 @@ jobs:
           BOOTSTRAP_ADMIN_NAME: ${{ secrets.BOOTSTRAP_ADMIN_NAME }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
 
       # Never recreate dummy tournaments or test players on production.
       - name: Purge Official FREE QA fixtures
@@ -178,16 +205,16 @@ jobs:
           docker compose --profile migrate run --rm \
             -e DEPLOY_QA_FIXTURE_PURGE=true \
             -e DB_SCRIPT_MODE=true \
+            -e DATABASE_URL \
             db-migrate npm run db:seed:fixtures:purge -- --players
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DB_SCRIPT_MODE: "true"
           NODE_ENV: ${{ secrets.NODE_ENV }}
           DEPLOY_QA_FIXTURE_PURGE: "true"
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
 
       # Recreate app + payout scheduler only — infra stays up (--no-deps).
       - name: Deploy Gud Game app
@@ -206,12 +233,10 @@ jobs:
           LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
           STRICT_PRODUCTION_ENV: ${{ secrets.STRICT_PRODUCTION_ENV }}
 
-          # Database & cache (Docker DNS: postgres / redis)
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
+          # Database & cache — from Resolve step (GITHUB_ENV), NOT stale secrets.DATABASE_URL
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
 
           # Auth
