@@ -103,23 +103,10 @@ jobs:
           . ops/ci/export-docker-database-url.sh
 
       # Start / refresh infra on empty or existing VPS (idempotent).
-      # Postgres 18 uses volume `gudgame_postgres18_data` — never mount an older
-      # major's data dir under postgres:18 (container exits → unhealthy).
       - name: Start infra (postgres, redis, seaweedfs, storage_gateway, pgadmin)
         run: |
-          set -euo pipefail
-          docker compose up -d postgres redis seaweedfs storage_gateway
-          if ! docker compose up -d --wait --wait-timeout 180 postgres redis; then
-            echo "--- gudgame-postgres logs (last 100 lines) ---"
-            docker logs gudgame-postgres --tail 100 2>&1 || true
-            echo ""
-            echo "Postgres failed healthcheck. Common cause after bumping major version:"
-            echo "  FATAL: database files are incompatible with server"
-            echo "Fix: use compose volume gudgame_postgres18_data (fresh), or restore a dump:"
-            echo "  ./ops/postgres/restore-custom-dump.sh /path/to/gudgame_db-backup"
-            exit 1
-          fi
-          docker compose up -d pgadmin
+          docker compose up -d postgres redis seaweedfs storage_gateway pgadmin
+          docker compose up -d --wait --wait-timeout 180 postgres redis
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
@@ -185,7 +172,6 @@ jobs:
         run: docker compose --profile migrate run --rm -e DATABASE_URL db-migrate npm run db:seed
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DATABASE_URL: ${{ env.DATABASE_URL }}
           NODE_ENV: ${{ secrets.NODE_ENV }}
           STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
           STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
@@ -203,7 +189,6 @@ jobs:
             db-migrate npm run db:bootstrap-admin
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DATABASE_URL: ${{ env.DATABASE_URL }}
           DB_SCRIPT_MODE: "true"
           BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
           BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
@@ -224,7 +209,6 @@ jobs:
             db-migrate npm run db:seed:fixtures:purge -- --players
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DATABASE_URL: ${{ env.DATABASE_URL }}
           DB_SCRIPT_MODE: "true"
           NODE_ENV: ${{ secrets.NODE_ENV }}
           DEPLOY_QA_FIXTURE_PURGE: "true"
@@ -250,8 +234,6 @@ jobs:
           STRICT_PRODUCTION_ENV: ${{ secrets.STRICT_PRODUCTION_ENV }}
 
           # Database & cache — from Resolve step (GITHUB_ENV), NOT stale secrets.DATABASE_URL
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          REDIS_URL: ${{ env.REDIS_URL }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
           POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}

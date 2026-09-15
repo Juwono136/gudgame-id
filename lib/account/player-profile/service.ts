@@ -266,7 +266,6 @@ async function syncPlayerGallery(
   if (items.length > 0) {
     await db.insert(wikiEntityMedia).values(
       items.map((g, i) => ({
-        id: crypto.randomUUID(),
         entityId,
         url: g.url ?? null,
         storageKey: g.storageKey ?? null,

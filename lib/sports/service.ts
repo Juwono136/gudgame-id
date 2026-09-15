@@ -287,7 +287,6 @@ export async function createSport(
   const [created] = await db
     .insert(sports)
     .values({
-      id: crypto.randomUUID(),
       name: input.name,
       slug,
       tagline: input.tagline || null,

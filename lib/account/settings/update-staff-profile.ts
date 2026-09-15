@@ -72,37 +72,22 @@ export async function updateStaffProfile(
 
   await getDb().update(user).set(updatePayload).where(eq(user.id, userId));
 
-  try {
-    const { syncOwnedPlayerProfilesFromSportInterests } = await import(
-      "@/lib/account/player-profile/sync-owned-profiles"
-    );
-    await syncOwnedPlayerProfilesFromSportInterests(userId);
-  } catch (err) {
-    console.error(
-      "[settings] syncOwnedPlayerProfilesFromSportInterests failed after profile update",
-      err instanceof Error ? err.message : err,
-    );
-  }
+  const { syncOwnedPlayerProfilesFromSportInterests } = await import(
+    "@/lib/account/player-profile/sync-owned-profiles"
+  );
+  await syncOwnedPlayerProfilesFromSportInterests(userId);
 
-  try {
-    const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
-    await reconcileDashboardSportCookie(userId);
-  } catch {
-    // non-fatal
-  }
+  const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
+  await reconcileDashboardSportCookie(userId);
 
-  try {
-    const { syncPlayerPrimaryPhotoFromUser } = await import(
-      "@/lib/account/player-profile/sync-primary-photo"
-    );
-    const { syncPlayerDisplayNameFromUser } = await import(
-      "@/lib/account/player-profile/resolve-display-name"
-    );
-    await syncPlayerPrimaryPhotoFromUser(userId);
-    await syncPlayerDisplayNameFromUser(userId);
-  } catch {
-    // non-fatal wiki mirrors
-  }
+  const { syncPlayerPrimaryPhotoFromUser } = await import(
+    "@/lib/account/player-profile/sync-primary-photo"
+  );
+  const { syncPlayerDisplayNameFromUser } = await import(
+    "@/lib/account/player-profile/resolve-display-name"
+  );
+  await syncPlayerPrimaryPhotoFromUser(userId);
+  await syncPlayerDisplayNameFromUser(userId);
 
   return { success: true as const };
 }

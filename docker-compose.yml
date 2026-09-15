@@ -13,12 +13,8 @@ services:
   # ---------------------------------------------------------------------------
   # Data stores
   # ---------------------------------------------------------------------------
-  # PostgreSQL 18 — matches production dumps (pg_dump 18.x custom format).
-  # Do NOT reuse a PG15/16/17 named volume with this image (server exits → unhealthy).
-  # Fresh volume: gudgame_postgres18_data.
-  # Restore a .backup into an EMPTY database only — see ops/postgres/restore-custom-dump.sh
   postgres:
-    image: postgres:18-alpine
+    image: postgres:16-alpine
     container_name: gudgame-postgres
     restart: unless-stopped
     environment:
@@ -26,7 +22,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
-      - gudgame_postgres18_data:/var/lib/postgresql/data
+      - gudgame_postgres_data:/var/lib/postgresql/data
     ports:
       # Localhost-only for emergency admin; app uses hostname `postgres` on `tunnel`
       - "127.0.0.1:5432:5432"
@@ -40,8 +36,8 @@ services:
         ]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 40s
+      retries: 10
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -82,9 +78,8 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # pgAdmin 9.x (product version ≠ Postgres major). Supports PostgreSQL 17 servers.
   pgadmin:
-    image: dpage/pgadmin4:9
+    image: dpage/pgadmin4:8
     container_name: gudgame-pgadmin
     restart: unless-stopped
     environment:
@@ -323,8 +318,7 @@ networks:
     external: true
 
 volumes:
-  # PG18-only. Legacy gudgame_postgres_data / gudgame_postgres17_data left unused.
-  gudgame_postgres18_data:
+  gudgame_postgres_data:
   gudgame_redis_data:
   gudgame_pgadmin_data:
   seaweed_master_data:

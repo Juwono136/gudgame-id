@@ -150,29 +150,13 @@ export async function POST(request: Request) {
       })
       .where(eq(user.id, existing.id));
 
-    let syncedSportSlugs: string[] = [];
-    try {
-      const { syncOwnedPlayerProfilesFromSportInterests } = await import(
-        "@/lib/account/player-profile/sync-owned-profiles"
-      );
-      ({ syncedSportSlugs } = await syncOwnedPlayerProfilesFromSportInterests(existing.id));
-    } catch (syncErr) {
-      // Account fields already saved — do not fail onboarding on wiki sync issues.
-      log.error("complete-profile wiki sync failed after user update", {
-        userId: existing.id,
-        message: syncErr instanceof Error ? syncErr.message : String(syncErr),
-      });
-    }
+    const { syncOwnedPlayerProfilesFromSportInterests } = await import(
+      "@/lib/account/player-profile/sync-owned-profiles"
+    );
+    const { syncedSportSlugs } = await syncOwnedPlayerProfilesFromSportInterests(existing.id);
 
-    try {
-      const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
-      await reconcileDashboardSportCookie(existing.id);
-    } catch (cookieErr) {
-      log.warn("complete-profile sport cookie reconcile failed", {
-        userId: existing.id,
-        message: cookieErr instanceof Error ? cookieErr.message : String(cookieErr),
-      });
-    }
+    const { reconcileDashboardSportCookie } = await import("@/lib/dashboard/sport-context");
+    await reconcileDashboardSportCookie(existing.id);
 
     const status = getProfileCompletionStatus({
       fullNameKtp: data.fullNameKtp,

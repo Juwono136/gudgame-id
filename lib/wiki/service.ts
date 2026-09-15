@@ -360,7 +360,6 @@ export async function createWikiEntity(
   const [created] = await db
     .insert(wikiEntities)
     .values({
-      id: crypto.randomUUID(),
       sportId,
       entityType: input.entityType,
       slug,
@@ -535,7 +534,6 @@ async function syncWikiRelations(
 
   await db.insert(wikiEntityRelations).values(
     relations.map((r, i) => ({
-      id: crypto.randomUUID(),
       fromEntityId: entityId,
       toEntityId: r.toEntityId,
       relationType: r.relationType,
@@ -582,7 +580,6 @@ async function syncWikiGallery(
   if (items.length > 0) {
     await db.insert(wikiEntityMedia).values(
       items.map((g, i) => ({
-        id: crypto.randomUUID(),
         entityId,
         url: g.url ?? null,
         storageKey: g.storageKey ?? null,

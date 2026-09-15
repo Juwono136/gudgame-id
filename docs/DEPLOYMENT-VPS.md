@@ -12,9 +12,9 @@ each other by Compose **service name** (and so cloudflared can reach them).
 
 | Service (Compose) | Container name | Role | Host ports (localhost only) |
 | --- | --- | --- | --- |
-| `postgres` | `gudgame-postgres` | PostgreSQL **18** | `127.0.0.1:5432` |
+| `postgres` | `gudgame-postgres` | PostgreSQL 16 | `127.0.0.1:5432` |
 | `redis` | `gudgame-redis` | Redis 7 (AOF + password) | `127.0.0.1:6379` |
-| `pgadmin` | `gudgame-pgadmin` | pgAdmin **9** (manages PG18) | `127.0.0.1:5050` |
+| `pgadmin` | `gudgame-pgadmin` | pgAdmin 4 | `127.0.0.1:5050` |
 | `seaweedfs` | `seaweed_core` | SeaweedFS master+volume+filer | *(none — internal)* |
 | `storage_gateway` | `storage_gateway` | nginx basic-auth gateway | `127.0.0.1:8333`, `9333` |
 | `app` | `gudgame-app` | Next.js app | `3000` |
@@ -78,21 +78,9 @@ SeaweedFS is **not** exposed on the public internet. Uploads go through
 Deploy runs **`npm run db:migrate:prod`** inside the `migrator` image (Compose service
 `db-migrate`). That script:
 
-1. Validates `DATABASE_URL` (rejects `localhost` inside Docker; rewrites legacy
-   `host.docker.internal` / `tanding_db`)
+1. Validates `DATABASE_URL` (rejects `localhost` inside Docker)
 2. Probes Postgres connectivity with a clear error
 3. Applies committed SQL under `db/migrations/` (or baselines a legacy push-created schema)
-4. **Always** re-applies idempotent UUID PK defaults (`0027_uuid_pk_defaults.sql`) —
-   even after baseline — so inserts never hit `id NOT NULL` without a default
-5. Verifies `host_bank_accounts` exists and `wiki_entities.id` is `uuid` with
-   `gen_random_uuid()` default
-6. App runtime also normalizes legacy `DATABASE_URL` hosts/DB names (same rules)
-
-**UUID PK defaults:** migrations `0004`/`0005` converted integer PKs to UUID but
-several tables never restored `DEFAULT gen_random_uuid()` (notably `wiki_entities`).
-`0027_uuid_pk_defaults.sql` repairs **all** app UUID PK tables idempotently on
-every deploy (including after baseline). Critical inserts also send explicit
-`crypto.randomUUID()` as defense-in-depth.
 
 **Do not** use `drizzle-kit push` in CI — it often fails mid-“Pulling schema…” with little
 output and is unsafe for production deploys.
@@ -213,44 +201,10 @@ docker compose up -d --no-deps app payout-cron
 | `network tunnel not found` | `docker network create tunnel` |
 | Health 503 | `docker logs gudgame-app`; Postgres/Redis healthy? |
 | pgAdmin blank servers | Open UI at `127.0.0.1:5050`, password = `PGADMIN_PASSWORD`; host `postgres` |
-| `postgres` unhealthy after switching major version | **Volume mismatch.** New majors cannot open older data dirs. Compose uses **`gudgame_postgres18_data`**. |
-| `pg_restore` many DROP/CREATE/COPY errors | Restoring **into a DB that already has migrate schema**. Wipe DB first — see restore section below. Do **not** use `--clean` on a half-migrated target. |
-
-## PostgreSQL 18 + pgAdmin + backup restore
-
-| Image | Tag | Notes |
-| --- | --- | --- |
-| `postgres` | `postgres:18-alpine` | Volume: `gudgame_postgres18_data` |
-| `pgadmin` | `dpage/pgadmin4:9` | Product major is **9** (not “18”) |
-
-Production custom dumps (e.g. `gudgame_db-backup`) are typically made with **pg_dump 18** (even if the original DB name was `tanding_db`). Restore them only into **PostgreSQL 18+**.
-
-### Restore custom dump (correct procedure)
-
-```bash
-export POSTGRESQL_USERNAME=… POSTGRESQL_PASSWORD=… POSTGRESQL_DATABASE=gudgame_db
-chmod +x ops/postgres/restore-custom-dump.sh
-
-# On VPS (postgres service running):
-./ops/postgres/restore-custom-dump.sh /path/to/gudgame_db-backup
-
-# Or from your laptop against localhost:5432:
-RESTORE_MODE=local ./ops/postgres/restore-custom-dump.sh ~/Downloads/gudgame_db-backup
-```
-
-The script **DROP + CREATE**s `gudgame_db`, then `pg_restore` **without** `--clean`.
-
-After restore, run migrate only for any *new* SQL not already recorded in the dump’s `drizzle.__drizzle_migrations`:
-
-```bash
-docker compose --profile migrate run --rm db-migrate
-docker compose up -d --no-deps app
-```
 
 ## Related
 
 - Compose: `docker-compose.yml`
 - Workflow: `.github/workflows/cicd.yml`
-- Restore dump: `ops/postgres/restore-custom-dump.sh`
 - Env template: `.env.example` / `.env.production`
 - Tournament / product docs: `docs/tournament-guide.md`, `docs/partner-auth.md`

@@ -76,7 +76,6 @@ export async function seedDatabase(): Promise<boolean> {
     if (existing) continue;
 
     await db.insert(sports).values({
-      id: crypto.randomUUID(),
       name: sport.name,
       slug: sport.slug,
       visibility: sport.visibility,
