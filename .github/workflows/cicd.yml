@@ -8,19 +8,6 @@ on:
       - "docs/**"
       - "AGENTS.md"
   workflow_dispatch:
-    inputs:
-      wipe_postgres_volume:
-        description: "Wipe Postgres Docker volume (required once for PG16→18 upgrade when DB is empty)"
-        type: boolean
-        default: false
-      restore_db_dump:
-        description: "Restore ops/db/backups/gudgame.dump into gudgame_db before migrate"
-        type: boolean
-        default: false
-      force_restore:
-        description: "Drop+recreate gudgame_db before restore (used with restore_db_dump)"
-        type: boolean
-        default: true
 
 jobs:
   test:
@@ -102,6 +89,7 @@ jobs:
           ./ops/storage/generate-htpasswd.sh
 
       # Build canonical URLs BEFORE starting Postgres so POSTGRES_DB=gudgame_db
+      # (ignores stale secrets.DATABASE_URL with host.docker.internal / tanding_db).
       - name: Resolve Docker DATABASE_URL (postgres + gudgame_db)
         env:
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
@@ -114,34 +102,24 @@ jobs:
           export POSTGRESQL_DATABASE="${POSTGRESQL_DATABASE:-gudgame_db}"
           . ops/ci/export-docker-database-url.sh
 
-      # Postgres 18 cannot reuse a PG16 data volume — detect + optional wipe.
-      - name: Start Postgres (handle PG major upgrade)
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
-          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
-          # workflow_dispatch input OR one-shot GitHub secret (set true once, then remove)
-          POSTGRES_WIPE_ON_MAJOR_UPGRADE: ${{ inputs.wipe_postgres_volume || secrets.POSTGRES_WIPE_ON_MAJOR_UPGRADE || 'false' }}
-          POSTGRES_EXPECTED_MAJOR: "18"
+      # Start / refresh infra on empty or existing VPS (idempotent).
+      - name: Start infra (postgres, redis, seaweedfs, storage_gateway, pgadmin)
         run: |
           set -euo pipefail
-          chmod +x ops/ci/ensure-postgres-ready.sh
-          # Normalize boolean-ish values from Actions
-          case "${POSTGRES_WIPE_ON_MAJOR_UPGRADE}" in
-            true|TRUE|True|1|yes|YES) export POSTGRES_WIPE_ON_MAJOR_UPGRADE=true ;;
-            *) export POSTGRES_WIPE_ON_MAJOR_UPGRADE=false ;;
-          esac
-          ./ops/ci/ensure-postgres-ready.sh
-
-      - name: Start remaining infra (redis, seaweedfs, storage_gateway, pgadmin)
-        run: |
-          docker compose up -d redis seaweedfs storage_gateway pgadmin
-          docker compose up -d --wait --wait-timeout 120 redis
+          docker compose up -d postgres redis seaweedfs storage_gateway pgadmin
+          docker compose up -d --wait --wait-timeout 180 postgres redis
+          VER="$(docker compose exec -T postgres psql -U "${POSTGRESQL_USERNAME}" -d postgres -tAc 'SHOW server_version;')"
+          echo "Postgres server_version=${VER}"
+          echo "${VER}" | grep -Eq '^(18|19)\.' || {
+            echo "Expected PostgreSQL 18+ (dump restore / current compose). Got: ${VER}" >&2
+            echo "See docs/DATABASE-RESTORE.md — recreate volume gudgame_postgres18_data." >&2
+            exit 1
+          }
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          # From resolve step — always gudgame_db (never tanding_db)
           POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           PGADMIN_EMAIL: ${{ secrets.PGADMIN_EMAIL }}
@@ -169,36 +147,6 @@ jobs:
               "CREATE DATABASE \"${DB_NAME}\";"
             echo "Created database '${DB_NAME}'."
           fi
-
-      # Optional: restore custom dump (tanding_db → gudgame_db). Same pipeline as deploy.
-      - name: Restore database dump (optional)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.restore_db_dump }}
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
-          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
-          FORCE_RESTORE: ${{ inputs.force_restore }}
-          SKIP_RESTORE_IF_DATA: "false"
-          GUDGAME_RESTORE_DUMP: ${{ secrets.GUDGAME_RESTORE_DUMP }}
-        run: |
-          set -euo pipefail
-          chmod +x ops/db/restore-from-dump.sh
-          DUMP="${GUDGAME_RESTORE_DUMP:-}"
-          if [ -z "${DUMP}" ] || [ ! -f "${DUMP}" ]; then
-            DUMP="$(pwd)/ops/db/backups/gudgame.dump"
-          fi
-          if [ ! -f "${DUMP}" ]; then
-            echo "Dump not found at ${DUMP}" >&2
-            echo "Copy gudgame_db-backup to ops/db/backups/gudgame.dump on the VPS runner." >&2
-            exit 1
-          fi
-          export GUDGAME_RESTORE_DUMP="${DUMP}"
-          case "${FORCE_RESTORE}" in
-            true|TRUE|True|1) export FORCE_RESTORE=true ;;
-            *) export FORCE_RESTORE=false ;;
-          esac
-          docker compose --profile restore run --rm db-restore
 
       - name: Build DB migration image
         run: docker compose --profile migrate build --pull db-migrate

@@ -1,21 +1,28 @@
 # Gud Game — database restore (tanding_db dump → gudgame_db)
 
 Professional runbook for restoring a **PostgreSQL custom-format** dump
-(file magic `PGDMP`, e.g. `gudgame_db-backup` from Downloads) into the Docker
+(file magic `PGDMP`, e.g. `Downloads/gudgame_db-backup`) into the Docker
 database **`gudgame_db`**.
+
+Your dump was verified as:
+
+- Format: PostgreSQL **custom** (`PGDMP`)
+- Source: **PostgreSQL 18.6** (Ubuntu)
+- Original DB name inside dump: **`tanding_db`**
 
 ## Why restores failed before
 
 | Issue | Cause | Fix in this stack |
 | --- | --- | --- |
-| Dump DB name `tanding_db` | `pg_restore --create` recreates that name | Restore **into** existing `gudgame_db` **without** `--create` |
-| Version mismatch | Dump from **PostgreSQL 18.6**; container was **16** | Compose uses **`postgres:18-alpine`** (server ≥ dump) |
+| Dump DB name `tanding_db` | `pg_restore --create` recreates that name | Restore **into** `gudgame_db` **without** `--create` |
+| Version mismatch | Dump from **PG 18.6**; container was **16** | Compose uses **`postgres:18-alpine`** |
 | Owner / role errors | Dump roles don’t exist on new VPS | `--no-owner --no-acl` |
+| Restore into DB that already ran migrate | Duplicate tables / constraint name clashes | **Empty** target DB first (`FORCE_RESTORE=true`) |
 | Schema newer than dump | App migrations after the backup | Run `db:migrate:prod` **after** restore |
-| Accidental overwrite | Restore on every deploy | Restore is **opt-in** (`profile: restore`), never on normal CI push |
+| Accidental overwrite | Restore on every deploy | Restore is **opt-in** only (Compose profile / workflow_dispatch) |
 
 **pgAdmin version** does not need to match the dump. Only the **Postgres server**
-must be ≥ dump major version. pgAdmin is only a UI client.
+must be ≥ dump major version (here: **18+**).
 
 ---
 
@@ -23,43 +30,35 @@ must be ≥ dump major version. pgAdmin is only a UI client.
 
 Safer and more repeatable than pgAdmin for custom-format dumps.
 
-### 0. Prerequisites
-
-- Stack running: `docker compose up -d postgres` (image **18**)
-- Empty / dropped `gudgame_db` is OK — the script creates it
-- Dump file on the VPS (copy from your laptop):
+### 0. Copy the dump onto the VPS
 
 ```bash
-# On laptop (example)
-scp "/c/Users/asus/Downloads/gudgame_db-backup" user@gudgame-vm:~/gudgame.dump
+# From your laptop (example)
+scp "/c/Users/asus/Downloads/gudgame_db-backup" asus@gudgame-vm:~/gudgame.dump
 
-# On VPS — into the repo checkout used by the runner
+# On the VPS — into the compose project directory (Actions runner workdir)
+cd ~/path/to/court-pedia   # or the runner checkout
 mkdir -p ops/db/backups
 cp ~/gudgame.dump ops/db/backups/gudgame.dump
-# or: export GUDGAME_RESTORE_DUMP=$HOME/gudgame.dump
 ```
 
-### 1. Upgrade / recreate Postgres 18 volume (if you still have PG 16 data dir)
+### 1. Switch Postgres to 18 (required once)
 
-Postgres major upgrades **cannot** reuse an old data directory. Postgres **18**
-Docker images also mount at `/var/lib/postgresql` (not `.../data`).
+Postgres **cannot** open a data directory initialized by PG16.
 
-If the volume was initialized with Postgres 16 and you already dropped DBs:
+Because `gudgame_db` is already empty/dropped, wipe the old volume and start PG18:
 
 ```bash
 docker compose stop postgres pgadmin
 docker compose rm -f postgres
-# ONLY if you accept wiping local Postgres files (you said gudgame_db is already empty):
-docker volume rm gudgame-app_gudgame_postgres_data
+# Optional: remove legacy PG16 volume if it still exists
+docker volume rm gudgame-app_gudgame_postgres_data 2>/dev/null || true
+
+# Pull + start PG18 (new volume: gudgame_postgres18_data)
+docker compose pull postgres
 docker compose up -d postgres
 docker compose up -d --wait --wait-timeout 120 postgres
-```
 
-Or from GitHub Actions: **Run workflow** with `wipe_postgres_volume=true`.
-
-Confirm version:
-
-```bash
 docker compose exec postgres psql -U zaka_user -d postgres -c "SHOW server_version;"
 # expect 18.x
 ```
@@ -67,17 +66,17 @@ docker compose exec postgres psql -U zaka_user -d postgres -c "SHOW server_versi
 ### 2. Restore dump → `gudgame_db`
 
 ```bash
-# Drop+recreate target DB, then restore (safe on empty VPS)
 FORCE_RESTORE=true \
   docker compose --profile restore run --rm db-restore
 ```
 
 What the script does:
 
-1. Creates `gudgame_db` if missing  
-2. Runs `pg_restore --no-owner --no-acl -d gudgame_db` (**no** `--create`)  
-3. Ignores dump’s original name `tanding_db`  
-4. Prints table counts / presence of `user` + drizzle journal  
+1. Verifies server is PostgreSQL 18+  
+2. Creates / recreates empty `gudgame_db`  
+3. Runs `pg_restore --no-owner --no-acl -d gudgame_db` (**no** `--create`)  
+4. Ignores dump’s original name `tanding_db`  
+5. Prints sanity counts (`user` table, drizzle journal)
 
 ### 3. Apply newer app migrations
 
@@ -85,12 +84,13 @@ What the script does:
 docker compose --profile migrate run --rm db-migrate
 ```
 
-This applies any SQL in `db/migrations/` that is newer than the dump
+Applies any SQL in `db/migrations/` that is newer than the dump
 (e.g. `0027_uuid_pk_defaults`).
 
 ### 4. Restart app
 
 ```bash
+docker compose up -d pgadmin
 docker compose up -d --no-deps app payout-cron
 ```
 
@@ -98,104 +98,113 @@ docker compose up -d --no-deps app payout-cron
 
 ```bash
 curl -sS -H "X-Health-Token: $HEALTH_CHECK_TOKEN" http://127.0.0.1:3000/api/health | jq .
-docker compose exec postgres psql -U zaka_user -d gudgame_db -c '\dt public.*' | head
+docker compose exec postgres psql -U zaka_user -d gudgame_db -c 'SELECT COUNT(*) FROM "user";'
 ```
 
 ---
 
-## Optional: GitHub Actions (same pipeline as deploy)
+## Optional: GitHub Actions one-shot restore
 
-Restore is **not** a separate workflow. Use `.github/workflows/cicd.yml` →
-**Actions → Gud Game CI/CD → Run workflow** with:
+Workflow: **Actions → “Gud Game DB Restore” → Run workflow**  
+(`.github/workflows/db-restore.yml`, `workflow_dispatch` only).
 
-| Input | When |
-| --- | --- |
-| `wipe_postgres_volume` | Once for PG16→18 / wrong mount layout (empty DB OK) |
-| `restore_db_dump` | Restore `ops/db/backups/gudgame.dump` into `gudgame_db` |
-| `force_restore` | Drop+recreate `gudgame_db` before restore (default on) |
+1. Copy dump to the self-hosted runner: `ops/db/backups/gudgame.dump`  
+2. Run workflow with:
+   - `force_restore` = true  
+   - `run_migrate_after` = true  
 
-Normal `push` to `master` never restores. After restore, the same job still runs
-`db:migrate:prod` then deploys the app.
-
-**One-shot wipe without UI:** set secret `POSTGRES_WIPE_ON_MAJOR_UPGRADE=true`,
-run one deploy, then **delete** that secret.
-
-**Requirement:** dump must already exist on the self-hosted runner at  
-`ops/db/backups/gudgame.dump` (or secret/path `GUDGAME_RESTORE_DUMP`).  
-Do **not** commit production dumps to git.
+Normal **push CI does not restore** (avoids wiping production).
 
 ---
 
 ## pgAdmin restore (step-by-step)
 
-Use this only if you prefer the UI. Custom-format files work in pgAdmin 4 when
-the **server** is Postgres 18.
+Use this when you want the UI. The server must already be **Postgres 18**.
 
-### A. Open pgAdmin
+### A. Prepare the dump for the pgAdmin container
 
-1. On the VPS (or via Cloudflare tunnel to `127.0.0.1:5050`): open pgAdmin.  
+pgAdmin runs **inside Docker** and cannot see Windows `Downloads`.
+Compose mounts `ops/db/backups` → **`/backups`** (read-only).
+
+```bash
+# On VPS
+mkdir -p ops/db/backups
+cp ~/gudgame.dump ops/db/backups/gudgame.dump
+docker compose up -d pgadmin
+```
+
+### B. Open pgAdmin
+
+1. Open `http://127.0.0.1:5050` (or your Cloudflare route).  
 2. Login with `PGADMIN_EMAIL` / `PGADMIN_PASSWORD`.  
-3. Register / open server **Gud Game PostgreSQL** (host `postgres`, port `5432`,
-   user `zaka_user`, password = `POSTGRESQL_PASSWORD`, maintenance DB `postgres`).
+3. Open server **Gud Game PostgreSQL**  
+   - Host: `postgres`  
+   - Port: `5432`  
+   - Username: `zaka_user`  
+   - Password: `POSTGRESQL_PASSWORD`  
+   - Maintenance DB: `postgres`
 
-### B. Create empty target database
+### C. Create empty target database
 
 1. Right-click **Databases** → **Create** → **Database…**  
-2. **Database**: `gudgame_db`  
+2. **Database**: `gudgame_db` (exactly this name)  
 3. **Owner**: `zaka_user`  
 4. Save.  
-5. Do **not** create a database named `tanding_db`.
+5. Do **not** create `tanding_db`.
 
-### C. Upload / place the dump where the restore job can read it
+If `gudgame_db` already has tables from a failed restore, **drop it first**:
 
-pgAdmin running **inside Docker** cannot see your Windows `Downloads` folder.
-Prefer the CLI restore above, **or**:
+1. Disconnect sessions (right-click DB → Disconnect)  
+2. Right-click `gudgame_db` → **Delete/Drop**  
+3. Recreate empty `gudgame_db` as above  
 
-1. Copy dump onto the VPS host.  
-2. Temporarily mount it into pgAdmin (advanced), **or** use CLI `db-restore`.
+### D. Restore in pgAdmin
 
-If you insist on pgAdmin UI restore from a file already on the server:
-
-1. Right-click database **`gudgame_db`** → **Restore…**  
+1. Right-click **`gudgame_db`** → **Restore…**  
 2. **Format**: `Custom or tar`  
-3. **Filename**: path **inside** the pgAdmin container to the dump (only if you
-   mounted it). Otherwise cancel and use CLI.  
-4. **Options** tab — enable:
-   - ✅ **No owner**  
-   - ✅ **No privileges** (no ACL)  
-   - ❌ **Do not** check “Create database”  
-5. **Restore**.  
-6. If you see role-missing warnings only, usually OK. Hard errors about version
-   mean the server is still PG 16 — upgrade to 18 and recreate the volume.
+3. **Filename**: `/backups/gudgame.dump`  
+   (browse under `/backups` — this is the mounted folder)  
+4. Open the **Data options** / **Options** / **Restore options** tabs and set:
 
-### D. After pgAdmin restore
+| Option | Value |
+| --- | --- |
+| **No owner** | ✅ ON |
+| **No privileges** / No ACL | ✅ ON |
+| **Create database** | ❌ OFF (critical) |
+| **Clean before restore** | ❌ OFF (target must already be empty) |
 
-Still run migrations from the VPS shell:
+5. Click **Restore**.  
+6. Watch the messages panel:
+   - Warnings about missing roles → usually OK with No owner  
+   - Errors about “unsupported version” / archive format → server is still not PG18  
+   - Errors about “already exists” → DB was not empty — drop & recreate, then retry  
+
+### E. After pgAdmin restore (required)
 
 ```bash
 docker compose --profile migrate run --rm db-migrate
 docker compose up -d --no-deps app
 ```
 
-### E. Common pgAdmin mistakes to avoid
+### F. Common pgAdmin mistakes
 
 | Mistake | Result |
 | --- | --- |
-| Restore with “Create database” | Creates `tanding_db`; app still points at empty `gudgame_db` |
-| Restore into `postgres` maintenance DB | Pollutes system DB — don’t |
-| Server still on Postgres 16 | Version error / failed restore |
-| Skipping migrate after restore | Missing columns/defaults (e.g. UUID PK defaults) |
-| Committing dump to git | Security risk (PII) |
+| “Create database” checked | Creates `tanding_db`; app still uses empty `gudgame_db` |
+| Restore into maintenance DB `postgres` | Pollutes system DB |
+| Server still on Postgres 16 | Version / format errors |
+| Restore into DB that already ran migrate | Dozens of “already exists” / FK errors |
+| Skipping migrate after restore | Missing newer columns (e.g. UUID defaults) |
+| Looking for the file under Windows path in pgAdmin | Use `/backups/gudgame.dump` inside the container |
 
 ---
 
 ## Mapping `tanding_db` → `gudgame_db`
 
-You do **not** rename the database inside the dump file.
+You do **not** edit or rename the dump file.
 
 - Dump metadata may still say `tanding_db`.  
-- `pg_restore -d gudgame_db` (without `--create`) loads **objects** into
-  `gudgame_db`.  
+- `pg_restore -d gudgame_db` (without `--create`) loads **objects** into `gudgame_db`.  
 - App `DATABASE_URL` stays: `postgres://…@postgres:5432/gudgame_db`.
 
 ---
@@ -204,9 +213,8 @@ You do **not** rename the database inside the dump file.
 
 | Path | Role |
 | --- | --- |
-| `ops/db/restore-from-dump.sh` | Restore script |
-| `ops/db/backups/` | Local dump drop folder (gitignored) |
-| `docker-compose.yml` → `db-restore` | Compose profile `restore` |
-| `ops/ci/ensure-postgres-ready.sh` | PG major / mount check + optional wipe |
-| `.github/workflows/cicd.yml` | Deploy + optional wipe/restore inputs |
+| `ops/db/restore-from-dump.sh` | Restore script (used by Compose) |
+| `ops/db/backups/` | Dump drop folder (gitignored) |
+| `docker-compose.yml` → `postgres:18-alpine`, `db-restore` | Server + restore profile |
+| `.github/workflows/db-restore.yml` | Manual CI restore |
 | `docs/DEPLOYMENT-VPS.md` | Full VPS deploy |

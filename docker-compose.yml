@@ -14,8 +14,7 @@ services:
   # Data stores
   # ---------------------------------------------------------------------------
   postgres:
-    # Must be >= dump major version. Production dump was taken from PostgreSQL 18.6
-    # (custom format PGDMP). Restoring 18 → 16 fails; keep server on 18.x.
+    # Dump `gudgame_db-backup` was taken from PostgreSQL 18.6 — server must be ≥ 18.
     image: postgres:18-alpine
     container_name: gudgame-postgres
     restart: unless-stopped
@@ -24,26 +23,23 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
-      # Postgres 18+ images require mount at /var/lib/postgresql (not .../data).
-      # PGDATA becomes /var/lib/postgresql/18/docker inside the volume.
-      - gudgame_postgres_data:/var/lib/postgresql
+      # New volume name avoids "incompatible data directory" when upgrading from PG16.
+      - gudgame_postgres18_data:/var/lib/postgresql/data
     ports:
       # Localhost-only for emergency admin; app uses hostname `postgres` on `tunnel`
       - "127.0.0.1:5432:5432"
     networks:
       - tunnel
     healthcheck:
-      # Check against maintenance DB `postgres` (always exists after successful init).
-      # Using POSTGRES_DB can flap during first boot / before CREATE DATABASE.
       test:
         [
           "CMD-SHELL",
           "pg_isready -U $${POSTGRES_USER} -d postgres",
         ]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 24
-      start_period: 40s
+      retries: 10
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -96,6 +92,8 @@ services:
     volumes:
       - gudgame_pgadmin_data:/var/lib/pgadmin
       - ./ops/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      # Optional: place gudgame.dump here for UI Restore → Filename `/backups/gudgame.dump`
+      - ./ops/db/backups:/backups:ro
     ports:
       # Localhost-only; expose via Cloudflare Tunnel if needed
       - "127.0.0.1:5050:80"
@@ -318,10 +316,11 @@ services:
       - tunnel
     command: ["npm", "run", "db:migrate:prod"]
 
-  # One-off: restore PostgreSQL custom dump into gudgame_db (handles tanding_db → gudgame_db).
-  # Place dump at ops/db/backups/gudgame.dump OR set GUDGAME_RESTORE_DUMP=/absolute/path
+  # One-off: restore PostgreSQL custom dump (PGDMP) into gudgame_db.
+  # Dump may be named tanding_db internally — restored WITHOUT --create into gudgame_db.
+  # Never run on every push — opt-in only:
+  #   cp ~/gudgame_db-backup ops/db/backups/gudgame.dump
   #   FORCE_RESTORE=true docker compose --profile restore run --rm db-restore
-  # Then apply newer migrations:
   #   docker compose --profile migrate run --rm db-migrate
   db-restore:
     profiles: ["restore"]
@@ -335,9 +334,9 @@ services:
       PGUSER: ${POSTGRESQL_USERNAME:-zaka_user}
       PGPASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       PGDATABASE: ${POSTGRESQL_DATABASE:-gudgame_db}
-      RESTORE_DUMP_PATH: /backup/gudgame.dump
       FORCE_RESTORE: ${FORCE_RESTORE:-false}
       SKIP_RESTORE_IF_DATA: ${SKIP_RESTORE_IF_DATA:-true}
+      RESTORE_DUMP_PATH: /backup/gudgame.dump
     volumes:
       - ${GUDGAME_RESTORE_DUMP:-./ops/db/backups/gudgame.dump}:/backup/gudgame.dump:ro
       - ./ops/db/restore-from-dump.sh:/restore.sh:ro
@@ -351,7 +350,7 @@ networks:
     external: true
 
 volumes:
-  gudgame_postgres_data:
+  gudgame_postgres18_data:
   gudgame_redis_data:
   gudgame_pgadmin_data:
   seaweed_master_data:

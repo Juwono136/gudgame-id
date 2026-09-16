@@ -41,6 +41,11 @@ yarn-error.log*
 ops/storage/.htpasswd
 !ops/storage/.htpasswd.example
 
+# DB dumps (place as ops/db/backups/gudgame.dump — never commit)
+ops/db/backups/*
+!ops/db/backups/README.md
+*.dump
+
 # vercel
 .vercel
 

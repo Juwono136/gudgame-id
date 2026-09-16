@@ -1,0 +1,110 @@
+name: Gud Game DB Restore
+
+# Opt-in only — never runs on push. Restores ops/db/backups/gudgame.dump → gudgame_db.
+on:
+  workflow_dispatch:
+    inputs:
+      force_restore:
+        description: "Drop and recreate gudgame_db before restore"
+        required: true
+        type: boolean
+        default: true
+      run_migrate_after:
+        description: "Run db:migrate:prod after restore"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  restore:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure Docker network `tunnel` exists
+        env:
+          TUNNEL_NAME: ${{ secrets.TUNNEL_NAME }}
+        run: |
+          NET="${TUNNEL_NAME:-tunnel}"
+          docker network inspect "${NET}" >/dev/null 2>&1 || docker network create "${NET}"
+
+      - name: Resolve Docker DATABASE_URL
+        env:
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ secrets.POSTGRESQL_DATABASE }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x ops/ci/export-docker-database-url.sh
+          export POSTGRESQL_DATABASE="${POSTGRESQL_DATABASE:-gudgame_db}"
+          . ops/ci/export-docker-database-url.sh
+
+      - name: Start Postgres 18
+        run: |
+          set -euo pipefail
+          docker compose up -d postgres
+          docker compose up -d --wait --wait-timeout 180 postgres
+          VER="$(docker compose exec -T postgres psql -U "${POSTGRESQL_USERNAME}" -d postgres -tAc 'SHOW server_version;')"
+          echo "Postgres server_version=${VER}"
+          echo "${VER}" | grep -Eq '^(18|19)\.' || {
+            echo "Expected PostgreSQL 18+. Got: ${VER}" >&2
+            echo "Wipe PG16 volume per docs/DATABASE-RESTORE.md then retry." >&2
+            exit 1
+          }
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
+
+      - name: Check dump file on runner
+        run: |
+          set -euo pipefail
+          DUMP="${GUDGAME_RESTORE_DUMP:-ops/db/backups/gudgame.dump}"
+          if [ ! -f "${DUMP}" ]; then
+            echo "Dump not found: ${DUMP}" >&2
+            echo "On the VPS runner, copy the backup first:" >&2
+            echo "  mkdir -p ops/db/backups" >&2
+            echo "  cp /path/to/gudgame_db-backup ops/db/backups/gudgame.dump" >&2
+            exit 1
+          fi
+          echo "Using dump: ${DUMP} ($(wc -c < "${DUMP}") bytes)"
+          # Confirm custom format + source name hint
+          dd if="${DUMP}" bs=5 count=1 status=none | grep -q PGDMP
+          echo "Format: PostgreSQL custom (PGDMP)"
+
+      - name: Restore dump into gudgame_db
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
+          FORCE_RESTORE: ${{ inputs.force_restore }}
+          SKIP_RESTORE_IF_DATA: "true"
+        run: |
+          set -euo pipefail
+          chmod +x ops/db/restore-from-dump.sh
+          FORCE_RESTORE="${FORCE_RESTORE}" \
+            docker compose --profile restore run --rm db-restore
+
+      - name: Run migrations after restore
+        if: ${{ inputs.run_migrate_after }}
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
+          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
+          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
+          DB_SCRIPT_MODE: "true"
+        run: |
+          set -euo pipefail
+          docker compose --profile migrate build db-migrate
+          docker compose --profile migrate run --rm -e DATABASE_URL -e DB_SCRIPT_MODE=true db-migrate
+
+      - name: Restart app
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          docker compose up -d --no-deps app payout-cron || \
+            echo "App containers may not be deployed yet — restore DB only is OK."

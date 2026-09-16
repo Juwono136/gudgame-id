@@ -6,12 +6,13 @@
 #   - Ownership/ACL noise from another host (--no-owner --no-acl)
 #   - Empty target DB (CREATE DATABASE if missing)
 #
-# Requires Postgres server major version >= dump major version
-# (this stack uses postgres:18 — dump was taken from 18.6).
+# Requires Postgres server major version >= dump major version.
+# This stack uses postgres:18-alpine — dump `gudgame_db-backup` is from 18.6.
 #
 # Usage (Compose profile):
-#   GUDGAME_RESTORE_DUMP=/path/to/gudgame_db-backup \
-#     docker compose --profile restore run --rm db-restore
+#   cp /path/to/gudgame_db-backup ops/db/backups/gudgame.dump
+#   FORCE_RESTORE=true docker compose --profile restore run --rm db-restore
+#   docker compose --profile migrate run --rm db-migrate
 #
 # Env:
 #   PGHOST, PGUSER, PGPASSWORD, PGDATABASE (target, default gudgame_db)
@@ -57,8 +58,16 @@ until pg_isready -h "${HOST}" -U "${USER_NAME}" -q; do
   sleep 1
 done
 
-# Ensure we can talk to the maintenance DB
-psql -d postgres -v ON_ERROR_STOP=1 -c "SELECT version();" >/dev/null
+SERVER_VER="$(psql -d postgres -tAc 'SHOW server_version;' | tr -d '[:space:]')"
+SERVER_MAJOR="$(printf '%s' "${SERVER_VER}" | cut -d. -f1)"
+echo "[db-restore] Server version: ${SERVER_VER}"
+
+if [ "${SERVER_MAJOR}" -lt 18 ]; then
+  echo "[db-restore] Refusing restore: server is PostgreSQL ${SERVER_VER}." >&2
+  echo "  Dump gudgame_db-backup requires PostgreSQL 18+ (compose image postgres:18-alpine)." >&2
+  echo "  Recreate the data volume (see docs/DATABASE-RESTORE.md) then retry." >&2
+  exit 1
+fi
 
 exists="$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB}'" | tr -d '[:space:]')"
 
@@ -75,7 +84,7 @@ fi
 
 if [ "${exists}" != "1" ]; then
   echo "[db-restore] Creating empty database ${TARGET_DB}"
-  psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${TARGET_DB}\";"
+  psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${TARGET_DB}\" OWNER \"${USER_NAME}\";"
 else
   echo "[db-restore] Database ${TARGET_DB} already exists"
 fi
@@ -130,6 +139,9 @@ SELECT
   ) AS has_drizzle_journal;
 SQL
 
+USER_COUNT="$(psql -d "${TARGET_DB}" -tAc 'SELECT COUNT(*) FROM "user"' 2>/dev/null | tr -d '[:space:]' || echo 0)"
+echo "[db-restore] user rows: ${USER_COUNT}"
+
 echo "[db-restore] Restore complete into ${TARGET_DB}."
-echo "[db-restore] Next: run migrations to apply schema newer than the dump:"
+echo "[db-restore] Next: apply newer app migrations (safe / idempotent):"
 echo "  docker compose --profile migrate run --rm db-migrate"

@@ -4,6 +4,7 @@
 # (service name `app` → container `gudgame-app`)
 #
 # Lightweight: curl + crond baked at build time (no runtime apk install).
+# DB restores are handled by Compose profile `restore` (postgres:18), not this image.
 FROM alpine:3.20
 
 LABEL org.opencontainers.image.title="gudgame-payout-cron" \
