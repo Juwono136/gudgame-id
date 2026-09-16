@@ -71,6 +71,7 @@ Details: [docs/SETUP.md](./docs/SETUP.md) (if present) or [docs/DEPLOYMENT-VPS.m
 ## Documentation
 
 - [VPS deployment](./docs/DEPLOYMENT-VPS.md)
+- [Database restore (`tanding_db` → `gudgame_db`)](./docs/DATABASE-RESTORE.md)
 - [Tournament guide](./docs/tournament-guide.md)
 - [Partner auth](./docs/partner-auth.md)
 - [Bestie Cup guide](./docs/bestie-cup-guide.md)

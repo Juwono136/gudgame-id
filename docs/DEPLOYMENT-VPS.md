@@ -12,7 +12,7 @@ each other by Compose **service name** (and so cloudflared can reach them).
 
 | Service (Compose) | Container name | Role | Host ports (localhost only) |
 | --- | --- | --- | --- |
-| `postgres` | `gudgame-postgres` | PostgreSQL 16 | `127.0.0.1:5432` |
+| `postgres` | `gudgame-postgres` | PostgreSQL **18** | `127.0.0.1:5432` |
 | `redis` | `gudgame-redis` | Redis 7 (AOF + password) | `127.0.0.1:6379` |
 | `pgadmin` | `gudgame-pgadmin` | pgAdmin 4 | `127.0.0.1:5050` |
 | `seaweedfs` | `seaweed_core` | SeaweedFS master+volume+filer | *(none — internal)* |
@@ -20,6 +20,7 @@ each other by Compose **service name** (and so cloudflared can reach them).
 | `app` | `gudgame-app` | Next.js app | `3000` |
 | `payout-cron` | `gudgame-payout-cron` | Cron → `/api/cron/*` | *(none)* |
 | `db-migrate` | *(ephemeral)* | `npm run db:migrate:prod` (SQL migrator) | profile `migrate` |
+| `db-restore` | *(ephemeral)* | Restore custom dump → `gudgame_db` | profile `restore` |
 
 **App connection strings (inside Docker):**
 
@@ -111,6 +112,26 @@ On push to `master` (self-hosted runner):
 7. Smoke-test `/api/health` and container status  
 
 **Do not** run `docker compose down --remove-orphans` on a shared VPS.
+
+## Restoring a legacy dump (`tanding_db` → `gudgame_db`)
+
+Production dump files (PostgreSQL **custom format**, often named `gudgame_db-backup`)
+were taken from **PostgreSQL 18** under database name **`tanding_db`**.
+
+Full runbook (CLI + **pgAdmin step-by-step**): **[DATABASE-RESTORE.md](./DATABASE-RESTORE.md)**.
+
+Short version on the VPS:
+
+```bash
+# 1) Ensure Postgres 18 volume (not 16)
+docker compose up -d postgres
+
+# 2) Copy dump → ops/db/backups/gudgame.dump
+FORCE_RESTORE=true docker compose --profile restore run --rm db-restore
+
+# 3) Apply migrations newer than the dump
+docker compose --profile migrate run --rm db-migrate
+```
 
 ## GitHub Secrets checklist
 

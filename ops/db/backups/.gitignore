@@ -1,0 +1,8 @@
+# Place PostgreSQL custom-format dumps here for one-shot restore (Compose profile `restore`).
+# Example:
+#   cp ~/Downloads/gudgame_db-backup ops/db/backups/gudgame.dump
+#
+# Never commit real production dumps (PII / secrets).
+*
+!.gitignore
+!README.md

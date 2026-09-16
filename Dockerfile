@@ -1,6 +1,6 @@
 # Gud Game production image — Next.js standalone on Alpine.
 # Runtime networking: joins Docker network `tunnel` (see docker-compose.yml).
-# Speaks to postgres / redis / storage_gateway by Docker DNS service names.
+# Speaks to postgres (PG 18) / redis / storage_gateway by Docker DNS service names.
 FROM node:20-alpine AS base
 
 FROM base AS deps
