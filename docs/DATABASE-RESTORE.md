@@ -53,8 +53,10 @@ docker compose stop postgres pgadmin
 docker compose rm -f postgres
 # Optional: remove legacy PG16 volume if it still exists
 docker volume rm gudgame-app_gudgame_postgres_data 2>/dev/null || true
+# If a previous PG18 attempt failed (wrong mount .../data), wipe and recreate:
+docker volume rm gudgame-app_gudgame_postgres18_data 2>/dev/null || true
 
-# Pull + start PG18 (new volume: gudgame_postgres18_data)
+# Pull + start PG18 (volume: gudgame_postgres18_data → /var/lib/postgresql)
 docker compose pull postgres
 docker compose up -d postgres
 docker compose up -d --wait --wait-timeout 120 postgres
@@ -62,6 +64,10 @@ docker compose up -d --wait --wait-timeout 120 postgres
 docker compose exec postgres psql -U zaka_user -d postgres -c "SHOW server_version;"
 # expect 18.x
 ```
+
+> **Postgres 18 Docker note:** mount the volume at `/var/lib/postgresql`, not
+> `/var/lib/postgresql/data`. Mounting the old path makes the container exit /
+> stay **unhealthy** (official image layout change).
 
 ### 2. Restore dump → `gudgame_db`
 

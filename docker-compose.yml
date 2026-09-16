@@ -23,8 +23,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
-      # New volume name avoids "incompatible data directory" when upgrading from PG16.
-      - gudgame_postgres18_data:/var/lib/postgresql/data
+      # PG18+ official image: mount /var/lib/postgresql (NOT .../data).
+      # PGDATA inside the image is /var/lib/postgresql/18/docker.
+      # New volume name also avoids "incompatible data directory" from PG16.
+      - gudgame_postgres18_data:/var/lib/postgresql
     ports:
       # Localhost-only for emergency admin; app uses hostname `postgres` on `tunnel`
       - "127.0.0.1:5432:5432"

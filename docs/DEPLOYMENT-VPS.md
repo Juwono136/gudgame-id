@@ -196,6 +196,7 @@ docker compose up -d --no-deps app payout-cron
 
 | Symptom | Check |
 | --- | --- |
+| Postgres container **unhealthy** after upgrade to 18 | Official image mounts at `/var/lib/postgresql` (not `.../data`). Wipe failed volume: `docker volume rm gudgame-app_gudgame_postgres18_data` then redeploy. See [DATABASE-RESTORE.md](./DATABASE-RESTORE.md). |
 | App cannot reach DB | `DATABASE_URL` host must be `postgres`; both on `tunnel` |
 | Settings / complete-profile fails inserting `wiki_entities` | UUID PK lost `DEFAULT gen_random_uuid()` after migration 0005 — fixed by `0027_uuid_pk_defaults` + client-side `crypto.randomUUID()`. Redeploy migrate. |
 | Migrate fails: `tournament_group_matches` does not exist | Journal was missing `0012_double_stage_groups` — fixed in `db/migrations/meta/_journal.json`. Redeploy. |
