@@ -105,13 +105,20 @@ On push to `master` (self-hosted runner):
 
 1. Create network `tunnel` if missing  
 2. Generate `ops/storage/.htpasswd` from secrets  
-3. `docker compose up -d` infra (`postgres`, `redis`, `seaweedfs`, `storage_gateway`, `pgadmin`)  
-4. Wait for Postgres + Redis healthy  
-5. Migrate → seed → bootstrap admin → purge QA fixtures  
-6. Recreate **only** `app` + `payout-cron` (`--no-deps`)  
-7. Smoke-test `/api/health` and container status  
+3. Start Postgres via `ops/ci/ensure-postgres-ready.sh` (PG18 mount + optional wipe)  
+4. Start remaining infra (`redis`, `seaweedfs`, `storage_gateway`, `pgadmin`)  
+5. Optional (manual **Run workflow** only): restore dump into `gudgame_db`  
+6. Migrate → seed → bootstrap admin → purge QA fixtures  
+7. Recreate **only** `app` + `payout-cron` (`--no-deps`)  
+8. Smoke-test `/api/health` and container status  
+
+**Postgres unhealthy after bump to 18:** old PG16 volume (or mount at
+`/var/lib/postgresql/data`) is incompatible. With an empty DB, run
+**Actions → Gud Game CI/CD → Run workflow** with `wipe_postgres_volume=true`
+once, or set secret `POSTGRES_WIPE_ON_MAJOR_UPGRADE=true` for one deploy then delete it.
 
 **Do not** run `docker compose down --remove-orphans` on a shared VPS.
+**Do not** add a separate restore workflow — wipe/restore inputs live on this pipeline.
 
 ## Restoring a legacy dump (`tanding_db` → `gudgame_db`)
 

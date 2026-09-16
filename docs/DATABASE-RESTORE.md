@@ -41,7 +41,8 @@ cp ~/gudgame.dump ops/db/backups/gudgame.dump
 
 ### 1. Upgrade / recreate Postgres 18 volume (if you still have PG 16 data dir)
 
-Postgres major upgrades **cannot** reuse an old data directory.
+Postgres major upgrades **cannot** reuse an old data directory. Postgres **18**
+Docker images also mount at `/var/lib/postgresql` (not `.../data`).
 
 If the volume was initialized with Postgres 16 and you already dropped DBs:
 
@@ -53,6 +54,8 @@ docker volume rm gudgame-app_gudgame_postgres_data
 docker compose up -d postgres
 docker compose up -d --wait --wait-timeout 120 postgres
 ```
+
+Or from GitHub Actions: **Run workflow** with `wipe_postgres_volume=true`.
 
 Confirm version:
 
@@ -100,18 +103,26 @@ docker compose exec postgres psql -U zaka_user -d gudgame_db -c '\dt public.*' |
 
 ---
 
-## Optional: GitHub Actions one-shot restore
+## Optional: GitHub Actions (same pipeline as deploy)
 
-Workflow: `.github/workflows/db-restore.yml` (`workflow_dispatch` only).
+Restore is **not** a separate workflow. Use `.github/workflows/cicd.yml` →
+**Actions → Gud Game CI/CD → Run workflow** with:
 
-Inputs:
+| Input | When |
+| --- | --- |
+| `wipe_postgres_volume` | Once for PG16→18 / wrong mount layout (empty DB OK) |
+| `restore_db_dump` | Restore `ops/db/backups/gudgame.dump` into `gudgame_db` |
+| `force_restore` | Drop+recreate `gudgame_db` before restore (default on) |
 
-- `force_restore` — drop+recreate `gudgame_db` before restore  
-- `run_migrate_after` — run `db:migrate:prod` after restore  
+Normal `push` to `master` never restores. After restore, the same job still runs
+`db:migrate:prod` then deploys the app.
+
+**One-shot wipe without UI:** set secret `POSTGRES_WIPE_ON_MAJOR_UPGRADE=true`,
+run one deploy, then **delete** that secret.
 
 **Requirement:** dump must already exist on the self-hosted runner at  
-`ops/db/backups/gudgame.dump` (or set secret/path `GUDGAME_RESTORE_DUMP`).  
-Do **not** upload production dumps into the git repo.
+`ops/db/backups/gudgame.dump` (or secret/path `GUDGAME_RESTORE_DUMP`).  
+Do **not** commit production dumps to git.
 
 ---
 
@@ -196,5 +207,6 @@ You do **not** rename the database inside the dump file.
 | `ops/db/restore-from-dump.sh` | Restore script |
 | `ops/db/backups/` | Local dump drop folder (gitignored) |
 | `docker-compose.yml` → `db-restore` | Compose profile `restore` |
-| `.github/workflows/db-restore.yml` | Manual CI restore |
+| `ops/ci/ensure-postgres-ready.sh` | PG major / mount check + optional wipe |
+| `.github/workflows/cicd.yml` | Deploy + optional wipe/restore inputs |
 | `docs/DEPLOYMENT-VPS.md` | Full VPS deploy |

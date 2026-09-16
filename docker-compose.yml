@@ -24,22 +24,26 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRESQL_DATABASE:-gudgame_db}
     volumes:
-      - gudgame_postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ images require mount at /var/lib/postgresql (not .../data).
+      # PGDATA becomes /var/lib/postgresql/18/docker inside the volume.
+      - gudgame_postgres_data:/var/lib/postgresql
     ports:
       # Localhost-only for emergency admin; app uses hostname `postgres` on `tunnel`
       - "127.0.0.1:5432:5432"
     networks:
       - tunnel
     healthcheck:
+      # Check against maintenance DB `postgres` (always exists after successful init).
+      # Using POSTGRES_DB can flap during first boot / before CREATE DATABASE.
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+          "pg_isready -U $${POSTGRES_USER} -d postgres",
         ]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 20s
+      retries: 24
+      start_period: 40s
     logging:
       driver: json-file
       options:
