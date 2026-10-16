@@ -1,5 +1,7 @@
 # Gud Game — VPS deployment (Docker Compose + Cloudflare Tunnel)
 
+> **Docs hub:** [README.md](./README.md) · CI/CD summary: [cicd-and-ops.md](./cicd-and-ops.md) · DB restore: [DATABASE-RESTORE.md](./DATABASE-RESTORE.md)
+
 Professional runbook for deploying **Gud Game** on a blank VPS. Public HTTPS
 (`https://gudgame.id`, `https://storage.gudgame.id`) is terminated by
 **Cloudflare Zero Trust / cloudflared** (you configure that separately). This

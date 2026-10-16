@@ -1,5 +1,7 @@
 # Gud Game — database restore (tanding_db dump → gudgame_db)
 
+> **Docs hub:** [README.md](./README.md) · Deploy: [DEPLOYMENT-VPS.md](./DEPLOYMENT-VPS.md) · CI/CD: [cicd-and-ops.md](./cicd-and-ops.md)
+
 Professional runbook for restoring a **PostgreSQL custom-format** dump
 (file magic `PGDMP`, e.g. `Downloads/gudgame_db-backup`) into the Docker
 database **`gudgame_db`**.

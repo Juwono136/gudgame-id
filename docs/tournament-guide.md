@@ -3,12 +3,14 @@
 | | |
 | --- | --- |
 | **Dokumen** | User manual operasional turnamen |
-| **Produk** | Gud Game (court-pedia) |
+| **Produk** | Gud Game |
 | **Audiens** | Host / admin turnamen, operator lapangan, QA, dan developer yang merawat fitur turnamen |
 | **Bahasa UI** | Inggris (nama field mengikuti layar aplikasi) |
 | **Bahasa panduan** | Indonesia (penjelasan operasional) |
 | **Versi konten** | 2026-08-27 |
 | **Status** | Dokumen hidup — diperbarui setiap ada perubahan fitur turnamen |
+
+> **Indeks dokumentasi:** [docs/README.md](./README.md) · Arsitektur turnamen (EN): [tournaments.md](./tournaments.md) · TV display: [tv-display.md](./tv-display.md)
 
 > **Cara memakai dokumen ini.** Baca [Bagian A](#bagian-a--konsep-dasar) untuk memahami jenis & format turnamen, [Bagian B](#bagian-b--membuat--mengedit-turnamen) saat membuat event, [Bagian C](#bagian-c--operasional-hari-h) saat pertandingan Live, lalu [Lampiran](#lampiran) untuk seed QA, matriks uji, dan referensi teknis.  
 > Sinkronisasi otomatis untuk agen: `.cursor/rules/tournament-docs.mdc`.

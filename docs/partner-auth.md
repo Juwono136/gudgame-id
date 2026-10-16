@@ -7,6 +7,8 @@
 | **Versi konten** | 2026-08-27 (dual-session UX) |
 | **Audiens** | Partner staff, player/member, developer |
 
+> **Docs hub:** [README.md](./README.md) · Partner overview: [partners.md](./partners.md) · Platform auth/roles: [auth-and-roles.md](./auth-and-roles.md)
+
 > Akun member partner **terpisah** dari akun Gud Game dan dari partner lain. Staff/owner partner tetap login lewat Gud Game.
 
 ---

@@ -1,5 +1,7 @@
 # Bestie Cup 2026 — Partner Tournament Manual
 
+> **Docs hub:** [README.md](./README.md) · Partners: [partners.md](./partners.md) · Tournaments: [tournaments.md](./tournaments.md) · TV: [tv-display.md](./tv-display.md)
+
 Official reference: [`Panduan Dan Rundown Bestie Cup 2026.pdf`](./Panduan%20Dan%20Rundown%20Bestie%20Cup%202026.pdf)
 
 This guide describes how to run the full **Bestie Cup** event on Gud Game Partner (Spinderellas white-label).
