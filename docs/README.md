@@ -34,6 +34,7 @@ This folder is the **single source of truth** for product understanding, enginee
 
 | Document | Description |
 | --- | --- |
+| **[LICENSE.md](./LICENSE.md)** | **Proprietary license pointer (all rights reserved)** |
 | **[USER-MANUAL.md](./USER-MANUAL.md)** | **Complete end-user manual (English)** |
 | **[DEVELOPER-HANDOVER.md](./DEVELOPER-HANDOVER.md)** | **Developer handover manual for Attentive IT (English)** |
 | [overview.md](./overview.md) | Vision, naming, who the product serves |

@@ -1,0 +1,131 @@
+# Proprietary License — All Rights Reserved
+
+**Gud Game** software and related materials  
+**Copyright © 2026 PT Aplikasi Wong Kito Galo.** All rights reserved.
+
+| | |
+| --- | --- |
+| **Copyright holder** | PT Aplikasi Wong Kito Galo |
+| **Product** | Gud Game (including source code, documentation, designs, and related materials in this repository) |
+| **Address** | Jl. Limo Raya No. 7, Limo, Kota Depok, Jawa Barat 16515, Indonesia |
+| **Contact** | help@gudgame.id |
+| **License type** | Proprietary. Not open source. No rights are granted except as stated below. |
+| **SPDX** | LicenseRef-Proprietary-GudGame-All-Rights-Reserved |
+| **Controlling language** | English. The Bahasa Indonesia text is a convenience translation. If they differ, the English text controls. |
+
+This file is the license for the Gud Game repository. Publishing the repository on GitHub or any other host does **not** make the software open source and does **not** transfer ownership or any license to the public.
+
+---
+
+## 1. Ownership
+
+The software, documentation, user interfaces, database schemas, configuration, graphics, trademarks, trade dress, and all other materials in this repository (together, the **“Materials”**) are the exclusive property of **PT Aplikasi Wong Kito Galo** (the **“Copyright Holder”**), or are licensed to the Copyright Holder.
+
+The Materials are protected under the copyright laws of the Republic of Indonesia, including **Undang-Undang Nomor 28 Tahun 2014 tentang Hak Cipta**, and under the copyright and related laws of other countries. Economic rights and moral rights remain with the Copyright Holder. Nothing in a public repository listing, a star, a watch, a fork button, a download button, or a clone command transfers those rights.
+
+---
+
+## 2. No license is granted to the public
+
+Subject only to Section 3, **no license is granted** to any person or entity to use the Materials.
+
+Without the prior **written** permission of the Copyright Holder, you may **not**, in whole or in part, and whether for personal, internal, educational, commercial, or any other purpose:
+
+1. copy, reproduce, or download the Materials;
+2. clone, fork, mirror, scrape, or otherwise obtain a copy of the repository or any part of it;
+3. modify, adapt, translate, or create derivative works;
+4. merge the Materials into other software;
+5. distribute, publish, sublicense, sell, rent, lease, lend, or otherwise make the Materials available to any third party;
+6. use the Materials to build, train, or improve a competing product or a machine-learning model;
+7. remove or alter copyright, trademark, or proprietary notices;
+8. reverse engineer, decompile, or disassemble the Materials, except to the limited extent that applicable law forbids this restriction and cannot be waived by contract.
+
+**Viewing** the repository in a web browser on the host where the Copyright Holder has chosen to publish it does not grant any of the rights listed above. Any copy created by a host platform solely so that the Copyright Holder can store and display the repository is for the Copyright Holder and that host under their hosting terms. It is **not** a license to you.
+
+“Public” means only that the Copyright Holder has allowed the repository to be **visible**. It does not mean “free to use,” “open source,” “MIT,” “Apache,” “GPL,” or any other public license. If a public license is not expressly stated in this file, it does not apply.
+
+---
+
+## 3. Limited authorization
+
+The restrictions in Section 2 do **not** apply to:
+
+1. the Copyright Holder itself, and its directors, employees, and officers acting within the scope of their duties;
+2. contractors, vendors, and hosting providers (including a git host) who act only under a separate written agreement or the host’s terms **with the Copyright Holder**, and only to host, back up, or display the repository for the Copyright Holder;
+3. any person who has a separate written license, assignment, or work-for-hire agreement from the Copyright Holder that expressly permits the specific act.
+
+Any such authorization is non-exclusive, non-transferable, and limited to its written terms. It ends when that agreement ends. It does not allow sublicensing unless the written agreement says so.
+
+If you are an engineer receiving the product under a company handover, you may work on the Materials **only** to the extent your employer or the Copyright Holder has authorized you in writing (employment contract, assignment, or written instruction). That authorization does not let you keep a personal copy, publish a fork, or reuse the Materials after your authorization ends.
+
+---
+
+## 4. Trademarks
+
+“Gud Game,” the Gud Game logo, and related marks are trademarks or trade names of the Copyright Holder. This proprietary notice does not grant any trademark license. You may not use those marks to suggest sponsorship, affiliation, or endorsement.
+
+---
+
+## 5. Contributions
+
+If you submit a suggestion, patch, or other material without a prior written agreement, you assign to the Copyright Holder all right, title, and interest in that submission to the extent the law allows, and you grant the Copyright Holder a perpetual, irrevocable, worldwide, royalty-free right to use it. The Copyright Holder is not obliged to accept any submission. A pull request, issue, or comment does not grant you a license to the Materials.
+
+---
+
+## 6. No warranty
+
+THE MATERIALS ARE PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTY OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.
+
+The Copyright Holder does not warrant that the Materials will be uninterrupted, error-free, or suitable for your purposes. Nothing in this section limits liability that applicable law does not allow to be limited, including liability for fraud or for death or personal injury caused by negligence where such a limit is prohibited.
+
+---
+
+## 7. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER AND ITS DIRECTORS, EMPLOYEES, AND AGENTS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, GOODWILL, OR BUSINESS, ARISING OUT OF OR RELATED TO THE MATERIALS OR THIS LICENSE, WHETHER IN CONTRACT, TORT, OR OTHERWISE, EVEN IF ADVISED OF THE POSSIBILITY OF THOSE DAMAGES.
+
+---
+
+## 8. Termination and remedies
+
+Any use outside Section 3 is unauthorized and infringes the Copyright Holder’s rights. The Copyright Holder may seek injunctive relief, damages, and any other remedy available under **Undang-Undang Nomor 28 Tahun 2014 tentang Hak Cipta** and other applicable law, including takedown of unauthorized copies, forks, and mirrors.
+
+Unauthorized copies must be destroyed promptly on request.
+
+---
+
+## 9. Governing law
+
+This license is governed by the laws of the **Republic of Indonesia**, without regard to conflict-of-law rules. The courts of **Kota Depok, Jawa Barat, Indonesia** have exclusive jurisdiction, except that the Copyright Holder may also seek interim or injunctive relief in any court of competent jurisdiction.
+
+---
+
+## 10. Contact for permission
+
+Requests to license, audit, or otherwise use the Materials must be sent in writing to:
+
+**PT Aplikasi Wong Kito Galo**  
+Jl. Limo Raya No. 7, Limo, Kota Depok, Jawa Barat 16515, Indonesia  
+Email: help@gudgame.id
+
+Silence is not consent. Permission is valid only when granted in a writing signed by an authorized representative of the Copyright Holder.
+
+---
+
+## 11. Bahasa Indonesia (terjemahan)
+
+Teks bahasa Indonesia ini hanya untuk kemudahan. Jika berbeda dengan teks bahasa Inggris, **teks bahasa Inggris yang berlaku**.
+
+Hak cipta atas perangkat lunak **Gud Game** dan seluruh materi dalam repositori ini dimiliki oleh **PT Aplikasi Wong Kito Galo**. Semua hak dilindungi undang-undang (**UU No. 28 Tahun 2014 tentang Hak Cipta**).
+
+Repositori yang dapat dilihat publik **bukan** perangkat lunak sumber terbuka dan **bukan** pengalihan hak milik. Tanpa izin tertulis dari pemegang hak cipta, siapa pun **dilarang** menyalin, mengunduh, meng-clone, mem-fork, mencerminkan, mengubah, mendistribusikan, menjual, menyewakan, atau membuat karya turunan dari materi ini, termasuk untuk kepentingan pribadi, pendidikan, atau komersial.
+
+Melihat halaman repositori di peramban tidak memberikan hak apa pun. Izin hanya berlaku bagi pemegang hak cipta, pihak yang terikat perjanjian tertulis dengannya, dan orang yang secara tertulis diberi wewenang (termasuk karyawan atau kontraktor selama masa penugasan).
+
+Merek **Gud Game** tidak dilisensikan oleh pemberitahuan ini. Materi disediakan “sebagaimana adanya” tanpa jaminan. Hukum yang berlaku adalah hukum Republik Indonesia. Sengketa menjadi kewenangan pengadilan Kota Depok, Jawa Barat, tanpa membatasi hak pemegang hak cipta untuk memohon upaya hukum sementara di pengadilan lain yang berwenang.
+
+Permohonan izin: help@gudgame.id.
+
+---
+
+*End of license.*

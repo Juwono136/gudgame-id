@@ -82,3 +82,9 @@ Details: [docs/SETUP.md](./docs/SETUP.md)
 | [docs/bestie-cup-guide.md](./docs/bestie-cup-guide.md) | Bestie Cup playbook |
 
 **Naming:** product is **Gud Game**; production DB is **`gudgame_db`**. The repo folder may still be named `court-pedia` locally — that is legacy path naming only.
+
+## License
+
+Copyright © 2026 **PT Aplikasi Wong Kito Galo**. All rights reserved.
+
+Gud Game is **proprietary software**. A public repository does not grant any right to copy, download, clone, fork, modify, or redistribute it. See [LICENSE](./LICENSE) and [docs/LICENSE.md](./docs/LICENSE.md).
