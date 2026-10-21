@@ -167,6 +167,11 @@ Gud Game is **proprietary software**. A public repository does not grant any rig
 
 <img width="1920" height="3437" alt="image" src="https://github.com/user-attachments/assets/87da8a14-6dd4-4133-8ab7-cfb58796d6d1" />
 
+<img width="1920" height="1257" alt="image" src="https://github.com/user-attachments/assets/1829ecfc-93d8-4fc4-b0be-2ffad63ec5c9" />
+
+<img width="1915" height="865" alt="image" src="https://github.com/user-attachments/assets/21a94723-2e7f-4739-a492-85f32a88c9b4" />
+
+
 ### Manage Tournament Page (Host or admin only)
 <img width="1920" height="1448" alt="image" src="https://github.com/user-attachments/assets/08ce77ef-27f4-4ac8-bed9-5d788642f84f" />
 
@@ -184,13 +189,13 @@ Gud Game is **proprietary software**. A public repository does not grant any rig
 
 <img width="1920" height="3206" alt="image" src="https://github.com/user-attachments/assets/591bb363-2f30-46f0-8a64-60a13537a7fa" />
 
+### Partner Home Page
+<img width="1920" height="2468" alt="image" src="https://github.com/user-attachments/assets/92353906-5a9e-4b24-975b-bc2ffed2624e" />
 
+<img width="1920" height="1620" alt="image" src="https://github.com/user-attachments/assets/e6afbeef-61f2-4fcc-9fcc-e0f2c2cc9b6a" />
 
+<img width="1920" height="1294" alt="image" src="https://github.com/user-attachments/assets/88e536b5-e58f-49ae-9ecc-22726f460534" />
 
+<img width="1920" height="1067" alt="image" src="https://github.com/user-attachments/assets/0d51e162-9b11-4778-b207-9d1f4e213599" />
 
-
-
-
-
-
-
+<img width="1920" height="2801" alt="image" src="https://github.com/user-attachments/assets/01a056a6-c833-4fc2-9761-34e1b3e209cc" />
