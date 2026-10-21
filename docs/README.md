@@ -19,7 +19,7 @@ This folder is the **single source of truth** for product understanding, enginee
 | Audience | Read first |
 | --- | --- |
 | **End users (players / hosts / partners)** | **[USER-MANUAL.md](./USER-MANUAL.md)** |
-| **Developers / Attentive IT handover** | **[DEVELOPER-HANDOVER.md](./DEVELOPER-HANDOVER.md)** |
+| **Developers / Gud Game handover** | **[DEVELOPER-HANDOVER.md](./DEVELOPER-HANDOVER.md)** |
 | **Portfolio / product overview** | [overview.md](./overview.md) → [portfolio.md](./portfolio.md) → [features.md](./features.md) |
 | **Engineers (deep dives)** | [architecture.md](./architecture.md) → [SETUP.md](./SETUP.md) → [data-model.md](./data-model.md) |
 | **Operators / deploy** | [cicd-and-ops.md](./cicd-and-ops.md) → [DEPLOYMENT-VPS.md](./DEPLOYMENT-VPS.md) |
@@ -36,7 +36,7 @@ This folder is the **single source of truth** for product understanding, enginee
 | --- | --- |
 | **[LICENSE.md](./LICENSE.md)** | **Proprietary license pointer (all rights reserved)** |
 | **[USER-MANUAL.md](./USER-MANUAL.md)** | **Complete end-user manual (English)** |
-| **[DEVELOPER-HANDOVER.md](./DEVELOPER-HANDOVER.md)** | **Developer handover manual for Attentive IT (English)** |
+| **[DEVELOPER-HANDOVER.md](./DEVELOPER-HANDOVER.md)** | **Developer handover manual for Gud Game (English)** |
 | [overview.md](./overview.md) | Vision, naming, who the product serves |
 | [features.md](./features.md) | Feature catalog by domain |
 | [portfolio.md](./portfolio.md) | Portfolio-oriented summary (stack, highlights, demo paths) |

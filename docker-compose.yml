@@ -313,7 +313,6 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
-      DEPLOY_QA_FIXTURE_PURGE: ${DEPLOY_QA_FIXTURE_PURGE:-}
     networks:
       - tunnel
     command: ["npm", "run", "db:migrate:prod"]

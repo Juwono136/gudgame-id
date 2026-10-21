@@ -113,7 +113,7 @@ On push to `master` (self-hosted runner):
 2. Generate `ops/storage/.htpasswd` from secrets  
 3. `docker compose up -d` infra (`postgres`, `redis`, `seaweedfs`, `storage_gateway`, `pgadmin`)  
 4. Wait for Postgres + Redis healthy  
-5. Migrate → seed → bootstrap admin → purge QA fixtures  
+5. Migrate → seed sports defaults → bootstrap admin (no dummy tournaments)  
 6. Recreate **only** `app` + `payout-cron` (`--no-deps`)  
 7. Smoke-test `/api/health` and container status  
 

@@ -46,10 +46,11 @@ export const FORMAT_FIXTURE_TEAM_COUNT = 16;
 export const PLAYERS_PER_TEAM = 2;
 
 /**
- * Production/CI: purge dummy QA fixtures only. Never recreates tournaments or players.
+ * @deprecated Deploy no longer purges dummy fixtures. Always false so a leftover
+ * env var cannot widen a local purge into a production delete.
  */
 export function isDeployQaFixturePurgeMode(): boolean {
-  return process.env.DEPLOY_QA_FIXTURE_PURGE === "true";
+  return false;
 }
 
 /** Local/docker: create-if-missing only. Blocked in production and GitHub Actions. */
@@ -60,40 +61,24 @@ export function isDeployFixtureSeedMode(): boolean {
   return process.env.ALLOW_DEPLOY_FIXTURE_SEED === "true";
 }
 
-function isRestrictedSeedAllowed(options?: {
-  allowDeployEnsure?: boolean;
-  allowDeployPurge?: boolean;
-}): boolean {
-  // Docker migrate jobs usually do not inherit GITHUB_ACTIONS; honor the purge
-  // flag whenever this script is explicitly allowed to clean dummy fixtures.
-  if (options?.allowDeployPurge && isDeployQaFixturePurgeMode()) return true;
-  if (process.env.GITHUB_ACTIONS === "true") return false;
-  if (process.env.FORCE_DEV_SEED === "true") return true;
-  if (options?.allowDeployEnsure && isDeployFixtureSeedMode()) return true;
-  return false;
-}
-
 /**
- * Guard for seed/purge scripts.
- * - Local: allowed when NODE_ENV is not production (or FORCE_DEV_SEED=true).
- * - Production/CI seed: refused. Dummy fixtures must not be created for real users.
- * - Production/CI purge: DEPLOY_QA_FIXTURE_PURGE=true (known seed slugs + *@gudgame.local only).
+ * Guard for dummy tournament seed and purge scripts.
+ * Local development only. Refused in GitHub Actions and when NODE_ENV=production,
+ * including the migrate container used by CI. No env flag can bypass this.
  */
 export function assertDevOnlySeed(
   scriptLabel: string,
-  options?: { allowDeployEnsure?: boolean; allowDeployPurge?: boolean },
+  _options?: { allowDeployEnsure?: boolean; allowDeployPurge?: boolean },
 ): void {
-  const allowed = isRestrictedSeedAllowed(options);
-
-  if (process.env.GITHUB_ACTIONS === "true" && !allowed) {
+  if (process.env.GITHUB_ACTIONS === "true") {
     throw new Error(
-      `Refusing to run ${scriptLabel} in CI. Dummy tournament seeds are not allowed in deploy. Use DEPLOY_QA_FIXTURE_PURGE=true for purge-only.`,
+      `Refusing to run ${scriptLabel} in CI. Dummy tournament seeds and purges are local-development only and are not part of deploy.`,
     );
   }
 
-  if (process.env.NODE_ENV === "production" && !allowed) {
+  if (process.env.NODE_ENV === "production") {
     throw new Error(
-      `Refusing to run ${scriptLabel} in production. Dummy tournament seeds are not allowed. Use DEPLOY_QA_FIXTURE_PURGE=true (purge-only) or FORCE_DEV_SEED=true (local override).`,
+      `Refusing to run ${scriptLabel} when NODE_ENV=production. Dummy tournament seeds and purges are local-development only and must not touch production data.`,
     );
   }
 }

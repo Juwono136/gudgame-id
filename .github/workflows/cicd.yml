@@ -206,24 +206,9 @@ jobs:
           POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
           POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
 
-      # Never recreate dummy tournaments or test players on production.
-      - name: Purge Official FREE QA fixtures
-        run: |
-          set -euo pipefail
-          echo "Purging dummy Official FREE QA fixtures and seed-domain players"
-          docker compose --profile migrate run --rm \
-            -e DEPLOY_QA_FIXTURE_PURGE=true \
-            -e DB_SCRIPT_MODE=true \
-            -e DATABASE_URL \
-            db-migrate npm run db:seed:fixtures:purge -- --players
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DB_SCRIPT_MODE: "true"
-          NODE_ENV: ${{ secrets.NODE_ENV }}
-          DEPLOY_QA_FIXTURE_PURGE: "true"
-          POSTGRESQL_USERNAME: ${{ secrets.POSTGRESQL_USERNAME }}
-          POSTGRESQL_PASSWORD: ${{ secrets.POSTGRESQL_PASSWORD }}
-          POSTGRESQL_DATABASE: ${{ env.POSTGRESQL_DATABASE }}
+      # Dummy tournament seeds (db:seed:fixtures, double-stage, Bestie Cup) and their
+      # purge scripts are local-development only. Do not add them here — they must
+      # not create or delete tournament rows on production.
 
       # Recreate app + payout scheduler only — infra stays up (--no-deps).
       - name: Deploy Gud Game app

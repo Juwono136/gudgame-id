@@ -5,10 +5,8 @@
  *   npm run db:seed:fixtures:purge
  *   npm run db:seed:fixtures:purge -- --players
  *
- * Production deploy (CI): DEPLOY_QA_FIXTURE_PURGE=true
- *   - Deletes only known dummy slugs (`qa-free-*` and legacy seed slugs)
- *   - Always deletes `*@gudgame.local` accounts
- *   - Never recreates fixtures
+ * Local development only. Refused when NODE_ENV=production or in GitHub Actions.
+ * Deploy does not run this script.
  */
 process.env.DB_SCRIPT_MODE = "true";
 

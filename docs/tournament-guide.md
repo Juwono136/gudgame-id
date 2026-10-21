@@ -918,9 +918,9 @@ npm run db:seed:fixtures -- --name you@email.com
 | --- | --- |
 | `… -- --name you@email.com --go-live` | Recreate dengan status **live** (untuk tes scoring). Ditolak di production/CI. |
 | `… -- --name you@email.com --ensure` | Create-if-missing saja (tidak mereset event yang sudah ada). |
-| `npm run db:seed:fixtures:purge -- --players` | Hapus QA + legacy seed + semua `*@gudgame.local` tanpa recreate |
+| `npm run db:seed:fixtures:purge -- --players` | Hapus QA + legacy seed + semua `*@gudgame.local` tanpa recreate (lokal saja) |
 
-**Production:** setiap deploy CI/CD menjalankan `db:seed:fixtures:purge` dengan `DEPLOY_QA_FIXTURE_PURGE=true`. Script seed **tidak** dijalankan. Akun host/admin dan turnamen buatan user tidak dihapus.
+**Production / CI:** `db:seed:fixtures`, `db:seed:double-stage`, `db:seed:partner-bestie-cup`, dan semua skrip purge-nya **tidak** dijalankan saat deploy. Script menolak `NODE_ENV=production` dan `GITHUB_ACTIONS`. Data turnamen production tidak di-seed dan tidak di-purge oleh pipeline. `npm run db:seed` di CI hanya mengisi sport default (padel) jika belum ada.
 
 ### A.2 Double Stage per-tier (terpisah)
 

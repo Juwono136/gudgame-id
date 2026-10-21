@@ -68,7 +68,7 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 async function main(): Promise<void> {
-  assertDevOnlySeed("purge-partner-bestie-cup", { allowDeployPurge: true });
+  assertDevOnlySeed("purge-partner-bestie-cup");
   const opts = parseArgs(process.argv.slice(2));
 
   console.log(

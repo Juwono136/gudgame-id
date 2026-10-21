@@ -69,7 +69,7 @@ Details: [docs/SETUP.md](./docs/SETUP.md)
 | --- | --- |
 | [docs/README.md](./docs/README.md) | **Documentation hub** |
 | [docs/USER-MANUAL.md](./docs/USER-MANUAL.md) | **User manual (end-user, English)** |
-| [docs/DEVELOPER-HANDOVER.md](./docs/DEVELOPER-HANDOVER.md) | **Developer handover (Attentive IT, English)** |
+| [docs/DEVELOPER-HANDOVER.md](./docs/DEVELOPER-HANDOVER.md) | **Developer handover (Gud Game, English)** |
 | [docs/overview.md](./docs/overview.md) | Product overview |
 | [docs/portfolio.md](./docs/portfolio.md) | Portfolio narrative |
 | [docs/architecture.md](./docs/architecture.md) | System architecture |

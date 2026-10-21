@@ -4,7 +4,7 @@
 | --- | --- |
 | **Document** | Technical handover & developer manual |
 | **Product** | **Gud Game** (`gud-game` npm package) |
-| **Receiving team** | Attentive IT / engineering |
+| **Receiving team** | Gud Game engineering |
 | **Audience** | Developers taking ownership of development **and** deployment |
 | **Language** | English |
 | **Version** | 2026-10-16 |
@@ -261,7 +261,7 @@ Open `http://localhost:3000` (or the port printed by the dev script).
 | `db:seed:double-stage` / `:purge` | Double-stage sample |
 | `db:seed:partner-bestie-cup` / `:purge` | Partner event dry-run |
 
-Never run purge scripts against production.
+These fixture scripts run only when `NODE_ENV` is not `production` and the process is not GitHub Actions (`assertDevOnlySeed`). CI deploy does not call them and does not purge tournament rows. The deploy seed step (`npm run db:seed`) only inserts missing default sports.
 
 ---
 
@@ -619,7 +619,7 @@ checkout
 
 ## 14.4 Cloudflare Tunnel
 
-Public HTTPS terminates at Cloudflare. `cloudflared` joins Docker network `tunnel` and routes to `app` / `storage_gateway`. Compose does not replace Tunnel configuration — keep Zero Trust config under Attentive ops ownership.
+Public HTTPS terminates at Cloudflare. `cloudflared` joins Docker network `tunnel` and routes to `app` / `storage_gateway`. Compose does not replace Tunnel configuration — keep Zero Trust config under Gud Game operations ownership.
 
 ---
 
@@ -701,7 +701,7 @@ Public HTTPS terminates at Cloudflare. `cloudflared` joins Docker network `tunne
 
 # 18. Reading order & doc index
 
-### Recommended onboarding path (Attentive engineer)
+### Recommended onboarding path (Gud Game engineer)
 
 1. **[DEVELOPER-HANDOVER.md](./DEVELOPER-HANDOVER.md)** ← you are here  
 2. [architecture.md](./architecture.md)  
@@ -726,7 +726,7 @@ See [docs/README.md](./README.md).
 
 ## Support contacts (fill during handover)
 
-| Area | Owner at Attentive | Notes |
+| Area | Owner at Gud Game | Notes |
 | --- | --- | --- |
 | Application code | _TBD_ | |
 | VPS / Docker / Tunnel | _TBD_ | |
@@ -737,4 +737,4 @@ See [docs/README.md](./README.md).
 
 ---
 
-*© Gud Game — Developer Handover Manual for Attentive IT. Living document: update when architecture, deploy, or domain rules change.*
+*© Gud Game — Developer Handover Manual. Living document: update when architecture, deploy, or domain rules change.*
